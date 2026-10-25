@@ -135,6 +135,13 @@
     .master-balance-quick .balance-amount {font-size:17px;font-weight:800;white-space:nowrap;font-variant-numeric:tabular-nums}
     .master-balance-quick .balance-arrow {margin-left:auto;font-size:20px;line-height:1;color:#4376cc}
     @media(max-width:390px) {.master-balance-quick{gap:5px;padding:7px 8px}.master-balance-quick .balance-amount{font-size:16px}}
+    /* Распределение выручки мастером */
+    .cash-share {margin-top:14px;padding:13px;border:1px solid #d9e5f4;background:#f8fbff;border-radius:12px}
+    .cash-share-line {display:flex;justify-content:space-between;gap:10px;padding:5px 0;font-size:13px}
+    .cash-share-line strong {white-space:nowrap}
+    .cash-share-status {margin-top:8px;font-size:13px;line-height:1.5;font-weight:650;color:#1b5bbb}
+    .cash-share .primary,.cash-share .secondary {width:100%;margin-top:10px;min-height:46px}
+    .cash-share-hint {font-size:12px;color:#61738c;line-height:1.5;margin:8px 0 0}
     /* Финансовый экран */
     .master-finance-back {display:flex;align-items:center;justify-content:center;gap:8px;min-height:46px;width:100%;margin:12px 0 18px;font-size:15px}
 
@@ -346,6 +353,7 @@
     let refreshPromise = null;
     let financeActive = false;
     let financeOperations = [];
+    let financeCollections = [];
     let financeMasterId = null;
     let financeLoadError = "";
     const expandedMasterOrders = new Set();
@@ -395,7 +403,7 @@
     }
     function clearSession() {
       session = null; currentUser = null; currentRole=null; currentMasterName=""; cloudOrders = [];
-      financeOperations=[];financeMasterId=null;financeActive=false;financeLoadError="";
+      financeOperations=[];financeCollections=[];financeMasterId=null;financeActive=false;financeLoadError="";
       document.getElementById("masterBalanceQuick").hidden=true;
       document.getElementById("masterBalanceAmount").textContent="—";
       localStorage.removeItem(AUTH_KEY);
@@ -509,6 +517,74 @@
       list.replaceChildren();
       names.forEach(name => {const opt = document.createElement("option");opt.value = name;list.append(opt);});
     }
+    function collectionForOrder(orderId) {
+      return financeCollections.find(c=>String(c.order_id)===String(orderId))||null;
+    }
+    function appendCashDistribution(card,order) {
+      if(currentRole!=="master" || String(currentMasterName||"").trim().toLowerCase()!=="рауль")return;
+      if(order.status!=="Выполнен")return;
+      const wrap=make("div","cash-share");
+      const collection=collectionForOrder(order.id);
+      if(!collection) {
+        if(order.paid) {
+          wrap.append(make("div","cash-share-status","Оплата уже отмечена администратором. Выплаты оформляются через кассу."));
+          card.append(wrap);return;
+        }
+        if(!Number.isFinite(order.price)||order.price<=3000) {
+          wrap.append(make("p","cash-share-hint","Для распределения суммы свяжитесь с администратором."));
+          card.append(wrap);return;
+        }
+        const raul=roundMoney(order.price*0.5-1500);
+        const timur=1500;
+        const company=roundMoney(order.price*0.5);
+        wrap.append(make("div","cash-share-status","Если клиент рассчитался наличными:"));
+        const lines=[["Заказ оплачен",money(order.price)],["Рауль забрал",money(raul)],["Тимуру передано",money(timur)],["Компании нужно передать",money(company)]];
+        for(const [label,amount] of lines){
+          const line=make("div","cash-share-line");
+          line.append(make("span","",label),make("strong","",amount));
+          wrap.append(line);
+        }
+        const btn=make("button","primary","Распределить оплату");
+        btn.type="button";
+        btn.addEventListener("click",async()=>{
+          const message="ПОДТВЕРДИ ФАКТИЧЕСКИЕ ДЕЙСТВИЯ:\n\n"+
+            "Клиент "+(order.name||"")+" оплатил наличными "+money(order.price)+".\n"+
+            "Ты оставил себе "+money(raul)+".\n"+
+            "Тимуру передал "+money(timur)+".\n"+
+            "Деньги компании "+money(company)+" находятся у тебя до сдачи.\n\n"+
+            "Всё так? Эти суммы будут записаны как уже выплаченные.";
+          if(!confirm(message))return;
+          btn.disabled=true;
+          try{
+            await dbRequest("rpc/rabota_cash_distribute","POST",{p_order_id:order.id});
+            await reloadOrders();
+          }catch(error){alert(friendlyError(error));btn.disabled=false;}
+        });
+        wrap.append(btn,make("p","cash-share-hint","Нажимай только после получения денег и фактической выплаты Тимуру. Система не переводит деньги автоматически."));
+      }else{
+        const line=make("div","cash-share-line");
+        line.append(make("span","","Доля компании"),make("strong","",money(collection.company_amount)));
+        wrap.append(line);
+        if(collection.confirmed_at) {
+          wrap.append(make("div","cash-share-status","✓ Деньги приняты владельцем в кассу"));
+        }else if(collection.submitted_at) {
+          wrap.append(make("div","cash-share-status","Передача отмечена. Ожидается подтверждение владельца."));
+        }else{
+          wrap.append(make("div","cash-share-status","Осталось передать компании: "+money(collection.company_amount)));
+          const btn=make("button","secondary","Я передал деньги компании");
+          btn.type="button";
+          btn.addEventListener("click",async()=>{
+            if(!confirm("Ты действительно передал владельцу "+money(collection.company_amount)+" за заказ "+(order.name||"")+"? Владелец должен подтвердить получение."))return;
+            btn.disabled=true;
+            try{await dbRequest("rpc/rabota_cash_submit","POST",{p_order_id:order.id});await reloadOrders();}
+            catch(error){alert(friendlyError(error));btn.disabled=false;}
+          });
+          wrap.append(btn);
+        }
+      }
+      card.append(wrap);
+    }
+
     function makeCard(order) {
       const card = make("article","order-card");
       const top = make("div","card-top");
@@ -580,6 +656,7 @@
           });
           card.append(btn);
         }
+        appendCashDistribution(card,order);
         return card;
       }
       const bottom = make("div","card-controls");
@@ -875,8 +952,16 @@
         financeOperations.push(...page);
         if(page.length<1000)break;
       }
+      financeCollections=[];
+      for(let offset=0;offset<100000;offset+=1000){
+        const page=await dbRequest("rabota_cash_collections?select=*&order=created_at.desc&limit=1000&offset="+offset,"GET");
+        if(!Array.isArray(page))throw Error("Не удалось загрузить распределения");
+        financeCollections.push(...page);
+        if(page.length<1000)break;
+      }
       financeLoadError="";
       updateMasterBalance();
+      render();
       if(financeActive)renderFinance();
     }
     function updateMasterBalance() {
@@ -936,6 +1021,9 @@
       const companyEarned=roundMoney(sumBy(eligible,o=>o.price*0.5));
       const eligibleGross=sumBy(eligible,o=>o.price);
       const bookedPending=relevantOrders.filter(o=>!o.paid || o.status!=="Выполнен");
+      const unconfirmedCash=financeCollections.filter(c=>!c.confirmed_at);
+      const masterHeld=sumBy(unconfirmedCash.filter(c=>!c.submitted_at && c.master_user_id===financeMasterId),c=>c.company_amount);
+      const waitingOwner=sumBy(unconfirmedCash.filter(c=>c.submitted_at && c.master_user_id===financeMasterId),c=>c.company_amount);
       if(!financeMasterId) {
         root.append(make("p","finance-tip","Рауль пока не подключён. Начисления станут доступны после назначения мастера."));
         document.getElementById("financeEntry").hidden=true;
@@ -954,29 +1042,59 @@
       statement.append(financeLine("Тимуру начислено",money(timurAccrued)));
       statement.append(financeLine("Тимуру выдано",money(timurPaid)));
       root.append(statement);
+      const custody=make("div","finance-hero");
+      custody.append(financeLine("Компании ещё нужно передать",money(masterHeld)));
+      custody.append(financeLine("Передано, ожидает подтверждения",money(waitingOwner)));
+      root.append(custody);
       if(bookedPending.length)root.append(make("p","finance-tip","Ожидают выполнения и/или оплаты: "+bookedPending.length+" заказ(ов). Они не входят в начисления."));
 
       if(isOwner){
         const receivedOrders=getOrders().filter(o=>o.paid && o.status!=="Отменён");
-        const cashIn=sumBy(receivedOrders,o=>o.price);
-        const allPayouts=sumBy(payments.filter(o=>o.kind==="raul_payout"||o.kind==="timur_payout"),o=>o.amount);
+        const cashCollections=new Set(financeCollections.map(c=>String(c.order_id)));
+        const directReceipts=sumBy(receivedOrders.filter(o=>!cashCollections.has(String(o.id))),o=>o.price);
+        const confirmedDeposits=sumBy(financeCollections.filter(c=>c.confirmed_at),c=>c.company_amount);
+        const cashIn=roundMoney(directReceipts+confirmedDeposits);
+        const allPayouts=sumBy(payments.filter(o=>(o.kind==="raul_payout"||o.kind==="timur_payout")&&!o.order_id),o=>o.amount);
         const expenses=sumBy(payments.filter(o=>o.kind==="expense"),o=>o.amount);
         const notCompletedPaid=sumBy(receivedOrders.filter(o=>o.status!=="Выполнен"),o=>o.price);
         const cashBalance=roundMoney(cashIn-allPayouts-expenses);
         const freeBalance=roundMoney(cashBalance-raulDue-timurDue-notCompletedPaid);
         root.append(make("h2","finance-title","Касса компании"));
+        const awaiting=financeCollections.filter(c=>c.submitted_at&&!c.confirmed_at);
+        if(awaiting.length){
+          root.append(make("h2","finance-title","Подтвердить поступление от Рауля"));
+          for(const collection of awaiting){
+            const order=getOrders().find(o=>String(o.id)===String(collection.order_id));
+            const item=make("div","finance-activity");
+            const title=make("div","finance-activity-top");
+            title.append(make("span","",order?.name||"Заказ"),make("strong","",money(collection.company_amount)));
+            item.append(title);
+            item.append(make("div","finance-activity-sub","Рауль отметил передачу денег компании. Подтверди только после фактического получения."));
+            const btn=make("button","primary","Подтвердить получение в кассу");
+            btn.type="button";
+            btn.addEventListener("click",async()=>{
+              if(!confirm("Ты действительно получил "+money(collection.company_amount)+" от Рауля?"))return;
+              btn.disabled=true;
+              try{await dbRequest("rpc/rabota_cash_confirm","POST",{p_order_id:collection.order_id});await reloadOrders();}
+              catch(error){alert(friendlyError(error));btn.disabled=false;}
+            });
+            item.append(btn);root.append(item);
+          }
+        }
         root.append(financeMetric("Деньги в кассе по учёту",cashBalance,"Оплаченные заказы − проведённые выплаты − расходы",true));
         const cash=make("div","finance-hero");
-        cash.append(financeLine("Получено от клиентов",money(cashIn)));
+        cash.append(financeLine("Поступило напрямую в кассу",money(directReceipts)));
+        cash.append(financeLine("Подтверждено от мастера",money(confirmedDeposits)));
+        cash.append(financeLine("Деньги компании ещё у мастера / в пути",money(sumBy(unconfirmedCash,c=>c.company_amount))));
         cash.append(financeLine("Выдано Раулю и Тимуру",money(allPayouts)));
         cash.append(financeLine("Другие расходы",money(expenses)));
         cash.append(financeLine("Долги Раулю и Тимуру",money(raulDue+timurDue)));
         cash.append(financeLine("Авансы за незавершённые заказы",money(notCompletedPaid)));
         cash.append(financeLine("Свободный остаток по учёту",money(freeBalance)));
         root.append(cash);
-        root.append(make("p","finance-tip","Касса рассчитывается с нулевого начального остатка. Предполагается, что оплата помеченных заказов поступила в кассу компании. Наличные у мастера, расходы и изъятия владельца нужно отдельно отражать операциями, иначе фактическая касса будет отличаться."));
+        root.append(make("p","finance-tip","Касса рассчитывается с нулевого начального остатка. По заказам, распределённым Раулем, в кассу попадает только подтверждённая владельцем доля компании. Остальные оплаченные заказы считаются поступившими напрямую в кассу. Учитывай отдельно другие наличные, расходы и изъятия."));
       }else{
-        root.append(make("p","finance-tip","Начисления появляются только после выполнения и подтверждения оплаты заказа администратором. Выплаты из баланса отмечает администратор."));
+        root.append(make("p","finance-tip","После выполнения заказа можешь распределить фактически полученную наличную оплату: твоя доля и выплата Тимуру фиксируются сразу, а доля компании остаётся к сдаче до подтверждения владельцем. Администратор также может вести выплаты вручную."));
       }
 
       root.append(make("h2","finance-title","Расчёт по заказам"));
@@ -999,7 +1117,7 @@
         item.append(top);
         const date=new Date(row.created_at).toLocaleString("ru-RU",{day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"});
         item.append(make("div","finance-activity-sub",date+(row.note?" · "+row.note:"")+(row.voided_at?" · ОТМЕНЕНО":"")));
-        if(isOwner&&!row.voided_at){
+        if(isOwner&&!row.voided_at&&!row.order_id){
           const button=make("button","secondary","Отменить операцию");
           button.type="button";
           button.addEventListener("click",async()=>{
