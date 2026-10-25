@@ -103,8 +103,8 @@
       <h1>Работа</h1>
       <h2>Вход для сотрудников</h2>
       <form id="loginForm">
-        <label for="loginEmail">Электронная почта</label>
-        <input type="email" id="loginEmail" required autocomplete="email">
+        <label for="loginEmail">Логин или электронная почта</label>
+        <input type="text" id="loginEmail" required autocomplete="username" autocapitalize="none" spellcheck="false" maxlength="120">
         <label for="loginPassword">Пароль</label>
         <input type="password" id="loginPassword" required minlength="6" autocomplete="current-password">
         <button class="primary save" type="submit" id="loginSubmit">Войти</button>
@@ -728,7 +728,9 @@
       event.preventDefault();loginMessage.textContent="";
       const btn=document.getElementById("loginSubmit");btn.disabled=true;
       try {
-        const email=document.getElementById("loginEmail").value.trim();
+        const inputLogin=document.getElementById("loginEmail").value.trim().toLowerCase();
+        const email=inputLogin.includes("@")?inputLogin:inputLogin+"@staff.rabota.invalid";
+        if (!inputLogin.includes("@") && !/^[a-z][a-z0-9_]{2,23}$/.test(inputLogin)) throw new Error("Логин должен содержать 3–24 символа: латиница, цифры, _.");
         const password=document.getElementById("loginPassword").value;
         const data=await authRequest("token?grant_type=password","POST",{email,password},false);
         setSession(data);
@@ -740,7 +742,7 @@
       loginMessage.textContent="";
       const email=document.getElementById("loginEmail").value.trim();
       const password=document.getElementById("loginPassword").value;
-      if(!email||password.length<6){loginMessage.textContent="Введите почту и пароль не короче 6 символов.";return;}
+      if(!email||!email.includes("@")||password.length<6){loginMessage.textContent="Регистрация по логину доступна только администратору. Для самостоятельной регистрации нужна почта.";return;}
       const btn=document.getElementById("signupBtn");btn.disabled=true;
       try {
         const data=await authRequest("signup","POST",{email,password},false);
