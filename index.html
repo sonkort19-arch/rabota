@@ -47,8 +47,7 @@
     <h1>Работа</h1>
     <button class="new-order" id="newOrderBtn" type="button"><span class="plus" aria-hidden="true">+</span>Новый заказ</button>
     <h2 class="section">Заказы</h2>
-    <div id="orders"><div class="empty">Пока нет заказов. Нажмите «Новый заказ», чтобы добавить первый.</div></div>
-    <p class="hint">Пока заказы хранятся только на этом устройстве, в данном браузере. Синхронизацию между телефонами добавим отдельно.</p>
+    <div id="orders"><div class="empty">Пока нет заказов</div></div>
   </main>
 
   <div class="overlay" id="orderOverlay" hidden>
@@ -59,11 +58,11 @@
       </div>
       <form id="orderForm">
         <label for="clientName">Имя клиента</label>
-        <input id="clientName" name="name" type="text" autocomplete="name" maxlength="100" required placeholder="Как зовут клиента">
+        <input id="clientName" name="name" type="text" autocomplete="name" maxlength="100" required>
         <label for="clientPhone">Телефон</label>
-        <input id="clientPhone" name="phone" type="tel" autocomplete="tel" inputmode="tel" maxlength="30" placeholder="+7 ...">
+        <input id="clientPhone" name="phone" type="tel" autocomplete="tel" inputmode="tel" maxlength="30">
         <label for="orderDetails">Описание заказа</label>
-        <textarea id="orderDetails" name="details" maxlength="1000" placeholder="Что нужно сделать"></textarea>
+        <textarea id="orderDetails" name="details" maxlength="1000"></textarea>
         <button class="save" type="submit">Сохранить заказ</button>
         <div id="formStatus" class="status" role="alert"></div>
       </form>
@@ -93,7 +92,7 @@
       if (!orders.length) {
         const empty = document.createElement("div");
         empty.className = "empty";
-        empty.textContent = "Пока нет заказов. Нажмите «Новый заказ», чтобы добавить первый.";
+        empty.textContent = "Пока нет заказов";
         ordersContainer.append(empty);
         return;
       }
