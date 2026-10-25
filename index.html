@@ -129,6 +129,32 @@
     .master-schedule-details > .order-card > .card-top,
     .master-schedule-details > .order-card > .status-badge,
     .master-schedule-details > .order-card > .master-cost {display:none}
+    /* Финансовый экран */
+    .view-switch {display:flex;gap:6px;background:#e8edf5;border-radius:14px;padding:5px;margin:10px 0 17px}
+    .view-button {flex:1;min-height:46px;border:0;border-radius:10px;background:transparent;color:#53647d;font-size:15px;font-weight:750}
+    .view-button.is-selected {background:white;color:#1f59c9;box-shadow:0 2px 9px #172e5714}
+    .finance-grid {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+    .finance-hero {background:#fff;border:1px solid #e0e7f1;border-radius:17px;padding:17px;margin:12px 0}
+    .finance-hero-primary {background:#edf4ff;border-color:#d5e3fa}
+    .finance-hero-label {font-size:13px;color:#5b6880;line-height:1.4}
+    .finance-hero-value {font-size:28px;font-weight:800;line-height:1.4;letter-spacing:-.7px;overflow-wrap:anywhere}
+    .finance-hero-primary .finance-hero-value {color:#1b5ed7}
+    .finance-hero-sub {color:#68768a;font-size:12px;line-height:1.5}
+    .finance-title {margin:21px 0 11px;font-size:19px}
+    .finance-line {display:flex;justify-content:space-between;align-items:flex-start;gap:12px;padding:11px 0;border-bottom:1px solid #edf0f5}
+    .finance-line:last-child {border-bottom:0}
+    .finance-line-label {font-size:14px;min-width:0;color:#39475d}
+    .finance-line strong {text-align:right;white-space:nowrap}
+    .finance-tip {font-size:13px;line-height:1.55;color:#62718a;margin:12px 0}
+    .finance-activity {background:#fff;border:1px solid #e5eaf3;border-radius:14px;margin-bottom:9px;padding:13px}
+    .finance-activity-top {display:flex;justify-content:space-between;gap:9px;font-weight:700}
+    .finance-activity-sub {font-size:12px;color:#69778b;margin-top:7px;line-height:1.5;overflow-wrap:anywhere}
+    .finance-activity button {font-size:12px;margin-top:8px}
+    .finance-entry {background:#fff;border:1px solid #e2e8f3;border-radius:17px;margin:16px 0;padding:16px}
+    .finance-entry label {display:block;font-size:13px;font-weight:700;margin:10px 0 6px}
+    .finance-entry input,.finance-entry select {width:100%;font-size:16px;min-height:46px;border:1px solid #d9e0ea;border-radius:10px;background:white;padding:10px}
+    .finance-entry .primary {width:100%;margin-top:14px}
+    @media(max-width:480px) {.finance-hero-value{font-size:24px}.finance-grid{gap:8px}.finance-hero{padding:13px}}
     @media(max-width:390px) {
       .master-schedule-toggle {grid-template-columns:69px minmax(0,1fr) 16px;gap:9px;padding:14px 11px}
       .master-schedule-time {font-size:20px}
@@ -167,6 +193,11 @@
   </section>
   <main id="appScreen" hidden>
     <header><div><h1 id="appTitle">Работа</h1><span class="muted" id="roleName"></span></div><button class="secondary" id="logoutBtn" type="button">Выйти</button></header>
+    <div id="viewSwitch" class="view-switch" hidden>
+      <button id="viewOrdersBtn" class="view-button is-selected" type="button">Заявки</button>
+      <button id="viewFinanceBtn" class="view-button" type="button">Финансы</button>
+    </div>
+    <div id="ordersArea">
     <button class="secondary" id="importBtn" type="button" hidden>Перенести старые заказы с телефона</button>
     <section class="panel" id="teamPanel" hidden>
       <div class="panel-top"><h2>Мастера и доступ</h2><button class="secondary" id="refreshTeam" type="button">Обновить</button></div>
@@ -194,6 +225,29 @@
     </nav>
     <div class="list-head"><h2 id="listTitle">Заказы на день</h2><span class="count" id="orderCount"></span></div>
     <div id="orders"></div>
+    </div>
+    <section id="financePanel" hidden aria-label="Финансы">
+      <div id="financeContent"></div>
+      <div id="financeEntry" class="finance-entry" hidden>
+        <h2>Записать операцию</h2>
+        <form id="financeForm">
+          <label for="financeType">Тип операции</label>
+          <select id="financeType" required>
+            <option value="raul_payout">Выдать Раулю</option>
+            <option value="timur_payout">Выдать Тимуру</option>
+            <option value="expense">Расход из кассы</option>
+          </select>
+          <label for="financeAmount">Сумма, ₽</label>
+          <input id="financeAmount" type="number" min="0.01" step="0.01" required placeholder="1500">
+          <label for="financeNote">Примечание</label>
+          <input id="financeNote" type="text" maxlength="240" placeholder="Например, выплата за смену">
+          <button class="primary" id="financeSaveBtn" type="submit">Сохранить операцию</button>
+          <div class="error" id="financeError" role="alert"></div>
+        </form>
+      </div>
+      <h2 class="finance-title">История операций</h2>
+      <div id="financeHistory"></div>
+    </section>
   </main>
 
   <div class="overlay" id="orderOverlay" hidden>
@@ -275,6 +329,10 @@
     let currentRole = null;
     let currentMasterName = "";
     let refreshPromise = null;
+    let financeActive = false;
+    let financeOperations = [];
+    let financeMasterId = null;
+    let financeLoadError = "";
     const expandedMasterOrders = new Set();
     try { session = JSON.parse(localStorage.getItem(AUTH_KEY) || "null"); }
     catch (error) { session = null; }
@@ -322,6 +380,7 @@
     }
     function clearSession() {
       session = null; currentUser = null; currentRole=null; currentMasterName=""; cloudOrders = [];
+      financeOperations=[];financeMasterId=null;financeActive=false;
       localStorage.removeItem(AUTH_KEY);
     }
     async function authRequest(path, method, payload, authenticated) {
@@ -371,7 +430,7 @@
         floorLoops:row.floor_loops == null ? "" : row.floor_loops,
         master:row.master || "",date:row.appointment_date || "",
         time:row.appointment_time ? row.appointment_time.slice(0,5) : "",
-        price:row.price == null ? null : Number(row.price),
+        price:row.price == null ? null : Number(row.price),assignedUserId:row.assigned_user_id || null,
         paid:Boolean(row.paid),status:row.status || "Новый",details:row.details || ""
       };
     }
@@ -406,6 +465,9 @@
       cloudOrders = items.map(readOrder);
       render();
       updateImportButton();
+      if(currentRole==="owner"||currentRole==="master") {
+        try {await loadFinance();} catch(error){financeLoadError=friendlyError(error);if(financeActive)renderFinance();}
+      }
     }
     function getOrders() {return cloudOrders;}
     async function persistOrder(order) {
@@ -761,6 +823,184 @@
     });
 
 
+
+    // Начисления: только выполненные и оплаченные заказы Рауля.
+    // Касса: оплаченные заказы, за вычетом реально проведённых выплат и расходов.
+    const FINANCE_TIMUR_FEE = 1500;
+    const FINANCE_RAUL_PERCENT = 0.5;
+    const money = amount => Number(amount||0).toLocaleString("ru-RU",{maximumFractionDigits:2})+" ₽";
+    const sumBy = (rows,fn) => rows.reduce((total,row)=>total+Number(fn(row)||0),0);
+    const roundMoney = value => Math.round((Number(value)+Number.EPSILON)*100)/100;
+    function financeLine(label,value) {
+      const line=make("div","finance-line");
+      line.append(make("span","finance-line-label",label),make("strong","",value));
+      return line;
+    }
+    function financeMetric(label,amount,help,primary=false) {
+      const item=make("div","finance-hero"+(primary?" finance-hero-primary":""));
+      item.append(make("div","finance-hero-label",label));
+      item.append(make("div","finance-hero-value",money(amount)));
+      if(help) item.append(make("div","finance-hero-sub",help));
+      return item;
+    }
+    async function loadFinance() {
+      if(currentRole!=="owner" && currentRole!=="master") return;
+      if(currentRole==="owner"){
+        const masters=await dbRequest("rabota_members?select=user_id,role,active,master_name&role=eq.master&limit=100","GET");
+        financeMasterId=masters.find(m=>m.active && String(m.master_name||"").trim().toLowerCase()==="рауль")?.user_id||null;
+      }else{
+        financeMasterId=String(currentMasterName||"").trim().toLowerCase()==="рауль"?currentUser?.id:null;
+      }
+      financeOperations=[];
+      for(let offset=0;offset<100000;offset+=1000){
+        const page=await dbRequest("rabota_finance_operations?select=*&order=created_at.desc&limit=1000&offset="+offset,"GET");
+        if(!Array.isArray(page))throw Error("Не удалось загрузить финансовые операции");
+        financeOperations.push(...page);
+        if(page.length<1000)break;
+      }
+      financeLoadError="";
+      if(financeActive)renderFinance();
+    }
+    function financeVisible() {
+      const show=currentRole==="owner"|| (currentRole==="master"&&String(currentMasterName||"").trim().toLowerCase()==="рауль");
+      document.getElementById("viewSwitch").hidden=!show;
+      if(!show)financeActive=false;
+      document.getElementById("ordersArea").hidden=financeActive;
+      document.getElementById("financePanel").hidden=!financeActive;
+      document.getElementById("viewOrdersBtn").classList.toggle("is-selected",!financeActive);
+      document.getElementById("viewFinanceBtn").classList.toggle("is-selected",financeActive);
+      document.getElementById("financeEntry").hidden=currentRole!=="owner"||!financeActive;
+      if(financeActive)renderFinance();
+    }
+    function renderFinance() {
+      const root=document.getElementById("financeContent");
+      const history=document.getElementById("financeHistory");
+      root.replaceChildren();history.replaceChildren();
+      if(financeLoadError) {
+        root.append(make("div","error","Ошибка загрузки финансов: "+financeLoadError));
+        return;
+      }
+      const isOwner=currentRole==="owner";
+      const relevantOrders=financeMasterId?getOrders().filter(o=>o.assignedUserId===financeMasterId):[];
+      const eligible=relevantOrders.filter(o=>o.status==="Выполнен" && o.paid && Number.isFinite(o.price) && o.price>=0);
+      const payments=financeOperations.filter(o=>!o.voided_at);
+      const teamPayments=payments.filter(o=>o.master_user_id===financeMasterId);
+      const raulAccrued=roundMoney(sumBy(eligible,o=>o.price*FINANCE_RAUL_PERCENT-FINANCE_TIMUR_FEE));
+      const timurAccrued=eligible.length*FINANCE_TIMUR_FEE;
+      const raulPaid=sumBy(teamPayments.filter(o=>o.kind==="raul_payout"),o=>o.amount);
+      const timurPaid=sumBy(teamPayments.filter(o=>o.kind==="timur_payout"),o=>o.amount);
+      const raulDue=roundMoney(raulAccrued-raulPaid);
+      const timurDue=roundMoney(timurAccrued-timurPaid);
+      const companyEarned=roundMoney(sumBy(eligible,o=>o.price*0.5));
+      const eligibleGross=sumBy(eligible,o=>o.price);
+      const bookedPending=relevantOrders.filter(o=>!o.paid || o.status!=="Выполнен");
+      if(!financeMasterId) {
+        root.append(make("p","finance-tip","Рауль пока не подключён. Начисления станут доступны после назначения мастера."));
+        document.getElementById("financeEntry").hidden=true;
+        return;
+      }
+      root.append(make("h2","finance-title",isOwner?"Финансы бригады Рауля":"Мой баланс"));
+      root.append(financeMetric("Раулю осталось выплатить",raulDue,"50% от выполненных и оплаченных заказов минус 1 500 ₽ Тимуру за каждый",true));
+      const grid=make("div","finance-grid");
+      grid.append(financeMetric("Тимуру к выплате",timurDue,"1 500 ₽ за заказ"));
+      grid.append(financeMetric("Доля компании",companyEarned,"До прочих расходов"));
+      root.append(grid);
+      const statement=make("div","finance-hero");
+      statement.append(financeLine("Выполнено и оплачено",eligible.length+" зак. · "+money(eligibleGross)));
+      statement.append(financeLine("Раулю начислено",money(raulAccrued)));
+      statement.append(financeLine("Раулю выдано",money(raulPaid)));
+      statement.append(financeLine("Тимуру начислено",money(timurAccrued)));
+      statement.append(financeLine("Тимуру выдано",money(timurPaid)));
+      root.append(statement);
+      if(bookedPending.length)root.append(make("p","finance-tip","Ожидают выполнения и/или оплаты: "+bookedPending.length+" заказ(ов). Они не входят в начисления."));
+
+      if(isOwner){
+        const receivedOrders=getOrders().filter(o=>o.paid && o.status!=="Отменён");
+        const cashIn=sumBy(receivedOrders,o=>o.price);
+        const allPayouts=sumBy(payments.filter(o=>o.kind==="raul_payout"||o.kind==="timur_payout"),o=>o.amount);
+        const expenses=sumBy(payments.filter(o=>o.kind==="expense"),o=>o.amount);
+        const notCompletedPaid=sumBy(receivedOrders.filter(o=>o.status!=="Выполнен"),o=>o.price);
+        const cashBalance=roundMoney(cashIn-allPayouts-expenses);
+        const freeBalance=roundMoney(cashBalance-raulDue-timurDue-notCompletedPaid);
+        root.append(make("h2","finance-title","Касса компании"));
+        root.append(financeMetric("Деньги в кассе по учёту",cashBalance,"Оплаченные заказы − проведённые выплаты − расходы",true));
+        const cash=make("div","finance-hero");
+        cash.append(financeLine("Получено от клиентов",money(cashIn)));
+        cash.append(financeLine("Выдано Раулю и Тимуру",money(allPayouts)));
+        cash.append(financeLine("Другие расходы",money(expenses)));
+        cash.append(financeLine("Долги Раулю и Тимуру",money(raulDue+timurDue)));
+        cash.append(financeLine("Авансы за незавершённые заказы",money(notCompletedPaid)));
+        cash.append(financeLine("Свободный остаток по учёту",money(freeBalance)));
+        root.append(cash);
+        root.append(make("p","finance-tip","Касса рассчитывается с нулевого начального остатка. Предполагается, что оплата помеченных заказов поступила в кассу компании. Наличные у мастера, расходы и изъятия владельца нужно отдельно отражать операциями, иначе фактическая касса будет отличаться."));
+      }else{
+        root.append(make("p","finance-tip","Начисления появляются только после выполнения и подтверждения оплаты заказа администратором. Выплаты из баланса отмечает администратор."));
+      }
+
+      root.append(make("h2","finance-title","Расчёт по заказам"));
+      if(!eligible.length)root.append(make("div","empty","Пока нет выполненных и оплаченных заказов."));
+      for(const order of eligible.slice().sort((a,b)=>String(b.date).localeCompare(String(a.date)))){
+        const item=make("div","finance-activity");
+        const top=make("div","finance-activity-top");
+        top.append(make("span","",order.name||"Без имени"),make("span","",money(order.price)));
+        item.append(top);
+        item.append(make("div","finance-activity-sub",(order.date?formatDate(order.date)+" · ":"")+"Раулю: "+money(roundMoney(order.price*0.5-1500))+" · Тимуру: 1 500 ₽ · Компании: "+money(order.price*0.5)));
+        root.append(item);
+      }
+      const logs=isOwner?financeOperations:financeOperations.filter(o=>o.master_user_id===financeMasterId);
+      if(!logs.length)history.append(make("div","empty","Операций пока нет."));
+      for(const row of logs.slice(0,70)){
+        const item=make("div","finance-activity");
+        const labels={raul_payout:"Выдано Раулю",timur_payout:"Выдано Тимуру",expense:"Расход кассы"};
+        const top=make("div","finance-activity-top");
+        top.append(make("span","",labels[row.kind]||row.kind),make("span","",money(row.amount)));
+        item.append(top);
+        const date=new Date(row.created_at).toLocaleString("ru-RU",{day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"});
+        item.append(make("div","finance-activity-sub",date+(row.note?" · "+row.note:"")+(row.voided_at?" · ОТМЕНЕНО":"")));
+        if(isOwner&&!row.voided_at){
+          const button=make("button","secondary","Отменить операцию");
+          button.type="button";
+          button.addEventListener("click",async()=>{
+            if(!confirm("Отменить финансовую запись "+money(row.amount)+"?"))return;
+            button.disabled=true;
+            try{
+              await dbRequest("rpc/rabota_finance_void","POST",{p_operation_id:row.id});
+              await reloadOrders();
+            }catch(error){alert(friendlyError(error));button.disabled=false;}
+          });
+          item.append(button);
+        }
+        history.append(item);
+      }
+    }
+    document.getElementById("viewOrdersBtn").addEventListener("click",()=>{
+      financeActive=false;financeVisible();
+    });
+    document.getElementById("viewFinanceBtn").addEventListener("click",async()=>{
+      financeActive=true;financeVisible();
+      try{await loadFinance();}catch(error){financeLoadError=friendlyError(error);renderFinance();}
+    });
+    document.getElementById("financeForm").addEventListener("submit",async event=>{
+      event.preventDefault();
+      if(currentRole!=="owner")return;
+      const kind=document.getElementById("financeType").value;
+      const amount=Number(document.getElementById("financeAmount").value);
+      const note=document.getElementById("financeNote").value.trim();
+      const message=document.getElementById("financeError");
+      if(!Number.isFinite(amount)||amount<=0){message.textContent="Укажите сумму больше нуля";return;}
+      if(kind!=="expense"&&!financeMasterId){message.textContent="Рауль не найден";return;}
+      const button=document.getElementById("financeSaveBtn");
+      button.disabled=true;message.textContent="";
+      try{
+        await dbRequest("rpc/rabota_finance_record","POST",{
+          p_kind:kind,p_amount:amount,p_master_user_id:kind==="expense"?null:financeMasterId,p_note:note
+        });
+        document.getElementById("financeForm").reset();
+        await reloadOrders();
+      }catch(error){message.textContent=friendlyError(error);}
+      finally{button.disabled=false;}
+    });
+
     async function loadTeam() {
       const panel=document.getElementById("teamPanel");
       panel.hidden=currentRole!=="owner";
@@ -838,6 +1078,8 @@
       document.querySelector('[data-tab="calendar"]').textContent="По дням";
       document.getElementById("appScreen").classList.toggle("master-mode",currentRole==="master");
       if (currentRole==="master") currentTab="all";
+      financeActive=false;
+      financeVisible();
       await reloadOrders();
       showScreen("appScreen");
       if(currentRole==="owner") {
