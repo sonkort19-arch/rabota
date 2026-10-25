@@ -19,6 +19,8 @@
     .primary {border:0;background:#2166e7;color:white;border-radius:15px;font-weight:700;padding:15px 20px;min-height:54px}
     .new-order {width:100%;font-size:18px;min-height:60px;box-shadow:0 5px 20px #2166e71c}
     .new-order .plus {font-size:25px;vertical-align:-2px;margin-right:8px;font-weight:400}
+    .sync-note {font-size:12px;color:#718097;margin:-12px 0 12px}
+    .sync-note.sync-error {color:#b42318;font-weight:650}
     .panel {background:white;border:1px solid #e6eaf1;border-radius:17px;padding:16px;margin-top:18px}
     .panel-top {display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:16px}
     .secondary {border:1px solid #dee3ed;border-radius:10px;padding:10px 13px;background:white;color:#263753;font-weight:600;min-height:41px}
@@ -214,6 +216,7 @@
         <span class="balance-arrow" aria-hidden="true">›</span>
       </button>
     </div><button class="secondary" id="logoutBtn" type="button">Выйти</button></header>
+    <div class="sync-note" id="syncStatus" role="status">Синхронизация...</div>
     <div id="viewSwitch" class="view-switch" hidden>
       <button id="viewOrdersBtn" class="view-button is-selected" type="button">Заявки</button>
       <button id="viewFinanceBtn" class="view-button" type="button">Финансы</button>
@@ -480,6 +483,13 @@
       if (error && error.code === "23505") return "На это время уже есть запись либо заказ уже перенесён.";
       return error instanceof Error ? error.message : String(error);
     }
+    function reportSync(error) {
+      const node=document.getElementById("syncStatus");
+      if(!node)return;
+      node.classList.toggle("sync-error",Boolean(error));
+      node.textContent=error?"Нет связи с базой: заявки и баланс могут быть устаревшими":
+        "Обновлено "+new Date().toLocaleTimeString("ru-RU",{hour:"2-digit",minute:"2-digit"});
+    }
     async function reloadOrders() {
       const items = [];
       for (let offset = 0; offset < 100000; offset += 1000) {
@@ -491,9 +501,16 @@
       cloudOrders = items.map(readOrder);
       render();
       updateImportButton();
+      let syncError=null;
       if(currentRole==="owner"||currentRole==="master") {
-        try {await loadFinance();} catch(error){financeLoadError=friendlyError(error);updateMasterBalance();if(financeActive)renderFinance();}
+        try {await loadFinance();} catch(error){
+          financeLoadError=friendlyError(error);
+          updateMasterBalance();
+          if(financeActive)renderFinance();
+          syncError=error;
+        }
       }
+      reportSync(syncError);
     }
     function getOrders() {return cloudOrders;}
     async function persistOrder(order) {
@@ -926,6 +943,10 @@
       if(!name||!phone||!date||!time||!STATUSES.includes(status)) {
         formStatus.textContent="Заполните обязательные поля.";return;
       }
+      if(!normalizePhone(phone)) {
+        formStatus.textContent="Укажи правильный номер телефона клиента (10–11 цифр).";
+        controls.phone.focus();return;
+      }
       if(status!=="Отменён"&&hasConflict(date,time,editingId)) {
         formStatus.textContent="На эту дату и время уже записан клиент.";controls.time.focus();return;
       }
@@ -937,6 +958,16 @@
             ".\n\nСредняя работа 3 часа + дорога по городу 20 минут.\n"+
             "Если новая работа начнётся вовремя и без пересечения, нажми ОК. Иначе выбери другое время."))return;
         }
+      }
+      if(status!=="Отменён" && controls.master.value.trim() &&
+        !getOrders().some(o=>String(o.master||"").trim().toLowerCase()===controls.master.value.trim().toLowerCase())) {
+        if(!confirm("Исполнитель «"+controls.master.value.trim()+"» ещё не встречается в заказах. Проверь его имя и доступ к приложению: иначе он может не увидеть заявку. Продолжить?"))return;
+      }
+      if(status!=="Отменён" && controls.price.value!=="" && Number(controls.price.value)<=3000 && controls.master.value.trim().toLowerCase()==="рауль") {
+        if(!confirm("Стоимость "+controls.price.value+" ₽ слишком мала для автоматического распределения зарплат Рауля и Тимура. Сохранить заказ?"))return;
+      }
+      if(status!=="Отменён" && controls.price.value==="" && controls.master.value.trim().toLowerCase()==="рауль") {
+        if(!confirm("Стоимость не указана — Рауль не сможет автоматически распределить оплату. Сохранить без цены?"))return;
       }
       const existing=editingId===null?null:getOrders().find(o=>String(o.id)===editingId);
       if(editingId!==null&&!existing){formStatus.textContent="Заказ не найден.";return;}
@@ -1389,11 +1420,13 @@
     document.getElementById("accessLogout").addEventListener("click",logout);
     window.addEventListener("focus",async()=>{
       if(!session||document.getElementById("appScreen").hidden)return;
-      try {await reloadOrders();if(currentRole==="owner")await loadTeam();}catch(error){}
+      try {await reloadOrders();if(currentRole==="owner")await loadTeam();}
+      catch(error){reportSync(error);}
     });
     setInterval(async()=>{
       if(!session || document.visibilityState==="hidden" || document.getElementById("appScreen").hidden)return;
-      try{await reloadOrders();if(currentRole==="owner")await loadTeam();}catch(error){}
+      try{await reloadOrders();if(currentRole==="owner")await loadTeam();}
+      catch(error){reportSync(error);}
     },30000);
     initialize();
 
