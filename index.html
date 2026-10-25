@@ -219,6 +219,7 @@
       <button id="viewFinanceBtn" class="view-button" type="button">Финансы</button>
     </div>
     <div id="ordersArea">
+    <button id="newOrderBtn" class="primary new-order" type="button" hidden><span class="plus" aria-hidden="true">+</span>Новый заказ</button>
     <button class="secondary" id="importBtn" type="button" hidden>Перенести старые заказы с телефона</button>
     <section class="panel" id="teamPanel" hidden>
       <div class="panel-top"><h2>Мастера и доступ</h2><button class="secondary" id="refreshTeam" type="button">Обновить</button></div>
@@ -510,6 +511,19 @@
     function hasConflict(date, time, excludeId) {
       return getOrders().some(order => String(order.id) !== String(excludeId) &&
         order.status !== "Отменён" && order.date === date && order.time === time);
+    }
+    // Типовая работа 3 часа и 20 минут дороги. Исключения разрешает диспетчер.
+    function findTightBookings(date,time,master,excludeId) {
+      const minutes=t=>{
+        const p=String(t||"").split(":");
+        return p.length>=2 ? Number(p[0])*60+Number(p[1]) : NaN;
+      };
+      const target=minutes(time),name=String(master||"").trim().toLowerCase();
+      if(!date||!Number.isFinite(target)||!name)return [];
+      return getOrders().filter(o=>
+        String(o.id)!==String(excludeId) && o.status!=="Отменён" &&
+        o.date===date && String(o.master||"").trim().toLowerCase()===name &&
+        Number.isFinite(minutes(o.time)) && Math.abs(minutes(o.time)-target)<200);
     }
     function updateMasters() {
       const names = [...new Set(getOrders().map(x => String(x.master || "").trim()).filter(Boolean))].sort();
@@ -863,6 +877,7 @@
       else shown.forEach(o=>ordersNode.append(makeCard(o)));
     }
     function openForm(id) {
+      if(currentRole!=="owner" && currentRole!=="manager")return;
       previousFocus=document.activeElement;form.reset();formStatus.textContent="";
       editingId=id===undefined?null:String(id);
       updateMasters();
@@ -883,7 +898,10 @@
         controls.paid.checked=Boolean(existing.paid);
         controls.details.value=existing.details||"";
       } else {
-        controls.date.value=selectedDate;controls.status.value="Новый";
+        controls.date.value=selectedDate;
+        controls.status.value="Записан";
+        const masters=[...new Set(getOrders().map(o=>String(o.master||"").trim()).filter(Boolean))];
+        if(masters.length===1)controls.master.value=masters[0];
       }
       overlay.hidden=false;document.body.style.overflow="hidden";controls.name.focus();
     }
@@ -891,6 +909,7 @@
       overlay.hidden=true;document.body.style.overflow="";form.reset();editingId=null;
       if(previousFocus&&typeof previousFocus.focus==="function")previousFocus.focus();
     }
+    document.getElementById("newOrderBtn").addEventListener("click",()=>openForm());
     document.getElementById("closeOrderBtn").addEventListener("click",closeForm);
     overlay.addEventListener("click",e=>{if(e.target===overlay)closeForm();});
     document.addEventListener("keydown",e=>{if(e.key==="Escape"&&!overlay.hidden)closeForm();});
@@ -909,6 +928,15 @@
       }
       if(status!=="Отменён"&&hasConflict(date,time,editingId)) {
         formStatus.textContent="На эту дату и время уже записан клиент.";controls.time.focus();return;
+      }
+      if(status!=="Отменён") {
+        const busy=findTightBookings(date,time,controls.master.value,editingId);
+        if(busy.length) {
+          const neighbor=busy.map(o=>String(o.time||"")+" — "+(o.name||"Без имени")).join("; ");
+          if(!confirm("Внимание: у "+controls.master.value.trim()+" уже есть близкая запись: "+neighbor+
+            ".\n\nСредняя работа 3 часа + дорога по городу 20 минут.\n"+
+            "Если новая работа начнётся вовремя и без пересечения, нажми ОК. Иначе выбери другое время."))return;
+        }
       }
       const existing=editingId===null?null:getOrders().find(o=>String(o.id)===editingId);
       if(editingId!==null&&!existing){formStatus.textContent="Заказ не найден.";return;}
@@ -1301,6 +1329,7 @@
       document.querySelector('[data-tab="all"]').textContent=currentRole==="master"?"Расписание":"Все заказы";
       document.querySelector('[data-tab="calendar"]').textContent="По дням";
       document.getElementById("appScreen").classList.toggle("master-mode",currentRole==="master");
+      document.getElementById("newOrderBtn").hidden=!(currentRole==="owner"||currentRole==="manager");
       if (currentRole==="master") currentTab="all";
       financeActive=false;
       financeVisible();
