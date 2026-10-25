@@ -129,6 +129,12 @@
     .master-schedule-details > .order-card > .card-top,
     .master-schedule-details > .order-card > .status-badge,
     .master-schedule-details > .order-card > .master-cost {display:none}
+    /* Всегда видимый баланс мастера под именем */
+    .master-balance-quick {display:flex;align-items:center;gap:9px;max-width:100%;margin-top:9px;padding:8px 11px;background:#edf5ff;border:1px solid #cbdff9;border-radius:11px;color:#1d58c5;text-align:left;min-height:39px}
+    .master-balance-quick .balance-label {font-size:12px;font-weight:600;color:#596f94}
+    .master-balance-quick .balance-amount {font-size:17px;font-weight:800;white-space:nowrap;font-variant-numeric:tabular-nums}
+    .master-balance-quick .balance-arrow {margin-left:auto;font-size:20px;line-height:1;color:#4376cc}
+    @media(max-width:390px) {.master-balance-quick{gap:5px;padding:7px 8px}.master-balance-quick .balance-amount{font-size:16px}}
     /* Финансовый экран */
     .view-switch {display:flex;gap:6px;background:#e8edf5;border-radius:14px;padding:5px;margin:10px 0 17px}
     .view-button {flex:1;min-height:46px;border:0;border-radius:10px;background:transparent;color:#53647d;font-size:15px;font-weight:750}
@@ -192,7 +198,13 @@
     </div>
   </section>
   <main id="appScreen" hidden>
-    <header><div><h1 id="appTitle">Работа</h1><span class="muted" id="roleName"></span></div><button class="secondary" id="logoutBtn" type="button">Выйти</button></header>
+    <header><div><h1 id="appTitle">Работа</h1><span class="muted" id="roleName"></span>
+      <button id="masterBalanceQuick" class="master-balance-quick" type="button" hidden aria-label="Открыть мои финансы">
+        <span class="balance-label">Мой баланс</span>
+        <strong id="masterBalanceAmount" class="balance-amount" aria-live="polite">—</strong>
+        <span class="balance-arrow" aria-hidden="true">›</span>
+      </button>
+    </div><button class="secondary" id="logoutBtn" type="button">Выйти</button></header>
     <div id="viewSwitch" class="view-switch" hidden>
       <button id="viewOrdersBtn" class="view-button is-selected" type="button">Заявки</button>
       <button id="viewFinanceBtn" class="view-button" type="button">Финансы</button>
@@ -380,7 +392,9 @@
     }
     function clearSession() {
       session = null; currentUser = null; currentRole=null; currentMasterName=""; cloudOrders = [];
-      financeOperations=[];financeMasterId=null;financeActive=false;
+      financeOperations=[];financeMasterId=null;financeActive=false;financeLoadError="";
+      document.getElementById("masterBalanceQuick").hidden=true;
+      document.getElementById("masterBalanceAmount").textContent="—";
       localStorage.removeItem(AUTH_KEY);
     }
     async function authRequest(path, method, payload, authenticated) {
@@ -859,11 +873,31 @@
         if(page.length<1000)break;
       }
       financeLoadError="";
+      updateMasterBalance();
       if(financeActive)renderFinance();
+    }
+    function updateMasterBalance() {
+      const amount=document.getElementById("masterBalanceAmount");
+      if(currentRole!=="master" || String(currentMasterName||"").trim().toLowerCase()!=="рауль")return;
+      if(financeLoadError || !financeMasterId || !currentUser || financeMasterId!==currentUser.id) {
+        amount.textContent="—";
+        amount.title=financeLoadError||"Данные баланса недоступны";
+        return;
+      }
+      const eligible=getOrders().filter(order=>
+        order.assignedUserId===financeMasterId && order.status==="Выполнен" &&
+        order.paid && Number.isFinite(order.price) && order.price>=0);
+      const accrued=roundMoney(sumBy(eligible,order=>order.price*FINANCE_RAUL_PERCENT-FINANCE_TIMUR_FEE));
+      const paid=sumBy(financeOperations.filter(op=>
+        op.master_user_id===financeMasterId && op.kind==="raul_payout" && !op.voided_at),
+        op=>op.amount);
+      amount.textContent=money(roundMoney(accrued-paid));
+      amount.title="Заработок после доли Тимура и проведённых выплат";
     }
     function financeVisible() {
       const show=currentRole==="owner"|| (currentRole==="master"&&String(currentMasterName||"").trim().toLowerCase()==="рауль");
       document.getElementById("viewSwitch").hidden=!show;
+      document.getElementById("masterBalanceQuick").hidden=!(currentRole==="master" && show);
       if(!show)financeActive=false;
       document.getElementById("ordersArea").hidden=financeActive;
       document.getElementById("financePanel").hidden=!financeActive;
@@ -872,6 +906,9 @@
       document.getElementById("financeEntry").hidden=currentRole!=="owner"||!financeActive;
       if(financeActive)renderFinance();
     }
+    document.getElementById("masterBalanceQuick").addEventListener("click",()=>{
+      document.getElementById("viewFinanceBtn").click();
+    });
     function renderFinance() {
       const root=document.getElementById("financeContent");
       const history=document.getElementById("financeHistory");
