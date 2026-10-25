@@ -794,7 +794,14 @@
         shown.sort((a,b)=>String(b.completedAt||b.createdAt||"").localeCompare(String(a.completedAt||a.createdAt||"")));
         document.getElementById("listTitle").textContent="Выполненные заказы";
       } else if (currentTab==="all") {
-        shown=getOrders().filter(o=>o.status!=="Выполнен" && (currentRole!=="master" || o.status!=="Отменён"));
+        shown=getOrders().filter(o=>{
+          if(currentRole!=="master")return o.status!=="Выполнен";
+          if(o.status==="Отменён")return false;
+          // Не прячем завершённый заказ, пока нужно распределить или сдать оплату.
+          if(o.status!=="Выполнен")return true;
+          const collected=collectionForOrder(o.id);
+          return !o.paid || Boolean(collected&&!collected.confirmed_at);
+        });
         shown.sort((a,b)=>String(a.date||"9999").localeCompare(String(b.date||"9999")) ||
           String(a.time||"99:99").localeCompare(String(b.time||"99:99")));
         document.getElementById("listTitle").textContent=currentRole==="master"?"Моё расписание":"Все заказы";
