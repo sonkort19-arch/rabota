@@ -534,9 +534,9 @@
           wrap.append(make("p","cash-share-hint","Для распределения суммы свяжитесь с администратором."));
           card.append(wrap);return;
         }
-        const raul=roundMoney(order.price*0.5-1500);
+        const raul=financeSplit(order.price).raul;
         const timur=1500;
-        const company=roundMoney(order.price*0.5);
+        const company=financeSplit(order.price).company;
         wrap.append(make("div","cash-share-status","Если клиент рассчитался наличными:"));
         const lines=[["Заказ оплачен",money(order.price)],["Рауль забрал",money(raul)],["Тимуру передано",money(timur)],["Компании нужно передать",money(company)]];
         for(const [label,amount] of lines){
@@ -651,9 +651,9 @@
             const calculation=make("div","cash-share");
             calculation.append(make("div","cash-share-status","После завершения и получения оплаты:"));
             [
-              ["Себе забрать",money(roundMoney(order.price*0.5-1500))],
+              ["Себе забрать",money(financeSplit(order.price).raul)],
               ["Тимуру отдать",money(1500)],
-              ["Компании оставить",money(roundMoney(order.price*0.5))]
+              ["Компании оставить",money(financeSplit(order.price).company)]
             ].forEach(([label,amount])=>{
               const line=make("div","cash-share-line");
               line.append(make("span","",label),make("strong","",amount));
@@ -666,8 +666,8 @@
           btn.type = "button";
           btn.addEventListener("click",async () => {
             if(action==="complete" && cashReady) {
-              const raul=money(roundMoney(order.price*0.5-1500));
-              const company=money(roundMoney(order.price*0.5));
+              const raul=money(financeSplit(order.price).raul);
+              const company=money(financeSplit(order.price).company);
               const msg="Заказ выполнен и клиент оплатил НАЛИЧНЫМИ "+money(order.price)+"?\n\n"+
                 "Подтверди, что ты уже:\n"+
                 "• забрал себе "+raul+"\n"+
@@ -978,6 +978,13 @@
     const money = amount => Number(amount||0).toLocaleString("ru-RU",{maximumFractionDigits:2})+" ₽";
     const sumBy = (rows,fn) => rows.reduce((total,row)=>total+Number(fn(row)||0),0);
     const roundMoney = value => Math.round((Number(value)+Number.EPSILON)*100)/100;
+    function financeSplit(price) {
+      const gross=roundMoney(price);
+      const raul=roundMoney(gross*FINANCE_RAUL_PERCENT);
+      const timur=FINANCE_TIMUR_FEE;
+      const company=roundMoney(gross-raul-timur);
+      return {gross,raul,timur,company};
+    }
     function financeLine(label,value) {
       const line=make("div","finance-line");
       line.append(make("span","finance-line-label",label),make("strong","",value));
@@ -1028,7 +1035,7 @@
       const eligible=getOrders().filter(order=>
         order.assignedUserId===financeMasterId && order.status==="Выполнен" &&
         order.paid && Number.isFinite(order.price) && order.price>=0);
-      const accrued=roundMoney(sumBy(eligible,order=>order.price*FINANCE_RAUL_PERCENT-FINANCE_TIMUR_FEE));
+      const accrued=roundMoney(sumBy(eligible,order=>financeSplit(order.price).raul));
       const paid=sumBy(financeOperations.filter(op=>
         op.master_user_id===financeMasterId && op.kind==="raul_payout" && !op.voided_at),
         op=>op.amount);
@@ -1065,13 +1072,13 @@
       const eligible=relevantOrders.filter(o=>o.status==="Выполнен" && o.paid && Number.isFinite(o.price) && o.price>=0);
       const payments=financeOperations.filter(o=>!o.voided_at);
       const teamPayments=payments.filter(o=>o.master_user_id===financeMasterId);
-      const raulAccrued=roundMoney(sumBy(eligible,o=>o.price*FINANCE_RAUL_PERCENT-FINANCE_TIMUR_FEE));
+      const raulAccrued=roundMoney(sumBy(eligible,o=>financeSplit(o.price).raul));
       const timurAccrued=eligible.length*FINANCE_TIMUR_FEE;
       const raulPaid=sumBy(teamPayments.filter(o=>o.kind==="raul_payout"),o=>o.amount);
       const timurPaid=sumBy(teamPayments.filter(o=>o.kind==="timur_payout"),o=>o.amount);
       const raulDue=roundMoney(raulAccrued-raulPaid);
       const timurDue=roundMoney(timurAccrued-timurPaid);
-      const companyEarned=roundMoney(sumBy(eligible,o=>o.price*0.5));
+      const companyEarned=roundMoney(sumBy(eligible,o=>financeSplit(o.price).company));
       const eligibleGross=sumBy(eligible,o=>o.price);
       const bookedPending=relevantOrders.filter(o=>!o.paid || o.status!=="Выполнен");
       const unconfirmedCash=financeCollections.filter(c=>!c.confirmed_at);
@@ -1083,7 +1090,7 @@
         return;
       }
       root.append(make("h2","finance-title",isOwner?"Финансы бригады Рауля":"Мой баланс"));
-      root.append(financeMetric("Раулю осталось выплатить",raulDue,"50% от выполненных и оплаченных заказов минус 1 500 ₽ Тимуру за каждый",true));
+      root.append(financeMetric("Раулю осталось выплатить",raulDue,"50% от выполненных и оплаченных заказов (Тимуру отдельные 1 500 ₽)",true));
       const grid=make("div","finance-grid");
       grid.append(financeMetric("Тимуру к выплате",timurDue,"1 500 ₽ за заказ"));
       grid.append(financeMetric("Доля компании",companyEarned,"До прочих расходов"));
@@ -1157,7 +1164,7 @@
         const top=make("div","finance-activity-top");
         top.append(make("span","",order.name||"Без имени"),make("span","",money(order.price)));
         item.append(top);
-        item.append(make("div","finance-activity-sub",(order.date?formatDate(order.date)+" · ":"")+"Раулю: "+money(roundMoney(order.price*0.5-1500))+" · Тимуру: 1 500 ₽ · Компании: "+money(order.price*0.5)));
+        item.append(make("div","finance-activity-sub",(order.date?formatDate(order.date)+" · ":"")+"Раулю: "+money(financeSplit(order.price).raul)+" · Тимуру: 1 500 ₽ · Компании: "+money(financeSplit(order.price).company)));
         root.append(item);
       }
       const logs=isOwner?financeOperations:financeOperations.filter(o=>o.master_user_id===financeMasterId);
