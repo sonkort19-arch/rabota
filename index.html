@@ -94,6 +94,19 @@
     .team-approve {width:100%;margin-top:10px}
     .master-action {width:100%;margin-top:13px}
     .team-empty {color:#6b788b;font-size:14px}
+    /* Упрощённый мобильный кабинет мастера */
+    .master-mode .order-card {padding:18px;box-shadow:0 4px 16px rgba(24,42,78,.035)}
+    .master-mode .client {font-size:19px}
+    .master-mode .info {font-size:15px;line-height:1.5}
+    .master-mode .actions {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}
+    .master-mode .actions .action {min-height:48px;font-size:14px}
+    .master-mode .actions .action.map-link {grid-column:1/-1}
+    .master-mode .date-pill {font-size:14px}
+    .master-mode .master-cost {margin-top:14px;padding:13px 14px;border-radius:12px;background:#f3f7ff;display:flex;justify-content:space-between;align-items:center;gap:12px}
+    .master-mode .master-cost .cost-label {font-size:13px;color:#5a6d8b}
+    .master-mode .master-cost strong {color:#1c55c2;font-size:20px;white-space:nowrap}
+    .master-mode .master-action {min-height:54px;font-size:16px}
+    .master-mode .card-top {align-items:center}
   </style>
 </head>
 <body>
@@ -261,6 +274,7 @@
       if (value === null || value === undefined || value === "") return;
       card.append(make("div", "info", label + String(value)));
     }
+    function phoneForDisplay(phone) { return String(phone || "").trim(); }
     function normalizePhone(phone) {
       let number = String(phone || "").replace(/\D/g, "");
       if (number.length === 11 && number[0] === "8") number = "7" + number.slice(1);
@@ -396,13 +410,21 @@
       const state = STATUSES.includes(order.status) ? order.status : "Новый";
       const css = {"Новый":"s-new","Записан":"s-booked","В работе":"s-progress","Выполнен":"s-done","Отменён":"s-cancelled"};
       card.append(make("span","status-badge " + css[state],state));
+      if (currentRole === "master" && phoneForDisplay(order.phone)) info(card,"Телефон: ",phoneForDisplay(order.phone));
       info(card,"Адрес: ",order.address);
       info(card,"Радиаторы: ",order.radiatorType ? order.radiatorType +
         (order.radiators !== "" && order.radiators !== undefined ? ", " + order.radiators + " шт." : "") :
         (order.radiators !== "" && order.radiators !== undefined ? order.radiators + " шт." : ""));
       info(card,"Тёплый пол: ",order.floorLoops !== "" && order.floorLoops !== undefined ? order.floorLoops + " контур(ов)" : "");
-      info(card,"Мастер: ",order.master);
-      info(card,"Стоимость: ",order.price == null || order.price === "" ? "не указана" : Number(order.price).toLocaleString("ru-RU") + " ₽");
+      if (currentRole !== "master") info(card,"Мастер: ",order.master);
+      if (currentRole === "master") {
+        const cost = make("div","master-cost");
+        cost.append(make("span","cost-label","Стоимость заказа"));
+        cost.append(make("strong","",order.price == null || order.price === "" ? "Не указана" : Number(order.price).toLocaleString("ru-RU") + " ₽"));
+        card.append(cost);
+      } else {
+        info(card,"Стоимость: ",order.price == null || order.price === "" ? "не указана" : Number(order.price).toLocaleString("ru-RU") + " ₽");
+      }
       info(card,"Комментарий: ",order.details);
 
       const actions = make("div","actions");
@@ -419,6 +441,13 @@
         wa.target = "_blank";
         wa.rel = "noopener noreferrer";
         actions.append(wa);
+      }
+      if (currentRole === "master" && String(order.address || "").trim()) {
+        const map = make("a","action map-link","Открыть адрес на карте");
+        map.href = "https://yandex.ru/maps/?text=" + encodeURIComponent(String(order.address).trim());
+        map.target = "_blank";
+        map.rel = "noopener noreferrer";
+        actions.append(map);
       }
       if (currentRole !== "master") {
         const edit = make("button","action edit","Изменить");
@@ -514,10 +543,10 @@
         shown.sort((a,b)=>String(b.completedAt||b.createdAt||"").localeCompare(String(a.completedAt||a.createdAt||"")));
         document.getElementById("listTitle").textContent="Выполненные заказы";
       } else if (currentTab==="all") {
-        shown=getOrders().filter(o=>o.status!=="Выполнен");
+        shown=getOrders().filter(o=>o.status!=="Выполнен" && (currentRole!=="master" || o.status!=="Отменён"));
         shown.sort((a,b)=>String(a.date||"9999").localeCompare(String(b.date||"9999")) ||
           String(a.time||"99:99").localeCompare(String(b.time||"99:99")));
-        document.getElementById("listTitle").textContent="Все заказы";
+        document.getElementById("listTitle").textContent=currentRole==="master"?"Мои заявки":"Все заказы";
       } else {
         shown=getOrders().filter(o=>o.date===selectedDate&&o.status!=="Выполнен"&&o.status!=="Отменён");
         shown.sort((a,b)=>String(a.time||"").localeCompare(String(b.time||"")));
@@ -709,7 +738,10 @@
       document.getElementById("appTitle").textContent=currentRole==="master"?"Мои заказы":"Работа";
       document.getElementById("roleName").textContent=currentRole==="master"?currentMasterName:
          currentRole==="owner"?"Администратор":"Менеджер";
-      document.querySelector('[data-tab="all"]').textContent=currentRole==="master"?"Все мои":"Все заказы";
+      document.querySelector('[data-tab="all"]').textContent=currentRole==="master"?"Мои заявки":"Все заказы";
+      document.querySelector('[data-tab="calendar"]').textContent="По дням";
+      document.getElementById("appScreen").classList.toggle("master-mode",currentRole==="master");
+      if (currentRole==="master") currentTab="all";
       await reloadOrders();
       showScreen("appScreen");
       if(currentRole==="owner") {
