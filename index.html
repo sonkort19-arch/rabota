@@ -2,28 +2,166 @@
 <html lang="ru">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#f5f6f8">
   <title>Работа</title>
   <style>
+    :root { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif; color: #182230; background: #f5f6f8; }
     * { box-sizing: border-box; }
-    body {
-      margin: 0;
-      font-family: Arial, sans-serif;
-      background: #f5f6f8;
-      color: #222;
+    body { margin: 0; min-height: 100vh; }
+    button, input, textarea { font: inherit; }
+    button { -webkit-tap-highlight-color: transparent; cursor: pointer; }
+    main { width: min(100%, 620px); margin: 0 auto; padding: max(28px, env(safe-area-inset-top)) 20px 32px; }
+    h1 { margin: 0 0 28px; font-size: 28px; letter-spacing: -0.7px; }
+    .new-order {
+      width: 100%; min-height: 60px; border: 0; border-radius: 16px;
+      background: #2166e7; color: white; font-size: 18px; font-weight: 700;
+      box-shadow: 0 7px 18px rgba(33,102,231,.2);
     }
-    main {
-      max-width: 900px;
-      margin: 60px auto;
-      padding: 24px;
-    }
-    h1 { margin-top: 0; }
+    .new-order:active, .save:active { transform: scale(.99); }
+    .plus { font-size: 25px; vertical-align: -1px; margin-right: 7px; font-weight: 400; }
+    .section { margin: 32px 0 14px; font-size: 18px; }
+    .empty, .hint { font-size: 14px; color: #687385; line-height: 1.5; }
+    .empty { padding: 20px; border: 1px dashed #d7dce4; border-radius: 14px; text-align: center; }
+    .order-card { background: white; padding: 16px; border: 1px solid #e8eaf0; border-radius: 14px; margin-bottom: 10px; }
+    .order-card strong { display: block; font-size: 16px; margin-bottom: 6px; overflow-wrap: anywhere; }
+    .order-card p { margin: 6px 0; color: #455063; overflow-wrap: anywhere; white-space: pre-wrap; }
+    .order-card small { color: #758092; }
+    .overlay[hidden] { display: none; }
+    .overlay { position: fixed; inset: 0; z-index: 10; background: rgba(15,23,42,.48); display: flex; align-items: flex-end; justify-content: center; }
+    .sheet { background: #fff; width: min(100%, 620px); max-height: 95dvh; overflow-y: auto; border-radius: 22px 22px 0 0; padding: 23px 20px max(24px, env(safe-area-inset-bottom)); }
+    .sheet-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 22px; }
+    .sheet h2 { margin: 0; font-size: 21px; }
+    .close { border: 0; background: #f0f2f6; border-radius: 50%; height: 36px; width: 36px; font-size: 24px; color: #475569; }
+    label { display: block; font-weight: 600; font-size: 14px; margin-top: 16px; margin-bottom: 7px; }
+    input, textarea { width: 100%; padding: 14px 13px; border: 1px solid #d4dae4; border-radius: 11px; font-size: 16px; background: #fff; color: #182230; }
+    textarea { resize: vertical; min-height: 95px; }
+    input:focus, textarea:focus { outline: 2px solid #8ab0ff; border-color: #2166e7; }
+    .save { width: 100%; border: 0; border-radius: 13px; background: #2166e7; color: #fff; min-height: 52px; font-weight: 700; margin-top: 20px; }
+    .status { font-size: 13px; color: #b42318; min-height: 18px; margin-top: 9px; }
+    @media (min-width: 700px) { main { padding-top: 52px; } .overlay { align-items: center; padding: 20px; } .sheet { border-radius: 22px; } }
   </style>
 </head>
 <body>
   <main>
     <h1>Работа</h1>
-    <!-- Сюда будем постепенно добавлять функции программы. -->
+    <button class="new-order" id="newOrderBtn" type="button"><span class="plus" aria-hidden="true">+</span>Новый заказ</button>
+    <h2 class="section">Заказы</h2>
+    <div id="orders"><div class="empty">Пока нет заказов. Нажмите «Новый заказ», чтобы добавить первый.</div></div>
+    <p class="hint">Пока заказы хранятся только на этом устройстве, в данном браузере. Синхронизацию между телефонами добавим отдельно.</p>
   </main>
+
+  <div class="overlay" id="orderOverlay" hidden>
+    <section class="sheet" role="dialog" aria-modal="true" aria-labelledby="formTitle">
+      <div class="sheet-head">
+        <h2 id="formTitle">Новый заказ</h2>
+        <button class="close" id="closeOrderBtn" type="button" aria-label="Закрыть">×</button>
+      </div>
+      <form id="orderForm">
+        <label for="clientName">Имя клиента</label>
+        <input id="clientName" name="name" type="text" autocomplete="name" maxlength="100" required placeholder="Как зовут клиента">
+        <label for="clientPhone">Телефон</label>
+        <input id="clientPhone" name="phone" type="tel" autocomplete="tel" inputmode="tel" maxlength="30" placeholder="+7 ...">
+        <label for="orderDetails">Описание заказа</label>
+        <textarea id="orderDetails" name="details" maxlength="1000" placeholder="Что нужно сделать"></textarea>
+        <button class="save" type="submit">Сохранить заказ</button>
+        <div id="formStatus" class="status" role="alert"></div>
+      </form>
+    </section>
+  </div>
+
+  <script>
+    const STORAGE_KEY = "rabota-orders-v1";
+    const overlay = document.getElementById("orderOverlay");
+    const form = document.getElementById("orderForm");
+    const ordersContainer = document.getElementById("orders");
+    const status = document.getElementById("formStatus");
+    let previousFocus = null;
+
+    function getOrders() {
+      try {
+        const parsed = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
+        return Array.isArray(parsed) ? parsed : [];
+      } catch (error) {
+        return [];
+      }
+    }
+
+    function renderOrders() {
+      ordersContainer.replaceChildren();
+      const orders = getOrders();
+      if (!orders.length) {
+        const empty = document.createElement("div");
+        empty.className = "empty";
+        empty.textContent = "Пока нет заказов. Нажмите «Новый заказ», чтобы добавить первый.";
+        ordersContainer.append(empty);
+        return;
+      }
+      orders.forEach((order) => {
+        const card = document.createElement("article");
+        card.className = "order-card";
+        const name = document.createElement("strong");
+        name.textContent = order.name;
+        card.append(name);
+        if (order.phone) {
+          const phone = document.createElement("p");
+          phone.textContent = "Телефон: " + order.phone;
+          card.append(phone);
+        }
+        if (order.details) {
+          const details = document.createElement("p");
+          details.textContent = order.details;
+          card.append(details);
+        }
+        const date = document.createElement("small");
+        date.textContent = "Создан: " + new Date(order.createdAt).toLocaleString("ru-RU");
+        card.append(date);
+        ordersContainer.append(card);
+      });
+    }
+
+    function openForm() {
+      previousFocus = document.activeElement;
+      status.textContent = "";
+      overlay.hidden = false;
+      document.body.style.overflow = "hidden";
+      document.getElementById("clientName").focus();
+    }
+
+    function closeForm() {
+      overlay.hidden = true;
+      document.body.style.overflow = "";
+      form.reset();
+      if (previousFocus) previousFocus.focus();
+    }
+
+    document.getElementById("newOrderBtn").addEventListener("click", openForm);
+    document.getElementById("closeOrderBtn").addEventListener("click", closeForm);
+    overlay.addEventListener("click", (event) => {
+      if (event.target === overlay) closeForm();
+    });
+    document.addEventListener("keydown", (event) => {
+      if (event.key === "Escape" && !overlay.hidden) closeForm();
+    });
+
+    form.addEventListener("submit", (event) => {
+      event.preventDefault();
+      const name = form.elements.name.value.trim();
+      const phone = form.elements.phone.value.trim();
+      const details = form.elements.details.value.trim();
+      if (!name) return;
+      const orders = getOrders();
+      orders.unshift({ id: Date.now().toString(), name, phone, details, createdAt: new Date().toISOString() });
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(orders));
+        renderOrders();
+        closeForm();
+      } catch (error) {
+        status.textContent = "Не удалось сохранить заказ. Проверьте настройки хранения браузера.";
+      }
+    });
+
+    renderOrders();
+  </script>
 </body>
 </html>
