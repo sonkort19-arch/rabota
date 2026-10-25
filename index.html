@@ -491,7 +491,7 @@
       render();
       updateImportButton();
       if(currentRole==="owner"||currentRole==="master") {
-        try {await loadFinance();} catch(error){financeLoadError=friendlyError(error);if(financeActive)renderFinance();}
+        try {await loadFinance();} catch(error){financeLoadError=friendlyError(error);updateMasterBalance();if(financeActive)renderFinance();}
       }
     }
     function getOrders() {return cloudOrders;}
