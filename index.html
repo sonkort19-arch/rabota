@@ -87,6 +87,13 @@
     .auth-secondary {margin-top:12px;width:100%}
     .auth-message {margin-top:15px;color:#a13f27;font-size:14px;white-space:pre-wrap;line-height:1.5}
     #importBtn {width:100%;margin-bottom:14px}
+    .team-item {border:1px solid #e5eaf2;border-radius:13px;padding:13px;margin-top:10px}
+    .team-item .muted {overflow-wrap:anywhere}
+    .team-title {font-weight:700;margin:10px 0 4px}
+    .team-name {width:100%;border:1px solid #d9e0ea;border-radius:10px;font-size:16px;padding:12px;margin-top:10px}
+    .team-approve {width:100%;margin-top:10px}
+    .master-action {width:100%;margin-top:13px}
+    .team-empty {color:#6b788b;font-size:14px}
   </style>
 </head>
 <body>
@@ -111,14 +118,20 @@
       <h1>Работа</h1>
       <h2>Доступ не предоставлен</h2>
       <p class="muted">Ваш аккаунт <strong id="currentEmail"></strong> ожидает подтверждения администратора.</p>
-      <button class="primary" id="retryAccess" type="button">Проверить доступ</button>
+      <button class="primary" id="requestAccess" type="button">Запросить доступ мастера</button>
+      <button class="secondary auth-secondary" id="retryAccess" type="button">Проверить доступ</button>
       <button class="secondary auth-secondary" id="accessLogout" type="button">Выйти</button>
       <div class="auth-message" id="accessMessage" role="status"></div>
     </div>
   </section>
   <main id="appScreen" hidden>
-    <header><h1>Работа</h1><button class="secondary" id="logoutBtn" type="button">Выйти</button></header>
+    <header><div><h1 id="appTitle">Работа</h1><span class="muted" id="roleName"></span></div><button class="secondary" id="logoutBtn" type="button">Выйти</button></header>
     <button class="secondary" id="importBtn" type="button" hidden>Перенести старые заказы с телефона</button>
+    <section class="panel" id="teamPanel" hidden>
+      <div class="panel-top"><h2>Мастера и доступ</h2><button class="secondary" id="refreshTeam" type="button">Обновить</button></div>
+      <div id="teamRequests"></div>
+      <div id="teamMembers"></div>
+    </section>
 
     <section class="panel" id="calendarPanel">
       <div class="panel-top">
@@ -218,6 +231,8 @@
     let cloudOrders = [];
     let session = null;
     let currentUser = null;
+    let currentRole = null;
+    let currentMasterName = "";
     let refreshPromise = null;
     try { session = JSON.parse(localStorage.getItem(AUTH_KEY) || "null"); }
     catch (error) { session = null; }
@@ -263,7 +278,7 @@
       localStorage.setItem(AUTH_KEY, JSON.stringify(session));
     }
     function clearSession() {
-      session = null; currentUser = null; cloudOrders = [];
+      session = null; currentUser = null; currentRole=null; currentMasterName=""; cloudOrders = [];
       localStorage.removeItem(AUTH_KEY);
     }
     async function authRequest(path, method, payload, authenticated) {
@@ -405,12 +420,31 @@
         wa.rel = "noopener noreferrer";
         actions.append(wa);
       }
-      const edit = make("button","action edit","Изменить");
-      edit.type = "button";
-      edit.addEventListener("click",() => openForm(order.id));
-      actions.append(edit);
+      if (currentRole !== "master") {
+        const edit = make("button","action edit","Изменить");
+        edit.type = "button";
+        edit.addEventListener("click",() => openForm(order.id));
+        actions.append(edit);
+      }
       card.append(actions);
-
+      if (currentRole === "master") {
+        const action = (state === "Новый" || state === "Записан") ? "accept" :
+                       state === "В работе" ? "complete" : null;
+        if (action) {
+          const btn = make("button","primary master-action",action === "accept" ? "Принять заказ" : "Заказ выполнен");
+          btn.type = "button";
+          btn.addEventListener("click",async () => {
+            if (action === "complete" && !confirm("Подтвердить выполнение заказа?")) return;
+            btn.disabled = true;
+            try {
+              await dbRequest("rpc/rabota_master_action","POST",{p_order_id:order.id,p_action:action});
+              await reloadOrders();
+            } catch(error) {alert(friendlyError(error));btn.disabled=false;}
+          });
+          card.append(btn);
+        }
+        return card;
+      }
       const bottom = make("div","card-controls");
       const stateWrap = make("div");
       stateWrap.append(make("span","control-label","Статус заказа"));
@@ -568,6 +602,7 @@
 
     function updateImportButton() {
       const btn=document.getElementById("importBtn");
+      if (currentRole === "master") {btn.hidden=true;return;}
       try {
         const old=JSON.parse(localStorage.getItem(STORAGE_KEY)||"[]");
         btn.hidden=!Array.isArray(old)||!old.length;
@@ -600,6 +635,63 @@
       alert("Перенесено: "+success+". Пропущено: "+skipped+".");
     });
 
+
+    async function loadTeam() {
+      const panel=document.getElementById("teamPanel");
+      panel.hidden=currentRole!=="owner";
+      if (currentRole!=="owner") return;
+      const requests=document.getElementById("teamRequests");
+      const active=document.getElementById("teamMembers");
+      const rows=await dbRequest("rabota_members?select=user_id,email,role,active,master_name&order=created_at.desc&limit=200","GET");
+      if(!Array.isArray(rows)) throw new Error("Не удалось загрузить сотрудников.");
+      requests.replaceChildren();active.replaceChildren();
+      const pending=rows.filter(m=>!m.active);
+      requests.append(make("div","team-title","Запросы на доступ: "+pending.length));
+      if(!pending.length) requests.append(make("div","team-empty","Новых запросов нет"));
+      pending.forEach(member=>{
+        const wrap=make("div","team-item");
+        wrap.append(make("div","muted",member.email||"Аккаунт "+member.user_id));
+        const name=make("input","team-name");
+        name.type="text";name.maxLength=100;
+        name.placeholder="Имя мастера";
+        name.setAttribute("aria-label","Имя мастера для "+(member.email||member.user_id));
+        const btn=make("button","primary team-approve","Подтвердить мастера");
+        btn.type="button";
+        btn.addEventListener("click",async()=>{
+          const masterName=name.value.trim();
+          if(!masterName){alert("Введите имя мастера.");name.focus();return;}
+          if(!confirm("Открыть доступ для "+(member.email||member.user_id)+" как мастеру «"+masterName+"»?")) return;
+          btn.disabled=true;
+          try {
+            await dbRequest("rpc/rabota_approve_master","POST",{p_user_id:member.user_id,p_master_name:masterName});
+            await loadTeam();
+            await reloadOrders();
+          } catch(error) {alert(friendlyError(error));btn.disabled=false;}
+        });
+        wrap.append(name,btn);requests.append(wrap);
+      });
+      const workers=rows.filter(m=>m.active&&m.role==="master");
+      active.append(make("div","team-title","Подключённые мастера: "+workers.length));
+      workers.forEach(member=>{
+        const wrap=make("div","team-item");
+        wrap.append(make("strong","",member.master_name||"Мастер"));
+        wrap.append(make("div","muted",member.email||member.user_id));
+        active.append(wrap);
+      });
+    }
+    document.getElementById("refreshTeam").addEventListener("click",async()=>{
+      try{await loadTeam();}catch(error){alert(friendlyError(error));}
+    });
+    document.getElementById("requestAccess").addEventListener("click",async()=>{
+      const btn=document.getElementById("requestAccess");
+      btn.disabled=true;accessMessage.textContent="";
+      try {
+        await dbRequest("rpc/rabota_request_access","POST",{});
+        accessMessage.textContent="Запрос отправлен. Попросите администратора подтвердить доступ.";
+      } catch(error) {accessMessage.textContent=friendlyError(error);}
+      finally {btn.disabled=false;}
+    });
+
     const loginMessage=document.getElementById("authMessage");
     const accessMessage=document.getElementById("accessMessage");
     async function checkAccess() {
@@ -607,11 +699,22 @@
       if(!user||!user.id) throw new Error("Не удалось проверить аккаунт.");
       currentUser=user;
       document.getElementById("currentEmail").textContent=user.email||"";
-      const rows=await dbRequest("rabota_members?select=user_id,role&user_id=eq."+
-        encodeURIComponent(user.id)+"&active=eq.true&limit=1","GET");
-      if(!Array.isArray(rows)||!rows.length){showScreen("accessScreen");return;}
+      const rows=await dbRequest("rabota_members?select=user_id,role,active,master_name&user_id=eq."+
+        encodeURIComponent(user.id)+"&limit=1","GET");
+      if(!Array.isArray(rows)||!rows.length||!rows[0].active){
+        showScreen("accessScreen");return;
+      }
+      currentRole=rows[0].role;
+      currentMasterName=rows[0].master_name||"";
+      document.getElementById("appTitle").textContent=currentRole==="master"?"Мои заказы":"Работа";
+      document.getElementById("roleName").textContent=currentRole==="master"?currentMasterName:
+         currentRole==="owner"?"Администратор":"Менеджер";
+      document.querySelector('[data-tab="all"]').textContent=currentRole==="master"?"Все мои":"Все заказы";
       await reloadOrders();
       showScreen("appScreen");
+      if(currentRole==="owner") {
+        try{await loadTeam();}catch(error){console.warn(error);}
+      }
     }
     async function initialize() {
       if(!session||!session.refresh_token){showScreen("loginScreen");return;}
@@ -661,8 +764,12 @@
     document.getElementById("accessLogout").addEventListener("click",logout);
     window.addEventListener("focus",async()=>{
       if(!session||document.getElementById("appScreen").hidden)return;
-      try {await reloadOrders();}catch(error){}
+      try {await reloadOrders();if(currentRole==="owner")await loadTeam();}catch(error){}
     });
+    setInterval(async()=>{
+      if(!session || document.visibilityState==="hidden" || document.getElementById("appScreen").hidden)return;
+      try{await reloadOrders();if(currentRole==="owner")await loadTeam();}catch(error){}
+    },30000);
     initialize();
 
   </script>
