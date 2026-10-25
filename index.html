@@ -644,17 +644,63 @@
         const action = (state === "Новый" || state === "Записан") ? "accept" :
                        state === "В работе" ? "complete" : null;
         if (action) {
+          const cashReady = action === "complete" &&
+            String(currentMasterName||"").trim().toLowerCase()==="рауль" &&
+            !order.paid && Number.isFinite(order.price) && order.price>3000;
+          if(cashReady){
+            const calculation=make("div","cash-share");
+            calculation.append(make("div","cash-share-status","После завершения и получения оплаты:"));
+            [
+              ["Себе забрать",money(roundMoney(order.price*0.5-1500))],
+              ["Тимуру отдать",money(1500)],
+              ["Компании оставить",money(roundMoney(order.price*0.5))]
+            ].forEach(([label,amount])=>{
+              const line=make("div","cash-share-line");
+              line.append(make("span","",label),make("strong","",amount));
+              calculation.append(line);
+            });
+            calculation.append(make("p","cash-share-hint","После подтверждения оплата и выплаты запишутся автоматически. Доля компании останется у тебя до сдачи владельцу."));
+            card.append(calculation);
+          }
           const btn = make("button","primary master-action",action === "accept" ? "Принять заказ" : "Заказ выполнен");
           btn.type = "button";
           btn.addEventListener("click",async () => {
-            if (action === "complete" && !confirm("Подтвердить выполнение заказа?")) return;
+            if(action==="complete" && cashReady) {
+              const raul=money(roundMoney(order.price*0.5-1500));
+              const company=money(roundMoney(order.price*0.5));
+              const msg="Заказ выполнен и клиент оплатил НАЛИЧНЫМИ "+money(order.price)+"?\n\n"+
+                "Подтверди, что ты уже:\n"+
+                "• забрал себе "+raul+"\n"+
+                "• выдал Тимуру 1 500 ₽\n\n"+
+                "Компании нужно передать "+company+".\n\n"+
+                "ОК — завершить заказ и автоматически записать эти выплаты.\n"+
+                "Отмена — ничего не менять.";
+              if(!confirm(msg))return;
+            } else if(action==="complete" && !confirm("Подтвердить выполнение заказа? Без распределения оплаты."))return;
             btn.disabled = true;
             try {
-              await dbRequest("rpc/rabota_master_action","POST",{p_order_id:order.id,p_action:action});
+              if(action==="complete" && cashReady) {
+                await dbRequest("rpc/rabota_cash_distribute","POST",{p_order_id:order.id});
+              }else{
+                await dbRequest("rpc/rabota_master_action","POST",{p_order_id:order.id,p_action:action});
+              }
               await reloadOrders();
-            } catch(error) {alert(friendlyError(error));btn.disabled=false;}
+            }catch(error){alert(friendlyError(error));btn.disabled=false;}
           });
           card.append(btn);
+          if(cashReady) {
+            const unpaid=make("button","secondary master-action","Завершить без оплаты");
+            unpaid.type="button";
+            unpaid.addEventListener("click",async()=>{
+              if(!confirm("Работа выполнена, но клиент ещё не оплатил?\n\nБаланс Рауля, Тимура и касса останутся без изменений."))return;
+              unpaid.disabled=true;btn.disabled=true;
+              try{
+                await dbRequest("rpc/rabota_master_action","POST",{p_order_id:order.id,p_action:"complete"});
+                await reloadOrders();
+              }catch(error){alert(friendlyError(error));unpaid.disabled=false;btn.disabled=false;}
+            });
+            card.append(unpaid);
+          }
         }
         appendCashDistribution(card,order);
         return card;
