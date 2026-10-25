@@ -107,6 +107,34 @@
     .master-mode .master-cost strong {color:#1c55c2;font-size:20px;white-space:nowrap}
     .master-mode .master-action {min-height:54px;font-size:16px}
     .master-mode .card-top {align-items:center}
+    /* Compact, touch-friendly master schedule */
+    .master-day-heading {display:flex;align-items:center;justify-content:space-between;gap:12px;margin:19px 1px 12px}
+    .master-day-heading h3 {font-size:17px;line-height:1.35;margin:0;color:#1c2b45}
+    .master-day-heading .muted {white-space:nowrap}
+    .master-schedule-card {background:#fff;border:1px solid #e1e8f2;border-radius:16px;margin-bottom:10px;overflow:hidden;box-shadow:0 3px 12px #1a315309}
+    .master-schedule-toggle {width:100%;display:grid;grid-template-columns:81px minmax(0,1fr) 19px;align-items:center;gap:12px;border:0;background:#fff;text-align:left;padding:16px 14px;color:#1b2b44;min-height:103px}
+    .master-schedule-toggle:active {background:#f3f7ff}
+    .master-schedule-time {font-size:23px;font-weight:800;letter-spacing:-.7px;color:#1b58c5;font-variant-numeric:tabular-nums}
+    .master-schedule-main {min-width:0;display:flex;flex-direction:column;gap:5px}
+    .master-schedule-name {font-size:17px;font-weight:750;line-height:1.25;overflow-wrap:anywhere}
+    .master-schedule-address {font-size:13px;line-height:1.4;color:#53647d;overflow-wrap:anywhere}
+    .master-schedule-meta {display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:2px}
+    .master-schedule-price {font-size:15px;font-weight:750;color:#1e59c7;white-space:nowrap}
+    .master-schedule-meta .status-badge {margin:0;font-size:11px}
+    .master-schedule-chevron {font-size:25px;line-height:1;color:#7486a4;transition:transform .15s ease;text-align:center}
+    .master-schedule-card.is-expanded .master-schedule-chevron {transform:rotate(90deg)}
+    .master-schedule-card.is-expanded .master-schedule-toggle {background:#f8faff;border-bottom:1px solid #e8edf5}
+    .master-schedule-details {padding:2px 15px 16px}
+    .master-schedule-details > .order-card {border:0;border-radius:0;padding:0;margin:0;box-shadow:none}
+    .master-schedule-details > .order-card > .card-top,
+    .master-schedule-details > .order-card > .status-badge,
+    .master-schedule-details > .order-card > .master-cost {display:none}
+    @media(max-width:390px) {
+      .master-schedule-toggle {grid-template-columns:69px minmax(0,1fr) 16px;gap:9px;padding:14px 11px}
+      .master-schedule-time {font-size:20px}
+      .master-schedule-name {font-size:16px}
+      .master-schedule-address {font-size:12px}
+    }
   </style>
 </head>
 <body>
@@ -247,6 +275,7 @@
     let currentRole = null;
     let currentMasterName = "";
     let refreshPromise = null;
+    const expandedMasterOrders = new Set();
     try { session = JSON.parse(localStorage.getItem(AUTH_KEY) || "null"); }
     catch (error) { session = null; }
 
@@ -511,6 +540,72 @@
       return card;
     }
 
+    function masterDayLabel(day) {
+      if (!day || !/^\d{4}-\d{2}-\d{2}$/.test(day)) return "Без даты";
+      const label=parseDate(day).toLocaleDateString("ru-RU",{weekday:"long",day:"numeric",month:"long"});
+      return label.charAt(0).toUpperCase()+label.slice(1);
+    }
+    function makeMasterScheduleRow(order) {
+      const id=String(order.id);
+      const expanded=expandedMasterOrders.has(id);
+      const article=make("article","master-schedule-card"+(expanded?" is-expanded":""));
+      const toggle=make("button","master-schedule-toggle");
+      toggle.type="button";
+      toggle.setAttribute("aria-expanded",String(expanded));
+      toggle.setAttribute("aria-label",(expanded?"Скрыть":"Открыть")+" заявку "+(order.name||"Без имени")+", "+(order.time||"время не указано"));
+      const detailId="master-details-"+id.replace(/[^a-zA-Z0-9_-]/g,"");
+      toggle.setAttribute("aria-controls",detailId);
+      const time=make("span","master-schedule-time",order.time||"—:—");
+      const main=make("span","master-schedule-main");
+      main.append(make("span","master-schedule-name",order.name||"Без имени"));
+      main.append(make("span","master-schedule-address",order.address||"Адрес не указан"));
+      const meta=make("span","master-schedule-meta");
+      const price=order.price==null||order.price===""?"Стоимость не указана":Number(order.price).toLocaleString("ru-RU")+" ₽";
+      meta.append(make("span","master-schedule-price",price));
+      const state=STATUSES.includes(order.status)?order.status:"Новый";
+      const classes={"Новый":"s-new","Записан":"s-booked","В работе":"s-progress","Выполнен":"s-done","Отменён":"s-cancelled"};
+      meta.append(make("span","status-badge "+classes[state],state));
+      main.append(meta);
+      toggle.append(time,main,make("span","master-schedule-chevron","›"));
+      const details=make("div","master-schedule-details");
+      details.id=detailId;
+      details.hidden=!expanded;
+      if(expanded) details.append(makeCard(order));
+      toggle.addEventListener("click",()=>{
+        const open=toggle.getAttribute("aria-expanded")!=="true";
+        toggle.setAttribute("aria-expanded",String(open));
+        toggle.setAttribute("aria-label",(open?"Скрыть":"Открыть")+" заявку "+(order.name||"Без имени")+", "+(order.time||"время не указано"));
+        article.classList.toggle("is-expanded",open);
+        details.hidden=!open;
+        if(open){
+          expandedMasterOrders.add(id);
+          details.replaceChildren(makeCard(order));
+        }else{
+          expandedMasterOrders.delete(id);
+          details.replaceChildren();
+        }
+      });
+      article.append(toggle,details);
+      return article;
+    }
+    function renderMasterSchedule(rows) {
+      const grouped=new Map();
+      rows.forEach(order=>{
+        const date=order.date||"";
+        if(!grouped.has(date)) grouped.set(date,[]);
+        grouped.get(date).push(order);
+      });
+      grouped.forEach((items,date)=>{
+        if(currentTab!=="calendar"){
+          const heading=make("div","master-day-heading");
+          heading.append(make("h3","",masterDayLabel(date)));
+          heading.append(make("span","muted",items.length+" "+(items.length===1?"заказ":items.length<5?"заказа":"заказов")));
+          ordersNode.append(heading);
+        }
+        items.forEach(order=>ordersNode.append(makeMasterScheduleRow(order)));
+      });
+    }
+
     function renderCalendar() {
       calendarDate.value = selectedDate;
       const base = parseDate(selectedDate);
@@ -546,7 +641,7 @@
         shown=getOrders().filter(o=>o.status!=="Выполнен" && (currentRole!=="master" || o.status!=="Отменён"));
         shown.sort((a,b)=>String(a.date||"9999").localeCompare(String(b.date||"9999")) ||
           String(a.time||"99:99").localeCompare(String(b.time||"99:99")));
-        document.getElementById("listTitle").textContent=currentRole==="master"?"Мои заявки":"Все заказы";
+        document.getElementById("listTitle").textContent=currentRole==="master"?"Моё расписание":"Все заказы";
       } else {
         shown=getOrders().filter(o=>o.date===selectedDate&&o.status!=="Выполнен"&&o.status!=="Отменён");
         shown.sort((a,b)=>String(a.time||"").localeCompare(String(b.time||"")));
@@ -555,6 +650,7 @@
       document.getElementById("orderCount").textContent=shown.length+" шт.";
       ordersNode.replaceChildren();
       if(!shown.length) ordersNode.append(make("div","empty",currentTab==="history"?"Выполненных заказов нет":"Заказов нет"));
+      else if(currentRole==="master" && currentTab!=="history") renderMasterSchedule(shown);
       else shown.forEach(o=>ordersNode.append(makeCard(o)));
     }
     function openForm(id) {
@@ -738,7 +834,7 @@
       document.getElementById("appTitle").textContent=currentRole==="master"?"Мои заказы":"Работа";
       document.getElementById("roleName").textContent=currentRole==="master"?currentMasterName:
          currentRole==="owner"?"Администратор":"Менеджер";
-      document.querySelector('[data-tab="all"]').textContent=currentRole==="master"?"Мои заявки":"Все заказы";
+      document.querySelector('[data-tab="all"]').textContent=currentRole==="master"?"Расписание":"Все заказы";
       document.querySelector('[data-tab="calendar"]').textContent="По дням";
       document.getElementById("appScreen").classList.toggle("master-mode",currentRole==="master");
       if (currentRole==="master") currentTab="all";
