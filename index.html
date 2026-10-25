@@ -119,7 +119,6 @@
   <main id="appScreen" hidden>
     <header><h1>Работа</h1><button class="secondary" id="logoutBtn" type="button">Выйти</button></header>
     <button class="secondary" id="importBtn" type="button" hidden>Перенести старые заказы с телефона</button>
-    <button class="primary new-order" type="button" id="newOrderBtn"><span class="plus">+</span>Новый заказ</button>
 
     <section class="panel" id="calendarPanel">
       <div class="panel-top">
@@ -524,7 +523,6 @@
       overlay.hidden=true;document.body.style.overflow="";form.reset();editingId=null;
       if(previousFocus&&typeof previousFocus.focus==="function")previousFocus.focus();
     }
-    document.getElementById("newOrderBtn").addEventListener("click",()=>openForm());
     document.getElementById("closeOrderBtn").addEventListener("click",closeForm);
     overlay.addEventListener("click",e=>{if(e.target===overlay)closeForm();});
     document.addEventListener("keydown",e=>{if(e.key==="Escape"&&!overlay.hidden)closeForm();});
