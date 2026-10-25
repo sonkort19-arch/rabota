@@ -3,164 +3,454 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#f5f6f8">
-  <title>Работа</title>
+  <meta name="theme-color" content="#f6f7fb">
+  <title>Работа — промывка отопления</title>
   <style>
-    :root { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif; color: #182230; background: #f5f6f8; }
-    * { box-sizing: border-box; }
-    body { margin: 0; min-height: 100vh; }
-    button, input, textarea { font: inherit; }
-    button { -webkit-tap-highlight-color: transparent; cursor: pointer; }
-    main { width: min(100%, 620px); margin: 0 auto; padding: max(28px, env(safe-area-inset-top)) 20px 32px; }
-    h1 { margin: 0 0 28px; font-size: 28px; letter-spacing: -0.7px; }
-    .new-order {
-      width: 100%; min-height: 60px; border: 0; border-radius: 16px;
-      background: #2166e7; color: white; font-size: 18px; font-weight: 700;
-      box-shadow: 0 7px 18px rgba(33,102,231,.2);
-    }
-    .new-order:active, .save:active { transform: scale(.99); }
-    .plus { font-size: 25px; vertical-align: -1px; margin-right: 7px; font-weight: 400; }
-    .section { margin: 32px 0 14px; font-size: 18px; }
-    .empty, .hint { font-size: 14px; color: #687385; line-height: 1.5; }
-    .empty { padding: 20px; border: 1px dashed #d7dce4; border-radius: 14px; text-align: center; }
-    .order-card { background: white; padding: 16px; border: 1px solid #e8eaf0; border-radius: 14px; margin-bottom: 10px; }
-    .order-card strong { display: block; font-size: 16px; margin-bottom: 6px; overflow-wrap: anywhere; }
-    .order-card p { margin: 6px 0; color: #455063; overflow-wrap: anywhere; white-space: pre-wrap; }
-    .order-card small { color: #758092; }
-    .overlay[hidden] { display: none; }
-    .overlay { position: fixed; inset: 0; z-index: 10; background: rgba(15,23,42,.48); display: flex; align-items: flex-end; justify-content: center; }
-    .sheet { background: #fff; width: min(100%, 620px); max-height: 95dvh; overflow-y: auto; border-radius: 22px 22px 0 0; padding: 23px 20px max(24px, env(safe-area-inset-bottom)); }
-    .sheet-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 22px; }
-    .sheet h2 { margin: 0; font-size: 21px; }
-    .close { border: 0; background: #f0f2f6; border-radius: 50%; height: 36px; width: 36px; font-size: 24px; color: #475569; }
-    label { display: block; font-weight: 600; font-size: 14px; margin-top: 16px; margin-bottom: 7px; }
-    input, textarea { width: 100%; padding: 14px 13px; border: 1px solid #d4dae4; border-radius: 11px; font-size: 16px; background: #fff; color: #182230; }
-    textarea { resize: vertical; min-height: 95px; }
-    input:focus, textarea:focus { outline: 2px solid #8ab0ff; border-color: #2166e7; }
-    .save { width: 100%; border: 0; border-radius: 13px; background: #2166e7; color: #fff; min-height: 52px; font-weight: 700; margin-top: 20px; }
-    .status { font-size: 13px; color: #b42318; min-height: 18px; margin-top: 9px; }
-    @media (min-width: 700px) { main { padding-top: 52px; } .overlay { align-items: center; padding: 20px; } .sheet { border-radius: 22px; } }
+    :root {font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;color:#192335;background:#f6f7fb;font-synthesis:none}
+    * {box-sizing:border-box}
+    body {margin:0;min-height:100vh}
+    button,input,select,textarea {font:inherit}
+    button {cursor:pointer;-webkit-tap-highlight-color:transparent}
+    button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible {outline:3px solid #9db8ff;outline-offset:2px}
+    main {width:min(100%,670px);margin:auto;padding:max(24px,env(safe-area-inset-top)) 16px max(36px,env(safe-area-inset-bottom))}
+    header {display:flex;justify-content:space-between;align-items:center;margin-bottom:24px}
+    h1 {font-size:29px;letter-spacing:-.8px;margin:0}
+    h2 {font-size:19px;margin:0}
+    .primary {border:0;background:#2166e7;color:white;border-radius:15px;font-weight:700;padding:15px 20px;min-height:54px}
+    .new-order {width:100%;font-size:18px;min-height:60px;box-shadow:0 5px 20px #2166e71c}
+    .new-order .plus {font-size:25px;vertical-align:-2px;margin-right:8px;font-weight:400}
+    .panel {background:white;border:1px solid #e6eaf1;border-radius:17px;padding:16px;margin-top:18px}
+    .panel-top {display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:16px}
+    .secondary {border:1px solid #dee3ed;border-radius:10px;padding:10px 13px;background:white;color:#263753;font-weight:600;min-height:41px}
+    .nav {display:flex;align-items:center;gap:6px}
+    .nav .secondary {min-width:40px;padding:8px}
+    .calendar-date {display:block;max-width:100%;background:#f5f7fb;border:1px solid #e0e5ee;border-radius:10px;padding:9px 10px;color:#192335;min-height:43px;margin-bottom:13px}
+    .week {display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:5px}
+    .day {border:1px solid #e5e9f1;background:#fafbfe;border-radius:11px;min-height:60px;padding:8px 2px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px}
+    .day .weekday {font-size:11px;color:#677387}
+    .day strong {font-size:15px}
+    .day.active {background:#2166e7;border-color:#2166e7;color:white}
+    .day.active .weekday {color:#e9f0ff}
+    .day.has-orders:not(.active) {border-color:#a8c0fb;background:#eff4ff}
+    .tabs {display:flex;gap:5px;padding:5px;background:#e9edf5;border-radius:13px;margin:22px 0 15px}
+    .tab {border:0;flex:1;padding:12px 5px;border-radius:10px;background:transparent;color:#526074;font-weight:700}
+    .tab.active {color:#1e55bf;background:white;box-shadow:0 2px 7px #15233712}
+    .list-head {display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:14px}
+    .count {color:#657388;font-size:13px}
+    .empty {padding:34px 16px;text-align:center;color:#748094;border:1px dashed #dce3ee;border-radius:15px}
+    .order-card {background:white;border:1px solid #e5eaf3;border-radius:16px;padding:16px;margin-bottom:12px}
+    .card-top {display:flex;justify-content:space-between;gap:10px;align-items:flex-start}
+    .client {font-size:17px;font-weight:750;overflow-wrap:anywhere}
+    .date-pill {white-space:nowrap;font-size:13px;font-weight:700;color:#2258c5;background:#edf3ff;border-radius:9px;padding:7px 9px}
+    .muted {color:#6b788b;font-size:13px}
+    .info {margin:9px 0;font-size:14px;color:#39485c;overflow-wrap:anywhere;white-space:pre-wrap}
+    .status-badge {display:inline-block;font-size:12px;font-weight:700;border-radius:7px;padding:5px 8px;background:#edf1f7;color:#42526b;margin-top:9px}
+    .s-new {background:#fff4d5;color:#855700}
+    .s-booked {background:#e7f0ff;color:#1f59c3}
+    .s-progress {background:#f1e9ff;color:#7041bf}
+    .s-done {background:#e4f8e9;color:#19713b}
+    .s-cancelled {background:#fce9e9;color:#ab3232}
+    .actions {display:flex;gap:8px;flex-wrap:wrap;margin-top:15px}
+    .action {text-decoration:none;display:inline-flex;align-items:center;justify-content:center;gap:5px;min-height:41px;padding:9px 11px;background:#f2f5fa;border:1px solid #e3e9f0;border-radius:10px;font-weight:700;font-size:13px;color:#243754}
+    .action.wa {color:#137441;background:#e9f9f1}
+    .edit {margin-left:auto}
+    .card-controls {display:grid;grid-template-columns:1fr auto;gap:10px;align-items:end;margin-top:13px}
+    .control-label {display:block;font-size:12px;color:#677388;margin-bottom:5px}
+    .compact-select {width:100%;min-height:42px;padding:9px;border:1px solid #dce3ec;border-radius:10px;background:#fff;color:#202c40;font-size:14px}
+    .payment {border:1px solid #e0e7ee;border-radius:10px;background:white;padding:10px;min-height:42px;font-size:13px;font-weight:700;color:#a43f2c}
+    .payment.paid {color:#167341;background:#eaf9ef}
+    .overlay[hidden] {display:none}
+    .overlay {position:fixed;inset:0;z-index:50;background:#101c3570;display:flex;align-items:flex-end;justify-content:center}
+    .sheet {width:min(100%,670px);max-height:96dvh;overflow:auto;overscroll-behavior:contain;background:white;border-radius:23px 23px 0 0;padding:21px 18px max(24px,env(safe-area-inset-bottom))}
+    .sheet-head {display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:10px}
+    .close {width:38px;height:38px;border:0;background:#f0f2f5;color:#495669;border-radius:50%;font-size:25px;line-height:1}
+    form label {display:block;font-weight:650;font-size:13px;margin:15px 0 6px}
+    form input,form select,form textarea {width:100%;border:1px solid #d9e0ea;border-radius:11px;background:#fff;color:#192335;padding:12px 11px;min-height:47px;font-size:16px}
+    form textarea {resize:vertical;min-height:84px}
+    .form-grid {display:grid;grid-template-columns:1fr 1fr;gap:0 11px}
+    .form-grid>* {min-width:0}
+    .form-grid .field {min-width:0}
+    .form-title {font-size:14px;font-weight:750;margin:21px 0 0;color:#1b5bd0}
+    .save {width:100%;margin-top:23px}
+    .error {color:#b42318;font-size:13px;min-height:18px;margin-top:9px}
+    .inline {display:flex;align-items:center;gap:9px;margin-top:15px}
+    .inline input {width:20px;height:20px;min-height:20px}
+    .inline label {margin:0;font-size:15px}
+    @media(min-width:700px) {.overlay{align-items:center;padding:20px}.sheet{border-radius:22px}}
+    @media(max-width:350px) {.actions{gap:5px}.action{padding:8px;font-size:12px}.day{min-height:55px}}
   </style>
 </head>
 <body>
   <main>
-    <h1>Работа</h1>
-    <button class="new-order" id="newOrderBtn" type="button"><span class="plus" aria-hidden="true">+</span>Новый заказ</button>
-    <h2 class="section">Заказы</h2>
-    <div id="orders"><div class="empty">Пока нет заказов</div></div>
+    <header><h1>Работа</h1></header>
+    <button class="primary new-order" type="button" id="newOrderBtn"><span class="plus">+</span>Новый заказ</button>
+
+    <section class="panel" id="calendarPanel">
+      <div class="panel-top">
+        <h2>Календарь</h2>
+        <div class="nav">
+          <button class="secondary" id="prevWeek" type="button" aria-label="Предыдущая неделя">‹</button>
+          <button class="secondary" id="goToday" type="button">Сегодня</button>
+          <button class="secondary" id="nextWeek" type="button" aria-label="Следующая неделя">›</button>
+        </div>
+      </div>
+      <input class="calendar-date" id="calendarDate" type="date" aria-label="Выбрать дату">
+      <div class="week" id="weekDays"></div>
+    </section>
+
+    <nav class="tabs" aria-label="Раздел заказов">
+      <button class="tab active" type="button" data-tab="calendar">По дням</button>
+      <button class="tab" type="button" data-tab="all">Все заказы</button>
+      <button class="tab" type="button" data-tab="history">История</button>
+    </nav>
+    <div class="list-head"><h2 id="listTitle">Заказы на день</h2><span class="count" id="orderCount"></span></div>
+    <div id="orders"></div>
   </main>
 
   <div class="overlay" id="orderOverlay" hidden>
     <section class="sheet" role="dialog" aria-modal="true" aria-labelledby="formTitle">
       <div class="sheet-head">
         <h2 id="formTitle">Новый заказ</h2>
-        <button class="close" id="closeOrderBtn" type="button" aria-label="Закрыть">×</button>
+        <button type="button" class="close" id="closeOrderBtn" aria-label="Закрыть">×</button>
       </div>
       <form id="orderForm">
-        <label for="clientName">Имя клиента</label>
-        <input id="clientName" name="name" type="text" autocomplete="name" maxlength="100" required>
-        <label for="clientPhone">Телефон</label>
-        <input id="clientPhone" name="phone" type="tel" autocomplete="tel" inputmode="tel" maxlength="30">
-        <label for="orderDetails">Описание заказа</label>
-        <textarea id="orderDetails" name="details" maxlength="1000"></textarea>
-        <button class="save" type="submit">Сохранить заказ</button>
-        <div id="formStatus" class="status" role="alert"></div>
+        <label for="clientName">Имя клиента *</label>
+        <input id="clientName" name="name" type="text" maxlength="100" autocomplete="name" required>
+        <label for="clientPhone">Номер телефона *</label>
+        <input id="clientPhone" name="phone" type="tel" inputmode="tel" autocomplete="tel" maxlength="30" required>
+        <label for="clientAddress">Адрес</label>
+        <input id="clientAddress" name="address" type="text" maxlength="240">
+        <div class="form-title">Система отопления</div>
+        <div class="form-grid">
+          <div class="field"><label for="radiatorType">Тип радиаторов</label>
+            <select id="radiatorType" name="radiatorType">
+              <option value="">Не указано</option>
+              <option>Алюминиевые</option><option>Чугунные</option><option>Биметаллические</option><option>Другие</option>
+            </select>
+          </div>
+          <div class="field"><label for="radiators">Радиаторы (шт.)</label><input id="radiators" name="radiators" type="number" min="0" step="1"></div>
+          <div class="field"><label for="floorLoops">Тёплый пол (контуры)</label><input id="floorLoops" name="floorLoops" type="number" min="0" step="1"></div>
+          <div class="field"><label for="master">Мастер</label><input id="master" name="master" type="text" maxlength="100" list="masterNames"></div>
+        </div>
+        <datalist id="masterNames"></datalist>
+        <div class="form-title">Запись</div>
+        <div class="form-grid">
+          <div class="field"><label for="orderDate">Дата *</label><input id="orderDate" name="orderDate" type="date" required></div>
+          <div class="field"><label for="orderTime">Время *</label><input id="orderTime" name="orderTime" type="time" required></div>
+          <div class="field"><label for="price">Стоимость (₽)</label><input id="price" name="price" type="number" min="0" step="1"></div>
+          <div class="field"><label for="orderStatus">Статус</label>
+            <select id="orderStatus" name="orderStatus">
+              <option>Новый</option><option>Записан</option><option>В работе</option><option>Выполнен</option><option>Отменён</option>
+            </select>
+          </div>
+        </div>
+        <div class="inline"><input id="paid" name="paid" type="checkbox"><label for="paid">Оплачено</label></div>
+        <label for="orderDetails">Комментарий</label><textarea id="orderDetails" name="details" maxlength="1000"></textarea>
+        <button class="primary save" type="submit">Сохранить заказ</button>
+        <div class="error" id="formStatus" role="alert"></div>
       </form>
     </section>
   </div>
 
   <script>
+    "use strict";
     const STORAGE_KEY = "rabota-orders-v1";
+    const STATUSES = ["Новый", "Записан", "В работе", "Выполнен", "Отменён"];
     const overlay = document.getElementById("orderOverlay");
     const form = document.getElementById("orderForm");
-    const ordersContainer = document.getElementById("orders");
-    const status = document.getElementById("formStatus");
+    const formStatus = document.getElementById("formStatus");
+    const ordersNode = document.getElementById("orders");
+    const calendarDate = document.getElementById("calendarDate");
+    const weekDays = document.getElementById("weekDays");
+    const controls = {
+      name: document.getElementById("clientName"), phone: document.getElementById("clientPhone"),
+      address: document.getElementById("clientAddress"), type: document.getElementById("radiatorType"),
+      radiators: document.getElementById("radiators"), loops: document.getElementById("floorLoops"),
+      master: document.getElementById("master"), date: document.getElementById("orderDate"),
+      time: document.getElementById("orderTime"), price: document.getElementById("price"),
+      status: document.getElementById("orderStatus"), paid: document.getElementById("paid"),
+      details: document.getElementById("orderDetails")
+    };
+    let currentTab = "calendar";
+    let editingId = null;
     let previousFocus = null;
+    let selectedDate = localDate(new Date());
 
-    function getOrders() {
+    function localDate(date) {
+      return date.getFullYear() + "-" + String(date.getMonth() + 1).padStart(2, "0") + "-" + String(date.getDate()).padStart(2, "0");
+    }
+    function parseDate(date) {
+      const parts = date.split("-").map(Number);
+      return new Date(parts[0], parts[1] - 1, parts[2], 12);
+    }
+    function addDays(day, offset) {
+      const date = parseDate(day);
+      date.setDate(date.getDate() + offset);
+      return localDate(date);
+    }
+    function formatDate(value) {
+      if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return "Дата не указана";
+      return parseDate(value).toLocaleDateString("ru-RU", {day:"numeric", month:"short"});
+    }
+    function loadOrders() {
       try {
-        const parsed = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
-        return Array.isArray(parsed) ? parsed : [];
-      } catch (error) {
-        return [];
-      }
+        const value = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
+        return Array.isArray(value) ? value.filter(x => x && typeof x === "object") : [];
+      } catch (e) { return []; }
     }
+    function saveOrders(orders) {
+      try { localStorage.setItem(STORAGE_KEY, JSON.stringify(orders)); return true; }
+      catch (e) { alert("Не удалось сохранить изменения в браузере."); return false; }
+    }
+    function make(tag, className, content) {
+      const el = document.createElement(tag);
+      if (className) el.className = className;
+      if (content !== undefined && content !== null) el.textContent = String(content);
+      return el;
+    }
+    function info(card, label, value) {
+      if (value === null || value === undefined || value === "") return;
+      card.append(make("div", "info", label + String(value)));
+    }
+    function normalizePhone(phone) {
+      let number = String(phone || "").replace(/\D/g, "");
+      if (number.length === 11 && number[0] === "8") number = "7" + number.slice(1);
+      if (number.length === 10) number = "7" + number;
+      return number.length >= 10 && number.length <= 15 ? number : "";
+    }
+    function hasConflict(date, time, excludeId) {
+      return loadOrders().some(order =>
+        String(order.id) !== String(excludeId) &&
+        order.status !== "Отменён" &&
+        order.date === date && order.time === time);
+    }
+    function updateMasters() {
+      const names = [...new Set(loadOrders().map(x => String(x.master || "").trim()).filter(Boolean))].sort();
+      const list = document.getElementById("masterNames");
+      list.replaceChildren();
+      names.forEach(name => { const opt = document.createElement("option"); opt.value = name; list.append(opt); });
+    }
+    function makeCard(order) {
+      const card = make("article", "order-card");
+      const top = make("div", "card-top");
+      top.append(make("div", "client", order.name || "Без имени"));
+      top.append(make("div", "date-pill", order.date ? formatDate(order.date) + (order.time ? " · " + order.time : "") : "Без даты"));
+      card.append(top);
+      const state = STATUSES.includes(order.status) ? order.status : "Новый";
+      const css = {"Новый":"s-new","Записан":"s-booked","В работе":"s-progress","Выполнен":"s-done","Отменён":"s-cancelled"};
+      card.append(make("span", "status-badge " + css[state], state));
+      info(card, "Адрес: ", order.address);
+      info(card, "Радиаторы: ", order.radiatorType ? order.radiatorType + (order.radiators !== "" && order.radiators !== undefined ? ", " + order.radiators + " шт." : "") : (order.radiators !== "" && order.radiators !== undefined ? order.radiators + " шт." : ""));
+      info(card, "Тёплый пол: ", order.floorLoops !== "" && order.floorLoops !== undefined ? order.floorLoops + " контур(ов)" : "");
+      info(card, "Мастер: ", order.master);
+      info(card, "Стоимость: ", order.price === null || order.price === "" || order.price === undefined ? "не указана" : Number(order.price).toLocaleString("ru-RU") + " ₽");
+      info(card, "Комментарий: ", order.details);
 
-    function renderOrders() {
-      ordersContainer.replaceChildren();
-      const orders = getOrders();
-      if (!orders.length) {
-        const empty = document.createElement("div");
-        empty.className = "empty";
-        empty.textContent = "Пока нет заказов";
-        ordersContainer.append(empty);
-        return;
+      const actions = make("div", "actions");
+      const phone = String(order.phone || "").trim();
+      const normalized = normalizePhone(phone);
+      if (phone) {
+        const tel = make("a", "action", "Позвонить");
+        tel.href = "tel:" + phone.replace(/[^+\d]/g, "");
+        actions.append(tel);
       }
-      orders.forEach((order) => {
-        const card = document.createElement("article");
-        card.className = "order-card";
-        const name = document.createElement("strong");
-        name.textContent = order.name;
-        card.append(name);
-        if (order.phone) {
-          const phone = document.createElement("p");
-          phone.textContent = "Телефон: " + order.phone;
-          card.append(phone);
-        }
-        if (order.details) {
-          const details = document.createElement("p");
-          details.textContent = order.details;
-          card.append(details);
-        }
-        const date = document.createElement("small");
-        date.textContent = "Создан: " + new Date(order.createdAt).toLocaleString("ru-RU");
-        card.append(date);
-        ordersContainer.append(card);
+      if (normalized) {
+        const wa = make("a", "action wa", "WhatsApp");
+        wa.href = "https://wa.me/" + normalized;
+        wa.target = "_blank";
+        wa.rel = "noopener noreferrer";
+        actions.append(wa);
+      }
+      const edit = make("button", "action edit", "Изменить");
+      edit.type = "button";
+      edit.addEventListener("click", () => openForm(order.id));
+      actions.append(edit);
+      card.append(actions);
+
+      const bottom = make("div", "card-controls");
+      const stateWrap = make("div");
+      stateWrap.append(make("span", "control-label", "Статус заказа"));
+      const select = make("select", "compact-select");
+      select.setAttribute("aria-label", "Статус заказа " + (order.name || ""));
+      STATUSES.forEach(st => {
+        const option = document.createElement("option");
+        option.textContent = st; option.value = st; option.selected = state === st;
+        select.append(option);
       });
+      select.addEventListener("change", () => {
+        const orders = loadOrders();
+        const found = orders.find(o => String(o.id) === String(order.id));
+        if (!found) return;
+        found.status = select.value;
+        if (select.value === "Выполнен" && !found.completedAt) found.completedAt = new Date().toISOString();
+        if (select.value !== "Выполнен") delete found.completedAt;
+        if (saveOrders(orders)) render(); else select.value = state;
+      });
+      stateWrap.append(select);
+      const payWrap = make("div");
+      payWrap.append(make("span", "control-label", "Оплата"));
+      const paid = Boolean(order.paid);
+      const payment = make("button", "payment" + (paid ? " paid" : ""), paid ? "Оплачено ✓" : "Не оплачено");
+      payment.type = "button";
+      payment.setAttribute("aria-label", "Изменить отметку об оплате " + (order.name || ""));
+      payment.addEventListener("click", () => {
+        const orders = loadOrders();
+        const found = orders.find(o => String(o.id) === String(order.id));
+        if (!found) return;
+        found.paid = !Boolean(found.paid);
+        if (saveOrders(orders)) render();
+      });
+      payWrap.append(payment);
+      bottom.append(stateWrap, payWrap);
+      card.append(bottom);
+      return card;
     }
 
-    function openForm() {
+    function renderCalendar() {
+      calendarDate.value = selectedDate;
+      const base = parseDate(selectedDate);
+      const mondayOffset = (base.getDay() + 6) % 7;
+      const monday = addDays(selectedDate, -mondayOffset);
+      const orders = loadOrders();
+      weekDays.replaceChildren();
+      for (let i = 0; i < 7; i++) {
+        const date = addDays(monday, i);
+        const dateObj = parseDate(date);
+        const btn = make("button", "day" + (date === selectedDate ? " active" : "") +
+          (orders.some(o => o.date === date && o.status !== "Отменён") ? " has-orders" : ""));
+        btn.type = "button";
+        btn.setAttribute("aria-label", dateObj.toLocaleDateString("ru-RU"));
+        btn.setAttribute("aria-pressed", String(date === selectedDate));
+        btn.append(make("span", "weekday", dateObj.toLocaleDateString("ru-RU", {weekday:"short"})));
+        btn.append(make("strong", "", dateObj.getDate()));
+        btn.addEventListener("click", () => { selectedDate = date; currentTab = "calendar"; render(); });
+        weekDays.append(btn);
+      }
+    }
+    function render() {
+      renderCalendar();
+      document.querySelectorAll("[data-tab]").forEach(btn => {
+        btn.classList.toggle("active", btn.dataset.tab === currentTab);
+        btn.setAttribute("aria-current", btn.dataset.tab === currentTab ? "page" : "false");
+      });
+      document.getElementById("calendarPanel").hidden = currentTab !== "calendar";
+      const orders = loadOrders();
+      let shown;
+      if (currentTab === "history") {
+        shown = orders.filter(o => o.status === "Выполнен");
+        shown.sort((a,b) => String(b.completedAt || b.createdAt || "").localeCompare(String(a.completedAt || a.createdAt || "")));
+        document.getElementById("listTitle").textContent = "Выполненные заказы";
+      } else if (currentTab === "all") {
+        shown = orders.filter(o => o.status !== "Выполнен");
+        shown.sort((a,b) => String(a.date || "9999") .localeCompare(String(b.date || "9999")) ||
+          String(a.time || "99:99").localeCompare(String(b.time || "99:99")));
+        document.getElementById("listTitle").textContent = "Все заказы";
+      } else {
+        shown = orders.filter(o => o.date === selectedDate && o.status !== "Выполнен" && o.status !== "Отменён");
+        shown.sort((a,b) => String(a.time || "").localeCompare(String(b.time || "")));
+        document.getElementById("listTitle").textContent = "Заказы · " + formatDate(selectedDate);
+      }
+      document.getElementById("orderCount").textContent = shown.length + " шт.";
+      ordersNode.replaceChildren();
+      if (!shown.length) {
+        ordersNode.append(make("div", "empty", currentTab === "history" ? "Выполненных заказов нет" : "Заказов нет"));
+      } else {
+        shown.forEach(order => ordersNode.append(makeCard(order)));
+      }
+    }
+
+    function openForm(id) {
       previousFocus = document.activeElement;
-      status.textContent = "";
+      form.reset();
+      formStatus.textContent = "";
+      editingId = id === undefined ? null : String(id);
+      updateMasters();
+      const existing = editingId === null ? null : loadOrders().find(x => String(x.id) === editingId);
+      document.getElementById("formTitle").textContent = existing ? "Редактировать заказ" : "Новый заказ";
+      if (existing) {
+        controls.name.value = existing.name || "";
+        controls.phone.value = existing.phone || "";
+        controls.address.value = existing.address || "";
+        controls.type.value = existing.radiatorType || "";
+        controls.radiators.value = existing.radiators ?? "";
+        controls.loops.value = existing.floorLoops ?? "";
+        controls.master.value = existing.master || "";
+        controls.date.value = existing.date || "";
+        controls.time.value = existing.time || "";
+        controls.price.value = existing.price ?? "";
+        controls.status.value = STATUSES.includes(existing.status) ? existing.status : "Новый";
+        controls.paid.checked = Boolean(existing.paid);
+        controls.details.value = existing.details || "";
+      } else {
+        controls.date.value = selectedDate;
+        controls.status.value = "Новый";
+      }
       overlay.hidden = false;
       document.body.style.overflow = "hidden";
-      document.getElementById("clientName").focus();
+      controls.name.focus();
     }
-
     function closeForm() {
       overlay.hidden = true;
       document.body.style.overflow = "";
       form.reset();
-      if (previousFocus) previousFocus.focus();
+      editingId = null;
+      if (previousFocus && typeof previousFocus.focus === "function") previousFocus.focus();
     }
-
-    document.getElementById("newOrderBtn").addEventListener("click", openForm);
+    document.getElementById("newOrderBtn").addEventListener("click", () => openForm());
     document.getElementById("closeOrderBtn").addEventListener("click", closeForm);
-    overlay.addEventListener("click", (event) => {
-      if (event.target === overlay) closeForm();
-    });
-    document.addEventListener("keydown", (event) => {
-      if (event.key === "Escape" && !overlay.hidden) closeForm();
-    });
+    overlay.addEventListener("click", e => { if (e.target === overlay) closeForm(); });
+    document.addEventListener("keydown", e => { if (e.key === "Escape" && !overlay.hidden) closeForm(); });
+    document.getElementById("prevWeek").addEventListener("click", () => { selectedDate = addDays(selectedDate, -7); currentTab = "calendar"; render(); });
+    document.getElementById("nextWeek").addEventListener("click", () => { selectedDate = addDays(selectedDate, 7); currentTab = "calendar"; render(); });
+    document.getElementById("goToday").addEventListener("click", () => { selectedDate = localDate(new Date()); currentTab = "calendar"; render(); });
+    calendarDate.addEventListener("change", () => { if (calendarDate.value) { selectedDate = calendarDate.value; render(); } });
+    document.querySelectorAll("[data-tab]").forEach(btn => btn.addEventListener("click", () => { currentTab = btn.dataset.tab; render(); }));
 
-    form.addEventListener("submit", (event) => {
+    form.addEventListener("submit", event => {
       event.preventDefault();
-      const name = form.elements.name.value.trim();
-      const phone = form.elements.phone.value.trim();
-      const details = form.elements.details.value.trim();
-      if (!name) return;
-      const orders = getOrders();
-      orders.unshift({ id: Date.now().toString(), name, phone, details, createdAt: new Date().toISOString() });
-      try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(orders));
-        renderOrders();
-        closeForm();
-      } catch (error) {
-        status.textContent = "Не удалось сохранить заказ. Проверьте настройки хранения браузера.";
+      formStatus.textContent = "";
+      const name = controls.name.value.trim();
+      const phone = controls.phone.value.trim();
+      const date = controls.date.value;
+      const time = controls.time.value;
+      const status = controls.status.value;
+      if (!name || !phone || !date || !time || !STATUSES.includes(status)) {
+        formStatus.textContent = "Заполните обязательные поля.";
+        return;
       }
+      if (status !== "Отменён" && hasConflict(date, time, editingId)) {
+        formStatus.textContent = "На эту дату и время уже записан клиент. Выберите другое время.";
+        controls.time.focus();
+        return;
+      }
+      const orders = loadOrders();
+      const existing = editingId === null ? null : orders.find(o => String(o.id) === editingId);
+      if (editingId !== null && !existing) {
+        formStatus.textContent = "Заказ не найден."; return;
+      }
+      const now = new Date().toISOString();
+      const order = {
+        id: existing ? existing.id : (typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : Date.now().toString() + Math.random().toString(36).slice(2)),
+        createdAt: existing ? existing.createdAt : now,
+        name, phone, address: controls.address.value.trim(),
+        radiatorType: controls.type.value,
+        radiators: controls.radiators.value, floorLoops: controls.loops.value,
+        master: controls.master.value.trim(), date, time,
+        price: controls.price.value === "" ? null : Number(controls.price.value),
+        paid: controls.paid.checked, status, details: controls.details.value.trim()
+      };
+      if (status === "Выполнен") order.completedAt = existing && existing.completedAt ? existing.completedAt : now;
+      if (existing) orders[orders.indexOf(existing)] = order;
+      else orders.unshift(order);
+      if (!saveOrders(orders)) { formStatus.textContent = "Сохранить не удалось."; return; }
+      selectedDate = date;
+      if (status === "Выполнен") currentTab = "history";
+      else if (status === "Отменён") currentTab = "all";
+      else currentTab = "calendar";
+      closeForm();
+      render();
     });
-
-    renderOrders();
+    render();
   </script>
 </body>
 </html>
