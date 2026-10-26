@@ -7,7 +7,7 @@ body.rd #appScreen.rd-master{max-width:810px;padding:28px 16px 80px}
 body.rd #appScreen.rd-master>header{margin-bottom:22px}
 body.rd #appScreen.rd-master header h1{font-size:29px}
 body.rd #appScreen.rd-master #viewSwitch{display:none}
-body.rd #appScreen>header{display:none}
+body.rd #appScreen:not(.rd-master)>header{display:none}
 body.rd .rd-shell{position:fixed;top:0;bottom:0;left:0;width:242px;z-index:15;display:flex;flex-direction:column;padding:23px 14px;background:#121720;border-right:1px solid #293244}
 body.rd .rd-brand{display:flex;align-items:center;gap:12px;padding:5px 11px 21px;color:#f9faff;text-decoration:none}
 body.rd .rd-logo{display:grid;place-items:center;background:linear-gradient(135deg,#fa5b38,#fc9c29);font-size:22px;font-weight:900;color:#190f0c;border-radius:12px;width:43px;height:43px}
