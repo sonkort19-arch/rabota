@@ -94,7 +94,7 @@ aside{width:266px;flex:0 0 266px;background:#171717;border-right:1px solid #2929
 <div id="scrim"></div>
 <div id="layout" hidden>
   <aside>
-    <div class="brand"><strong>ИИ-чат</strong><a class="back" href="/">← Заказы</a></div>
+    <div class="brand"><strong>Работа · ИИ</strong><a class="back" href="/">← Заказы</a></div>
     <button id="newChat" type="button">＋ Новый чат</button>
     <div class="sidebar-label">История переписок</div>
     <div id="history" aria-label="История чатов"></div>
@@ -172,21 +172,27 @@ function renderMessages(){
  $("conversationTitle").textContent=chats.find(c=>c.id===activeChat)?.title||"Новый чат";
  if(!messages.length){
   const empty=document.createElement("div");empty.className="empty-state";
+  const emblem=document.createElement("div");emblem.className="rd-ai-emblem";emblem.setAttribute("aria-hidden","true");emblem.textContent="✦";
   const title=document.createElement("h2");title.textContent="С чего начнём?";
-  const subtitle=document.createElement("p");subtitle.textContent="Напишите вопрос своему ИИ-помощнику.";
+  const subtitle=document.createElement("p");subtitle.textContent="Вопросы о заказах, клиентах, расписании и финансах — в одном месте.";
   const questions=document.createElement("div");questions.className="quick-questions";
-  for(const question of [
-   "Сколько заказов на этой и прошлой неделе?",
-   "Сколько клиентов записано на завтра?",
-   "Какие заказы ещё не оплачены?",
-   "Сколько денег в кассе по учёту?"
-  ]){
+  const suggestions=[
+    "Сколько заказов на этой и прошлой неделе?",
+    "Сколько клиентов записано на завтра?",
+    "Какие заказы ещё не оплачены?",
+    "Сколько денег в кассе по учёту?"
+  ];
+  for(const [i,question] of suggestions.entries()){
     const button=document.createElement("button");
-    button.type="button";button.className="quick-question";button.textContent=question;
+    button.type="button";button.className="quick-question";
+    const symbol=document.createElement("span");symbol.className="rd-quick-icon";symbol.setAttribute("aria-hidden","true");symbol.textContent=["▤","♙","₽","▥"][i];
+    const copy=document.createElement("span");copy.className="rd-quick-label";copy.textContent=question;
+    const arrow=document.createElement("span");arrow.className="rd-quick-arrow";arrow.setAttribute("aria-hidden","true");arrow.textContent="›";
+    button.append(symbol,copy,arrow);
     button.addEventListener("click",()=>{$("input").value=question;$("input").focus();$("composer").requestSubmit()});
     questions.append(button)
   }
-  empty.append(title,subtitle,questions);list.append(empty)
+  empty.append(emblem,title,subtitle,questions);list.append(empty)
  }else for(const m of messages)list.append(item(m.role,m.content));
  if(busy)list.append(item("assistant","ИИ готовит ответ...","waiting"));
  $("messages").scrollTop=$("messages").scrollHeight
