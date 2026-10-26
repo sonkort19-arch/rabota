@@ -34,7 +34,6 @@ function makeMobileMenu(){
  function open(){const expanded=!sheet.hidden;if(expanded){close();return}veil.hidden=false;sheet.hidden=false;document.body.classList.add("rd-menu-open");toggle?.setAttribute("aria-expanded","true")}
  veil.addEventListener("click",close);
  document.addEventListener("keydown",e=>{if(e.key==="Escape"&&!sheet.hidden)close()});
- const originalNavigate=navigate;
  // Menu item clicks navigate, then dismiss the overlay.
  sheet.querySelectorAll(".rd-more-item[data-page]").forEach(btn=>btn.addEventListener("click",close));
  toggle=makeNode("button","rd-nav-btn rd-more-trigger");toggle.type="button";toggle.dataset.page="more";toggle.setAttribute("aria-controls",sheet.id);toggle.setAttribute("aria-expanded","false");
@@ -131,7 +130,7 @@ function navigate(key){
  $("teamPanel").hidden=key!=="orders"||currentRole!=="owner";
  $("rdFinanceIntro").hidden=key!=="finance";
  app.className=app.className.replace(/\brd-view-\S+/g,"").trim()+" rd-view-"+key;
- document.querySelectorAll(".rd-nav-btn").forEach(btn=>btn.setAttribute("aria-current",btn.dataset.page===key?"page":"false"));
+ document.querySelectorAll(".rd-nav-btn").forEach(btn=>btn.setAttribute("aria-current",(btn.dataset.page===key||(btn.dataset.page==="more"&&["clients","finance"].includes(key)))?"page":"false"));
  if(key==="home")drawHome();
  if(key==="clients")drawClients();
  if(key==="calendar")drawCalendar();
