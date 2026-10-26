@@ -1524,6 +1524,8 @@
       }
       try{await removePushOnLogout();}catch(err){console.warn("Push unsubscribe",err);}
       clearSession();showScreen("loginScreen");
+      // Rebuild the responsive navigation for the next account's role.
+      window.location.reload();
     }
     document.getElementById("logoutBtn").addEventListener("click",logout);
     document.getElementById("accessLogout").addEventListener("click",logout);
