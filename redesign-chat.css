@@ -1,0 +1,65 @@
+
+:root{background:#0d111a;color:#ecf2fb}
+body{background:radial-gradient(circle at 55% -30%,#202740 0,#0d111a 65%);color:#e8eef8}
+#layout{background:#0d111a}
+aside{width:305px;flex-basis:305px;background:#121821;border-right:1px solid #2d3848;padding:20px 14px}
+.brand{padding:10px 11px 19px;border-bottom:1px solid #273447}
+.brand strong{font-size:20px;color:#f2f5ff}
+.back{border:1px solid #34445c;border-radius:10px;padding:8px;color:#b0cbfb}
+#newChat{background:linear-gradient(110deg,#6953e9,#834cec);border:none;color:white;text-align:center;border-radius:12px}
+#newChat:hover{background:#7b63f3}
+.sidebar-label{color:#8fa2c1;font-size:12px}
+.chat-row.is-active{background:#263248;border-left:3px solid #765aff}
+.chat-open{color:#d9e3f4}
+.chat-remove{color:#8396b3}
+.sidebar-foot{color:#8291a9;border-top-color:#2a3647}
+#main{background:#101720}
+.top{height:70px;background:#121a27;border-bottom:1px solid #2b3647}
+.top h1{font-size:20px}
+.top span{color:#a6a8ff;background:#302b4d;padding:5px 10px;border-radius:9px}
+#menu{color:#a3b6d6}
+.messages-inner{width:min(100%,870px)}
+.empty-state h2{font-size:31px;letter-spacing:-1px}
+.empty-state p{color:#99a9c0}
+.quick-question{background:#1d283b;border-color:#314560;color:#c9d9ef;padding:12px 14px}
+.quick-question:hover{background:#2b3b55}
+.bubble{font-size:15px;line-height:1.7;color:#e2ebf8}
+.bubble.user{background:#244174;border:1px solid #3d5e9b;border-radius:18px 18px 5px 18px}
+.bubble.assistant{background:transparent;max-width:900px}
+.bubble.waiting{color:#9badc9}
+.composer-wrap{width:min(100%,880px);background:#101720}
+#composer{background:#202a3a;border:1px solid #3b4b62;border-radius:18px;padding:9px 10px 9px 15px}
+#input{color:#f7faff}
+#input::placeholder{color:#8b9bad}
+#mic{color:#c5d5f2;border:1px solid #3f5069;background:#28384d;border-radius:13px}
+#mic:hover{background:#35445d}
+#mic.is-recording{background:#a24155}
+#send{background:#7656f0;color:#fff;border-radius:12px}
+#notice{font-size:12px}
+#proposalCard{border:1px solid #4a5373;background:linear-gradient(140deg,#202d43,#20233a);border-radius:17px;padding:16px}
+#proposalCard strong{color:#fafaff}
+#proposalDetails{background:#172235;border-radius:12px;padding:12px;border:1px solid #303f5c;color:#c5d7ee}
+#confirmOrder{background:linear-gradient(110deg,#6754ed,#8550ed);color:white;border:none;padding:12px 18px}
+#cancelOrder{background:#30394b;color:#ecf3ff;border:1px solid #465773;padding:12px 18px}
+#proposalHint{color:#a6b4cb}
+.hint{color:#8192aa;font-size:11px;line-height:1.45}
+#gate{background:#101720}
+#gate h1{color:#f4f5ff}
+#gate p{color:#a2afc3}
+#gate a{color:#a8c2ff}
+@media(max-width:760px){
+ aside{width:290px;flex-basis:290px}
+ .top{height:61px;padding:0 13px}
+ .top h1{font-size:17px}
+ .messages-inner{gap:17px}
+ #messages{padding:18px 12px 25px}
+ .bubble{font-size:14px}
+ .bubble.user{max-width:92%;padding:10px 14px}
+ .composer-wrap{padding:0 9px max(12px,env(safe-area-inset-bottom))}
+ #composer{gap:7px}
+ #input{font-size:16px}
+ #mic,#send{width:38px;height:38px}
+ .quick-question{font-size:12px}
+ #proposalDetails{font-size:13px}
+ .empty-state h2{font-size:24px}
+}
