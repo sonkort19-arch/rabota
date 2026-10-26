@@ -197,7 +197,7 @@ function navigate(key){
  else if(key==="clients")drawClients();
  window.scrollTo({top:0,behavior:"instant"});
 }
-function drawChart(parent,values){
+function drawChart(parent,values,month){
  // Draw the real month's orders. SVG is self-contained; no chart dependency,
  // network requests, hard-coded counts, or writes to customer/finance data.
  const svg=document.createElementNS("http://www.w3.org/2000/svg","svg");
@@ -274,7 +274,7 @@ function drawChart(parent,values){
   hoverLine.setAttribute("x1",p.x);hoverLine.setAttribute("x2",p.x);
   hoverDot.setAttribute("cx",p.x);hoverDot.setAttribute("cy",p.y);
   const count=p.value;
-  tipDay.textContent=p.day+" число";
+  tipDay.textContent=p.day+" "+parseDate(month+"-01").toLocaleDateString("ru-RU",{month:"short"});
   tipCount.textContent=count+" "+(count%10===1&&count%100!==11?"заказ":count%10>=2&&count%10<=4&&(count%100<12||count%100>14)?"заказа":"заказов");
   const bx=Math.max(left,Math.min(right-118,p.x-59));
   const by=p.y<top+67?p.y+13:p.y-61;
@@ -325,7 +325,7 @@ function drawHome(){
  chart.querySelector(".rd-panel-heading").append(monthBadge);
  const monthStart=month+"-01",date0=parseDate(monthStart),days=new Date(date0.getFullYear(),date0.getMonth()+1,0).getDate();
  const series=Array.from({length:days},(_,i)=>thisMonth.filter(o=>o.date===month+"-"+String(i+1).padStart(2,"0")).length);
- drawChart(chart,series);
+ drawChart(chart,series,month);
  if(currentRole==="owner"){
   const assistant=panel("✦ ИИ-помощник","Спрашивайте о заказах и расписании");
   for(const label of ["Найти свободное окно","Показать неоплаченные заказы","Сколько заказов за неделю?"]){
