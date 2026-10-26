@@ -191,6 +191,7 @@
     .push-panel .push-notice{border-top:1px solid #e0e8f4;padding:10px 0 2px;font-size:13px}
     .push-panel .push-notice button{font-size:12px;padding:5px 8px;margin-top:6px}
   </style>
+  <link rel="stylesheet" href="/redesign.css">
 </head>
 <body>
 
@@ -888,7 +889,7 @@
         btn.classList.toggle("active",btn.dataset.tab===currentTab);
         btn.setAttribute("aria-current",btn.dataset.tab===currentTab?"page":"false");
       });
-      document.getElementById("calendarPanel").hidden = currentTab !== "calendar";
+      document.getElementById("calendarPanel").hidden = currentTab !== "calendar" || window.__rdCurrentPage === "calendar";
       let shown;
       if (currentTab === "history") {
         shown = getOrders().filter(o=>o.status==="Выполнен");
@@ -915,7 +916,8 @@
       ordersNode.replaceChildren();
       if(!shown.length) ordersNode.append(make("div","empty",currentTab==="history"?"Выполненных заказов нет":"Заказов нет"));
       else if(currentRole==="master" && currentTab!=="history") renderMasterSchedule(shown);
-      else shown.forEach(o=>ordersNode.append(makeCard(o)));
+      else shown.forEach(o=>{const card=makeCard(o);window.__rdDecorateOrder?.(card);card.dataset.search=(o.name+' '+o.phone+' '+o.address+' '+o.master).toLocaleLowerCase('ru');card.dataset.date=o.date||'';card.dataset.master=o.master||'';card.dataset.status=o.status||'';card.dataset.unpaid=String(o.status==='Выполнен'&&!o.paid);ordersNode.append(card);});
+      window.__rdRefresh?.();
     }
     function openForm(id) {
       if(currentRole!=="owner" && currentRole!=="manager")return;
@@ -1310,7 +1312,7 @@
 
     async function loadTeam() {
       const panel=document.getElementById("teamPanel");
-      panel.hidden=currentRole!=="owner";
+      panel.hidden=currentRole!=="owner" || (window.__rdCurrentPage!=null && window.__rdCurrentPage!=="orders");
       if (currentRole!=="owner") return;
       const requests=document.getElementById("teamRequests");
       const active=document.getElementById("teamMembers");
@@ -1471,6 +1473,7 @@
       financeVisible();
       await reloadOrders();
       showScreen("appScreen");
+      window.__rdAccess?.();
       if(currentRole==="owner") {
         try{await loadTeam();}catch(error){console.warn(error);}
       }
@@ -1521,6 +1524,8 @@
       }
       try{await removePushOnLogout();}catch(err){console.warn("Push unsubscribe",err);}
       clearSession();showScreen("loginScreen");
+      // Rebuild the responsive navigation for the next account's role.
+      window.location.reload();
     }
     document.getElementById("logoutBtn").addEventListener("click",logout);
     document.getElementById("accessLogout").addEventListener("click",logout);
@@ -1537,5 +1542,6 @@
     initialize();
 
   </script>
+  <script src="/redesign.js"></script>
 </body>
 </html>

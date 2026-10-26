@@ -86,6 +86,7 @@ aside{width:266px;flex:0 0 266px;background:#171717;border-right:1px solid #2929
  .empty-state h2{font-size:23px}
 }
 </style>
+<link rel="stylesheet" href="/redesign-chat.css">
 </head>
 <body>
 <div id="gate"><h1>ИИ-чат · Работа</h1><p id="gateText">Проверяем доступ...</p><a href="/">Вернуться к заказам</a></div>
@@ -427,7 +428,11 @@ $("input").addEventListener("input",()=>{
   if(!membership?.some(m=>m.role==="owner"&&m.active))throw new Error("ИИ-чат доступен только владельцу приложения.");
   await loadChats();
   $("gate").hidden=true;$("layout").hidden=false;
-  renderMessages();$("input").focus()
+  renderMessages();
+  // Suggestion link opens an editable draft; it never sends a message automatically.
+  const draft=new URLSearchParams(location.search).get("draft");
+  if(draft && draft.length<=240){$("input").value=draft;$("input").dispatchEvent(new Event("input"))}
+  $("input").focus()
  }catch(error){gate(error.message)}
 })();
 </script>
