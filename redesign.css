@@ -169,3 +169,71 @@ body.rd .rd-footer{font-size:11px;color:#7589a3;padding:15px 0}
  body.rd .rd-user strong{display:none}
  body.rd .rd-mobilebar .rd-nav-btn{font-size:9px}
 }
+
+
+/* Mobile UX refinements based on on-device review */
+body.rd .rd-more-veil,body.rd .rd-more-sheet{display:none}
+body.rd .rd-more-sheet[hidden],body.rd .rd-more-veil[hidden]{display:none!important}
+body.rd .rd-week-strip,body.rd .rd-selected-day{display:none}
+body.rd .rd-date-filter{display:flex;align-items:center;gap:10px;flex:1;min-width:185px;height:43px;padding:0 12px;background:#1e293b;border:1px solid #39465a;border-radius:11px;color:#9eb2cf;font-size:13px}
+body.rd .rd-date-filter input{background:transparent;border:0;padding:0;color:#eef4fd;min-width:0;width:100%;height:40px;font-size:14px}
+body.rd .rd-date-filter input:focus{outline:2px solid #607bf6;outline-offset:2px;border-radius:4px}
+body.rd .rd-order-expand{display:none}
+body.rd .rd-order-extra[hidden]{display:block!important}
+body.rd .rd-order-extra .info{margin:8px 0}
+@media(max-width:790px){
+ body.rd .rd-mobilebar{justify-content:space-between;gap:2px;padding-left:5px;padding-right:5px;z-index:28}
+ body.rd .rd-mobilebar .rd-nav-btn{min-width:0;flex:1 1 0;gap:3px;font-size:10px;line-height:1.15;white-space:normal;text-align:center;overflow-wrap:normal;letter-spacing:-.1px;padding:5px 1px}
+ body.rd .rd-mobilebar .rd-nav-btn .rd-icon{font-size:21px}
+ body.rd .rd-mobilebar .rd-nav-btn[aria-current="page"]{background:#27334b}
+ body.rd .rd-top{gap:9px}
+ body.rd .rd-top-search{font-size:14px;min-width:0;flex:1 1 auto;padding:0 11px}
+ body.rd .rd-user{flex:0 0 auto;gap:5px}
+ body.rd .rd-user strong{display:none}
+ body.rd .rd-user-dot{height:32px;width:32px;font-size:13px}
+ body.rd .rd-more-veil:not([hidden]){display:block;position:fixed;inset:0;background:#050a14a8;z-index:25;border:0;width:100%;height:100%}
+ body.rd .rd-more-sheet:not([hidden]){display:grid;position:fixed;left:9px;right:9px;bottom:calc(68px + env(safe-area-inset-bottom));z-index:27;gap:5px;padding:18px;background:#1b2636;border:1px solid #41516a;box-shadow:0 -15px 35px #0006;border-radius:18px}
+ body.rd .rd-more-sheet h2{font-size:16px;margin:0 0 9px;padding-left:7px}
+ body.rd .rd-more-sheet .rd-nav-btn{width:100%;min-height:47px;border-radius:11px;font-size:15px;justify-content:flex-start}
+ body.rd .rd-more-sheet .rd-nav-btn .rd-icon{font-size:20px}
+ body.rd .rd-date-filter{width:100%;min-width:0;flex:1 1 100%;height:45px}
+ body.rd .rd-date-filter input{min-width:0;width:100%;font-size:15px}
+ body.rd #rdOrderToolbar select{flex:1;min-width:115px}
+ body.rd #rdOrderToolbar button{flex:1}
+ body.rd #rdOrderStats{width:100%}
+ body.rd #rdOrderStats .rd-stats{width:100%;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+ body.rd #rdOrderStats .rd-stat{min-height:120px;padding:13px}
+ body.rd #rdOrderStats .rd-stat strong{font-size:27px}
+ body.rd #rdOrderStats .rd-stat small{font-size:12px}
+ body.rd .rd-order-expand{display:flex;margin-top:9px;min-height:39px;align-items:center;color:#a7c8fe;justify-content:flex-start;border:0;background:transparent;font-weight:650;font-size:13px;cursor:pointer;padding:7px 2px}
+ body.rd .rd-order-expand:after{content:"⌄";margin-left:7px;font-size:17px}
+ body.rd .rd-order-expand[aria-expanded="true"]:after{content:"⌃"}
+ body.rd .rd-order-extra[hidden]{display:none!important}
+ body.rd #orders .order-card{padding:15px;margin-bottom:10px}
+ body.rd #orders .order-card .info{font-size:13px;line-height:1.55;margin:7px 0}
+ body.rd #orders .order-card .client{font-size:18px}
+ body.rd #orders .order-card .actions{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;margin-top:10px}
+ body.rd #orders .order-card .actions .action{margin:0;min-width:0;padding:8px 4px;font-size:11px;white-space:nowrap}
+ body.rd #orders .order-card .card-top{gap:5px}
+ body.rd #orders .order-card .date-pill{font-size:11px;padding:6px 7px}
+ body.rd #orders .order-card .card-controls{grid-template-columns:minmax(0,1fr) auto;gap:7px}
+ body.rd #orders .order-card .compact-select{font-size:13px;padding:8px 6px}
+ body.rd #orders .order-card .payment{font-size:12px;padding:8px}
+ body.rd #rdCalendarBoard .rd-week-grid{display:none!important}
+ body.rd #rdCalendarBoard .rd-week-strip{display:flex;overflow-x:auto;scroll-snap-type:x proximity;gap:7px;padding-bottom:10px;overscroll-behavior-x:contain}
+ body.rd .rd-day-chip{display:flex;flex:1 0 58px;max-width:85px;flex-direction:column;align-items:center;gap:3px;min-height:80px;padding:8px 4px;border-radius:11px;background:#222d42;border:1px solid #364b66;color:#b6c5dc;font-size:11px;scroll-snap-align:start}
+ body.rd .rd-day-chip strong{font-size:19px;color:#f0f5ff}
+ body.rd .rd-day-chip small{font-size:10px;color:#90a7c5}
+ body.rd .rd-day-chip.is-selected{border-color:#7c8ff8;background:#303e6a;color:white}
+ body.rd #rdCalendarBoard .rd-selected-day{display:block;border-top:1px solid #303e52;padding-top:13px}
+ body.rd .rd-selected-day h3{font-size:15px;margin:0 0 12px;color:#e6f0ff;text-transform:capitalize}
+ body.rd .rd-mobile-event{display:flex;flex-direction:column;width:100%;text-align:left;gap:5px;padding:12px 13px;margin-bottom:8px;border-radius:12px;background:#223652;border:1px solid #3e5981;color:#e5eeff;cursor:pointer;overflow-wrap:anywhere}
+ body.rd .rd-mobile-event strong{font-size:15px;color:#a9ccff}
+ body.rd .rd-mobile-event span{font-size:13px}
+ body.rd .rd-mobile-event small{font-size:12px;color:#a4b9d3}
+ body.rd #rdCalendarNavigation{display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}
+ body.rd #rdCalendarNavigation button{min-width:0;padding:9px 6px;font-size:12px}
+ body.rd #rdCalendarNavigation input{min-width:0;width:100%}
+ body.rd #rdCalendarBoard{padding:14px}
+ body.rd .rd-toolbar{margin-bottom:14px}
+}
