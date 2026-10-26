@@ -10,7 +10,7 @@ const makeNode=(tag,className,text)=>{const n=document.createElement(tag);if(cla
 const sections=["home","orders","calendar","clients","finance","ai"];
 const titles={home:"Главная",orders:"Заказы",calendar:"Календарь",clients:"Клиенты",finance:"Финансы",ai:"ИИ-чат"};
 const icon={home:"⌂",orders:"▤",calendar:"▦",clients:"♙",finance:"▥",ai:"✦"};
-let activePage="home",ready=false,lastOrderKey="",rdSearchTerm="",selectedClientKey=null;
+let activePage="home",ready=false,lastOrderKey="",rdSearchTerm="",selectedClientKey=null,builtRole=null;
 function todayMoscow(){return new Intl.DateTimeFormat("sv-SE",{timeZone:"Europe/Moscow",year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date())}
 function dateLong(day){if(!day)return "Дата не указана";return parseDate(day).toLocaleDateString("ru-RU",{day:"numeric",month:"long"})}
 function cash(num){return new Intl.NumberFormat("ru-RU",{maximumFractionDigits:2}).format(Number(num)||0)+" ₽"}
@@ -106,7 +106,7 @@ function build(){
  $("ordersArea").append($("teamPanel"));
  // Original order editor, calendar state, and financial forms are retained.
  $("ordersArea").insertBefore($("ordersArea").querySelector("#newOrderBtn"),$("ordersArea").querySelector("#teamPanel"));
- ready=true; navigate("home");drawHome();
+ builtRole=currentRole;ready=true; navigate("home");drawHome();
 }
 function navigate(key){
  if(key==="ai"){window.location.assign("/ai.html");return}
@@ -343,6 +343,7 @@ function filterCards(){
  if(total)$("orderCount").textContent="Показано "+visible+" из "+total;
 }
 window.__rdAccess=()=>{
+ if(ready&&builtRole!==currentRole){window.location.reload();return}
  if(currentRole==="master"){app.classList.add("rd-master");return}
  if(!["owner","manager"].includes(currentRole))return;
  build();
