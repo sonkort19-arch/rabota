@@ -180,7 +180,7 @@ async function businessSnapshot(tokenHeaders, question) {
   by_master:byMaster,scheduled_nearby:needsNames?booked.slice(0,100).map(shortOrder):[],
   order_examples:needsNames?detail:[],
   notes:["order_examples ограничен 210 заказами, агрегаты рассчитаны по всем доступным заказам.",
-    "Телефоны и адреса клиентов не передаются в OpenAI.",
+    "Телефоны и адреса не включаются в снимок заказов из базы. Однако введённые самим владельцем в сообщения телефон и адрес отправляются в OpenAI для подготовки заявки.",
     "Если клиент или заказ не найден в детальных примерах, нельзя утверждать, что его нет в базе; попроси уточнить период или имя.",
     "Данные только из «Работа», не из других направлений и не из Instagram."]
  };
@@ -240,7 +240,7 @@ module.exports = async function handler(req, res) {
             type: "object",
             properties: {
               action: { type: "string", enum: ["create","move"] },
-              client_name: { type: "string", description: "Client name as provided; never invent" },
+              client_name: { type: "string", description: "Use the canonical existing client name when recognizable in records (nominative case); never invent" },
               date: { type: "string", description: "Target booking date YYYY-MM-DD, Moscow local" },
               time: { type: "string", description: "Target booking time HH:MM, Moscow local" },
               master: { type: "string", description: "Existing active master; can be omitted for move to preserve master" },
