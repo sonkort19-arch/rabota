@@ -49,10 +49,19 @@ function build(){
  calendar.append(boxText("p","Показаны фактические заявки. Свободное время согласовывайте с мастером.","rd-muted"));
  const board=makeNode("section","rd-panel rd-view-area");board.id="rdCalendarBoard";board.append(boxText("h2","Неделя · записи мастеров"),makeNode("div","rd-week-grid"));
  const ordersTitle=sectionView("rdOrdersIntro","Заказы","Все заявки, статусы, поиск и быстрые действия");
+ const orderStats=makeNode("div","rd-stats");orderStats.id="rdOrderStats";
+ const orderTools=makeNode("div","rd-toolbar");orderTools.id="rdOrderToolbar";
+ const orderDate=makeNode("input");orderDate.type="date";orderDate.id="rdOrderDate";orderDate.setAttribute("aria-label","Фильтр по дате");orderDate.addEventListener("change",filterCards);
+ const masterSelect=makeNode("select");masterSelect.id="rdMasterFilter";masterSelect.setAttribute("aria-label","Фильтр по мастеру");masterSelect.addEventListener("change",filterCards);
+ const statusSelect=makeNode("select");statusSelect.id="rdStatusFilter";statusSelect.setAttribute("aria-label","Фильтр по статусу");
+ [["","Все статусы"],["Новый","Новый"],["Записан","Записан"],["В работе","В работе"],["Выполнен","Выполнен"],["Отменён","Отменён"],["unpaid","Не оплачено"]].forEach(([value,label])=>{const opt=makeNode("option","",label);opt.value=value;statusSelect.append(opt)});
+ statusSelect.addEventListener("change",()=>{currentTab=statusSelect.value==="Выполнен"?"history":"all";render();filterCards()});
+ const clear=makeNode("button","secondary","Сбросить");clear.addEventListener("click",()=>{orderDate.value="";statusSelect.value="";masterSelect.value="";rdSearchTerm="";$("rdTopSearch").value="";currentTab="all";render();filterCards()});
+ orderTools.append(orderDate,masterSelect,statusSelect,clear);
  const financeTitle=sectionView("rdFinanceIntro","Финансы","Начисления, касса и история операций");
  app.insertBefore(home,$("ordersArea"));
  app.insertBefore(clients,$("ordersArea"));
- $("ordersArea").prepend(ordersTitle,calendar,board);
+ $("ordersArea").prepend(ordersTitle,orderStats,orderTools,calendar,board);
  $("financePanel").prepend(financeTitle);
  // The original order editor, calendar week navigation, and finance forms are retained.
  $("ordersArea").insertBefore($("ordersArea").querySelector("#newOrderBtn"),$("ordersArea").querySelector("#teamPanel"));
@@ -62,7 +71,7 @@ function navigate(key){
  if(key==="ai"){window.location.assign("/ai.html");return}
  if(!ready)return;
  if(key==="finance"&&currentRole!=="owner")return;
- activePage=key;
+ activePage=key;window.__rdCurrentPage=key;
  if(key==="finance"){$("viewFinanceBtn").click()}
  else if(financeActive){$("viewOrdersBtn").click()}
  if(key==="orders"){currentTab="all";render()}
@@ -87,7 +96,7 @@ function navigate(key){
  if(key==="home")drawHome();
  if(key==="clients")drawClients();
  if(key==="calendar")drawCalendar();
- if(key==="orders")filterCards();
+ if(key==="orders"){drawOrderSummary();filterCards();}
  window.scrollTo({top:0,behavior:"instant"});
 }
 function drawChart(parent,values){
@@ -143,6 +152,21 @@ function drawHome(){
  recent.forEach(o=>rowEntry(latest,o.name,(o.date?dateLong(o.date):"Без даты")+" · "+(o.master||"Без мастера"),o.price==null?"—":cash(o.price),()=>{navigate("orders");openForm(o.id)}));
  latest.classList.add("rd-blockgap");root.append(latest,boxText("div","Финансовая касса и распределение средств остаются в действующем разделе «Финансы».","rd-footer"));
 }
+function drawOrderSummary(){
+ if(!ready)return;
+ const el=$("rdOrderStats");el.replaceChildren();
+ const active=activeOrders(),newOrders=active.filter(o=>o.status==="Новый");
+ const inProgress=active.filter(o=>o.status==="В работе"),unpaid=getOrders().filter(o=>o.status==="Выполнен"&&!o.paid);
+ stats(el,[{label:"Активные заказы",value:String(active.length),hint:"Не отменённые"},
+ {label:"Новые",value:String(newOrders.length),hint:"Ожидают обработки"},
+ {label:"В работе",value:String(inProgress.length),hint:"Текущий статус"},
+ {label:"Не оплачено",value:String(unpaid.length),hint:"Завершены без отметки оплаты"}]);
+ const select=$("rdMasterFilter"),previous=select.value;
+ select.replaceChildren();const initial=makeNode("option","","Все мастера");initial.value="";select.append(initial);
+ const masters=[...new Set(getOrders().map(o=>smText(o.master)).filter(Boolean))].sort((a,b)=>a.localeCompare(b,"ru"));
+ masters.forEach(master=>{const option=makeNode("option","",master);option.value=master;select.append(option)});
+ select.value=masters.includes(previous)?previous:"";
+}
 function drawCalendar(){
  if(!ready||activePage!=="calendar")return;
  const board=$("rdCalendarBoard").querySelector(".rd-week-grid");board.replaceChildren();
@@ -181,10 +205,17 @@ function drawClients(){
  if(values.length>150)list.append(boxText("div","Показаны первые 150 клиентов. Уточните поиск.","rd-note"));
 }
 function filterCards(){
- if(!ready)return;
+ if(!ready||activePage!=="orders")return;
+ const date=$("rdOrderDate").value,master=$("rdMasterFilter").value,status=$("rdStatusFilter").value;
+ let visible=0,total=0;
  for(const card of $("orders").querySelectorAll(".order-card")){
-  card.hidden=Boolean(rdSearchTerm)&&!String(card.dataset.search||"").includes(rdSearchTerm);
+  total++;
+  const show=(!rdSearchTerm||String(card.dataset.search||"").includes(rdSearchTerm)) &&
+    (!date||card.dataset.date===date)&&(!master||card.dataset.master===master)&&
+    (!status||(status==="unpaid"?card.dataset.unpaid==="true":card.dataset.status===status));
+  card.hidden=!show;if(show)visible++;
  }
+ if(total)$("orderCount").textContent="Показано "+visible+" из "+total;
 }
 window.__rdAccess=()=>{
  if(currentRole==="master"){app.classList.add("rd-master");return}
@@ -196,6 +227,6 @@ window.__rdRefresh=()=>{
  if(activePage==="home")drawHome();
  if(activePage==="calendar")drawCalendar();
  if(activePage==="clients")drawClients();
- if(activePage==="orders")filterCards();
+ if(activePage==="orders"){drawOrderSummary();filterCards();}
 };
 })();
