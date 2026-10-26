@@ -207,7 +207,7 @@ function drawChart(parent,values){
 }
 function drawHome(){
  if(!ready||activePage!=="home")return;
- const root=$("rdHome");while(root.children.length>2)root.lastElementChild.remove();
+ const root=$("rdHome");while(root.children.length>3)root.lastElementChild.remove();
  const orders=activeOrders(),today=todayMoscow(),month=today.slice(0,7);
  const thisMonth=orders.filter(o=>o.date?.startsWith(month));
  const customers=new Set(thisMonth.map(o=>normalizePhone(o.phone)||o.name.toLocaleLowerCase("ru")));
