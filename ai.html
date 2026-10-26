@@ -55,6 +55,12 @@ aside{width:266px;flex:0 0 266px;background:#171717;border-right:1px solid #2929
 #input::placeholder{color:#a8a8a8}
 #send{width:38px;height:38px;flex:0 0 38px;border:0;border-radius:50%;font-size:22px;font-weight:700;background:#ededed;color:#262626;display:grid;place-content:center}
 #send:disabled{opacity:.35;cursor:not-allowed}
+#mic{width:38px;height:38px;flex:0 0 38px;display:grid;place-items:center;border:0;border-radius:50%;background:transparent;color:#d0d0d3;padding:0}
+#mic:hover{background:#444}
+#mic.is-recording{background:#9f3340;color:#fff;animation:mic-glow 1.3s ease-in-out infinite}
+#mic:disabled{opacity:.4;cursor:not-allowed}
+#notice[data-voice="active"]{color:#a8e2bd}
+@keyframes mic-glow{50%{box-shadow:0 0 0 6px #9f334033}}
 #notice{min-height:21px;color:#f8b4a9;text-align:center;font-size:13px;padding:6px 8px 0}
 .hint{color:#888;text-align:center;font-size:11px;padding-top:4px}
 #scrim{display:none}
@@ -87,9 +93,9 @@ aside{width:266px;flex:0 0 266px;background:#171717;border-right:1px solid #2929
     <header class="top"><button id="menu" type="button" aria-label="Открыть меню">☰</button><h1 id="conversationTitle">Новый чат</h1><span>OpenAI</span></header>
     <section id="messages" aria-label="Сообщения" aria-live="polite"><div class="messages-inner" id="messageList"></div></section>
     <div class="composer-wrap">
-      <form id="composer"><textarea id="input" placeholder="Напишите сообщение..." rows="1" maxlength="12000" aria-label="Сообщение" required></textarea><button id="send" type="submit" aria-label="Отправить">↑</button></form>
+      <form id="composer"><textarea id="input" placeholder="Напишите или продиктуйте сообщение..." rows="1" maxlength="12000" aria-label="Сообщение" required></textarea><button id="mic" type="button" aria-label="Продиктовать сообщение" aria-pressed="false" title="Нажмите и говорите"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="2.5" width="6" height="12" rx="3"/><path d="M5.5 10.5a6.5 6.5 0 0 0 13 0M12 17v4m-4 0h8"/></svg></button><button id="send" type="submit" aria-label="Отправить">↑</button></form>
       <div id="notice" role="status"></div>
-      <div class="hint">Ответы ИИ могут содержать ошибки.</div>
+      <div class="hint">Микрофон превращает речь в текст. Проверьте слова и цифры перед отправкой. Ответы ИИ могут содержать ошибки.</div>
     </div>
   </main>
 </div>
@@ -183,6 +189,7 @@ async function loadChats(){
 }
 async function openChat(id){
  if(busy)return;
+ if(speechActive)stopDictation(true);
  $("notice").textContent="";activeChat=id;closeMenu();
  try{
   const rows=await db("rabota_ai_messages?select=id,role,content,created_at&chat_id=eq."+encodeURIComponent(id)+"&order=created_at.asc&limit=200");
@@ -190,7 +197,9 @@ async function openChat(id){
  }catch(error){failure(error)}
 }
 function newChat(){
- if(busy)return;activeChat=null;messages=[];$("notice").textContent="";
+ if(busy)return;
+ if(speechActive)stopDictation(true);
+ activeChat=null;messages=[];$("notice").textContent="";
  closeMenu();renderChats();renderMessages();$("input").focus()
 }
 $("newChat").addEventListener("click",newChat);
@@ -202,12 +211,92 @@ async function deleteChat(id){
   await loadChats();renderMessages()
  }catch(error){failure(error)}
 }
+
+/* Только ввод русской речи в текст, без аудиосообщений и озвучки ответов. */
+const SpeechRecognizer=window.SpeechRecognition||window.webkitSpeechRecognition;
+let speechRecognition=null,speechActive=false,speechBase="";
+function voiceNotice(message,active=false){
+ const n=$("notice");n.textContent=message;
+ if(active)n.dataset.voice="active";else delete n.dataset.voice;
+}
+function voiceButton(active){
+ const button=$("mic");
+ button.classList.toggle("is-recording",active);
+ button.setAttribute("aria-pressed",String(active));
+ button.setAttribute("aria-label",active?"Остановить диктовку":"Продиктовать сообщение");
+ button.title=active?"Остановить диктовку":"Нажмите и говорите";
+}
+function stopDictation(discard=false){
+ if(!speechActive||!speechRecognition)return;
+ try{
+  if(discard){speechActive=false;speechRecognition.abort();voiceButton(false)}
+  else speechRecognition.stop();
+ }catch(_){speechActive=false;speechRecognition=null;voiceButton(false)}
+}
+function speechErrorText(code){
+ switch(code){
+  case "not-allowed":case "service-not-allowed":return "Разрешите доступ к микрофону в настройках браузера.";
+  case "audio-capture":return "Микрофон не найден. Проверьте подключение и разрешения.";
+  case "no-speech":return "Речь не распознана. Нажмите микрофон и попробуйте снова.";
+  case "network":return "Не удалось распознать речь. Проверьте интернет.";
+  case "language-not-supported":return "Браузер не поддерживает распознавание русского языка.";
+  case "aborted":return "";
+  default:return "Ошибка распознавания речи. Попробуйте снова.";
+ }
+}
+$("mic").addEventListener("click",()=>{
+ if(busy)return;
+ if(speechActive){stopDictation();return}
+ if(!SpeechRecognizer){
+  voiceNotice("Браузер не поддерживает голосовой ввод. Используйте микрофон клавиатуры или Chrome/Safari.");
+  return;
+ }
+ const rec=new SpeechRecognizer();
+ speechRecognition=rec;speechBase=$("input").value.trim();
+ rec.lang="ru-RU";rec.interimResults=true;rec.continuous=false;rec.maxAlternatives=1;
+ rec.onstart=()=>{
+  if(speechRecognition!==rec||!speechActive)return;
+  voiceButton(true);voiceNotice("Слушаю... Говорите. Нажмите микрофон ещё раз, чтобы остановить.",true);
+ };
+ rec.onresult=event=>{
+  if(speechRecognition!==rec||!speechActive)return;
+  let finalText="",interimText="";
+  for(let i=0;i<event.results.length;i++){
+   const result=event.results[i],phrase=String(result[0]?.transcript||"").trim();
+   if(result.isFinal)finalText+=(finalText?" ":"")+phrase;
+   else interimText+=(interimText?" ":"")+phrase;
+  }
+  const spoken=(finalText+" "+interimText).trim();
+  $("input").value=(speechBase+(speechBase&&spoken?" ":"")+spoken).slice(0,12000);
+  $("input").dispatchEvent(new Event("input",{bubbles:true}));
+ };
+ rec.onerror=event=>{
+  if(speechRecognition!==rec)return;
+  const message=speechErrorText(event.error);
+  if(message)voiceNotice(message);
+ };
+ rec.onend=()=>{
+  if(speechRecognition!==rec)return;
+  speechActive=false;speechRecognition=null;voiceButton(false);
+  if($("notice").dataset.voice==="active"){
+   voiceNotice($("input").value.trim()!==speechBase?
+    "Проверьте текст и нажмите ↑ для отправки.":"Диктовка завершена. Нажмите микрофон для новой попытки.");
+  }
+ };
+ speechActive=true;voiceButton(true);voiceNotice("Запускаю микрофон...",true);
+ try{rec.start()}catch(_){
+  speechActive=false;speechRecognition=null;voiceButton(false);
+  voiceNotice("Не удалось запустить микрофон. Проверьте разрешения браузера.");
+ }
+});
+
 function setBusy(value){
- busy=value;$("send").disabled=value;$("newChat").disabled=value;$("input").disabled=value
+ busy=value;$("send").disabled=value;$("mic").disabled=value;$("newChat").disabled=value;$("input").disabled=value
 }
 async function send(event){
  event.preventDefault();
  if(busy)return;
+ if(speechActive)stopDictation(true);
  const text=$("input").value.trim();if(!text)return;
  if(text.length>12000)return failure(new Error("Сообщение слишком длинное."));
  $("notice").textContent="";setBusy(true);
