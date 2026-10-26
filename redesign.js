@@ -47,23 +47,32 @@ function build(){
  clients.append(makeNode("div","rd-client-list"));clients.querySelector(".rd-client-list").id="rdClientsList";
  const calendar=sectionView("rdCalendarIntro","Календарь","Записи по дням и занятость мастеров");
  calendar.append(boxText("p","Показаны фактические заявки. Свободное время согласовывайте с мастером.","rd-muted"));
+ const calendarNav=makeNode("div","rd-toolbar");calendarNav.id="rdCalendarNavigation";
+ const previous=makeNode("button","secondary","‹ Предыдущая неделя");previous.type="button";previous.addEventListener("click",()=>$("prevWeek").click());
+ const todayBtn=makeNode("button","secondary","Сегодня");todayBtn.type="button";todayBtn.addEventListener("click",()=>$("goToday").click());
+ const next=makeNode("button","secondary","Следующая неделя ›");next.type="button";next.addEventListener("click",()=>$("nextWeek").click());
+ const calendarSelect=makeNode("input");calendarSelect.type="date";calendarSelect.id="rdCalendarDate";calendarSelect.setAttribute("aria-label","Выбрать дату в расписании");
+ calendarSelect.addEventListener("change",()=>{if(!calendarSelect.value)return;selectedDate=calendarSelect.value;currentTab="calendar";render()});
+ calendarNav.append(previous,todayBtn,next,calendarSelect);
  const board=makeNode("section","rd-panel rd-view-area");board.id="rdCalendarBoard";board.append(boxText("h2","Неделя · записи мастеров"),makeNode("div","rd-week-grid"));
  const ordersTitle=sectionView("rdOrdersIntro","Заказы","Все заявки, статусы, поиск и быстрые действия");
- const orderStats=makeNode("div","rd-stats");orderStats.id="rdOrderStats";
+ const orderStats=makeNode("div","");orderStats.id="rdOrderStats";
  const orderTools=makeNode("div","rd-toolbar");orderTools.id="rdOrderToolbar";
  const orderDate=makeNode("input");orderDate.type="date";orderDate.id="rdOrderDate";orderDate.setAttribute("aria-label","Фильтр по дате");orderDate.addEventListener("change",filterCards);
  const masterSelect=makeNode("select");masterSelect.id="rdMasterFilter";masterSelect.setAttribute("aria-label","Фильтр по мастеру");masterSelect.addEventListener("change",filterCards);
  const statusSelect=makeNode("select");statusSelect.id="rdStatusFilter";statusSelect.setAttribute("aria-label","Фильтр по статусу");
- [["","Все статусы"],["Новый","Новый"],["Записан","Записан"],["В работе","В работе"],["Выполнен","Выполнен"],["Отменён","Отменён"],["unpaid","Не оплачено"]].forEach(([value,label])=>{const opt=makeNode("option","",label);opt.value=value;statusSelect.append(opt)});
+ [["","Все статусы"],["Новый","Новый"],["Записан","Записан"],["В работе","В работе"],["Выполнен","Выполнен"],["unpaid","Не оплачено"]].forEach(([value,label])=>{const opt=makeNode("option","",label);opt.value=value;statusSelect.append(opt)});
  statusSelect.addEventListener("change",()=>{currentTab=["Выполнен","unpaid"].includes(statusSelect.value)?"history":"all";render();filterCards()});
  const clear=makeNode("button","secondary","Сбросить");clear.addEventListener("click",()=>{orderDate.value="";statusSelect.value="";masterSelect.value="";rdSearchTerm="";$("rdTopSearch").value="";currentTab="all";render();filterCards()});
  orderTools.append(orderDate,masterSelect,statusSelect,clear);
  const financeTitle=sectionView("rdFinanceIntro","Финансы","Начисления, касса и история операций");
  app.insertBefore(home,$("ordersArea"));
  app.insertBefore(clients,$("ordersArea"));
- $("ordersArea").prepend(ordersTitle,orderStats,orderTools,calendar,board);
+ $("ordersArea").prepend(ordersTitle,orderStats,orderTools,calendar,calendarNav,board);
  $("financePanel").prepend(financeTitle);
- // The original order editor, calendar week navigation, and finance forms are retained.
+ // Staff access administration is still available, but should not obscure the booking list.
+ $("ordersArea").append($("teamPanel"));
+ // Original order editor, calendar state, and financial forms are retained.
  $("ordersArea").insertBefore($("ordersArea").querySelector("#newOrderBtn"),$("ordersArea").querySelector("#teamPanel"));
  ready=true; navigate("home");drawHome();
 }
@@ -82,9 +91,12 @@ function navigate(key){
  $("rdHome").hidden=key!=="home";
  $("rdClients").hidden=key!=="clients";
  $("rdOrdersIntro").hidden=!isOrders;
+ $("rdOrderStats").hidden=!isOrders;
+ $("rdOrderToolbar").hidden=!isOrders;
  $("rdCalendarIntro").hidden=!isCalendar;
  $("rdCalendarBoard").hidden=!isCalendar;
- $("calendarPanel").hidden=!isCalendar;
+ $("rdCalendarNavigation").hidden=!isCalendar;
+ $("calendarPanel").hidden=true;
  $("ordersArea").querySelector(".tabs").hidden=!isOrders;
  $("ordersArea").querySelector(".list-head").hidden=!isOrders&&!isCalendar;
  $("orders").hidden=!isOrders&&!isCalendar;
@@ -155,9 +167,9 @@ function drawHome(){
 function drawOrderSummary(){
  if(!ready)return;
  const el=$("rdOrderStats");el.replaceChildren();
- const active=activeOrders(),newOrders=active.filter(o=>o.status==="Новый");
+ const active=getOrders().filter(o=>!["Отменён","Выполнен"].includes(o.status)),newOrders=active.filter(o=>o.status==="Новый");
  const inProgress=active.filter(o=>o.status==="В работе"),unpaid=getOrders().filter(o=>o.status==="Выполнен"&&!o.paid);
- stats(el,[{label:"Активные заказы",value:String(active.length),hint:"Не отменённые"},
+ stats(el,[{label:"Активные заказы",value:String(active.length),hint:"Не выполненные и не отменённые"},
  {label:"Новые",value:String(newOrders.length),hint:"Ожидают обработки"},
  {label:"В работе",value:String(inProgress.length),hint:"Текущий статус"},
  {label:"Не оплачено",value:String(unpaid.length),hint:"Завершены без отметки оплаты"}]);
@@ -169,6 +181,7 @@ function drawOrderSummary(){
 }
 function drawCalendar(){
  if(!ready||activePage!=="calendar")return;
+ $("rdCalendarDate").value=selectedDate;
  const board=$("rdCalendarBoard").querySelector(".rd-week-grid");board.replaceChildren();
  const monday=addDays(selectedDate,-((parseDate(selectedDate).getDay()+6)%7));
  const orders=getOrders().filter(o=>o.date && o.status!=="Отменён");
