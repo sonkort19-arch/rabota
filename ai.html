@@ -428,7 +428,11 @@ $("input").addEventListener("input",()=>{
   if(!membership?.some(m=>m.role==="owner"&&m.active))throw new Error("ИИ-чат доступен только владельцу приложения.");
   await loadChats();
   $("gate").hidden=true;$("layout").hidden=false;
-  renderMessages();$("input").focus()
+  renderMessages();
+  // Suggestion link opens an editable draft; it never sends a message automatically.
+  const draft=new URLSearchParams(location.search).get("draft");
+  if(draft && draft.length<=240){$("input").value=draft;$("input").dispatchEvent(new Event("input"))}
+  $("input").focus()
  }catch(error){gate(error.message)}
 })();
 </script>
