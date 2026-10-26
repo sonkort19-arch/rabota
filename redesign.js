@@ -8,7 +8,7 @@ body.classList.add("rd");
 const $=id=>document.getElementById(id);
 const makeNode=(tag,className,text)=>{const n=document.createElement(tag);if(className)n.className=className;if(text!=null)n.textContent=String(text);return n};
 const sections=["home","orders","calendar","clients","finance","ai"];
-const titles={home:"Панель владельца",orders:"Заказы",calendar:"Календарь",clients:"Клиенты",finance:"Финансы",ai:"ИИ-чат"};
+const titles={home:"Главная",orders:"Заказы",calendar:"Календарь",clients:"Клиенты",finance:"Финансы",ai:"ИИ-чат"};
 const icon={home:"⌂",orders:"▤",calendar:"▦",clients:"♙",finance:"▥",ai:"✦"};
 let activePage="home",ready=false,lastOrderKey="",rdSearchTerm="",selectedClientKey=null;
 function todayMoscow(){return new Intl.DateTimeFormat("sv-SE",{timeZone:"Europe/Moscow",year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date())}
@@ -64,7 +64,7 @@ function build(){
  visible.forEach(key=>mobile.append(navButton(key)));
  const more=makeMobileMenu();mobile.append(more.toggle);
  app.prepend(top,side,more.veil,more.sheet,mobile);
- const home=sectionView("rdHome","Панель владельца","Обзор заказов и расписания в реальном времени");
+ const home=sectionView("rdHome",currentRole==="owner"?"Панель владельца":"Панель менеджера","Обзор заказов и расписания в реальном времени");
  const clients=sectionView("rdClients","Клиенты","Клиенты из доступных вам заказов");
  const clientsToolbar=makeNode("div","rd-toolbar");
  const clientsInput=makeNode("input");clientsInput.id="rdClientSearch";clientsInput.type="search";clientsInput.placeholder="Найти клиента или телефон";clientsInput.setAttribute("aria-label","Поиск клиентов");
@@ -173,11 +173,22 @@ function drawHome(){
  const monthStart=month+"-01",date0=parseDate(monthStart),days=new Date(date0.getFullYear(),date0.getMonth()+1,0).getDate();
  const series=Array.from({length:days},(_,i)=>thisMonth.filter(o=>o.date===month+"-"+String(i+1).padStart(2,"0")).length);
  drawChart(chart,series);
- const assistant=panel("✦ ИИ-помощник","Спрашивайте о заказах и расписании");
- for(const label of ["Найти свободное окно","Показать неоплаченные заказы","Сколько заказов за неделю?"]){
-  const b=makeNode("button","rd-quick",label+"  ›");b.type="button";b.addEventListener("click",()=>window.location.assign("/ai.html?draft="+encodeURIComponent(label)));assistant.append(b);
+ if(currentRole==="owner"){
+  const assistant=panel("✦ ИИ-помощник","Спрашивайте о заказах и расписании");
+  for(const label of ["Найти свободное окно","Показать неоплаченные заказы","Сколько заказов за неделю?"]){
+   const b=makeNode("button","rd-quick",label+"  ›");b.type="button";b.addEventListener("click",()=>window.location.assign("/ai.html?draft="+encodeURIComponent(label)));assistant.append(b);
+  }
+  const ai=makeNode("button","rd-primary","Открыть ИИ-чат");ai.style.width="100%";ai.style.marginTop="9px";ai.addEventListener("click",()=>window.location.assign("/ai.html"));assistant.append(ai);
+  middle.append(chart,assistant);
+ }else{
+  const actions=panel("Быстрые действия","Работа с заявками и расписанием");
+  const create=makeNode("button","rd-quick","Новая заявка  ›");create.type="button";
+  create.addEventListener("click",()=>{navigate("orders");$("newOrderBtn").click()});
+  const goCalendar=makeNode("button","rd-quick","Посмотреть календарь  ›");goCalendar.type="button";
+  goCalendar.addEventListener("click",()=>navigate("calendar"));
+  actions.append(create,goCalendar);middle.append(chart,actions);
  }
- const ai=makeNode("button","rd-primary","Открыть ИИ-чат");ai.style.width="100%";ai.style.marginTop="9px";ai.addEventListener("click",()=>window.location.assign("/ai.html"));assistant.append(ai);middle.append(chart,assistant);root.append(middle);
+ root.append(middle);
  const two=makeNode("div","rd-grid-main rd-blockgap");
  const upcoming=panel("Ближайшие записи");
  const nowMoscow=new Date().toLocaleTimeString("ru-RU",{hour:"2-digit",minute:"2-digit",hour12:false,timeZone:"Europe/Moscow"});
