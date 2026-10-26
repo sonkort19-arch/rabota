@@ -18,7 +18,10 @@ function runSmoke(source) {
         all.push(this);
         const el=this;
         this.classList={
-          add(...tokens){const s=new Set(el.className.split(/\s+/).filter(Boolean));tokens.forEach(x=>s.add(x));el.className=[...s].join(" ")},
+          add(...tokens){
+            for(const token of tokens){if(!token||/\s/.test(token))throw new Error("DOMTokenList.add invalid token: "+JSON.stringify(token))}
+            const s=new Set(el.className.split(/\s+/).filter(Boolean));tokens.forEach(x=>s.add(x));el.className=[...s].join(" ")
+          },
           remove(...tokens){const s=new Set(el.className.split(/\s+/).filter(Boolean));tokens.forEach(x=>s.delete(x));el.className=[...s].join(" ")},
           contains(token){return el.className.split(/\s+/).includes(token)},
           toggle(token,on){const add=on??!this.contains(token);add?this.add(token):this.remove(token)}
@@ -77,12 +80,36 @@ function runSmoke(source) {
     expect(get("rdHome").querySelectorAll(".rd-chart-month").length===1,"real month label");
     expect(Boolean(nav("calendar")),"calendar menu");
     nav("calendar").click();
+    expect(get("ordersArea").hidden===false,"calendar shares order shell");
+    expect(get("rdCalendarIntro").hidden===false,"calendar heading shown");
+    expect(get("rdCalendarBoard").hidden===false,"calendar board shown");
+    expect(get("rdOrdersIntro").hidden===true,"order heading hidden on calendar");
+    expect(get("rdOrderStats").hidden===true,"order summary hidden on calendar");
+    expect(get("rdOrderToolbar").hidden===true,"order filters hidden on calendar");
+    expect(get("orders").hidden===true,"order cards hidden on calendar");
+    expect(tabs.hidden===true,"order tabs hidden on calendar");
+    expect(nav("calendar").getAttribute("aria-current")==="page","only calendar is active");
+    expect(nav("orders").getAttribute("aria-current")!=="page","orders navigation is not active");
     expect(get("rdCalendarBoard").querySelectorAll(".rd-calendar-day").length===7,"seven weekday panels");
     expect(get("rdCalendarBoard").querySelectorAll(".rd-day-chip").length===7,"seven mobile date tabs");
     expect(get("rdCalendarBoard").querySelectorAll(".rd-mobile-event").length===2,"two appointments on selected synthetic date");
     const event=get("rdCalendarBoard").querySelector(".rd-mobile-event");
     expect(event.querySelector(".rd-calendar-time").children[0].textContent==="10:00","appointment time not invented");
     expect(event.querySelector(".rd-calendar-badge").textContent==="Записан","appointment status reflects data");
+    nav("orders").click();
+    expect(get("rdOrdersIntro").hidden===false,"orders heading shown after calendar");
+    expect(get("rdOrderStats").hidden===false,"order summary shown after calendar");
+    expect(get("rdOrderToolbar").hidden===false,"order filters shown after calendar");
+    expect(get("orders").hidden===false,"order cards shown after calendar");
+    expect(tabs.hidden===false,"order tabs shown after calendar");
+    expect(get("rdCalendarIntro").hidden===true,"calendar heading hidden in orders");
+    expect(get("rdCalendarBoard").hidden===true,"calendar board hidden in orders");
+    expect(nav("orders").getAttribute("aria-current")==="page","orders active");
+    expect(nav("calendar").getAttribute("aria-current")!=="page","calendar inactive");
+    nav("calendar").click();
+    expect(get("rdCalendarBoard").hidden===false&&get("orders").hidden===true,"second calendar transition");
+    nav("orders").click();
+    expect(get("orders").hidden===false&&get("rdCalendarBoard").hidden===true,"second orders transition");
     nav("clients").click();
     expect(get("rdClientsList").querySelectorAll(".rd-client").length===3,"three distinct customers");
     const search=get("rdTopSearch");search.value="Сослан";search.fire("input");
@@ -95,7 +122,7 @@ function runSmoke(source) {
       expect(!nav("finance"),"manager finance protected");
       expect(!nav("ai"),"manager AI protected");
     }
-    return {role,passed:true,checks:12};
+    return {role,passed:true,checks:34};
   }
   return [scenario("owner"),scenario("manager")];
 }
