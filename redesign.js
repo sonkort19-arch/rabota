@@ -198,15 +198,111 @@ function navigate(key){
  window.scrollTo({top:0,behavior:"instant"});
 }
 function drawChart(parent,values){
- const svg=document.createElementNS("http://www.w3.org/2000/svg","svg");svg.setAttribute("viewBox","0 0 540 170");svg.setAttribute("role","img");svg.setAttribute("aria-label","График количества заказов по дням");svg.classList.add("rd-chart");
- let max=Math.max(1,...values),points=values.map((v,i)=>[8+i*524/Math.max(1,values.length-1),154-v*125/max]);
- const mk=(tag,attrs)=>{const n=document.createElementNS("http://www.w3.org/2000/svg",tag);for(const [k,v] of Object.entries(attrs))n.setAttribute(k,String(v));return n};
- const defs=mk("defs",{}),grad=mk("linearGradient",{id:"rdChartGradient",x1:"0",y1:"0",x2:"0",y2:"1"});
- grad.append(mk("stop",{offset:"0%","stop-color":"#5e9af5","stop-opacity":".4"}),mk("stop",{offset:"100%","stop-color":"#5e9af5","stop-opacity":"0"}));defs.append(grad);svg.append(defs);
- for(let y of [29,70,112,154])svg.append(mk("line",{x1:8,x2:532,y1:y,y2:y,stroke:"#e7eaf3","stroke-width":"1","stroke-dasharray":"3 5"}));
- for(let i=0;i<6;i++){const label=mk("text",{x:8+i*524/5,y:169,"text-anchor":i===0?"start":i===5?"end":"middle",class:"rd-chart-axis"});label.textContent=String(Math.round(1+i*(values.length-1)/5));svg.append(label)}
- const path=points.map((p,i)=>(i?"L":"M")+p[0].toFixed(1)+","+p[1].toFixed(1)).join(" ");
- if(points.length){svg.append(mk("path",{d:path+" L "+points[points.length-1][0].toFixed(1)+",154 L "+points[0][0].toFixed(1)+",154 Z",class:"rd-chart-area"}));svg.append(mk("path",{d:path,class:"rd-chart-line"}))}
+ // Draw the real month's orders. SVG is self-contained; no chart dependency,
+ // network requests, hard-coded counts, or writes to customer/finance data.
+ const svg=document.createElementNS("http://www.w3.org/2000/svg","svg");
+ svg.setAttribute("viewBox","0 0 640 240");
+ svg.setAttribute("role","img");
+ svg.setAttribute("aria-label","Динамика заказов: количество заявок по дням выбранного месяца");
+ svg.classList.add("rd-chart","rd-chart-v2");
+ const mk=(tag,attrs={})=>{
+  const node=document.createElementNS("http://www.w3.org/2000/svg",tag);
+  for(const [key,value] of Object.entries(attrs))node.setAttribute(key,String(value));
+  return node;
+ };
+ const data=values.map(n=>Math.max(0,Number(n)||0));
+ const left=45,right=620,top=24,bottom=195;
+ const step=Math.max(1,Math.ceil(Math.max(0,...data)/4));
+ const ceiling=step*4;
+ const dx=(right-left)/Math.max(1,data.length-1);
+ const points=data.map((value,i)=>({
+  x:left+i*dx,y:bottom-value/ceiling*(bottom-top),value,day:i+1
+ }));
+ const defs=mk("defs"),grad=mk("linearGradient",{id:"rdChartGradient",x1:"0",y1:"0",x2:"0",y2:"1"});
+ grad.append(
+  mk("stop",{offset:"0%","stop-color":"#5976ff","stop-opacity":".32"}),
+  mk("stop",{offset:"55%","stop-color":"#7da8ff","stop-opacity":".15"}),
+  mk("stop",{offset:"100%","stop-color":"#b5d7ff","stop-opacity":".015"})
+ );
+ defs.append(grad);svg.append(defs);
+ for(let i=0;i<=4;i++){
+  const y=bottom-(bottom-top)*i/4;
+  svg.append(mk("line",{x1:left,x2:right,y1:y,y2:y,class:"rd-chart-grid"}));
+  const label=mk("text",{x:left-12,y:y+4,"text-anchor":"end",class:"rd-chart-axis rd-chart-y"});
+  label.textContent=String(step*i);svg.append(label);
+ }
+ const shownDays=new Set([0,data.length-1]);
+ for(let i=0;i<data.length;i+=Math.max(1,Math.round(data.length/6)))shownDays.add(i);
+ for(const i of [...shownDays].sort((a,b)=>a-b)){
+  if(i<0||i>=data.length)continue;
+  const x=left+i*dx;
+  if(i>0&&i<data.length-1)svg.append(mk("line",{x1:x,x2:x,y1:top,y2:bottom,class:"rd-chart-grid rd-chart-vertical"}));
+  const label=mk("text",{x,y:bottom+23,"text-anchor":"middle",class:"rd-chart-axis rd-chart-x"});
+  label.textContent=String(i+1);svg.append(label);
+ }
+ // Monotone cubic interpolation: smooth transitions without inventing negative
+ // orders or overshooting the actual maximum on a sharp daily spike.
+ const slope=[];
+ for(let i=0;i<points.length-1;i++)slope.push((points[i+1].y-points[i].y)/dx);
+ const tangent=points.map((p,i)=>{
+  if(i===0)return slope[0]||0;
+  if(i===points.length-1)return slope[i-1]||0;
+  const a=slope[i-1],b=slope[i];
+  return a*b<=0?0:2*a*b/(a+b);
+ });
+ let curve=points.length?"M "+points[0].x.toFixed(2)+" "+points[0].y.toFixed(2):"";
+ for(let i=0;i<points.length-1;i++){
+  const p=points[i],q=points[i+1],d=(q.x-p.x)/3;
+  curve+=" C "+(p.x+d).toFixed(2)+" "+(p.y+tangent[i]*d).toFixed(2)+
+   " "+(q.x-d).toFixed(2)+" "+(q.y-tangent[i+1]*d).toFixed(2)+
+   " "+q.x.toFixed(2)+" "+q.y.toFixed(2);
+ }
+ if(points.length){
+  svg.append(mk("path",{d:curve+" L "+right+" "+bottom+" L "+left+" "+bottom+" Z",class:"rd-chart-area"}));
+  svg.append(mk("path",{d:curve,class:"rd-chart-line"}));
+ }
+ const hoverLine=mk("line",{x1:left,x2:left,y1:top,y2:bottom,class:"rd-chart-hover-line"});
+ const hoverDot=mk("circle",{cx:left,cy:bottom,r:6,class:"rd-chart-hover-dot"});
+ const tooltip=mk("g",{class:"rd-chart-tooltip"});
+ const tipRect=mk("rect",{width:118,height:49,rx:11,ry:11,class:"rd-chart-tooltip-bg"});
+ const tipDay=mk("text",{x:12,y:19,class:"rd-chart-tooltip-day"});
+ const tipCount=mk("text",{x:12,y:37,class:"rd-chart-tooltip-count"});
+ tooltip.append(tipRect,tipDay,tipCount);
+ svg.append(hoverLine,hoverDot,tooltip);
+ const showDay=index=>{
+  const p=points[index];if(!p)return;
+  hoverLine.setAttribute("x1",p.x);hoverLine.setAttribute("x2",p.x);
+  hoverDot.setAttribute("cx",p.x);hoverDot.setAttribute("cy",p.y);
+  const count=p.value;
+  tipDay.textContent=p.day+" число";
+  tipCount.textContent=count+" "+(count%10===1&&count%100!==11?"заказ":count%10>=2&&count%10<=4&&(count%100<12||count%100>14)?"заказа":"заказов");
+  const bx=Math.max(left,Math.min(right-118,p.x-59));
+  const by=p.y<top+67?p.y+13:p.y-61;
+  tooltip.setAttribute("transform","translate("+bx.toFixed(1)+" "+by.toFixed(1)+")");
+ };
+ let peak=0;for(let i=1;i<points.length;i++)if(points[i].value>points[peak].value)peak=i;
+ if(points.length&&points[peak].value>0)showDay(peak);
+ else {hoverLine.style.display="none";hoverDot.style.display="none";tooltip.style.display="none";}
+ // Show exact daily counts on hover, focus or tap. No data is sent or saved.
+ for(let i=0;i<points.length;i++){
+  const p=points[i];
+  if(p.value>0 || i===0 || i===points.length-1)
+   svg.append(mk("circle",{cx:p.x,cy:p.y,r:p.value?3.1:2.1,class:"rd-chart-point"}));
+  const hit=mk("rect",{
+   x:p.x-dx/2,y:top,width:Math.max(10,dx),height:bottom-top+7,
+   fill:"transparent",class:"rd-chart-hit",
+   "aria-label":p.day+" число — "+p.value+" заказов"
+  });
+  if(p.value>0)hit.setAttribute("tabindex","0");
+  const activate=()=>{
+   hoverLine.style.display="";hoverDot.style.display="";tooltip.style.display="";
+   showDay(i);
+  };
+  hit.addEventListener("mouseenter",activate);
+  hit.addEventListener("focus",activate);
+  hit.addEventListener("click",activate);
+  svg.append(hit);
+ }
  parent.append(svg);
 }
 function drawHome(){
