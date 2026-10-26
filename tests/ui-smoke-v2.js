@@ -66,7 +66,7 @@ function runSmoke(source) {
     const parseDate=day=>new Date(day+"T12:00:00");
     const addDays=(date,num)=>{const d=parseDate(date);d.setDate(d.getDate()+num);return d.toISOString().slice(0,10)};
     const render=()=>window.__rdRefresh?.();
-    const init=new Function("document","window","currentRole","financeActive","currentTab","selectedDate","getOrders","normalizePhone","parseDate","addDays","render","openForm",source);
+    const init=new Function("document","window","currentRole","financeActive","currentTab","selectedDate","getOrders","normalizePhone","parseDate","addDays","render","openForm",source+"\nwindow.__testCurrentTab=()=>currentTab;");
     init(document,window,role,false,"all","2026-10-27",()=>syntheticOrders,x=>String(x||"").replace(/\D/g,"").slice(-10),parseDate,addDays,render,()=>{});
     window.__rdAccess();
     const get=id=>document.getElementById(id),nav=key=>all.find(n=>n.classList.contains("rd-nav-btn")&&n.dataset.page===key);
@@ -89,6 +89,8 @@ function runSmoke(source) {
     expect(get("orders").hidden===true,"order cards hidden on calendar");
     expect(tabs.hidden===true,"order tabs hidden on calendar");
     expect(nav("calendar").getAttribute("aria-current")==="page","only calendar is active");
+    expect(window.__testCurrentTab()==="calendar","calendar view uses calendar tab");
+    expect(window.__rdCurrentPage==="calendar","calendar view state matches navigation");
     expect(nav("orders").getAttribute("aria-current")!=="page","orders navigation is not active");
     expect(get("rdCalendarBoard").querySelectorAll(".rd-calendar-day").length===7,"seven weekday panels");
     expect(get("rdCalendarBoard").querySelectorAll(".rd-day-chip").length===7,"seven mobile date tabs");
@@ -105,6 +107,8 @@ function runSmoke(source) {
     expect(get("rdCalendarIntro").hidden===true,"calendar heading hidden in orders");
     expect(get("rdCalendarBoard").hidden===true,"calendar board hidden in orders");
     expect(nav("orders").getAttribute("aria-current")==="page","orders active");
+    expect(window.__testCurrentTab()==="all","orders view defaults to all orders");
+    expect(window.__rdCurrentPage==="orders","orders view state matches navigation");
     expect(nav("calendar").getAttribute("aria-current")!=="page","calendar inactive");
     nav("calendar").click();
     expect(get("rdCalendarBoard").hidden===false&&get("orders").hidden===true,"second calendar transition");
@@ -122,7 +126,7 @@ function runSmoke(source) {
       expect(!nav("finance"),"manager finance protected");
       expect(!nav("ai"),"manager AI protected");
     }
-    return {role,passed:true,checks:34};
+    return {role,passed:true,checks:38};
   }
   return [scenario("owner"),scenario("manager")];
 }
