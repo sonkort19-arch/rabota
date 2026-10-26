@@ -165,7 +165,7 @@ function drawHome(){
  stats(root,[
   {label:"Заказы сегодня",value:String(orders.filter(o=>o.date===today).length),hint:"Записи на текущую дату (МСК)"},
   {label:"Клиенты за месяц",value:String(customers.size),hint:"Уникальные номера / имена"},
-  {label:"Оплаченные заказы",value:cash(paid.reduce((n,o)=>n+o.price,0)),hint:"Сумма отмеченных оплат за месяц, не касса"},
+  {label:"Стоимость оплаченных заказов",value:cash(paid.reduce((n,o)=>n+o.price,0)),hint:"По дате визита; не фактические поступления месяца"},
   {label:"Выполнено за месяц",value:String(complete.length),hint:"По статусу «Выполнен»"}
  ]);
  const middle=makeNode("div","rd-grid-main");
