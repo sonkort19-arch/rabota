@@ -63,6 +63,15 @@ aside{width:266px;flex:0 0 266px;background:#171717;border-right:1px solid #2929
 @keyframes mic-glow{50%{box-shadow:0 0 0 6px #9f334033}}
 #notice{min-height:21px;color:#f8b4a9;text-align:center;font-size:13px;padding:6px 8px 0}
 .hint{color:#888;text-align:center;font-size:11px;padding-top:4px}
+
+#proposalCard{border:1px solid #555;background:#292929;border-radius:17px;padding:16px;margin-bottom:12px}
+#proposalCard strong{font-size:15px}
+#proposalDetails{white-space:pre-wrap;word-break:break-word;color:#ddd;font-size:14px;line-height:1.65;margin:10px 0}
+#proposalActions{display:flex;gap:8px;flex-wrap:wrap}
+#confirmOrder,#cancelOrder{border-radius:12px;padding:10px 15px;border:1px solid #606060;color:#f7f7f7;background:#404040;font-size:14px}
+#confirmOrder{background:#e7e7e7;color:#222}
+#confirmOrder:disabled,#cancelOrder:disabled{opacity:.5;cursor:wait}
+#proposalHint{color:#a7a7a7;font-size:12px;padding-top:8px}
 #scrim{display:none}
 @media(max-width:760px){
  aside{position:fixed;top:0;bottom:0;left:0;z-index:20;transform:translateX(-100%);transition:transform .2s ease;box-shadow:12px 0 35px #0003}
@@ -93,6 +102,15 @@ aside{width:266px;flex:0 0 266px;background:#171717;border-right:1px solid #2929
     <header class="top"><button id="menu" type="button" aria-label="Открыть меню">☰</button><h1 id="conversationTitle">Новый чат</h1><span>OpenAI</span></header>
     <section id="messages" aria-label="Сообщения" aria-live="polite"><div class="messages-inner" id="messageList"></div></section>
     <div class="composer-wrap">
+      <section id="proposalCard" hidden aria-label="Предпросмотр изменения заказа">
+        <strong id="proposalTitle">Проверка заявки</strong>
+        <div id="proposalDetails"></div>
+        <div id="proposalActions">
+          <button id="confirmOrder" type="button">Подтвердить</button>
+          <button id="cancelOrder" type="button">Отмена</button>
+        </div>
+        <div id="proposalHint">Изменение сохранится только после подтверждения. Проверка расписания повторится.</div>
+      </section>
       <form id="composer"><textarea id="input" placeholder="Напишите или продиктуйте сообщение..." rows="1" maxlength="12000" aria-label="Сообщение" required></textarea><button id="mic" type="button" aria-label="Продиктовать сообщение" aria-pressed="false" title="Нажмите и говорите"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="2.5" width="6" height="12" rx="3"/><path d="M5.5 10.5a6.5 6.5 0 0 0 13 0M12 17v4m-4 0h8"/></svg></button><button id="send" type="submit" aria-label="Отправить">↑</button></form>
       <div id="notice" role="status"></div>
       <div class="hint">Микрофон превращает речь в текст. Проверьте слова и цифры перед отправкой. Ответы ИИ могут содержать ошибки.</div>
@@ -104,7 +122,7 @@ aside{width:266px;flex:0 0 266px;background:#171717;border-right:1px solid #2929
 const SUPABASE_URL="https://yedzfmibceboncrytbqz.supabase.co";
 const SUPABASE_KEY="sb_publishable_tSqbw3aeAgxYuzHhQurCuw_yDze4ZNn";
 const AUTH_KEY="rabota-auth-session-v1";
-let session=null,refreshPromise=null,activeChat=null,chats=[],messages=[],busy=false;
+let session=null,refreshPromise=null,activeChat=null,chats=[],messages=[],busy=false,pendingDraft=null;
 const $=id=>document.getElementById(id);
 try{session=JSON.parse(localStorage.getItem(AUTH_KEY)||"null")}catch(_){}
 function gate(message){$("layout").hidden=true;$("gate").hidden=false;$("gateText").textContent=message}
@@ -189,6 +207,7 @@ async function loadChats(){
 }
 async function openChat(id){
  if(busy)return;
+ setPendingDraft(null);
  if(speechActive)stopDictation(true);
  $("notice").textContent="";activeChat=id;closeMenu();
  try{
@@ -198,6 +217,7 @@ async function openChat(id){
 }
 function newChat(){
  if(busy)return;
+ setPendingDraft(null);
  if(speechActive)stopDictation(true);
  activeChat=null;messages=[];$("notice").textContent="";
  closeMenu();renderChats();renderMessages();$("input").focus()
@@ -290,12 +310,68 @@ $("mic").addEventListener("click",()=>{
  }
 });
 
+
+function setPendingDraft(draft){
+ pendingDraft=draft||null;
+ $("proposalCard").hidden=!draft;
+ if(!draft)return;
+ const action=draft.action==="create"?"Новая заявка":"Перенос клиента";
+ $("proposalTitle").textContent=action+" — требуется подтверждение";
+ const old=draft.old||null;
+ const lines=["Клиент: "+draft.name];
+ if(old)lines.push("Было: "+(old.date||"без даты")+" "+(old.time||"")+" · "+(old.master||"без мастера"));
+ lines.push("Станет: "+draft.date+" в "+draft.time+" (Москва)");
+ lines.push("Мастер: "+draft.master);
+ if(draft.action==="create"){
+   lines.push("Телефон: "+draft.phone);
+   if(draft.address)lines.push("Адрес: "+draft.address);
+   if(draft.price!=null)lines.push("Стоимость: "+draft.price+" ₽");
+   else lines.push("Стоимость: не указана");
+ }
+ $("proposalDetails").textContent=lines.join("\n");
+}
+$("cancelOrder").addEventListener("click",()=>{
+ if(busy)return;
+ setPendingDraft(null);
+ $("notice").textContent="Предложение отменено. Заказ не изменён.";
+});
+$("confirmOrder").addEventListener("click",async()=>{
+ if(busy||!pendingDraft||!activeChat)return;
+ const draft=pendingDraft;
+ setBusy(true);$("notice").textContent="Повторно проверяю расписание и сохраняю...";
+ let saved=null;
+ try{
+  saved=await db("rpc/rabota_ai_confirm_order","POST",{p_draft_id:draft.draft_id});
+  if(!saved?.ok||!saved?.order_id)throw new Error("Нет подтверждения сохранения от базы.");
+  const rows=await db("rabota_orders?select=id,name,appointment_date,appointment_time,master&id=eq."+encodeURIComponent(saved.order_id));
+  const actual=rows?.[0];
+  if(!actual||actual.appointment_date!==draft.date||String(actual.appointment_time||"").slice(0,5)!==draft.time){
+   throw new Error("Изменение выполнено, но не удалось подтвердить запись повторным чтением. Проверьте календарь.");
+  }
+  setPendingDraft(null);
+  const message=(draft.action==="create"?"Заявка создана":"Заказ перенесён")+
+   ": "+actual.name+" — "+actual.appointment_date+" в "+String(actual.appointment_time).slice(0,5)+
+   ", мастер "+actual.master+". Данные проверены в «Работе».";
+  await db("rabota_ai_messages","POST",{chat_id:activeChat,role:"assistant",content:message});
+  messages=await db("rabota_ai_messages?select=id,role,content,created_at&chat_id=eq."+encodeURIComponent(activeChat)+"&order=created_at.asc&limit=200");
+  await loadChats();$("notice").textContent="Изменение подтверждено.";
+ }catch(error){
+   if(saved?.ok){
+     setPendingDraft(null);
+     $("notice").textContent="Заказ сохранён в базе, но его повторная проверка или запись в историю не завершилась. Проверьте календарь.";
+   }else failure(error);
+ }
+ finally{setBusy(false);renderMessages();}
+});
+
 function setBusy(value){
+ $("confirmOrder").disabled=value;$("cancelOrder").disabled=value;
  busy=value;$("send").disabled=value;$("mic").disabled=value;$("newChat").disabled=value;$("input").disabled=value
 }
 async function send(event){
  event.preventDefault();
  if(busy)return;
+ setPendingDraft(null);
  if(speechActive)stopDictation(true);
  const text=$("input").value.trim();if(!text)return;
  if(text.length>12000)return failure(new Error("Сообщение слишком длинное."));
@@ -317,6 +393,16 @@ async function send(event){
   },body:JSON.stringify({messages:context})});
   const data=await response.json().catch(()=>({}));
   if(!response.ok||!data.reply)throw new Error(data.error||"Ошибка сервера ИИ.");
+  if(data.proposal){
+    const p=data.proposal;
+    const draft=await db("rpc/rabota_ai_prepare_order","POST",{
+      p_action:p.action,p_client_name:p.client_name,p_date:p.date,p_time:p.time,
+      p_master:p.master,p_phone:p.phone,p_address:p.address,p_price:p.price,
+      p_details:p.details,p_original_date:p.original_date
+    });
+    if(!draft||!draft.draft_id)throw new Error("Не удалось подготовить подтверждение заявки.");
+    setPendingDraft(draft);
+  }
   await db("rabota_ai_messages","POST",{chat_id:activeChat,role:"assistant",content:data.reply.slice(0,12000)});
   messages=await db("rabota_ai_messages?select=id,role,content,created_at&chat_id=eq."+encodeURIComponent(activeChat)+"&order=created_at.asc&limit=200");
   await db("rabota_ai_chats?id=eq."+encodeURIComponent(activeChat),"PATCH",{updated_at:new Date().toISOString()});
