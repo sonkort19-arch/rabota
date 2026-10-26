@@ -295,7 +295,7 @@ function drawCalendar(){
  if(!items.length){const empty=makeNode("div","rd-cal-empty");empty.append(uiIcon("calendar"),boxText("span","Свободный день"));day.append(empty)}
   for(const o of items){
    const event=makeNode("button","rd-event"+(o.status==="Выполнен"?" is-done":""));
-   event.type="button";event.classList.add(o.status==="В работе"?"is-progress":"");
+   event.type="button";if(o.status==="В работе")event.classList.add("is-progress");
  event.append(boxText("small",o.time||"—"),boxText("strong",o.name||"Без имени"),boxText("span",o.master||"Без мастера"));
    event.addEventListener("click",()=>openForm(o.id));day.append(event);
   }
