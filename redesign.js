@@ -162,11 +162,12 @@ function navigate(key){
  if(key==="ai"){window.location.assign("/ai.html");return}
  if(!ready)return;
  if(key==="finance"&&currentRole!=="owner")return;
+ // Keep the visible screen, active navigation and legacy tab state in sync.
+ // Update visibility before legacy rendering: a render error must not leave
+ // the previous screen selected with the next screen's internal tab state.
  activePage=key;window.__rdCurrentPage=key;
- if(key==="finance"){$("viewFinanceBtn").click()}
- else if(financeActive){$("viewOrdersBtn").click()}
- if(key==="orders"){currentTab="all";render()}
- if(key==="calendar"){currentTab="calendar";render()}
+ if(key==="finance")$("viewFinanceBtn").click();
+ else if(financeActive)$("viewOrdersBtn").click();
  const isOrders=key==="orders",isCalendar=key==="calendar";
  $("ordersArea").hidden=!(isOrders||isCalendar);
  $("financePanel").hidden=key!=="finance";
@@ -186,11 +187,14 @@ function navigate(key){
  $("teamPanel").hidden=key!=="orders"||currentRole!=="owner";
  $("rdFinanceIntro").hidden=key!=="finance";
  app.className=app.className.replace(/\brd-view-\S+/g,"").trim()+" rd-view-"+key;
- document.querySelectorAll(".rd-nav-btn").forEach(btn=>btn.setAttribute("aria-current",(btn.dataset.page===key||(btn.dataset.page==="more"&&["clients","finance"].includes(key)))?"page":"false"));
- if(key==="home")drawHome();
- if(key==="clients")drawClients();
- if(key==="calendar")drawCalendar();
- if(key==="orders"){drawOrderSummary();filterCards();}
+ document.querySelectorAll(".rd-nav-btn").forEach(btn=>
+  btn.setAttribute("aria-current",
+   (btn.dataset.page===key||(btn.dataset.page==="more"&&["clients","finance"].includes(key)))?"page":"false"));
+ if(isOrders||isCalendar){
+  currentTab=isCalendar?"calendar":"all";
+  render(); // Legacy render triggers __rdRefresh, which rebuilds the selected view.
+ }else if(key==="home")drawHome();
+ else if(key==="clients")drawClients();
  window.scrollTo({top:0,behavior:"instant"});
 }
 function drawChart(parent,values){
