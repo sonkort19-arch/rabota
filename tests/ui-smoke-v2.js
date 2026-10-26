@@ -144,6 +144,34 @@ function runSmoke(source) {
     expect(nav("orders").getAttribute("aria-current")==="page","orders active");
     expect(window.__testCurrentTab()==="all","orders view defaults to all orders");
     expect(window.__rdCurrentPage==="orders","orders view state matches navigation");
+
+    const kpis=get("rdOrderStats").querySelectorAll(".rd-stat");
+    expect(kpis.length===4,"four order summary KPIs");
+    expect(get("rdOrderStats").querySelectorAll(".rd-stat-icon").length===4,"each summary has a fixed icon");
+    expect(get("rdOrderStats").querySelectorAll(".rd-stat-body").length===4,"each summary has one text column");
+    expect(get("rdOrderStats").querySelectorAll(".rd-stat-clock").length===1,"new-orders icon class");
+    expect(get("rdOrderStats").querySelectorAll(".rd-stat-progress").length===1,"in-progress icon class");
+    expect(get("rdOrderStats").querySelectorAll(".rd-stat-wallet").length===1,"unpaid icon class");
+    expect(kpis.every(x=>x.querySelector(".rd-stat-body").children.length===3),"metric label, value, hint grouped");
+    const syntheticCard=document.createElement("article");syntheticCard.className="order-card";
+    const top=document.createElement("div");top.className="card-top";
+    const cardName=document.createElement("div");cardName.className="client";cardName.textContent="Тестовый клиент";
+    const cardDate=document.createElement("span");cardDate.className="date-pill";cardDate.textContent="27 окт. · 10:00";
+    top.append(cardName,cardDate);syntheticCard.append(top);
+    for(const label of ["Адрес: Тестовый адрес","Мастер: Рауль","Стоимость: 12 000 ₽","Радиаторы: 5 шт."]){
+      const line=document.createElement("div");line.className="info";line.textContent=label;syntheticCard.append(line);
+    }
+    const actions=document.createElement("div");actions.className="actions";
+    for(const cls of ["action","action wa","action edit"]){
+      const btn=document.createElement("button");btn.className=cls;btn.textContent="Пример";actions.append(btn);
+    }
+    syntheticCard.append(actions);
+    window.__rdDecorateOrder(syntheticCard);
+    expect(syntheticCard.querySelectorAll(".rd-info-row").length===4,"info row icons preserve four details");
+    expect(actions.querySelectorAll(".rd-svgicon").length===3,"all real action variants get aligned icons");
+    expect(cardDate.querySelectorAll(".rd-svgicon").length===1,"date icon inside date pill");
+    expect(top.querySelectorAll(".rd-order-avatar").length===1,"order avatar preserved");
+
     expect(nav("calendar").getAttribute("aria-current")!=="page","calendar inactive");
     nav("calendar").click();
     expect(get("rdCalendarBoard").hidden===false&&get("orders").hidden===true,"second calendar transition");
@@ -161,7 +189,7 @@ function runSmoke(source) {
       expect(!nav("finance"),"manager finance protected");
       expect(!nav("ai"),"manager AI protected");
     }
-    return {role,passed:true,checks:54};
+    return {role,passed:true,checks:65};
   }
   return [scenario("owner"),scenario("manager")];
 }
