@@ -37,6 +37,7 @@
     .day.active {background:#2166e7;border-color:#2166e7;color:white}
     .day.active .weekday {color:#e9f0ff}
     .day.has-orders:not(.active) {border-color:#a8c0fb;background:#eff4ff}
+    .ai-chat-entry {display:block;margin:0 0 14px;text-align:center;text-decoration:none;padding:13px 15px}
     .tabs {display:flex;gap:5px;padding:5px;background:#e9edf5;border-radius:13px;margin:22px 0 15px}
     .tab {border:0;flex:1;padding:12px 5px;border-radius:10px;background:transparent;color:#526074;font-weight:700}
     .tab.active {color:#1e55bf;background:white;box-shadow:0 2px 7px #15233712}
@@ -227,6 +228,7 @@
         <span class="balance-arrow" aria-hidden="true">›</span>
       </button>
     </div><button class="secondary" id="logoutBtn" type="button">Выйти</button></header>
+    <a id="aiChatLink" class="secondary ai-chat-entry" href="/ai.html" hidden>✦ Открыть ИИ-чат</a>
     <div class="sync-note" id="syncStatus" role="status">Синхронизация...</div>
     <section id="masterPushPanel" class="push-panel" hidden aria-label="Уведомления о заявках">
       <strong>🔔 Уведомления о новых заявках</strong>
@@ -1463,6 +1465,7 @@
       document.getElementById("appScreen").classList.toggle("master-mode",currentRole==="master");
       document.getElementById("masterPushPanel").hidden=currentRole!=="master";
       document.getElementById("newOrderBtn").hidden=!(currentRole==="owner"||currentRole==="manager");
+      document.getElementById("aiChatLink").hidden=currentRole!=="owner";
       if (currentRole==="master") currentTab="all";
       financeActive=false;
       financeVisible();
