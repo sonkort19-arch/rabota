@@ -1,0 +1,176 @@
+/* Работа · ChatGPT-inspired LIGHT theme · visual overrides only.
+   Deliberately loaded after redesign.css; no business logic or data changes. */
+:root{
+ color-scheme:light;
+ --ui-bg:#ffffff;
+ --ui-sidebar:#f9f9f9;
+ --ui-surface:#ffffff;
+ --ui-muted-surface:#f7f7f8;
+ --ui-hover:#f0f0f0;
+ --ui-border:#e7e7e7;
+ --ui-ink:#202123;
+ --ui-muted:#686b72;
+ --ui-link:#2457a7;
+ --ui-accent:#171717;
+ background:var(--ui-bg);color:var(--ui-ink);
+}
+body.rd{background:var(--ui-bg);color:var(--ui-ink);}
+body.rd #appScreen{background:var(--ui-bg);}
+body.rd .rd-shell{
+ background:var(--ui-sidebar);border-color:var(--ui-border);
+ box-shadow:none;
+}
+body.rd .rd-brand{color:#202123}
+body.rd .rd-logo{background:#202123;color:#fff;border-radius:12px}
+body.rd .rd-brand small{color:#6b6d73}
+body.rd .rd-nav-btn{color:#52545b;border-color:transparent;font-weight:580}
+body.rd .rd-nav-btn:hover{background:#ededee;color:#202123}
+body.rd .rd-nav-btn[aria-current="page"]{background:#e9e9eb;color:#171717;border-color:transparent}
+body.rd .rd-nav-btn .rd-icon{color:#65676d}
+body.rd .rd-sidefoot{background:#fff;color:#696b72;border-color:#e9e9ea}
+body.rd .rd-sidefoot strong{color:#222}
+body.rd .rd-sidefoot button{background:#f8f8f8;color:#303030;border-color:#e5e5e5}
+body.rd .rd-sidefoot button:hover{background:#ededee}
+body.rd .rd-top{background:#fffffff0;border-bottom:1px solid #ededed;box-shadow:none}
+body.rd .rd-top-search{background:#f7f7f8;border:1px solid #e6e6e7;color:#222;border-radius:12px}
+body.rd .rd-top-search::placeholder{color:#84878e}
+body.rd .rd-top-title,body.rd .rd-user{color:#72747a}
+body.rd .rd-user strong{color:#252525}
+body.rd .rd-user-dot{background:#e9e9eb;color:#333}
+body.rd .rd-view-title{color:#202123;font-weight:700}
+body.rd .rd-view-subtitle,body.rd .rd-muted,body.rd .rd-panel-intro,
+body.rd .rd-empty,body.rd .rd-view-area .rd-note{color:#6b6e75}
+body.rd .rd-stat,body.rd .rd-panel,body.rd .rd-client,
+body.rd .rd-calendar-day,body.rd .panel,body.rd .order-card,
+body.rd .finance-hero,body.rd .finance-entry,
+body.rd .finance-activity,body.rd .team-item,body.rd .master-schedule-card{
+ background:#fff;color:#202123;border:1px solid #e8e8ea;
+ box-shadow:0 1px 3px rgba(25,25,25,.025);
+}
+body.rd .rd-stat,body.rd .rd-panel{border-radius:16px}
+body.rd .rd-stat small,body.rd .rd-stat span{color:#71737a}
+body.rd .rd-stat strong{color:#202123}
+body.rd .rd-stat .rd-accent{color:#202123}
+body.rd .rd-row{border-color:#ededee}
+body.rd .rd-row-main strong,body.rd .rd-panel h2{color:#242424}
+body.rd .rd-row-main span,body.rd .rd-client span{color:#6d7077}
+body.rd .rd-row-meta{color:#335f9c}
+body.rd .rd-quick,body.rd .rd-client button{
+ background:#f9f9fa;border:1px solid #e7e7e8;color:#333;
+}
+body.rd .rd-quick:hover,body.rd .rd-client button:hover{background:#ededee}
+body.rd .rd-primary,body.rd .primary{
+ background:#202123;color:#fff;border-color:#202123;
+ box-shadow:none;
+}
+body.rd .rd-primary:hover,body.rd .primary:hover{background:#353535;filter:none}
+body.rd .rd-chart-line{stroke:#4f6fba}
+body.rd .rd-toolbar input,body.rd .rd-toolbar select,
+body.rd .rd-date-filter,body.rd form input,body.rd form select,
+body.rd form textarea,body.rd .finance-entry input,body.rd .finance-entry select,
+body.rd .team-name{
+ background:#fff;color:#202123;border-color:#dedee1;
+}
+body.rd .rd-date-filter{color:#636870}
+body.rd .rd-date-filter input{background:transparent;border:0;color:#242424}
+body.rd .rd-date-filter input:focus{outline-color:#8aa9df}
+body.rd .rd-calendar-day.is-today{background:#f5f7fc;border-color:#a8bbdd}
+body.rd .rd-calendar-day h3{color:#4b5563}
+body.rd .rd-event{background:#f3f6fb;color:#273145;border-color:#dbe4f2}
+body.rd .rd-event strong{color:#24569b}
+body.rd .rd-event span{color:#5f6978}
+body.rd .rd-event.is-done{background:#edf8f0;border-color:#b9e5c6}
+body.rd .rd-event.is-cancel{background:#fff1f1;border-color:#f0cece}
+body.rd .panel .day{background:#fafafa;border-color:#e5e6e9;color:#242424}
+body.rd .panel .day.active{background:#222;color:white;border-color:#222}
+body.rd .panel .day.active .weekday{color:#eee}
+body.rd .panel .day.has-orders:not(.active){background:#f0f4fc;border-color:#c3d4f4}
+body.rd .panel .weekday,body.rd .muted,body.rd .count,
+body.rd .control-label,body.rd .finance-hero-label,
+body.rd .finance-hero-sub,body.rd .finance-tip,
+body.rd .finance-line-label,body.rd .finance-activity-sub,
+body.rd .master-schedule-address,body.rd .cash-share-hint,
+body.rd .team-empty,body.rd .info{color:#676b73}
+body.rd .panel h2,body.rd .finance-title,body.rd .client,
+body.rd .finance-hero-value,body.rd .master-day-heading h3,
+body.rd .master-schedule-name{color:#222}
+body.rd .date-pill{background:#f1f4f8;color:#4b5b72}
+body.rd .secondary,body.rd .action,body.rd .compact-select,
+body.rd .calendar-date,body.rd .payment,body.rd .close,
+body.rd .master-schedule-toggle{
+ background:#fff;border-color:#dedee1;color:#32353a;
+}
+body.rd .secondary:hover,body.rd .action:hover,body.rd .close:hover,
+body.rd .master-schedule-toggle:hover{background:#f5f5f5}
+body.rd .payment:not(.paid){color:#a34f22}
+body.rd .payment.paid{background:#ecf8ee;color:#20713b;border-color:#cde9d3}
+body.rd .action.wa{background:#eaf7ee;color:#166537;border-color:#cde7d5}
+body.rd .s-new{background:#fff4d7;color:#815500}
+body.rd .s-booked{background:#e8f1ff;color:#2455a6}
+body.rd .s-progress{background:#f3edff;color:#6844a5}
+body.rd .s-done{background:#e8f7ec;color:#246d3d}
+body.rd .s-cancelled{background:#fff0f0;color:#ad4646}
+body.rd .tab,body.rd .view-button{color:#62666f}
+body.rd .tabs,body.rd .view-switch{background:#f4f4f5;border:1px solid #ececef}
+body.rd .tab.active,body.rd .view-button.is-selected{background:#fff;color:#222;box-shadow:0 1px 5px #0000000a}
+body.rd .form-title{color:#375f9d}
+body.rd .sheet{background:#fff;color:#202123;box-shadow:0 -8px 45px #00000014}
+body.rd .overlay{background:#20212478}
+body.rd .sheet label,body.rd .finance-entry label{color:#4a4c53}
+body.rd .finance-hero-primary{background:#f7f9fc;border-color:#dfe7f0}
+body.rd .finance-hero-primary .finance-hero-value{color:#202123}
+body.rd .finance-line{border-color:#ededee}
+body.rd .finance-activity-top{color:#242424}
+body.rd .master-balance-quick,body.rd .master-mode .master-cost,
+body.rd .cash-share,body.rd .push-panel{
+ background:#f7f9fc;border-color:#dfe6f0;color:#273955;
+}
+body.rd .master-balance-quick .balance-label,
+body.rd .master-mode .master-cost .cost-label{color:#66758a}
+body.rd .master-schedule-toggle:active,
+body.rd .master-schedule-card.is-expanded .master-schedule-toggle{background:#f7f8fa}
+body.rd .master-schedule-card.is-expanded .master-schedule-toggle{border-color:#e6e8eb}
+body.rd .master-schedule-details>.order-card{background:transparent;box-shadow:none;border:0}
+body.rd .master-schedule-time,body.rd .master-schedule-price,
+body.rd .master-balance-quick .balance-amount{color:#315c9b}
+body.rd .sync-note{color:#70757d}
+body.rd .sync-note.sync-error,body.rd .auth-message,body.rd .error{color:#b42318}
+body.rd .login-card{background:#fff;border:1px solid #e7e7e7;color:#242424;box-shadow:0 10px 34px #0000000b}
+body.rd .login-card h1,body.rd .login-card h2{color:#242424}
+body.rd .rd-footer{color:#73777f}
+body.rd .rd-history-row{color:#333;border-color:#ebebed}
+body.rd .rd-history-row strong{color:#252525}
+body.rd .rd-history-row span{color:#6a6e75}
+body.rd .rd-order-expand{color:#335f9c}
+body.rd .rd-day-chip{
+ background:#f8f8f9;border-color:#e1e2e5;color:#5c5e65;
+}
+body.rd .rd-day-chip strong{color:#292929}
+body.rd .rd-day-chip small{color:#737780}
+body.rd .rd-day-chip.is-selected{background:#202123;color:#fff;border-color:#202123}
+body.rd .rd-day-chip.is-selected strong,
+body.rd .rd-day-chip.is-selected small{color:#fff}
+body.rd #rdCalendarBoard .rd-selected-day{border-color:#ebebed}
+body.rd .rd-selected-day h3{color:#242424}
+body.rd .rd-mobile-event{background:#f9f9fa;border-color:#e3e5e8;color:#30343b}
+body.rd .rd-mobile-event strong{color:#315a92}
+body.rd .rd-mobile-event span{color:#444950}
+body.rd .rd-mobile-event small{color:#70757d}
+body.rd .rd-mobile-event:hover{background:#f0f3f8}
+body.rd .rd-more-veil:not([hidden]){background:#17171755}
+body.rd .rd-more-sheet:not([hidden]){background:#fff;border-color:#e8e8eb;box-shadow:0 -12px 35px #00000019}
+body.rd .rd-more-sheet h2{color:#252525}
+body.rd .rd-user strong,body.rd #appScreen.rd-master>header h1{color:#252525}
+body.rd :is(input,select,textarea,button,a):focus-visible{outline:2px solid #75a0e4;outline-offset:2px}
+@media(max-width:790px){
+ body.rd .rd-top{background:#fffffff5;border-bottom-color:#e8e8ea}
+ body.rd .rd-mobilebar{
+  background:#fffffffa;border-top:1px solid #e9e9eb;
+  box-shadow:0 -2px 16px #00000009;
+ }
+ body.rd .rd-mobilebar .rd-nav-btn{color:#64666c}
+ body.rd .rd-mobilebar .rd-nav-btn[aria-current="page"]{background:#ebebec;color:#202123}
+ body.rd .rd-mobilebar .rd-nav-btn[aria-current="page"] .rd-icon{color:#202123}
+ body.rd .rd-more-sheet .rd-nav-btn{color:#292929}
+ body.rd .rd-more-sheet .rd-nav-btn:hover{background:#f2f2f3}
+}

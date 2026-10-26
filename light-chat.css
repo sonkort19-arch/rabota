@@ -1,0 +1,58 @@
+/* ИИ-чат «Работа»: светлая палитра в стиле ChatGPT, поверх redesign-chat.css */
+:root{color-scheme:light;background:#fff;color:#202123}
+body{background:#fff;color:#202123}
+#layout{background:#fff}
+aside{background:#f9f9f9;border-right:1px solid #e8e8e8}
+.brand{border-bottom-color:#ededed}
+.brand strong{color:#202123}
+.back{background:#fff;border:1px solid #e6e6e6;color:#3b3f46}
+.back:hover{color:#171717;background:#f2f2f2}
+#newChat{background:#fff;border:1px solid #dedede;color:#202123;text-align:center}
+#newChat:hover{background:#efefef;color:#111}
+.sidebar-label,.sidebar-foot{color:#777b81}
+.sidebar-foot{border-top-color:#e5e5e5}
+.chat-row.is-active{background:#e9e9e9;border-left:3px solid #60646a}
+.chat-row:hover{background:#ededee}
+.chat-open{color:#303238}
+.chat-remove{color:#73767e}
+.chat-remove:hover{background:#fceeee;color:#ba3030}
+#main{background:#fff}
+.top{background:#fff;border-bottom:1px solid #ededed}
+.top h1{color:#202123}
+.top span{color:#65686f;background:#f4f4f5}
+#menu{color:#42454c}
+.messages-inner{color:#202123}
+.empty-state,.empty-state h2{color:#202123}
+.empty-state p{color:#73777d}
+.quick-question{background:#fff;border-color:#e2e2e4;color:#373b40}
+.quick-question:hover{background:#f4f4f4}
+.bubble{color:#202123}
+.bubble.user{background:#f3f3f4;border:1px solid #efeff0;color:#202123;border-radius:18px 18px 5px 18px}
+.bubble.assistant{background:transparent;color:#202123}
+.bubble.waiting{color:#7d8086}
+.composer-wrap{background:#fff}
+#composer{background:#fff;border:1px solid #dcdcdc;box-shadow:0 2px 16px #0000000b;border-radius:23px}
+#input{color:#202123}
+#input::placeholder{color:#87898f}
+#mic{background:#f7f7f8;border:1px solid #e6e6e8;color:#474a50;border-radius:12px}
+#mic:hover{background:#ededee}
+#mic.is-recording{background:#b93d50;color:#fff}
+#send{background:#202123;color:#fff;border-radius:13px}
+#notice{color:#b42318}
+#notice[data-voice="active"]{color:#1c773f}
+#proposalCard{background:#fff;border:1px solid #e2e2e4;box-shadow:0 3px 12px #0000000a}
+#proposalCard strong{color:#202123}
+#proposalDetails{background:#f8f9fa;border:1px solid #e7e8eb;color:#333840}
+#confirmOrder{background:#202123;color:#fff}
+#cancelOrder{background:#f5f5f5;color:#303238;border-color:#ddd}
+#proposalHint,.hint{color:#757981}
+#gate{background:#fff}
+#gate h1{color:#202123}
+#gate p{color:#696d73}
+#gate a{color:#2458a6}
+@media(max-width:760px){
+ aside{box-shadow:12px 0 35px #00000020}
+ body.menu-open #scrim{background:#0000004f}
+ .top{background:#fff}
+ .composer-wrap{background:#fff}
+}
