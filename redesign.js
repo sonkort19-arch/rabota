@@ -287,12 +287,16 @@ function drawCalendar(){
  const orders=getOrders().filter(o=>o.date && o.status!=="Отменён");
  for(let i=0;i<7;i++){
   const date=addDays(monday,i),day=makeNode("div","rd-calendar-day"+(date===selectedDate?" is-today":""));
-  day.append(boxText("h3",parseDate(date).toLocaleDateString("ru-RU",{weekday:"short",day:"numeric",month:"short"})));
+  const dayHeader=makeNode("div","rd-cal-dayhead");
+ dayHeader.append(boxText("h3",parseDate(date).toLocaleDateString("ru-RU",{weekday:"short",day:"numeric",month:"short"})));
+ day.append(dayHeader);
   const items=orders.filter(o=>o.date===date).sort((a,b)=>String(a.time).localeCompare(String(b.time)));
-  if(!items.length)day.append(boxText("p","Нет записей","rd-muted"));
+  dayHeader.append(boxText("small",items.length?items.length+" зап.":"Нет записей","rd-cal-count"));
+ if(!items.length){const empty=makeNode("div","rd-cal-empty");empty.append(uiIcon("calendar"),boxText("span","Свободный день"));day.append(empty)}
   for(const o of items){
    const event=makeNode("button","rd-event"+(o.status==="Выполнен"?" is-done":""));
-   event.type="button";event.append(boxText("strong",(o.time||"—")+" · "+o.name),boxText("span",o.master||"Мастер не назначен"));
+   event.type="button";event.classList.add(o.status==="В работе"?"is-progress":"");
+ event.append(boxText("small",o.time||"—"),boxText("strong",o.name||"Без имени"),boxText("span",o.master||"Без мастера"));
    event.addEventListener("click",()=>openForm(o.id));day.append(event);
   }
   board.append(day);
@@ -306,12 +310,24 @@ function drawCalendar(){
   weekStrip.append(chip);
  }
  const selected=orders.filter(o=>o.date===selectedDate).sort((a,b)=>String(a.time||"").localeCompare(String(b.time||"")));
- dayDetail.append(boxText("h3",parseDate(selectedDate).toLocaleDateString("ru-RU",{day:"numeric",month:"long",weekday:"long"})+" · "+selected.length+" зап."));
- if(!selected.length)dayDetail.append(boxText("p","На этот день записей нет.","rd-muted"));
+ const heading=makeNode("div","rd-selected-heading");
+ heading.append(boxText("h3",parseDate(selectedDate).toLocaleDateString("ru-RU",{day:"numeric",month:"long",weekday:"long"})),
+  boxText("span",selected.length+" "+(selected.length===1?"запись":selected.length>1&&selected.length<5?"записи":"записей"),"rd-selected-count"));
+ dayDetail.append(heading);
+ if(!selected.length)dayDetail.append(boxText("p","На этот день записей нет.","rd-empty"));
  for(const o of selected){
   const event=makeNode("button","rd-mobile-event");event.type="button";
-  event.append(boxText("strong",(o.time||"—")+" · "+o.name),boxText("span",o.master||"Мастер не назначен"),
-   boxText("small",o.address||"Адрес не указан"));
+  const left=makeNode("div","rd-calendar-time");left.append(boxText("strong",o.time||"—"));
+  const content=makeNode("div","rd-calendar-entry");
+  content.append(boxText("strong",o.name||"Без имени"),
+    boxText("span",(o.master||"Мастер не назначен")+" · "+(o.address||"Адрес не указан"),"rd-calendar-meta"));
+  if(smText(o.details))content.append(boxText("small",o.details,"rd-calendar-note"));
+  const badge=boxText("span",o.status||"Новый","rd-calendar-badge");
+  if(o.status==="Выполнен")badge.classList.add("is-done");
+  else if(o.status==="В работе")badge.classList.add("is-progress");
+  else badge.classList.add("is-booked");
+  event.append(left,content,badge);
+  event.setAttribute("aria-label","Открыть заявку: "+(o.name||"Без имени")+", "+(o.time||"время не указано"));
   event.addEventListener("click",()=>openForm(o.id));dayDetail.append(event);
  }
 }
@@ -367,6 +383,12 @@ function drawClients(){
 }
 function compactOrderCard(card){
  if(currentRole==="master"||!card)return;
+ const top=card.querySelector(".card-top");
+ const name=card.querySelector(".client");
+ if(top&&name){
+  const avatar=boxText("span",(name.textContent.trim()[0]||"К").toLocaleUpperCase("ru"),"rd-order-avatar");
+  top.prepend(avatar);
+ }
  const lines=[...card.querySelectorAll(":scope > .info")];
  const expandable=lines.filter(el=>!/^(Адрес:|Мастер:|Стоимость:)/.test(el.textContent.trim()));
  if(!expandable.length)return;
