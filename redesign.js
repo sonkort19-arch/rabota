@@ -166,7 +166,7 @@ function build(){
  weekStrip.setAttribute("role","group");weekStrip.setAttribute("aria-label","Выберите день недели");
  dayDetail.setAttribute("aria-live","polite");
  board.append(boardHeading,weekGrid,weekStrip,makeNode("div","rd-calendar-divider"),dayDetail);
- dayDetail.prepend(doneLabel);
+ boardHeading.append(doneLabel);
  const ordersTitle=sectionView("rdOrdersIntro","Заказы","Все заявки, статусы, поиск и быстрые действия");
  const orderStats=makeNode("div","");orderStats.id="rdOrderStats";
  const orderTools=makeNode("div","rd-toolbar");orderTools.id="rdOrderToolbar";
@@ -499,12 +499,6 @@ function drawCalendar(){
  detailHeading.append(boxText("h3",calendarMode==="list"?"Записи за неделю":
   parseDate(selectedDate).toLocaleDateString("ru-RU",{day:"numeric",month:"long",weekday:"long"})),
   boxText("span",dayCount(total),"rd-selected-count"));
- const detailTools=makeNode("div","rd-selected-actions");
- const hideLabel=makeNode("label","rd-calendar-done-toggle");
- const hideInput=$("rdCalendarHideDone");
- hideLabel.append(hideInput,boxText("span","Скрыть выполненные"));
- detailTools.append(hideLabel);
- detailHeading.append(detailTools);
  detail.append(detailHeading);
  function showOrder(o){
   const card=makeNode("article","rd-mobile-event "+statusClass(o));
