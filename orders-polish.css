@@ -1,0 +1,134 @@
+/* Рабoта · aligned order statistics & order card icon system.
+ * Loaded after all prior CRM theme layers. No changes to data, finance or order actions.
+ */
+body.rd #rdOrderStats .rd-stats{
+ display:grid;grid-template-columns:repeat(4,minmax(0,1fr));
+ gap:13px;align-items:stretch;margin:0 0 18px;
+}
+body.rd #rdOrderStats .rd-stat{
+ display:grid;grid-template-columns:46px minmax(0,1fr);gap:14px;
+ align-content:start;align-items:start;
+ min-height:138px;min-width:0;
+ padding:20px 17px;
+ background:#fff;border:1px solid #e5ebf6;border-radius:18px;
+ box-shadow:0 5px 22px rgba(38,58,102,.045);
+}
+body.rd #rdOrderStats .rd-stat-icon{
+ display:grid;place-items:center;flex:none;
+ width:46px;height:46px;min-width:46px;
+ padding:0;margin:0;border-radius:14px;
+ background:#eaf1ff;color:#285eeb;
+}
+body.rd #rdOrderStats .rd-stat-icon .rd-svgicon{
+ width:23px;height:23px;display:block;margin:0;flex:none;
+ stroke:currentColor;
+}
+body.rd #rdOrderStats .rd-stat-body{
+ display:flex;flex-direction:column;
+ align-items:flex-start;justify-content:flex-start;gap:0;
+ min-width:0;min-height:95px;
+}
+body.rd #rdOrderStats .rd-stat-body small{
+ display:block;min-width:0;margin:2px 0 9px;padding:0;
+ color:#34425c;font-size:12px;font-weight:750;
+ line-height:1.35;white-space:normal;overflow-wrap:anywhere;
+}
+body.rd #rdOrderStats .rd-stat-body strong{
+ display:block;min-width:0;margin:0 0 9px!important;padding:0!important;
+ font-size:29px;font-weight:810;color:#142341;
+ line-height:1.05;letter-spacing:-.9px;white-space:normal;
+}
+body.rd #rdOrderStats .rd-stat-body .rd-stat-hint{
+ display:block;margin:0!important;padding:0!important;
+ color:#8391ab;font-size:11px;line-height:1.5;
+ font-weight:450;max-width:100%;
+}
+body.rd #rdOrderStats .rd-stat-clock .rd-stat-icon{background:#f4eaff;color:#8450d7}
+body.rd #rdOrderStats .rd-stat-progress .rd-stat-icon{background:#fff0df;color:#ef8614}
+body.rd #rdOrderStats .rd-stat-wallet{background:linear-gradient(110deg,#fff,#f5fffb)}
+body.rd #rdOrderStats .rd-stat-wallet .rd-stat-icon{background:#e1f8ed;color:#069568}
+body.rd #rdOrderStats .rd-stat-orders .rd-stat-icon{background:#e9f2ff;color:#3067ed}
+/* Consistent information iconography in real order cards. */
+body.rd #ordersArea #orders>.order-card{
+ background:#fff;border-color:#e3ebf7;box-shadow:0 5px 20px #2138650a;
+ padding:18px;gap:2px;
+}
+body.rd #orders .order-card .card-top{gap:10px;align-items:center}
+body.rd #orders .order-card .client{
+ color:#1b2944;font-size:16px;line-height:1.4;font-weight:760;
+}
+body.rd #orders .order-card .rd-order-avatar{
+ width:39px;height:39px;flex:0 0 39px;display:grid;place-items:center;
+ background:#eaf0ff;color:#4164e8;border-radius:50%;font-size:16px;
+}
+body.rd #orders .order-card .date-pill{
+ display:inline-flex;align-items:center;gap:7px;
+ background:#eff3ff;color:#4264df;border-radius:10px;
+ padding:8px 9px;line-height:1.3;white-space:normal;font-size:11px;
+}
+body.rd #orders .order-card .date-pill .rd-svgicon{
+ width:15px;height:15px;flex:0 0 15px;color:#4c68e3;
+}
+body.rd #orders .order-card .status-badge{
+ margin:8px 0 10px;align-self:flex-start;padding:6px 10px;border-radius:18px;
+ font-weight:740;font-size:11px;
+}
+body.rd #orders .order-card .status-badge.s-new{background:#f4eafa;color:#8845af}
+body.rd #orders .order-card .status-badge.s-booked{background:#e9f0ff;color:#355fca}
+body.rd #orders .order-card .status-badge.s-progress{background:#fff0da;color:#a56b10}
+body.rd #orders .order-card .status-badge.s-done{background:#e3faed;color:#157f4d}
+body.rd #orders .order-card .status-badge.s-cancelled{background:#fff0f2;color:#c1465b}
+body.rd #orders .order-card .rd-info-row{
+ display:flex;align-items:flex-start;justify-content:flex-start;gap:10px;
+ min-width:0;color:#637592;font-size:12px;line-height:1.5;
+ margin:5px 0;overflow-wrap:anywhere;white-space:pre-wrap;
+}
+body.rd #orders .order-card .rd-info-row .rd-svgicon{
+ display:block;flex:0 0 16px;width:16px;height:16px;
+ color:#647493;margin-top:1px;
+}
+body.rd #orders .order-card .rd-order-extra .rd-info-row{margin:7px 0}
+body.rd #orders .order-card .actions{display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin-top:14px}
+body.rd #orders .order-card .actions .action{
+ display:inline-flex;align-items:center;justify-content:center;gap:7px;
+ min-height:41px;padding:9px 12px;font-size:12px;font-weight:700;
+ border-radius:11px;background:#f9fbff;border:1px solid #dfe7f6;
+ color:#365584;white-space:normal;
+}
+body.rd #orders .order-card .actions .action:hover{background:#eef3ff}
+body.rd #orders .order-card .actions .action.wa{background:#e9f9f1;border-color:#d4f1e2;color:#118355}
+body.rd #orders .order-card .actions .action.wa:hover{background:#d9f7e6}
+body.rd #orders .order-card .actions .action.edit{background:#f1f4ff;border-color:#e2e9fa;color:#3a55c6;margin-left:auto}
+body.rd #orders .order-card .actions .action .rd-svgicon{
+ display:block;width:16px;height:16px;flex:0 0 16px;
+}
+@media(max-width:1150px){
+ body.rd #rdOrderStats .rd-stats{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media(max-width:790px){
+ body.rd #rdOrderStats .rd-stats{gap:9px;margin-bottom:14px}
+ body.rd #rdOrderStats .rd-stat{
+  grid-template-columns:35px minmax(0,1fr);gap:9px;
+  min-height:113px;padding:14px 11px;border-radius:15px;
+ }
+ body.rd #rdOrderStats .rd-stat-icon{width:35px;height:35px;min-width:35px;border-radius:11px}
+ body.rd #rdOrderStats .rd-stat-icon .rd-svgicon{width:19px;height:19px}
+ body.rd #rdOrderStats .rd-stat-body{min-height:87px}
+ body.rd #rdOrderStats .rd-stat-body small{font-size:10px;margin:1px 0 7px}
+ body.rd #rdOrderStats .rd-stat-body strong{font-size:24px;margin-bottom:7px!important}
+ body.rd #rdOrderStats .rd-stat-body .rd-stat-hint{font-size:10px;line-height:1.4}
+ body.rd #ordersArea #orders>.order-card{padding:15px 12px}
+ body.rd #orders .order-card .rd-order-avatar{width:32px;height:32px;flex:0 0 32px;font-size:14px}
+ body.rd #orders .order-card .client{font-size:15px}
+ body.rd #orders .order-card .date-pill{font-size:10px;padding:7px}
+ body.rd #orders .order-card .actions{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
+ body.rd #orders .order-card .actions .action{min-height:40px;padding:8px 4px;font-size:10px;gap:5px;margin:0!important}
+ body.rd #orders .order-card .actions .action .rd-svgicon{width:14px;height:14px;flex-basis:14px}
+}
+@media(max-width:390px){
+ body.rd #rdOrderStats .rd-stat{grid-template-columns:32px minmax(0,1fr);gap:7px;padding:12px 9px}
+ body.rd #rdOrderStats .rd-stat-icon{width:32px;height:32px;min-width:32px}
+ body.rd #rdOrderStats .rd-stat-icon .rd-svgicon{width:18px;height:18px}
+ body.rd #rdOrderStats .rd-stat-body strong{font-size:21px}
+ body.rd #orders .order-card .date-pill .rd-svgicon{display:none}
+}
