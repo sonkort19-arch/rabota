@@ -42,6 +42,9 @@ aside{width:266px;flex:0 0 266px;background:#171717;border-right:1px solid #2929
 .empty-state{min-height:40vh;display:grid;align-content:center;justify-items:center;text-align:center;gap:12px;color:#e8e8e8}
 .empty-state h2{font-size:28px;letter-spacing:-.6px;font-weight:600;margin:0}
 .empty-state p{color:#aaa;font-size:14px;margin:0}
+.quick-questions{display:flex;flex-wrap:wrap;justify-content:center;gap:9px;margin-top:13px;max-width:650px}
+.quick-question{border:1px solid #464646;border-radius:14px;background:#2a2a2a;color:#e3e3e3;padding:10px 13px;font-size:13px;text-align:left}
+.quick-question:hover{background:#363636}
 .bubble{white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.72;font-size:15px}
 .bubble.user{align-self:flex-end;max-width:min(85%,560px);background:#303030;border-radius:19px;padding:11px 18px}
 .bubble.assistant{align-self:stretch;padding:3px 0 5px}
@@ -78,7 +81,7 @@ aside{width:266px;flex:0 0 266px;background:#171717;border-right:1px solid #2929
     <button id="newChat" type="button">＋ Новый чат</button>
     <div class="sidebar-label">История переписок</div>
     <div id="history" aria-label="История чатов"></div>
-    <div class="sidebar-foot">Личный чат владельца. История сохраняется в Supabase.</div>
+    <div class="sidebar-foot">ИИ читает текущие заказы, расписание и финансы из «Работы». Действия и изменения заказов отключены. История чата хранится в Supabase.</div>
   </aside>
   <main id="main">
     <header class="top"><button id="menu" type="button" aria-label="Открыть меню">☰</button><h1 id="conversationTitle">Новый чат</h1><span>OpenAI</span></header>
@@ -145,7 +148,19 @@ function renderMessages(){
   const empty=document.createElement("div");empty.className="empty-state";
   const title=document.createElement("h2");title.textContent="С чего начнём?";
   const subtitle=document.createElement("p");subtitle.textContent="Напишите вопрос своему ИИ-помощнику.";
-  empty.append(title,subtitle);list.append(empty)
+  const questions=document.createElement("div");questions.className="quick-questions";
+  for(const question of [
+   "Сколько заказов на этой и прошлой неделе?",
+   "Сколько клиентов записано на завтра?",
+   "Какие заказы ещё не оплачены?",
+   "Сколько денег в кассе по учёту?"
+  ]){
+    const button=document.createElement("button");
+    button.type="button";button.className="quick-question";button.textContent=question;
+    button.addEventListener("click",()=>{$("input").value=question;$("input").focus();$("composer").requestSubmit()});
+    questions.append(button)
+  }
+  empty.append(title,subtitle,questions);list.append(empty)
  }else for(const m of messages)list.append(item(m.role,m.content));
  if(busy)list.append(item("assistant","ИИ готовит ответ...","waiting"));
  $("messages").scrollTop=$("messages").scrollHeight
