@@ -4,6 +4,9 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#f6f7fb">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Работа">
   <title>Работа — промывка отопления</title>
   <style>
     :root {font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;color:#192335;background:#f6f7fb;font-synthesis:none}
@@ -178,6 +181,14 @@
       .master-schedule-name {font-size:16px}
       .master-schedule-address {font-size:12px}
     }
+
+    .push-panel{margin:12px 0 18px;padding:14px;border:1px solid #d9e5fb;border-radius:15px;background:#f5f9ff}
+    .push-panel strong{font-size:15px}
+    .push-panel .push-actions{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0}
+    .push-panel .push-actions button{font-size:13px;padding:9px 12px;min-height:40px}
+    .push-panel .push-status{font-size:13px;line-height:1.45;overflow-wrap:anywhere}
+    .push-panel .push-notice{border-top:1px solid #e0e8f4;padding:10px 0 2px;font-size:13px}
+    .push-panel .push-notice button{font-size:12px;padding:5px 8px;margin-top:6px}
   </style>
 </head>
 <body>
@@ -217,6 +228,15 @@
       </button>
     </div><button class="secondary" id="logoutBtn" type="button">Выйти</button></header>
     <div class="sync-note" id="syncStatus" role="status">Синхронизация...</div>
+    <section id="masterPushPanel" class="push-panel" hidden aria-label="Уведомления о заявках">
+      <strong>🔔 Уведомления о новых заявках</strong>
+      <div class="push-actions">
+        <button class="primary" id="enablePushBtn" type="button">Включить уведомления</button>
+        <button class="secondary" id="testPushBtn" type="button" hidden>Проверить уведомление</button>
+      </div>
+      <div id="pushStatus" class="push-status" role="status">Разрешите уведомления на телефоне, чтобы сразу узнавать о новых заявках.</div>
+      <div id="recentNotificationList"></div>
+    </section>
     <div id="viewSwitch" class="view-switch" hidden>
       <button id="viewOrdersBtn" class="view-button is-selected" type="button">Заявки</button>
       <button id="viewFinanceBtn" class="view-button" type="button">Финансы</button>
@@ -327,6 +347,7 @@
     // Публичный ключ безопасен в браузере. Доступ к заказам контролирует RLS в Supabase.
     const SUPABASE_URL = "https://yedzfmibceboncrytbqz.supabase.co";
     const SUPABASE_KEY = "sb_publishable_tSqbw3aeAgxYuzHhQurCuw_yDze4ZNn";
+    const PUSH_PUBLIC_KEY = "BH-gBzO9XGdqdohLPkgetTaPYfxctPqp8A2ba2_TCxNqHbWi11FlxRt_N3xWzbRSRFW_RpBTJ8a2TRFvr29LihI";
     const STORAGE_KEY = "rabota-orders-v1";
     const AUTH_KEY = "rabota-auth-session-v1";
     const STATUSES = ["Новый", "Записан", "В работе", "Выполнен", "Отменён"];
@@ -511,6 +532,7 @@
         }
       }
       reportSync(syncError);
+      if(currentRole==="master"){try{await refreshRabotaNotifications();}catch(error){console.warn("Notification reload",error);}}
     }
     function getOrders() {return cloudOrders;}
     async function persistOrder(order) {
@@ -1340,6 +1362,85 @@
       finally {btn.disabled=false;}
     });
 
+
+    function pushStatus(message){document.getElementById("pushStatus").textContent=message;}
+    function vapidBytes(encoded){
+      const base64=(encoded+"=".repeat((4-encoded.length%4)%4)).replace(/-/g,"+").replace(/_/g,"/");
+      return Uint8Array.from(atob(base64),x=>x.charCodeAt(0));
+    }
+    async function refreshRabotaNotifications(){
+      if(currentRole!=="master"||!currentUser)return;
+      const rows=await dbRequest("rabota_order_notifications?select=id,client_name,visit_date,visit_time,read_at,created_at&order=created_at.desc&limit=15","GET");
+      const unread=(Array.isArray(rows)?rows:[]).filter(r=>!r.read_at);
+      const el=document.getElementById("recentNotificationList");
+      el.replaceChildren();
+      for(const record of unread.slice(0,5)){
+        const row=make("div","push-notice");
+        row.append(make("strong","","Новая заявка: "+(record.client_name||"Клиент")),document.createElement("br"));
+        row.append(make("span","",(record.visit_date?formatDate(record.visit_date):"Дата уточняется")+" в "+(record.visit_time?String(record.visit_time).slice(0,5):"время уточняется")));
+        row.append(document.createElement("br"));
+        const btn=make("button","secondary","Прочитано");
+        btn.type="button";
+        btn.addEventListener("click",async()=>{
+          btn.disabled=true;
+          try{
+            await dbRequest("rabota_order_notifications?id=eq."+encodeURIComponent(record.id),"PATCH",{read_at:new Date().toISOString()});
+            await refreshRabotaNotifications();
+          }catch(err){btn.disabled=false;pushStatus(friendlyError(err));}
+        });
+        row.append(btn);el.append(row);
+      }
+      if(unread.length)pushStatus("Новых уведомлений: "+unread.length+". Отметьте «Прочитано» после просмотра.");
+    }
+    async function removePushOnLogout(){
+      if(!("serviceWorker" in navigator)||!session||currentRole!=="master")return;
+      const registration=await navigator.serviceWorker.getRegistration("/");
+      const subscription=registration&&await registration.pushManager?.getSubscription();
+      if(!subscription)return;
+      try{await dbRequest("rabota_push_subscriptions?endpoint=eq."+encodeURIComponent(subscription.endpoint),"DELETE");}
+      finally{await subscription.unsubscribe();}
+    }
+    document.getElementById("enablePushBtn").addEventListener("click",async()=>{
+      const btn=document.getElementById("enablePushBtn");
+      if(!window.isSecureContext||!("serviceWorker" in navigator)||!("PushManager" in window)||!("Notification" in window)){
+        pushStatus("На этом устройстве push не поддерживаются. Используйте установленное приложение.");return;
+      }
+      const ios=/iPad|iPhone|iPod/i.test(navigator.userAgent);
+      const installed=window.matchMedia("(display-mode: standalone)").matches||navigator.standalone===true;
+      if(ios&&!installed){
+        pushStatus("На iPhone откройте в Safari → Поделиться → На экран «Домой». Запустите приложение с главного экрана и включите уведомления.");return;
+      }
+      btn.disabled=true;
+      try{
+        const permission=await Notification.requestPermission();
+        if(permission!=="granted")throw new Error("Разрешите уведомления для приложения в настройках телефона.");
+        await navigator.serviceWorker.register("/sw.js",{scope:"/"});
+        const worker=await navigator.serviceWorker.ready;
+        let subscription=await worker.pushManager.getSubscription();
+        if(!subscription)subscription=await worker.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:vapidBytes(PUSH_PUBLIC_KEY)});
+        await dbRequest("rpc/rabota_register_push_subscription","POST",{p_subscription:subscription.toJSON()});
+        pushStatus("Уведомления включены. Новые заявки будут приходить на телефон.");
+        btn.textContent="Уведомления включены";
+        document.getElementById("testPushBtn").hidden=false;
+      }catch(err){pushStatus("Не удалось включить: "+friendlyError(err));}
+      finally{btn.disabled=false;}
+    });
+    document.getElementById("testPushBtn").addEventListener("click",async()=>{
+      const btn=document.getElementById("testPushBtn");btn.disabled=true;
+      try{
+        await ensureSession();
+        const res=await fetch(SUPABASE_URL+"/functions/v1/rabota-push",{
+          method:"POST",
+          headers:{"Content-Type":"application/json",apikey:SUPABASE_KEY,Authorization:"Bearer "+session.access_token},
+          body:JSON.stringify({action:"test"})
+        });
+        const data=await res.json().catch(()=>({}));
+        if(!res.ok||!data.delivered)throw new Error("Проверочное уведомление не доставлено. Проверьте интернет и разрешения.");
+        pushStatus("Проверочное уведомление отправлено на телефон.");
+      }catch(err){pushStatus(friendlyError(err));}
+      finally{btn.disabled=false;}
+    });
+
     const loginMessage=document.getElementById("authMessage");
     const accessMessage=document.getElementById("accessMessage");
     async function checkAccess() {
@@ -1360,6 +1461,7 @@
       document.querySelector('[data-tab="all"]').textContent=currentRole==="master"?"Расписание":"Все заказы";
       document.querySelector('[data-tab="calendar"]').textContent="По дням";
       document.getElementById("appScreen").classList.toggle("master-mode",currentRole==="master");
+      document.getElementById("masterPushPanel").hidden=currentRole!=="master";
       document.getElementById("newOrderBtn").hidden=!(currentRole==="owner"||currentRole==="manager");
       if (currentRole==="master") currentTab="all";
       financeActive=false;
@@ -1414,6 +1516,7 @@
       if(session&&session.access_token) {
         try {await authRequest("logout","POST",{},true);} catch(error){}
       }
+      try{await removePushOnLogout();}catch(err){console.warn("Push unsubscribe",err);}
       clearSession();showScreen("loginScreen");
     }
     document.getElementById("logoutBtn").addEventListener("click",logout);
