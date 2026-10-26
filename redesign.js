@@ -10,7 +10,7 @@ const makeNode=(tag,className,text)=>{const n=document.createElement(tag);if(cla
 const sections=["home","orders","calendar","clients","finance","ai"];
 const titles={home:"Панель владельца",orders:"Заказы",calendar:"Календарь",clients:"Клиенты",finance:"Финансы",ai:"ИИ-чат"};
 const icon={home:"⌂",orders:"▤",calendar:"▦",clients:"♙",finance:"▥",ai:"✦"};
-let activePage="home",ready=false,lastOrderKey="",rdSearchTerm="";
+let activePage="home",ready=false,lastOrderKey="",rdSearchTerm="",selectedClientKey=null;
 function todayMoscow(){return new Intl.DateTimeFormat("sv-SE",{timeZone:"Europe/Moscow",year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date())}
 function dateLong(day){if(!day)return "Дата не указана";return parseDate(day).toLocaleDateString("ru-RU",{day:"numeric",month:"long"})}
 function cash(num){return new Intl.NumberFormat("ru-RU",{maximumFractionDigits:2}).format(Number(num)||0)+" ₽"}
@@ -51,7 +51,12 @@ function build(){
  const logout=makeNode("button","","Выйти из аккаунта");logout.type="button";logout.addEventListener("click",()=>$("logoutBtn").click());foot.append(logout);side.append(foot);
  const top=makeNode("div","rd-top");
  const search=makeNode("input","rd-top-search");search.id="rdTopSearch";search.type="search";search.placeholder="Поиск...";search.setAttribute("aria-label","Поиск по заказам, клиентам и адресам");
- search.addEventListener("input",()=>{rdSearchTerm=search.value.toLocaleLowerCase("ru").trim();if(rdSearchTerm&&activePage!=="orders"&&activePage!=="clients")navigate("orders");filterCards()});
+ search.addEventListener("input",()=>{
+ rdSearchTerm=search.value.toLocaleLowerCase("ru").trim();
+ if(activePage==="clients"){selectedClientKey=null;drawClients();return}
+ if(rdSearchTerm&&activePage!=="orders")navigate("orders");
+ filterCards();
+});
  top.append(search,boxText("span","Данные из Supabase","rd-top-title"));
  const user=makeNode("div","rd-user");user.append(boxText("span","●","rd-user-dot"),boxText("strong",currentRole==="owner"?"Владелец":"Менеджер"));top.append(user);
  const mobile=makeNode("nav","rd-mobilebar");mobile.setAttribute("aria-label","Быстрое меню");
@@ -63,9 +68,10 @@ function build(){
  const clients=sectionView("rdClients","Клиенты","Клиенты из доступных вам заказов");
  const clientsToolbar=makeNode("div","rd-toolbar");
  const clientsInput=makeNode("input");clientsInput.id="rdClientSearch";clientsInput.type="search";clientsInput.placeholder="Найти клиента или телефон";clientsInput.setAttribute("aria-label","Поиск клиентов");
- clientsInput.addEventListener("input",drawClients);
- clientsToolbar.append(clientsInput);clients.append(clientsToolbar);
+ clientsInput.addEventListener("input",()=>{selectedClientKey=null;drawClients()});
+ clientsToolbar.id="rdClientToolbar";clientsToolbar.append(clientsInput);clients.append(clientsToolbar);
  clients.append(makeNode("div","rd-client-list"));clients.querySelector(".rd-client-list").id="rdClientsList";
+ const clientHistory=makeNode("section","rd-panel rd-client-history");clientHistory.id="rdClientHistory";clientHistory.hidden=true;clients.append(clientHistory);
  const calendar=sectionView("rdCalendarIntro","Календарь","Записи по дням и занятость мастеров");
  calendar.append(boxText("p","Показаны фактические заявки. Свободное время согласовывайте с мастером.","rd-muted"));
  const calendarNav=makeNode("div","rd-toolbar");calendarNav.id="rdCalendarNavigation";
@@ -87,7 +93,7 @@ function build(){
  const dateWrap=makeNode("label","rd-date-filter");dateWrap.append(boxText("span","Дата"),orderDate);
  const masterSelect=makeNode("select");masterSelect.id="rdMasterFilter";masterSelect.setAttribute("aria-label","Фильтр по мастеру");masterSelect.addEventListener("change",filterCards);
  const statusSelect=makeNode("select");statusSelect.id="rdStatusFilter";statusSelect.setAttribute("aria-label","Фильтр по статусу");
- [["","Все статусы"],["Новый","Новый"],["Записан","Записан"],["В работе","В работе"],["Выполнен","Выполнен"],["unpaid","Не оплачено"]].forEach(([value,label])=>{const opt=makeNode("option","",label);opt.value=value;statusSelect.append(opt)});
+ [["","Все статусы"],["Новый","Новый"],["Записан","Записан"],["В работе","В работе"],["Выполнен","Выполнен"],["unpaid","Выполнены без оплаты"]].forEach(([value,label])=>{const opt=makeNode("option","",label);opt.value=value;statusSelect.append(opt)});
  statusSelect.addEventListener("change",()=>{currentTab=["Выполнен","unpaid"].includes(statusSelect.value)?"history":"all";render();filterCards()});
  const clear=makeNode("button","secondary","Сбросить");clear.addEventListener("click",()=>{orderDate.value="";statusSelect.value="";masterSelect.value="";rdSearchTerm="";$("rdTopSearch").value="";currentTab="all";render();filterCards()});
  orderTools.append(dateWrap,masterSelect,statusSelect,clear);
@@ -181,7 +187,9 @@ function drawHome(){
  future.forEach(o=>rowEntry(upcoming,o.name,o.master?dateLong(o.date)+" · "+o.master:dateLong(o.date),o.time||"—",()=>{navigate("orders");openForm(o.id)}));
  const notice=panel("Что требует внимания");
  const unpaid=orders.filter(o=>o.status==="Выполнен"&&!o.paid),noMaster=orders.filter(o=>!smText(o.master)&&o.status!=="Выполнен");
- rowEntry(notice,"Неоплаченные выполненные заказы","По статусу и отметке оплаты",String(unpaid.length),()=>navigate("orders"));
+ rowEntry(notice,"Неоплаченные выполненные заказы","По статусу и отметке оплаты",String(unpaid.length),()=>{
+ navigate("orders");$("rdStatusFilter").value="unpaid";currentTab="history";render();filterCards();
+});
  rowEntry(notice,"Заказы без мастера","Нужно назначить исполнителя",String(noMaster.length),()=>navigate("orders"));
  rowEntry(notice,"Свободные окна","Смотрите актуальный календарь","Открыть",()=>navigate("calendar"));
  two.append(upcoming,notice);root.append(two);
@@ -245,20 +253,51 @@ function drawCalendar(){
 }
 function drawClients(){
  if(!ready||activePage!=="clients")return;
- const list=$("rdClientsList");list.replaceChildren();
+ const list=$("rdClientsList"),history=$("rdClientHistory"),toolbar=$("rdClientToolbar");
+ list.replaceChildren();history.replaceChildren();
  const groups=new Map();
  for(const o of getOrders()){
-  const key=normalizePhone(o.phone)||"name:"+smText(o.name).toLocaleLowerCase("ru");
-  if(!groups.has(key))groups.set(key,{name:o.name,phone:o.phone,items:[],last:""});
-  const item=groups.get(key);item.items.push(o);if(o.date>item.last)item.last=o.date;
+  const clientName=smText(o.name).toLocaleLowerCase("ru");
+  const phoneKey=normalizePhone(o.phone);
+  // A phone can be shared by family members: do not merge different names by phone alone.
+  const key=(phoneKey?"phone:"+phoneKey+"|":"")+"name:"+clientName;
+  if(!groups.has(key))groups.set(key,{key,name:o.name,phone:o.phone,items:[],last:""});
+  const item=groups.get(key);item.items.push(o);if((o.date||"")>item.last)item.last=o.date;
  }
- const term=$("rdClientSearch").value.toLocaleLowerCase("ru").trim();
- const values=[...groups.values()].filter(item=>(item.name+" "+item.phone).toLocaleLowerCase("ru").includes(term))
- .sort((a,b)=>b.last.localeCompare(a.last)||a.name.localeCompare(b.name,"ru"));
+ const selected=groups.get(selectedClientKey);
+ if(selected){
+  list.hidden=true;toolbar.hidden=true;history.hidden=false;
+  const back=makeNode("button","secondary","‹ Все клиенты");back.type="button";
+  back.addEventListener("click",()=>{selectedClientKey=null;drawClients()});history.append(back);
+  history.append(boxText("h2",selected.name||"Без имени"),boxText("p",(selected.phone||"Телефон не указан")+" · "+selected.items.length+" заказ(ов)","rd-muted"));
+  const entries=[...selected.items].sort((a,b)=>String(b.date||b.createdAt||"").localeCompare(String(a.date||a.createdAt||""))||
+    String(b.time||"").localeCompare(String(a.time||"")));
+  for(const o of entries){
+   const card=makeNode("article","rd-history-row");
+   card.append(boxText("strong",(o.date?dateLong(o.date):"Без даты")+(o.time?" · "+o.time:"")),
+     boxText("span",(o.status||"Новый")+(o.master?" · "+o.master:"")),
+     boxText("span",o.address||"Адрес не указан"),
+     boxText("span",(o.price==null?"Стоимость не указана":cash(o.price))+" · "+(o.paid?"Оплачено":"Не оплачено")));
+   if(currentRole==="owner"||currentRole==="manager"){
+    const btn=makeNode("button","secondary","Открыть заявку");btn.type="button";btn.addEventListener("click",()=>openForm(o.id));card.append(btn);
+   }
+   history.append(card);
+  }
+  return;
+ }
+ history.hidden=true;toolbar.hidden=false;list.hidden=false;
+ const local=$("rdClientSearch").value.toLocaleLowerCase("ru").trim(),global=rdSearchTerm;
+ const values=[...groups.values()].filter(item=>{
+  const haystack=(item.name+" "+item.phone).toLocaleLowerCase("ru");
+  return haystack.includes(local)&&haystack.includes(global);
+ }).sort((a,b)=>b.last.localeCompare(a.last)||a.name.localeCompare(b.name,"ru"));
  if(!values.length){list.append(boxText("div","Клиенты не найдены","rd-empty"));return}
  for(const g of values.slice(0,150)){
-  const card=makeNode("article","rd-client");card.append(boxText("strong",g.name||"Без имени"),boxText("span",g.phone||"Телефон не указан"),boxText("span","Заказов: "+g.items.length+" · Последняя запись: "+(g.last?dateLong(g.last):"—")));
-  const btn=makeNode("button","","Открыть заказы");btn.type="button";btn.addEventListener("click",()=>{navigate("orders");$("rdTopSearch").value=g.name;rdSearchTerm=g.name.toLocaleLowerCase("ru");filterCards()});card.append(btn);list.append(card);
+  const card=makeNode("article","rd-client");
+  card.append(boxText("strong",g.name||"Без имени"),boxText("span",g.phone||"Телефон не указан"),
+   boxText("span","Заказов: "+g.items.length+" · Последняя запись: "+(g.last?dateLong(g.last):"—")));
+  const btn=makeNode("button","","Вся история клиента");btn.type="button";
+  btn.addEventListener("click",()=>{selectedClientKey=g.key;drawClients()});card.append(btn);list.append(card);
  }
  if(values.length>150)list.append(boxText("div","Показаны первые 150 клиентов. Уточните поиск.","rd-note"));
 }
