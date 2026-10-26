@@ -9,7 +9,31 @@ const $=id=>document.getElementById(id);
 const makeNode=(tag,className,text)=>{const n=document.createElement(tag);if(className)n.className=className;if(text!=null)n.textContent=String(text);return n};
 const sections=["home","orders","calendar","clients","finance","ai"];
 const titles={home:"Главная",orders:"Заказы",calendar:"Календарь",clients:"Клиенты",finance:"Финансы",ai:"ИИ-чат"};
-const icon={home:"⌂",orders:"▤",calendar:"▦",clients:"♙",finance:"▥",ai:"✦"};
+/* Consistent, accessible outline icons: no third-party library and no remote assets. */
+const iconPaths={
+ home:'<path d="m3 10 9-7 9 7v10a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1z"/>',
+ orders:'<rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 7h6M9 12h6M9 17h4"/>',
+ calendar:'<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M7 3v4M17 3v4M3 10h18M8 14h2M14 14h2M8 18h2"/>',
+ clients:'<circle cx="12" cy="8" r="4"/><path d="M4 21v-2a8 8 0 0 1 16 0v2"/>',
+ finance:'<path d="M4 20V10h4v10M10 20V4h4v16M16 20v-8h4v8M2 21h20"/>',
+ ai:'<path d="m12 2 1.9 6.1L20 10l-6.1 1.9L12 18l-1.9-6.1L4 10l6.1-1.9L12 2ZM19 16l.8 2.2L22 19l-2.2.8L19 22l-.8-2.2L16 19l2.2-.8L19 16Z"/>',
+ search:'<circle cx="10.8" cy="10.8" r="6.8"/><path d="m16 16 5 5"/>',
+ clock:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
+ check:'<circle cx="12" cy="12" r="9"/><path d="m8 12 3 3 5-6"/>',
+ alert:'<path d="M12 3 2 21h20L12 3Z"/><path d="M12 9v5m0 3v.01"/>',
+ wallet:'<rect x="3" y="6" width="18" height="15" rx="3"/><path d="M4 9V6a3 3 0 0 1 3-3h11M16 13h6v5h-6a2.5 2.5 0 0 1 0-5Z"/>',
+ chart:'<path d="M3 20V4M3 20h18M7 16l4-5 4 3 5-8"/>',
+ plus:'<path d="M12 4v16M4 12h16"/>'
+};
+function uiIcon(name,extra=""){
+ const svg=document.createElementNS("http://www.w3.org/2000/svg","svg");
+ svg.setAttribute("viewBox","0 0 24 24");svg.setAttribute("fill","none");
+ svg.setAttribute("stroke","currentColor");svg.setAttribute("stroke-width","1.85");
+ svg.setAttribute("stroke-linecap","round");svg.setAttribute("stroke-linejoin","round");
+ svg.setAttribute("aria-hidden","true");svg.classList.add("rd-svgicon");
+ if(extra)svg.classList.add(extra);
+ svg.innerHTML=iconPaths[name]||iconPaths.orders;return svg;
+}
 let activePage="home",ready=false,lastOrderKey="",rdSearchTerm="",selectedClientKey=null,builtRole=null;
 function todayMoscow(){return new Intl.DateTimeFormat("sv-SE",{timeZone:"Europe/Moscow",year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date())}
 function dateLong(day){if(!day)return "Дата не указана";return parseDate(day).toLocaleDateString("ru-RU",{day:"numeric",month:"long"})}
@@ -17,11 +41,37 @@ function cash(num){return new Intl.NumberFormat("ru-RU",{maximumFractionDigits:2
 function smText(t){return String(t||"").trim()}
 function activeOrders(){return getOrders().filter(o=>o.status!=="Отменён")}
 function boxText(tag,text,cls){return makeNode(tag,cls||"",text)}
-function panel(title,intro){let n=makeNode("section","rd-panel"),h=boxText("h2",title);n.append(h);if(intro)n.append(boxText("div",intro,"rd-panel-intro"));return n}
+function panel(title,intro){
+ const n=makeNode("section","rd-panel");
+ const heading=makeNode("div","rd-panel-heading");
+ const name=title.includes("ИИ")?"ai":title.includes("Динамика")?"chart":title.includes("записи")?"clock":title.includes("внимания")?"alert":title.includes("заказы")?"orders":"clients";
+ heading.append(uiIcon(name),boxText("h2",title));n.append(heading);
+ if(intro)n.append(boxText("div",intro,"rd-panel-intro"));return n;
+}
 function rowEntry(parent,label,desc,meta,action){const row=makeNode("div","rd-row");const left=makeNode("div","rd-row-main");left.append(boxText("strong",label),boxText("span",desc));row.append(left,boxText("span",meta,"rd-row-meta"));if(action){row.style.cursor="pointer";row.tabIndex=0;row.setAttribute("role","button");row.addEventListener("click",action);row.addEventListener("keydown",e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();action()}})}parent.append(row)}
-function sectionView(id,title,subtitle){let n=makeNode("section","rd-view");n.id=id;n.append(boxText("h1",title,"rd-view-title"),boxText("p",subtitle,"rd-view-subtitle"));return n}
-function stats(node,items){const wrap=makeNode("div","rd-stats");for(const item of items){const n=makeNode("div","rd-stat");n.append(boxText("small",item.label),boxText("strong",item.value,"rd-accent"),boxText("span",item.hint));wrap.append(n)}node.append(wrap)}
-function navButton(key){const btn=makeNode("button","rd-nav-btn");btn.type="button";btn.dataset.page=key;btn.append(boxText("span",icon[key],"rd-icon"),boxText("span",titles[key]));btn.addEventListener("click",()=>navigate(key));return btn}
+function sectionView(id,title,subtitle){
+ const n=makeNode("section","rd-view");n.id=id;
+ n.append(boxText("div","CRM / Работа · московское время","rd-view-kicker"),
+ boxText("h1",title,"rd-view-title"),boxText("p",subtitle,"rd-view-subtitle"));
+ return n;
+}
+function stats(node,items){
+ const wrap=makeNode("div","rd-stats");
+ items.forEach((item,i)=>{
+  const kind=item.label.includes("Клиенты")?"clients":item.label.includes("оплач")||item.label.includes("Оплач")?"wallet":
+   item.label.includes("Выполнено")?"check":item.label==="Новые"?"clock":item.label.includes("работе")?"orders":
+   item.label.includes("сегодня")?"calendar":"orders";
+  const n=makeNode("div","rd-stat rd-stat-"+kind);
+  const heading=makeNode("div","rd-stat-heading");
+  const emblem=makeNode("span","rd-stat-icon");emblem.append(uiIcon(kind));
+  heading.append(emblem,boxText("small",item.label));
+  n.append(heading,boxText("strong",item.value,"rd-accent"),boxText("span",item.hint));wrap.append(n);
+ });
+ node.append(wrap);
+}
+function navButton(key){const btn=makeNode("button","rd-nav-btn");btn.type="button";btn.dataset.page=key;
+ const emblem=makeNode("span","rd-icon");emblem.append(uiIcon(key));
+ btn.append(emblem,boxText("span",titles[key]));btn.addEventListener("click",()=>navigate(key));return btn}
 function makeMobileMenu(){
  const veil=makeNode("button","rd-more-veil");veil.type="button";veil.hidden=true;veil.setAttribute("aria-label","Закрыть дополнительное меню");
  const sheet=makeNode("section","rd-more-sheet");sheet.hidden=true;sheet.id="rdMoreSheet";sheet.setAttribute("aria-label","Дополнительные разделы");
@@ -50,7 +100,7 @@ function build(){
  const foot=makeNode("div","rd-sidefoot");foot.append(boxText("strong","Мой кабинет"),boxText("div","Система заказов и расписания."));
  const logout=makeNode("button","","Выйти из аккаунта");logout.type="button";logout.addEventListener("click",()=>$("logoutBtn").click());foot.append(logout);side.append(foot);
  const top=makeNode("div","rd-top");
- const search=makeNode("input","rd-top-search");search.id="rdTopSearch";search.type="search";search.placeholder="Поиск...";search.setAttribute("aria-label","Поиск по заказам, клиентам и адресам");
+ const search=makeNode("input","rd-top-search");search.id="rdTopSearch";search.type="search";search.placeholder="Поиск заказов, клиентов, адресов...";search.setAttribute("aria-label","Поиск по заказам, клиентам и адресам");
  search.addEventListener("input",()=>{
  rdSearchTerm=search.value.toLocaleLowerCase("ru").trim();
  if(activePage==="clients"){selectedClientKey=null;drawClients();return}
@@ -58,7 +108,7 @@ function build(){
  filterCards();
 });
  top.append(search,boxText("span","Данные из Supabase","rd-top-title"));
- const user=makeNode("div","rd-user");user.append(boxText("span","●","rd-user-dot"),boxText("strong",currentRole==="owner"?"Владелец":"Менеджер"));top.append(user);
+ const user=makeNode("div","rd-user");user.append(boxText("span",currentRole==="owner"?"В":"М","rd-user-dot"),boxText("strong",currentRole==="owner"?"Владелец":"Менеджер"));top.append(user);
  const mobile=makeNode("nav","rd-mobilebar");mobile.setAttribute("aria-label","Быстрое меню");
  const visible=currentRole==="owner"?["home","orders","calendar","ai"]:["home","orders","calendar","clients"];
  visible.forEach(key=>mobile.append(navButton(key)));
@@ -149,7 +199,8 @@ function drawChart(parent,values){
  const mk=(tag,attrs)=>{const n=document.createElementNS("http://www.w3.org/2000/svg",tag);for(const [k,v] of Object.entries(attrs))n.setAttribute(k,String(v));return n};
  const defs=mk("defs",{}),grad=mk("linearGradient",{id:"rdChartGradient",x1:"0",y1:"0",x2:"0",y2:"1"});
  grad.append(mk("stop",{offset:"0%","stop-color":"#5e9af5","stop-opacity":".4"}),mk("stop",{offset:"100%","stop-color":"#5e9af5","stop-opacity":"0"}));defs.append(grad);svg.append(defs);
- for(let y of [29,70,112,154])svg.append(mk("line",{x1:0,x2:540,y1:y,y2:y,stroke:"#334155","stroke-width":".8"}));
+ for(let y of [29,70,112,154])svg.append(mk("line",{x1:8,x2:532,y1:y,y2:y,stroke:"#e7eaf3","stroke-width":"1","stroke-dasharray":"3 5"}));
+ for(let i=0;i<6;i++){const label=mk("text",{x:8+i*524/5,y:169,"text-anchor":i===0?"start":i===5?"end":"middle",class:"rd-chart-axis"});label.textContent=String(Math.round(1+i*(values.length-1)/5));svg.append(label)}
  const path=points.map((p,i)=>(i?"L":"M")+p[0].toFixed(1)+","+p[1].toFixed(1)).join(" ");
  if(points.length){svg.append(mk("path",{d:path+" L "+points[points.length-1][0].toFixed(1)+",154 L "+points[0][0].toFixed(1)+",154 Z",class:"rd-chart-area"}));svg.append(mk("path",{d:path,class:"rd-chart-line"}))}
  parent.append(svg);
@@ -170,6 +221,8 @@ function drawHome(){
  ]);
  const middle=makeNode("div","rd-grid-main");
  const chart=panel("Динамика заказов","Количество записей по дням месяца (МСК)");
+ const monthBadge=boxText("span",parseDate(month+"-01").toLocaleDateString("ru-RU",{month:"long",year:"numeric"}),"rd-chart-month");
+ chart.querySelector(".rd-panel-heading").append(monthBadge);
  const monthStart=month+"-01",date0=parseDate(monthStart),days=new Date(date0.getFullYear(),date0.getMonth()+1,0).getDate();
  const series=Array.from({length:days},(_,i)=>thisMonth.filter(o=>o.date===month+"-"+String(i+1).padStart(2,"0")).length);
  drawChart(chart,series);
@@ -190,13 +243,13 @@ function drawHome(){
  }
  root.append(middle);
  const two=makeNode("div","rd-grid-main rd-blockgap");
- const upcoming=panel("Ближайшие записи");
+ const upcoming=panel("Ближайшие записи");upcoming.classList.add("rd-upcoming-panel");
  const nowMoscow=new Date().toLocaleTimeString("ru-RU",{hour:"2-digit",minute:"2-digit",hour12:false,timeZone:"Europe/Moscow"});
  const future=orders.filter(o=>o.date&&(o.date>today||(o.date===today&&(o.time||"23:59")>=nowMoscow)))
    .sort((a,b)=>String(a.date+" "+a.time).localeCompare(String(b.date+" "+b.time))).slice(0,5);
  if(!future.length)upcoming.append(boxText("div","Ближайших записей нет","rd-empty"));
  future.forEach(o=>rowEntry(upcoming,o.name,o.master?dateLong(o.date)+" · "+o.master:dateLong(o.date),o.time||"—",()=>{navigate("orders");openForm(o.id)}));
- const notice=panel("Что требует внимания");
+ const notice=panel("Что требует внимания");notice.classList.add("rd-alert-panel");
  const unpaid=orders.filter(o=>o.status==="Выполнен"&&!o.paid),noMaster=orders.filter(o=>!smText(o.master)&&o.status!=="Выполнен");
  rowEntry(notice,"Неоплаченные выполненные заказы","По статусу и отметке оплаты",String(unpaid.length),()=>{
  navigate("orders");$("rdStatusFilter").value="unpaid";currentTab="history";render();filterCards();
