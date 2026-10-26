@@ -339,8 +339,9 @@ $("confirmOrder").addEventListener("click",async()=>{
  if(busy||!pendingDraft||!activeChat)return;
  const draft=pendingDraft;
  setBusy(true);$("notice").textContent="Повторно проверяю расписание и сохраняю...";
+ let saved=null;
  try{
-  const saved=await db("rpc/rabota_ai_confirm_order","POST",{p_draft_id:draft.draft_id});
+  saved=await db("rpc/rabota_ai_confirm_order","POST",{p_draft_id:draft.draft_id});
   if(!saved?.ok||!saved?.order_id)throw new Error("Нет подтверждения сохранения от базы.");
   const rows=await db("rabota_orders?select=id,name,appointment_date,appointment_time,master&id=eq."+encodeURIComponent(saved.order_id));
   const actual=rows?.[0];
@@ -354,7 +355,12 @@ $("confirmOrder").addEventListener("click",async()=>{
   await db("rabota_ai_messages","POST",{chat_id:activeChat,role:"assistant",content:message});
   messages=await db("rabota_ai_messages?select=id,role,content,created_at&chat_id=eq."+encodeURIComponent(activeChat)+"&order=created_at.asc&limit=200");
   await loadChats();$("notice").textContent="Изменение подтверждено.";
- }catch(error){failure(error)}
+ }catch(error){
+   if(saved?.ok){
+     setPendingDraft(null);
+     $("notice").textContent="Заказ сохранён в базе, но его повторная проверка или запись в историю не завершилась. Проверьте календарь.";
+   }else failure(error);
+ }
  finally{setBusy(false);renderMessages();}
 });
 
