@@ -22,6 +22,25 @@ function rowEntry(parent,label,desc,meta,action){const row=makeNode("div","rd-ro
 function sectionView(id,title,subtitle){let n=makeNode("section","rd-view");n.id=id;n.append(boxText("h1",title,"rd-view-title"),boxText("p",subtitle,"rd-view-subtitle"));return n}
 function stats(node,items){const wrap=makeNode("div","rd-stats");for(const item of items){const n=makeNode("div","rd-stat");n.append(boxText("small",item.label),boxText("strong",item.value,"rd-accent"),boxText("span",item.hint));wrap.append(n)}node.append(wrap)}
 function navButton(key){const btn=makeNode("button","rd-nav-btn");btn.type="button";btn.dataset.page=key;btn.append(boxText("span",icon[key],"rd-icon"),boxText("span",titles[key]));btn.addEventListener("click",()=>navigate(key));return btn}
+function makeMobileMenu(){
+ const veil=makeNode("button","rd-more-veil");veil.type="button";veil.hidden=true;veil.setAttribute("aria-label","Закрыть дополнительное меню");
+ const sheet=makeNode("section","rd-more-sheet");sheet.hidden=true;sheet.id="rdMoreSheet";sheet.setAttribute("aria-label","Дополнительные разделы");
+ sheet.append(boxText("h2","Другие разделы"));
+ const items=currentRole==="owner"?["clients","finance"]:["clients"];
+ for(const key of items){const btn=navButton(key);btn.classList.add("rd-more-item");sheet.append(btn)}
+ const exit=makeNode("button","rd-nav-btn rd-more-item");exit.type="button";exit.append(boxText("span","⇥","rd-icon"),boxText("span","Выйти"));exit.addEventListener("click",()=>{$("logoutBtn").click()});sheet.append(exit);
+ function close(){sheet.hidden=true;veil.hidden=true;document.body.classList.remove("rd-menu-open");toggle?.setAttribute("aria-expanded","false")}
+ let toggle=null;
+ function open(){const expanded=!sheet.hidden;if(expanded){close();return}veil.hidden=false;sheet.hidden=false;document.body.classList.add("rd-menu-open");toggle?.setAttribute("aria-expanded","true")}
+ veil.addEventListener("click",close);
+ document.addEventListener("keydown",e=>{if(e.key==="Escape"&&!sheet.hidden)close()});
+ const originalNavigate=navigate;
+ // Menu item clicks navigate, then dismiss the overlay.
+ sheet.querySelectorAll(".rd-more-item[data-page]").forEach(btn=>btn.addEventListener("click",close));
+ toggle=makeNode("button","rd-nav-btn rd-more-trigger");toggle.type="button";toggle.dataset.page="more";toggle.setAttribute("aria-controls",sheet.id);toggle.setAttribute("aria-expanded","false");
+ toggle.append(boxText("span","⋯","rd-icon"),boxText("span","Ещё"));toggle.addEventListener("click",open);
+ return {veil,sheet,toggle,close};
+}
 function build(){
  if(ready)return;
  const side=makeNode("aside","rd-shell");side.setAttribute("aria-label","Главное меню");
@@ -32,12 +51,15 @@ function build(){
  const foot=makeNode("div","rd-sidefoot");foot.append(boxText("strong","Мой кабинет"),boxText("div","Система заказов и расписания."));
  const logout=makeNode("button","","Выйти из аккаунта");logout.type="button";logout.addEventListener("click",()=>$("logoutBtn").click());foot.append(logout);side.append(foot);
  const top=makeNode("div","rd-top");
- const search=makeNode("input","rd-top-search");search.id="rdTopSearch";search.type="search";search.placeholder="Поиск по заказам, клиентам, адресам...";search.setAttribute("aria-label","Поиск по заказам");
+ const search=makeNode("input","rd-top-search");search.id="rdTopSearch";search.type="search";search.placeholder="Поиск...";search.setAttribute("aria-label","Поиск по заказам, клиентам и адресам");
  search.addEventListener("input",()=>{rdSearchTerm=search.value.toLocaleLowerCase("ru").trim();if(rdSearchTerm&&activePage!=="orders"&&activePage!=="clients")navigate("orders");filterCards()});
  top.append(search,boxText("span","Данные из Supabase","rd-top-title"));
  const user=makeNode("div","rd-user");user.append(boxText("span","●","rd-user-dot"),boxText("strong",currentRole==="owner"?"Владелец":"Менеджер"));top.append(user);
- const mobile=makeNode("nav","rd-mobilebar");mobile.setAttribute("aria-label","Быстрое меню");for(const key of sections){if(key==="ai"&&currentRole!=="owner")continue;if(key==="finance"&&currentRole!=="owner")continue;mobile.append(navButton(key))}
- app.prepend(top,side,mobile);
+ const mobile=makeNode("nav","rd-mobilebar");mobile.setAttribute("aria-label","Быстрое меню");
+ const visible=currentRole==="owner"?["home","orders","calendar","ai"]:["home","orders","calendar","clients"];
+ visible.forEach(key=>mobile.append(navButton(key)));
+ const more=makeMobileMenu();mobile.append(more.toggle);
+ app.prepend(top,side,more.veil,more.sheet,mobile);
  const home=sectionView("rdHome","Панель владельца","Обзор заказов и расписания в реальном времени");
  const clients=sectionView("rdClients","Клиенты","Клиенты из доступных вам заказов");
  const clientsToolbar=makeNode("div","rd-toolbar");
@@ -54,17 +76,22 @@ function build(){
  const calendarSelect=makeNode("input");calendarSelect.type="date";calendarSelect.id="rdCalendarDate";calendarSelect.setAttribute("aria-label","Выбрать дату в расписании");
  calendarSelect.addEventListener("change",()=>{if(!calendarSelect.value)return;selectedDate=calendarSelect.value;currentTab="calendar";render()});
  calendarNav.append(previous,todayBtn,next,calendarSelect);
- const board=makeNode("section","rd-panel rd-view-area");board.id="rdCalendarBoard";board.append(boxText("h2","Неделя · записи мастеров"),makeNode("div","rd-week-grid"));
+ const board=makeNode("section","rd-panel rd-view-area");board.id="rdCalendarBoard";
+ const weekGrid=makeNode("div","rd-week-grid"),weekStrip=makeNode("div","rd-week-strip"),dayDetail=makeNode("div","rd-selected-day");
+ weekStrip.setAttribute("role","group");weekStrip.setAttribute("aria-label","Выберите день недели");
+ dayDetail.setAttribute("aria-live","polite");
+ board.append(boxText("h2","Неделя · записи мастеров"),weekGrid,weekStrip,dayDetail);
  const ordersTitle=sectionView("rdOrdersIntro","Заказы","Все заявки, статусы, поиск и быстрые действия");
  const orderStats=makeNode("div","");orderStats.id="rdOrderStats";
  const orderTools=makeNode("div","rd-toolbar");orderTools.id="rdOrderToolbar";
  const orderDate=makeNode("input");orderDate.type="date";orderDate.id="rdOrderDate";orderDate.setAttribute("aria-label","Фильтр по дате");orderDate.addEventListener("change",filterCards);
+ const dateWrap=makeNode("label","rd-date-filter");dateWrap.append(boxText("span","Дата"),orderDate);
  const masterSelect=makeNode("select");masterSelect.id="rdMasterFilter";masterSelect.setAttribute("aria-label","Фильтр по мастеру");masterSelect.addEventListener("change",filterCards);
  const statusSelect=makeNode("select");statusSelect.id="rdStatusFilter";statusSelect.setAttribute("aria-label","Фильтр по статусу");
  [["","Все статусы"],["Новый","Новый"],["Записан","Записан"],["В работе","В работе"],["Выполнен","Выполнен"],["unpaid","Не оплачено"]].forEach(([value,label])=>{const opt=makeNode("option","",label);opt.value=value;statusSelect.append(opt)});
  statusSelect.addEventListener("change",()=>{currentTab=["Выполнен","unpaid"].includes(statusSelect.value)?"history":"all";render();filterCards()});
  const clear=makeNode("button","secondary","Сбросить");clear.addEventListener("click",()=>{orderDate.value="";statusSelect.value="";masterSelect.value="";rdSearchTerm="";$("rdTopSearch").value="";currentTab="all";render();filterCards()});
- orderTools.append(orderDate,masterSelect,statusSelect,clear);
+ orderTools.append(dateWrap,masterSelect,statusSelect,clear);
  const financeTitle=sectionView("rdFinanceIntro","Финансы","Начисления, касса и история операций");
  app.insertBefore(home,$("ordersArea"));
  app.insertBefore(clients,$("ordersArea"));
@@ -98,8 +125,8 @@ function navigate(key){
  $("rdCalendarNavigation").hidden=!isCalendar;
  $("calendarPanel").hidden=true;
  $("ordersArea").querySelector(".tabs").hidden=!isOrders;
- $("ordersArea").querySelector(".list-head").hidden=!isOrders&&!isCalendar;
- $("orders").hidden=!isOrders&&!isCalendar;
+ $("ordersArea").querySelector(".list-head").hidden=!isOrders;
+ $("orders").hidden=!isOrders;
  $("newOrderBtn").hidden=!(isOrders||isCalendar) || !(currentRole==="owner"||currentRole==="manager");
  $("teamPanel").hidden=key!=="orders"||currentRole!=="owner";
  $("rdFinanceIntro").hidden=key!=="finance";
@@ -183,6 +210,8 @@ function drawCalendar(){
  if(!ready||activePage!=="calendar")return;
  $("rdCalendarDate").value=selectedDate;
  const board=$("rdCalendarBoard").querySelector(".rd-week-grid");board.replaceChildren();
+ const weekStrip=$("rdCalendarBoard").querySelector(".rd-week-strip");weekStrip.replaceChildren();
+ const dayDetail=$("rdCalendarBoard").querySelector(".rd-selected-day");dayDetail.replaceChildren();
  const monday=addDays(selectedDate,-((parseDate(selectedDate).getDay()+6)%7));
  const orders=getOrders().filter(o=>o.date && o.status!=="Отменён");
  for(let i=0;i<7;i++){
@@ -196,6 +225,23 @@ function drawCalendar(){
    event.addEventListener("click",()=>openForm(o.id));day.append(event);
   }
   board.append(day);
+  const count=items.length;
+  const chip=makeNode("button","rd-day-chip"+(date===selectedDate?" is-selected":""));
+  chip.type="button";chip.setAttribute("aria-pressed",String(date===selectedDate));
+  chip.append(boxText("span",parseDate(date).toLocaleDateString("ru-RU",{weekday:"short"})),
+              boxText("strong",String(parseDate(date).getDate())),
+              boxText("small",count?count+" зап.":"—"));
+  chip.addEventListener("click",()=>{selectedDate=date;currentTab="calendar";render()});
+  weekStrip.append(chip);
+ }
+ const selected=orders.filter(o=>o.date===selectedDate).sort((a,b)=>String(a.time||"").localeCompare(String(b.time||"")));
+ dayDetail.append(boxText("h3",parseDate(selectedDate).toLocaleDateString("ru-RU",{day:"numeric",month:"long",weekday:"long"})+" · "+selected.length+" зап."));
+ if(!selected.length)dayDetail.append(boxText("p","На этот день записей нет.","rd-muted"));
+ for(const o of selected){
+  const event=makeNode("button","rd-mobile-event");event.type="button";
+  event.append(boxText("strong",(o.time||"—")+" · "+o.name),boxText("span",o.master||"Мастер не назначен"),
+   boxText("small",o.address||"Адрес не указан"));
+  event.addEventListener("click",()=>openForm(o.id));dayDetail.append(event);
  }
 }
 function drawClients(){
@@ -217,6 +263,23 @@ function drawClients(){
  }
  if(values.length>150)list.append(boxText("div","Показаны первые 150 клиентов. Уточните поиск.","rd-note"));
 }
+function compactOrderCard(card){
+ if(currentRole==="master"||!card)return;
+ const lines=[...card.querySelectorAll(":scope > .info")];
+ const expandable=lines.filter(el=>!/^(Адрес:|Мастер:|Стоимость:)/.test(el.textContent.trim()));
+ if(!expandable.length)return;
+ const actions=card.querySelector(":scope > .actions");if(!actions)return;
+ const extra=makeNode("div","rd-order-extra");extra.hidden=true;
+ for(const el of expandable)extra.append(el);
+ const toggle=makeNode("button","rd-order-expand","Показать детали заявки");
+ toggle.type="button";toggle.setAttribute("aria-expanded","false");
+ toggle.addEventListener("click",()=>{
+  extra.hidden=!extra.hidden;toggle.setAttribute("aria-expanded",String(!extra.hidden));
+  toggle.textContent=extra.hidden?"Показать детали заявки":"Скрыть детали";
+ });
+ card.insertBefore(toggle,actions);card.insertBefore(extra,actions);
+}
+window.__rdDecorateOrder=compactOrderCard;
 function filterCards(){
  if(!ready||activePage!=="orders")return;
  const date=$("rdOrderDate").value,master=$("rdMasterFilter").value,status=$("rdStatusFilter").value;
