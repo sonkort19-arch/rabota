@@ -1,0 +1,171 @@
+
+/* Rabota design preview: presentation layer only; business rules remain in index.html */
+:root{color-scheme:dark;background:#0d111a;color:#eef2fb}
+body.rd{background:radial-gradient(circle at 68% -10%,#192239 0,#0d111a 48%,#0c1017 100%);color:#eaf0fa}
+body.rd #appScreen{width:100%;max-width:1600px;min-height:100dvh;margin:0 auto;padding:86px 30px 85px 272px}
+body.rd #appScreen.rd-master{max-width:810px;padding:28px 16px 80px}
+body.rd #appScreen.rd-master>header{margin-bottom:22px}
+body.rd #appScreen.rd-master header h1{font-size:29px}
+body.rd #appScreen.rd-master #viewSwitch{display:none}
+body.rd #appScreen>header{display:none}
+body.rd .rd-shell{position:fixed;top:0;bottom:0;left:0;width:242px;z-index:15;display:flex;flex-direction:column;padding:23px 14px;background:#121720;border-right:1px solid #293244}
+body.rd .rd-brand{display:flex;align-items:center;gap:12px;padding:5px 11px 21px;color:#f9faff;text-decoration:none}
+body.rd .rd-logo{display:grid;place-items:center;background:linear-gradient(135deg,#fa5b38,#fc9c29);font-size:22px;font-weight:900;color:#190f0c;border-radius:12px;width:43px;height:43px}
+body.rd .rd-brand strong{font-size:22px;line-height:1.25;letter-spacing:-.5px}
+body.rd .rd-brand small{display:block;font-size:11px;color:#9da8bb;margin-top:3px}
+body.rd .rd-nav{display:grid;gap:5px}
+body.rd .rd-nav-btn{appearance:none;border:1px solid transparent;display:flex;gap:12px;align-items:center;text-align:left;border-radius:11px;color:#a8b5cb;background:transparent;padding:12px 14px;font-weight:650;font-size:14px;min-height:47px;cursor:pointer}
+body.rd .rd-nav-btn:hover{background:#202838;color:#f8faff}
+body.rd .rd-nav-btn[aria-current="page"]{background:#242f45;color:#eef5ff;border-color:#364762}
+body.rd .rd-nav-btn .rd-icon{display:inline-grid;width:21px;text-align:center;color:#95b6eb;font-size:18px}
+body.rd .rd-sidefoot{margin-top:auto;border:1px solid #2c3442;border-radius:14px;padding:14px;background:linear-gradient(160deg,#1b2634,#101820);color:#b3bfd2;font-size:12px;line-height:1.65}
+body.rd .rd-sidefoot strong{font-size:14px;color:#f0f5ff;display:block;margin-bottom:7px}
+body.rd .rd-sidefoot button{margin-top:9px;width:100%;background:#1f2838;border:1px solid #3a4557;color:#d6ddec;border-radius:10px;min-height:40px}
+body.rd .rd-top{position:fixed;z-index:14;top:0;left:242px;right:0;height:70px;display:flex;align-items:center;gap:16px;padding:0 27px;background:#111620e8;backdrop-filter:blur(20px);border-bottom:1px solid #283242}
+body.rd .rd-top-search{height:41px;flex:1;max-width:530px;border:1px solid #303c50;background:#202837;border-radius:12px;padding:0 16px;color:#eff4fa;outline:none}
+body.rd .rd-top-search::placeholder{color:#8291a6}
+body.rd .rd-user{margin-left:auto;display:flex;align-items:center;gap:11px;font-size:13px;color:#9daabe}
+body.rd .rd-user strong{color:#e9eff9;font-weight:650}
+body.rd .rd-user-dot{display:grid;place-items:center;width:33px;height:33px;background:#344669;border-radius:100%;color:#ecf4ff}
+body.rd .rd-mobilebar{display:none}
+body.rd .rd-top-title{color:#aab6c9;font-size:12px;white-space:nowrap}
+body.rd .rd-view-title{font-size:30px;margin:0 0 5px;letter-spacing:-.75px;font-weight:750}
+body.rd .rd-view-subtitle{color:#9eabc1;font-size:14px;margin:0 0 24px}
+body.rd .rd-view[hidden],body.rd .rd-screen-hidden{display:none!important}
+body.rd #ordersArea{max-width:none}
+body.rd .rd-view-area{margin-bottom:18px}
+body.rd .rd-stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-bottom:18px}
+body.rd .rd-stat{border:1px solid #2b3444;background:#171e2a;border-radius:17px;padding:18px;min-width:0}
+body.rd .rd-stat small{display:block;color:#a3b0c6;font-size:12px;margin-bottom:10px}
+body.rd .rd-stat strong{font-size:26px;letter-spacing:-.7px;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+body.rd .rd-stat span{display:block;margin-top:8px;font-size:11px;color:#899bb4;line-height:1.45}
+body.rd .rd-stat .rd-accent{color:#71a5ff}
+body.rd .rd-grid-main{display:grid;grid-template-columns:minmax(0,1.7fr) minmax(280px,.9fr);gap:16px}
+body.rd .rd-panel{background:#171e2a;border:1px solid #2b3444;border-radius:18px;padding:19px;min-width:0}
+body.rd .rd-panel h2{font-size:17px;margin:0 0 15px;font-weight:700}
+body.rd .rd-panel-intro{color:#96a7c0;font-size:13px;margin:-7px 0 14px}
+body.rd .rd-panel-tall{min-height:250px}
+body.rd .rd-row{border-top:1px solid #2b3342;padding:12px 0;display:flex;justify-content:space-between;gap:12px;align-items:center}
+body.rd .rd-row:first-of-type{border-top:0}
+body.rd .rd-row-main{min-width:0;display:flex;flex-direction:column;gap:4px}
+body.rd .rd-row-main strong{font-size:14px;font-weight:600;overflow-wrap:anywhere}
+body.rd .rd-row-main span{color:#96a8c1;font-size:12px;overflow-wrap:anywhere}
+body.rd .rd-row-meta{color:#80aefe;white-space:nowrap;font-size:13px}
+body.rd .rd-quick{border:1px solid #34415a;border-radius:11px;padding:12px;background:#202a3b;color:#e5eeff;text-align:left;width:100%;margin:4px 0;cursor:pointer}
+body.rd .rd-quick:hover{background:#293953}
+body.rd .rd-primary,.rd-body .rd-primary{background:linear-gradient(105deg,#6855ef,#8a49ee);border:0;border-radius:12px;color:white;font-weight:700;min-height:46px;padding:11px 16px;cursor:pointer}
+body.rd .rd-primary:hover{filter:brightness(1.08)}
+body.rd .rd-primary:disabled{opacity:.5;cursor:not-allowed}
+body.rd .rd-chart{height:170px;width:100%;display:block;margin:6px 0 0}
+body.rd .rd-chart-line{fill:none;stroke:#68a5ff;stroke-width:3;stroke-linecap:round;stroke-linejoin:round}
+body.rd .rd-chart-area{fill:url(#rdChartGradient)}
+body.rd .rd-muted{color:#94a2b9;font-size:12px}
+body.rd .rd-blockgap{margin-top:16px}
+body.rd .rd-empty{font-size:13px;color:#9fabbd;padding:24px 4px}
+body.rd .rd-view-area .rd-note{color:#9eabc0;font-size:12px;line-height:1.5;margin:8px 0 0}
+body.rd .rd-toolbar{display:flex;gap:11px;align-items:center;flex-wrap:wrap;margin:0 0 16px}
+body.rd .rd-toolbar input,body.rd .rd-toolbar select{min-height:42px;padding:9px 12px;border:1px solid #39465a;border-radius:11px;background:#1e2838;color:#edf2fb;font-size:14px}
+body.rd .rd-toolbar input{flex:1;min-width:190px}
+body.rd .rd-client-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:11px}
+body.rd .rd-client{padding:17px;border:1px solid #2d384c;border-radius:15px;background:#192232}
+body.rd .rd-client strong{display:block;font-size:15px;margin-bottom:8px}
+body.rd .rd-client span{display:block;color:#91a3bb;font-size:13px;line-height:1.6}
+body.rd .rd-client button{border:1px solid #3c4c67;background:#202c3d;color:#d8e6ff;padding:8px 11px;border-radius:9px;margin-top:11px;cursor:pointer}
+body.rd .rd-week-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:8px}
+body.rd .rd-calendar-day{border:1px solid #2e3b50;background:#192334;min-height:195px;border-radius:12px;padding:9px;min-width:0}
+body.rd .rd-calendar-day.is-today{border-color:#627cf2;background:#222d45}
+body.rd .rd-calendar-day h3{font-size:12px;text-transform:capitalize;margin:0 0 9px;line-height:1.4;color:#acc4ed}
+body.rd .rd-event{display:block;width:100%;text-align:left;color:#e9eff9;background:#283b57;border:1px solid #42648e;border-radius:8px;margin:6px 0;padding:9px 7px;font-size:11px;line-height:1.45;cursor:pointer;overflow-wrap:anywhere}
+body.rd .rd-event.is-done{border-color:#226c52;background:#163b32}
+body.rd .rd-event.is-cancel{border-color:#784857;background:#402632;opacity:.7}
+body.rd .rd-event strong{display:block;font-size:12px;color:#99c3ff}
+body.rd .rd-event span{display:block;color:#acbbcf;margin-top:4px}
+body.rd #teamPanel{margin-top:24px}
+body.rd #viewSwitch{display:none!important}
+body.rd #aiChatLink{display:none!important}
+body.rd #ordersArea> #newOrderBtn{max-width:250px;width:100%;margin:0 0 18px}
+body.rd #ordersArea>.tabs{margin-top:18px}
+body.rd #calendarPanel{margin-top:10px}
+body.rd #calendarPanel .week{gap:8px}
+body.rd #calendarPanel .day{min-height:69px}
+body.rd .panel,body.rd .order-card,body.rd .finance-hero,body.rd .finance-entry,body.rd .finance-activity,body.rd .team-item,body.rd .master-schedule-card{background:#171e2a;border-color:#2e394b;color:#e8edf6;box-shadow:none}
+body.rd .panel{border-radius:18px}
+body.rd .panel .day{background:#1d293b;border-color:#33425b;color:#dce7f9}
+body.rd .panel .day.active{background:#415ad7;color:white}
+body.rd .panel .day.active .weekday{color:#e6ebff}
+body.rd .panel .day.has-orders:not(.active){background:#263652;border-color:#45679c}
+body.rd .panel .weekday,body.rd .muted,body.rd .count,body.rd .control-label,body.rd .finance-hero-label,body.rd .finance-hero-sub,body.rd .finance-tip,body.rd .finance-line-label,body.rd .finance-activity-sub,body.rd .master-schedule-address,body.rd .cash-share-hint,body.rd .team-empty,body.rd .info{color:#9eafc7}
+body.rd .panel h2,body.rd .finance-title,body.rd .client,body.rd .finance-hero-value,body.rd .master-day-heading h3,body.rd .master-schedule-name{color:#f1f5fc}
+body.rd .order-card{padding:19px;border-radius:15px}
+body.rd .date-pill{background:#213959;color:#93bcff}
+body.rd .secondary,body.rd .action,body.rd .compact-select,body.rd .calendar-date,body.rd .payment,body.rd .close,body.rd .master-schedule-toggle{background:#222d40;border-color:#3b4860;color:#dee6f4}
+body.rd .primary{background:#6955eb;color:#fff}
+body.rd .primary:hover{filter:brightness(1.12)}
+body.rd .s-new{background:#344967;color:#c3d6fb}
+body.rd .s-booked{background:#253c61;color:#9bc9ff}
+body.rd .s-progress{background:#423366;color:#cbb6ff}
+body.rd .s-done{background:#193e35;color:#8ce9ba}
+body.rd .s-cancelled{background:#472933;color:#f4aab3}
+body.rd .status-badge{font-size:12px;border-radius:9px}
+body.rd .tab,body.rd .view-button{color:#b7c6dd}
+body.rd .tabs,body.rd .view-switch{background:#202a3b;border:1px solid #324057}
+body.rd .tab.active,body.rd .view-button.is-selected{background:#354568;color:#e8f1ff}
+body.rd #ordersArea .list-head{margin-top:15px}
+body.rd .form-title{color:#a5a0ff}
+body.rd .sheet{background:#151d2b;color:#eff4fc}
+body.rd .overlay{background:#020812c4}
+body.rd form input,body.rd form select,body.rd form textarea,body.rd .finance-entry input,body.rd .finance-entry select,body.rd .team-name{background:#1e293b;border-color:#3a4a61;color:#eaf0ff}
+body.rd .sheet label,body.rd .finance-entry label{color:#c2cce1}
+body.rd .finance-hero-primary{background:#202b47;border-color:#475a86}
+body.rd .finance-line{border-color:#303a4d}
+body.rd .finance-activity-top{color:#e6eefa}
+body.rd .master-balance-quick,body.rd .master-mode .master-cost,body.rd .cash-share,body.rd .push-panel{background:#202d43;border-color:#384a64;color:#eaf0ff}
+body.rd .master-schedule-toggle:active,body.rd .master-schedule-card.is-expanded .master-schedule-toggle{background:#24344b}
+body.rd .master-schedule-card.is-expanded .master-schedule-toggle{border-color:#36455b}
+body.rd .master-schedule-details>.order-card{background:transparent}
+body.rd .master-schedule-time,body.rd .master-schedule-price{color:#8fbaff}
+body.rd .sync-note{color:#879cb6;margin:0 0 17px}
+body.rd .sync-note.sync-error{color:#f4a2a2}
+body.rd .login-card{background:#192232;border:1px solid #34425a;color:#eef2f9}
+body.rd .login-card h1,body.rd .login-card h2{color:#fff}
+body.rd .auth-message,body.rd .error{color:#f4b0b0}
+body.rd .rd-footer{font-size:11px;color:#7589a3;padding:15px 0}
+@media(min-width:1100px){
+ body.rd #appScreen.rd-view-orders #orders{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+ body.rd #appScreen.rd-view-orders #orders>.order-card{margin:0}
+}
+@media(max-width:1150px){
+ body.rd .rd-stats{grid-template-columns:repeat(2,minmax(0,1fr))}
+ body.rd .rd-grid-main{grid-template-columns:1fr}
+ body.rd .rd-week-grid{grid-template-columns:repeat(4,minmax(0,1fr))}
+}
+@media(max-width:790px){
+ body.rd #appScreen{padding:76px 13px 98px}
+ body.rd .rd-shell{display:none}
+ body.rd .rd-top{left:0;height:63px;padding:0 13px}
+ body.rd .rd-top-search{max-width:none;min-width:80px}
+ body.rd .rd-top-title{display:none}
+ body.rd .rd-user{font-size:12px}
+ body.rd .rd-user-dot{width:30px;height:30px}
+ body.rd .rd-mobilebar{display:flex;position:fixed;left:0;right:0;bottom:0;z-index:20;align-items:stretch;justify-content:space-around;gap:3px;background:#121a27ed;backdrop-filter:blur(20px);border-top:1px solid #354258;padding:7px 5px max(8px,env(safe-area-inset-bottom))}
+ body.rd .rd-mobilebar .rd-nav-btn{display:flex;flex:1;flex-direction:column;justify-content:center;align-items:center;gap:3px;min-height:48px;border-radius:10px;font-size:10px;padding:4px 2px;white-space:nowrap}
+ body.rd .rd-mobilebar .rd-nav-btn .rd-icon{font-size:18px}
+ body.rd .rd-view-title{font-size:25px}
+ body.rd .rd-stats{gap:8px}
+ body.rd .rd-stat{padding:13px;border-radius:13px}
+ body.rd .rd-stat strong{font-size:22px}
+ body.rd .rd-panel{padding:15px}
+ body.rd .rd-client-list{grid-template-columns:1fr}
+ body.rd .rd-week-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+ body.rd #ordersArea>#newOrderBtn{max-width:unset}
+ body.rd .rd-toolbar{gap:7px}
+ body.rd .rd-toolbar input{width:100%}
+ body.rd .sheet{border-radius:21px 21px 0 0}
+ body.rd #appScreen.rd-master{padding:20px 12px 60px}
+}
+@media(max-width:390px){
+ body.rd .rd-stat strong{font-size:19px}
+ body.rd .rd-row{align-items:flex-start}
+ body.rd .rd-user strong{display:none}
+ body.rd .rd-mobilebar .rd-nav-btn{font-size:9px}
+}
