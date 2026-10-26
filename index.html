@@ -191,6 +191,7 @@
     .push-panel .push-notice{border-top:1px solid #e0e8f4;padding:10px 0 2px;font-size:13px}
     .push-panel .push-notice button{font-size:12px;padding:5px 8px;margin-top:6px}
   </style>
+  <link rel="stylesheet" href="/redesign.css">
 </head>
 <body>
 
@@ -915,7 +916,8 @@
       ordersNode.replaceChildren();
       if(!shown.length) ordersNode.append(make("div","empty",currentTab==="history"?"Выполненных заказов нет":"Заказов нет"));
       else if(currentRole==="master" && currentTab!=="history") renderMasterSchedule(shown);
-      else shown.forEach(o=>ordersNode.append(makeCard(o)));
+      else shown.forEach(o=>{const card=makeCard(o);card.dataset.search=(o.name+' '+o.phone+' '+o.address+' '+o.master).toLocaleLowerCase('ru');ordersNode.append(card);});
+      window.__rdRefresh?.();
     }
     function openForm(id) {
       if(currentRole!=="owner" && currentRole!=="manager")return;
@@ -1471,6 +1473,7 @@
       financeVisible();
       await reloadOrders();
       showScreen("appScreen");
+      window.__rdAccess?.();
       if(currentRole==="owner") {
         try{await loadTeam();}catch(error){console.warn(error);}
       }
@@ -1537,5 +1540,6 @@
     initialize();
 
   </script>
+  <script src="/redesign.js"></script>
 </body>
 </html>
