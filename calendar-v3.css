@@ -1,0 +1,133 @@
+/* Calendar v3 — production-data-driven weekly planning, list and day views.
+   Purely presentational; customer contacts and order status come from redesign.js. */
+body.rd .rd-calendar-intro{position:relative;min-height:92px;padding-right:198px}
+body.rd .rd-calendar-intro .rd-view-title{margin-bottom:6px}
+body.rd .rd-calendar-intro .rd-view-subtitle{margin-bottom:14px}
+body.rd .rd-cal-create{position:absolute;top:8px;right:0;min-width:165px;display:flex;align-items:center;justify-content:center;gap:8px;font-size:14px}
+body.rd .rd-cal-create .rd-svgicon{width:19px;height:19px}
+body.rd #rdCalendarNavigation{
+ display:grid;grid-template-columns:46px 46px minmax(95px,.56fr) minmax(160px,1.2fr) minmax(145px,1fr) minmax(145px,.95fr);
+ align-items:center;gap:8px;padding:12px 13px;margin:0 0 17px;
+ background:white;border:1px solid #e6ecf8;border-radius:17px;box-shadow:0 4px 14px #182a5208;
+}
+body.rd #rdCalendarNavigation>*{min-width:0;width:100%;height:44px;min-height:44px;margin:0;border:1px solid #e1e8f5;border-radius:11px;background:#fff;color:#2e3a59;font-size:12px}
+body.rd #rdCalendarNavigation button{cursor:pointer;font-weight:650;padding:7px 10px}
+body.rd #rdCalendarNavigation button:hover{background:#f0f4ff;border-color:#c9d5ff}
+body.rd #rdCalendarNavigation .rd-cal-step{padding:4px;font-size:23px;font-weight:400}
+body.rd #rdCalendarNavigation .rd-cal-today{background:#f1f4ff;color:#4055db;border-color:#e1e7fb}
+body.rd #rdCalendarNavigation input[type="date"]{padding:0 12px;background:#fff;min-width:0;max-width:none}
+body.rd #rdCalendarNavigation select{padding:0 11px;background:#fff;min-width:0}
+body.rd .rd-calendar-panel{padding:18px 16px 20px;border-radius:19px;box-shadow:0 8px 28px #1d35630a}
+body.rd .rd-calendar-heading{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:13px}
+body.rd .rd-calendar-heading h2{margin:0;color:#182440;font-size:17px;font-weight:790;letter-spacing:-.35px}
+body.rd .rd-calendar-modes{display:flex;align-items:center;gap:4px;background:#f2f5fc;border:1px solid #e8edf7;border-radius:13px;padding:4px;margin-left:auto}
+body.rd .rd-calendar-mode{appearance:none;border:0;background:transparent;color:#6f7f9e;border-radius:10px;font-size:12px;font-weight:700;padding:9px 13px;cursor:pointer}
+body.rd .rd-calendar-mode.is-active{background:linear-gradient(130deg,#5269ff,#624eed);color:#fff;box-shadow:0 3px 10px #5362eb29}
+body.rd .rd-calendar-mode:hover:not(.is-active){background:#fff}
+body.rd .rd-calendar-done-toggle{display:inline-flex;align-items:center;gap:7px;font-size:11px;line-height:1.3;font-weight:600;color:#6e7e99;white-space:nowrap;cursor:pointer}
+body.rd .rd-calendar-done-toggle input{width:15px;height:15px;accent-color:#5369ee;cursor:pointer}
+body.rd #rdCalendarBoard .rd-week-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:0;border:1px solid #e6ebf6;border-radius:15px;overflow:hidden;background:#fff}
+body.rd #rdCalendarBoard .rd-calendar-day{border:0;border-right:1px solid #e6ebf6;min-height:230px;min-width:0;border-radius:0;background:linear-gradient(135deg,#fff,#fcfdff);padding:12px 8px;display:flex;flex-direction:column;gap:7px}
+body.rd #rdCalendarBoard .rd-calendar-day:last-child{border-right:0}
+body.rd #rdCalendarBoard .rd-calendar-day.is-today{background:linear-gradient(140deg,#f8faff,#f2f5ff);box-shadow:inset 0 0 0 1.5px #8ca2fa}
+body.rd .rd-cal-dayhead{display:flex;align-items:center;flex-wrap:wrap;justify-content:space-between;text-align:left;gap:5px;padding:3px 2px 8px;border:0;background:transparent;min-height:40px;width:100%;cursor:pointer;color:#2d3b5c}
+body.rd .rd-cal-dayhead strong{font-size:12px;font-weight:760;line-height:1.4}
+body.rd .rd-cal-today-badge{background:#536afa;color:#fff;border-radius:20px;padding:4px 7px;font-size:9px;font-weight:750}
+body.rd .rd-cal-count{display:inline-grid;place-items:center;margin-left:auto;min-width:24px;height:24px;border-radius:50%;padding:0 5px;background:#eff3fe;color:#637ba7;font-size:11px;font-weight:800}
+body.rd #rdCalendarBoard .rd-event{width:100%;display:flex;flex-direction:column;align-items:stretch;gap:5px;text-align:left;padding:10px 8px;margin:0;background:#f1f5ff;border:1px solid #e0e8fb;border-left:3px solid #8aadff;border-radius:10px;color:#273958;line-height:1.3;min-height:84px;cursor:pointer;overflow:hidden;transition:box-shadow .15s,transform .15s}
+body.rd #rdCalendarBoard .rd-event:hover{box-shadow:0 4px 12px #425ba925;transform:translateY(-1px)}
+body.rd #rdCalendarBoard .rd-event .rd-cal-event-top{display:flex;align-items:center;justify-content:space-between;gap:3px;margin:0}
+body.rd #rdCalendarBoard .rd-event .rd-cal-event-top strong{font-size:12px;color:#385ce9;margin:0}
+body.rd #rdCalendarBoard .rd-cal-event-dot{width:7px;height:7px;background:#6485fb;border-radius:50%;flex:0 0 7px}
+body.rd #rdCalendarBoard .rd-event>b{font-size:13px;line-height:1.35;color:#182741;overflow-wrap:anywhere}
+body.rd #rdCalendarBoard .rd-event>span:not(.rd-cal-event-top):not(.rd-cal-event-bottom){font-size:10px;color:#7283a4;line-height:1.3}
+body.rd #rdCalendarBoard .rd-cal-event-bottom{display:flex;align-items:center;flex-wrap:wrap;gap:3px;margin-top:auto;justify-content:space-between}
+body.rd #rdCalendarBoard .rd-cal-event-bottom small{font-size:10px;color:#647ca1}
+body.rd #rdCalendarBoard .rd-cal-mini-state{font-size:9px;font-style:normal;color:#375cda;background:#e2ebff;border-radius:10px;padding:3px 5px;line-height:1.3}
+body.rd #rdCalendarBoard .rd-event.is-done{background:#ecfaf1;border-color:#d4f1df;border-left-color:#20b568}
+body.rd #rdCalendarBoard .rd-event.is-done .rd-cal-event-dot{background:#18b96d}
+body.rd #rdCalendarBoard .rd-event.is-done .rd-cal-mini-state{background:#d8f5e4;color:#16804c}
+body.rd #rdCalendarBoard .rd-event.is-progress{background:#fff8ee;border-color:#f8e9cd;border-left-color:#f4a126}
+body.rd #rdCalendarBoard .rd-event.is-progress .rd-cal-event-dot{background:#efa92a}
+body.rd #rdCalendarBoard .rd-event.is-progress .rd-cal-mini-state{background:#ffefda;color:#9d6317}
+body.rd #rdCalendarBoard .rd-cal-empty{display:flex;justify-content:center;flex-direction:column;gap:10px;flex:1;min-height:110px;color:#a0b0c9;text-align:center}
+body.rd #rdCalendarBoard .rd-cal-empty .rd-svgicon{width:27px;height:27px;color:#bdc9db}
+body.rd .rd-calendar-divider{height:1px;background:#e6edf9;margin:18px 0}
+body.rd #rdCalendarBoard .rd-selected-day{display:block;border:0;padding:0;margin:0;min-width:0}
+body.rd #rdCalendarBoard .rd-selected-heading{display:flex;justify-content:space-between;align-items:center;gap:12px;margin:0 0 13px}
+body.rd #rdCalendarBoard .rd-selected-heading h3{margin:0;color:#1c2946;font-size:18px;text-transform:capitalize;font-weight:800;letter-spacing:-.4px}
+body.rd #rdCalendarBoard .rd-selected-count{background:#f1f4ff;color:#4b65df;border-radius:30px;padding:8px 12px;font-size:11px;white-space:nowrap}
+body.rd #rdCalendarBoard .rd-mobile-event{display:flex;align-items:stretch;gap:14px;padding:16px;margin:10px 0;border:1px solid #e1e8f7;border-radius:15px;background:#fff;box-shadow:0 2px 13px #11295907;cursor:default}
+body.rd #rdCalendarBoard .rd-mobile-event.is-done{border-left:4px solid #26bf7a}
+body.rd #rdCalendarBoard .rd-mobile-event.is-progress{border-left:4px solid #f4a42f}
+body.rd #rdCalendarBoard .rd-mobile-event.is-booked{border-left:4px solid #7596fb}
+body.rd #rdCalendarBoard .rd-calendar-time{display:flex;flex-direction:column;gap:5px;align-items:center;justify-content:center;flex:0 0 72px;min-width:72px;border:0;border-right:1px solid #ebeff8;padding-right:14px}
+body.rd #rdCalendarBoard .rd-calendar-time strong{font-size:18px;font-weight:800;color:#385ff0}
+body.rd #rdCalendarBoard .rd-calendar-time small{font-size:10px;line-height:1.3;color:#8a9ab3;text-align:center}
+body.rd #rdCalendarBoard .rd-calendar-entry{display:flex;flex:1 1 0;min-width:0;flex-direction:column;gap:9px}
+body.rd .rd-cal-order-heading{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+body.rd .rd-cal-order-heading>strong{font-weight:790;font-size:16px;color:#1c2b4b}
+body.rd .rd-cal-order-meta{display:flex;flex-wrap:wrap;gap:7px 15px;align-items:center;color:#7b8ba6;font-size:11px}
+body.rd .rd-cal-order-meta span{overflow-wrap:anywhere}
+body.rd .rd-cal-order-meta .rd-cal-price{font-weight:800;color:#4965d8}
+body.rd #rdCalendarBoard .rd-calendar-note{display:block;margin:0;padding:0;border:0;background:transparent;color:#7c8ba6;font-size:11px;line-height:1.5;overflow-wrap:anywhere;white-space:normal}
+body.rd #rdCalendarBoard .rd-calendar-badge{font-size:10px;line-height:1.3;padding:5px 10px;border-radius:30px}
+body.rd #rdCalendarBoard .rd-calendar-badge.is-done{background:#e1f9ec;color:#15925b}
+body.rd #rdCalendarBoard .rd-calendar-badge.is-progress{background:#fff1d9;color:#b56d0f}
+body.rd #rdCalendarBoard .rd-calendar-badge.is-booked{background:#eaf0ff;color:#4865dc}
+body.rd .rd-calendar-actions{display:flex;align-items:center;gap:7px;flex-wrap:wrap;margin-top:3px}
+body.rd .rd-cal-action{appearance:none;display:inline-flex;align-items:center;justify-content:center;border:1px solid #dce6f8;color:#35517c;background:#f9fbff;border-radius:9px;padding:9px 12px;min-height:36px;text-decoration:none;font-size:12px;font-weight:690;cursor:pointer}
+body.rd .rd-cal-action:hover{background:#edf3ff;border-color:#bfcdf2}
+body.rd .rd-cal-whatsapp{background:#e9fbf2;color:#168157;border-color:#d1f2e0}
+body.rd .rd-cal-whatsapp:hover{background:#d9f8e8}
+body.rd .rd-cal-edit{background:#f1f2ff;color:#465de1;border-color:#dee4ff}
+body.rd .rd-cal-list-day{font-size:14px;color:#526a97;text-transform:capitalize;padding:15px 0 1px;margin:5px 0 0;border-top:1px solid #edf1fa}
+body.rd #rdCalendarBoard[data-calendar-mode="day"] .rd-week-grid,
+body.rd #rdCalendarBoard[data-calendar-mode="list"] .rd-week-grid{display:none}
+body.rd #rdCalendarBoard[data-calendar-mode="day"] .rd-week-strip{display:flex!important}
+body.rd #rdCalendarBoard[data-calendar-mode="list"] .rd-week-strip{display:none!important}
+body.rd #rdCalendarBoard[data-calendar-mode="day"] .rd-calendar-divider,
+body.rd #rdCalendarBoard[data-calendar-mode="list"] .rd-calendar-divider{display:none}
+body.rd #rdCalendarBoard[data-calendar-mode="week"] .rd-week-strip{display:none}
+@media(max-width:1180px){
+ body.rd #rdCalendarNavigation{grid-template-columns:46px 46px 95px minmax(155px,1.2fr) minmax(160px,1fr);gap:7px}
+ body.rd #rdCalendarNavigation #rdCalendarStatus{grid-column:1/-1}
+ body.rd #rdCalendarBoard .rd-week-grid{overflow-x:auto;grid-template-columns:repeat(7,minmax(120px,1fr));scrollbar-width:thin}
+ body.rd #rdCalendarBoard .rd-calendar-day{min-width:120px}
+ body.rd .rd-calendar-heading{row-gap:10px}
+}
+@media(max-width:790px){
+ body.rd .rd-calendar-intro{padding-right:0;min-height:0;margin-bottom:10px}
+ body.rd .rd-cal-create{position:static;width:100%;margin:11px 0 5px;min-height:47px}
+ body.rd #rdCalendarNavigation{display:grid;grid-template-columns:44px 44px 1fr 1fr;gap:8px;padding:10px}
+ body.rd #rdCalendarNavigation #rdCalendarDate{grid-column:1/3}
+ body.rd #rdCalendarNavigation #rdCalendarMaster{grid-column:3/5}
+ body.rd #rdCalendarNavigation #rdCalendarStatus{grid-column:1/5}
+ body.rd .rd-calendar-panel{padding:15px 12px}
+ body.rd .rd-calendar-heading{justify-content:flex-start;align-items:center}
+ body.rd .rd-calendar-heading h2{font-size:15px;width:100%}
+ body.rd .rd-calendar-modes{order:2;margin-left:0;flex:1;justify-content:stretch}
+ body.rd .rd-calendar-mode{flex:1;padding:10px 8px}
+ body.rd .rd-calendar-done-toggle{order:3;white-space:normal}
+ body.rd #rdCalendarBoard .rd-week-grid{display:none}
+ body.rd #rdCalendarBoard[data-calendar-mode="week"] .rd-week-strip,
+ body.rd #rdCalendarBoard[data-calendar-mode="day"] .rd-week-strip{display:flex!important}
+ body.rd #rdCalendarBoard .rd-week-strip{gap:5px;margin:9px 0;overflow-x:auto;padding:2px 0 6px;scrollbar-width:thin}
+ body.rd #rdCalendarBoard .rd-day-chip{flex:1 0 49px;min-width:47px;max-width:100%;border:1px solid #e1e7f6;border-radius:11px;padding:9px 2px}
+ body.rd #rdCalendarBoard .rd-day-chip.is-selected{background:linear-gradient(120deg,#5268ff,#604ef1);border-color:#6270fa;color:#fff}
+ body.rd #rdCalendarBoard .rd-selected-day{margin-top:12px}
+ body.rd #rdCalendarBoard .rd-selected-heading h3{font-size:15px}
+ body.rd #rdCalendarBoard .rd-mobile-event{padding:12px 10px;gap:10px}
+ body.rd #rdCalendarBoard .rd-calendar-time{min-width:58px;flex:0 0 58px;padding-right:8px}
+ body.rd #rdCalendarBoard .rd-calendar-time strong{font-size:15px}
+ body.rd #rdCalendarBoard .rd-cal-order-heading>strong{font-size:14px}
+ body.rd #rdCalendarBoard .rd-cal-order-meta{font-size:11px;gap:4px 10px}
+ body.rd #rdCalendarBoard .rd-calendar-actions{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
+ body.rd #rdCalendarBoard .rd-calendar-actions .rd-cal-action{font-size:10px;padding:9px 4px;min-height:39px}
+ body.rd #rdCalendarBoard .rd-calendar-note{font-size:10px}
+}
+@media(max-width:380px){
+ body.rd #rdCalendarNavigation{grid-template-columns:40px 40px 1fr 1fr}
+ body.rd #rdCalendarBoard .rd-calendar-actions{grid-template-columns:repeat(2,minmax(0,1fr))}
+ body.rd #rdCalendarBoard .rd-cal-action{font-size:10px}
+}
