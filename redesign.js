@@ -412,57 +412,145 @@ function drawOrderSummary(){
 }
 function drawCalendar(){
  if(!ready||activePage!=="calendar")return;
- $("rdCalendarDate").value=selectedDate;
- const board=$("rdCalendarBoard").querySelector(".rd-week-grid");board.replaceChildren();
- const weekStrip=$("rdCalendarBoard").querySelector(".rd-week-strip");weekStrip.replaceChildren();
- const dayDetail=$("rdCalendarBoard").querySelector(".rd-selected-day");dayDetail.replaceChildren();
+ const calendarDate=$("rdCalendarDate");
+ calendarDate.value=selectedDate;
+ const boardRoot=$("rdCalendarBoard");
+ const board=boardRoot.querySelector(".rd-week-grid");
+ const weekStrip=boardRoot.querySelector(".rd-week-strip");
+ const detail=boardRoot.querySelector(".rd-selected-day");
+ const weekTitle=$("rdCalendarWeekTitle");
+ const masterSelect=$("rdCalendarMaster");
+ const doneLabel=boardRoot.querySelector(".rd-calendar-done-toggle");
+ const allOrders=getOrders().filter(o=>o.date && o.status!=="Отменён");
+ const masters=[...new Set(allOrders.map(o=>smText(o.master)).filter(Boolean))].sort((a,b)=>a.localeCompare(b,"ru"));
+ const previousMaster=calendarMaster;
+ if(previousMaster && !masters.includes(previousMaster))calendarMaster="";
+ masterSelect.replaceChildren();
+ const all=makeNode("option","","Все мастера");all.value="";masterSelect.append(all);
+ for(const name of masters){const opt=makeNode("option","",name);opt.value=name;masterSelect.append(opt)}
+ masterSelect.value=calendarMaster;
+ $("rdCalendarStatus").value=calendarStatus;
+ $("rdCalendarHideDone").checked=calendarHideDone;
+ // Filters are visual only. Never edit real orders during a calendar redraw.
+ const orders=allOrders.filter(o=>
+  (!calendarMaster||smText(o.master)===calendarMaster)&&
+  (!calendarStatus||o.status===calendarStatus)&&
+  (!calendarHideDone||o.status!=="Выполнен")
+ );
  const monday=addDays(selectedDate,-((parseDate(selectedDate).getDay()+6)%7));
- const orders=getOrders().filter(o=>o.date && o.status!=="Отменён");
+ const sunday=addDays(monday,6);
+ const weekLabel=parseDate(monday).toLocaleDateString("ru-RU",{day:"numeric",month:"short"})+" – "+
+  parseDate(sunday).toLocaleDateString("ru-RU",{day:"numeric",month:"short",year:"numeric"});
+ weekTitle.textContent=(calendarMode==="day"?"День":"Неделя")+" · "+(calendarMode==="day"?dateLong(selectedDate):weekLabel);
+ boardRoot.dataset.calendarMode=calendarMode;
+ boardRoot.querySelectorAll(".rd-calendar-mode").forEach(button=>{
+  const selected=button.dataset.mode===calendarMode;
+  button.setAttribute("aria-pressed",String(selected));
+  button.classList.toggle("is-active",selected);
+ });
+ board.replaceChildren();weekStrip.replaceChildren();detail.replaceChildren();
+ const today=todayMoscow(),weekDays=[];
+ const byTime=(a,b)=>String(a.time||"").localeCompare(String(b.time||""));
+ const statusClass=o=>o.status==="Выполнен"?"is-done":o.status==="В работе"?"is-progress":"is-booked";
+ const statusName=o=>o.status||"Новый";
+ const amount=o=>o.price!=null&&o.price!==""&&Number.isFinite(Number(o.price))?cash(o.price):null;
+ const dayCount=n=>n+" "+(n%10===1&&n%100!==11?"запись":n%10>=2&&n%10<=4&&(n%100<12||n%100>14)?"записи":"записей");
+ const selectDay=date=>{
+  selectedDate=date;calendarMode="day";currentTab="calendar";render();
+ };
  for(let i=0;i<7;i++){
-  const date=addDays(monday,i),day=makeNode("div","rd-calendar-day"+(date===selectedDate?" is-today":""));
-  const dayHeader=makeNode("div","rd-cal-dayhead");
- dayHeader.append(boxText("h3",parseDate(date).toLocaleDateString("ru-RU",{weekday:"short",day:"numeric",month:"short"})));
- day.append(dayHeader);
-  const items=orders.filter(o=>o.date===date).sort((a,b)=>String(a.time).localeCompare(String(b.time)));
-  dayHeader.append(boxText("small",items.length?items.length+" зап.":"Нет записей","rd-cal-count"));
- if(!items.length){const empty=makeNode("div","rd-cal-empty");empty.append(uiIcon("calendar"),boxText("span","Свободный день"));day.append(empty)}
+  const date=addDays(monday,i),items=orders.filter(o=>o.date===date).sort(byTime);
+  weekDays.push({date,items});
+  const dateObj=parseDate(date);
+  const day=makeNode("section","rd-calendar-day"+(date===selectedDate?" is-today":""));
+  const dayHeader=makeNode("button","rd-cal-dayhead");
+  dayHeader.type="button";dayHeader.setAttribute("aria-label","Показать заявки на "+dateObj.toLocaleDateString("ru-RU"));
+  dayHeader.append(boxText("strong",dateObj.toLocaleDateString("ru-RU",{weekday:"short",day:"numeric",month:"short"})));
+  if(date===today)dayHeader.append(boxText("span","Сегодня","rd-cal-today-badge"));
+  dayHeader.append(boxText("small",String(items.length),"rd-cal-count"));
+  dayHeader.addEventListener("click",()=>selectDay(date));
+  day.append(dayHeader);
+  if(!items.length){
+   const empty=makeNode("div","rd-cal-empty");empty.append(uiIcon("calendar"),boxText("span","Нет записей"));
+   day.append(empty);
+  }
   for(const o of items){
-   const event=makeNode("button","rd-event"+(o.status==="Выполнен"?" is-done":""));
-   event.type="button";if(o.status==="В работе")event.classList.add("is-progress");
- event.append(boxText("small",o.time||"—"),boxText("strong",o.name||"Без имени"),boxText("span",o.master||"Без мастера"));
+   const event=makeNode("button","rd-event "+statusClass(o));
+   event.type="button";event.setAttribute("aria-label","Открыть заявку: "+(o.name||"Без имени")+" "+(o.time||""));
+   const row=makeNode("span","rd-cal-event-top");
+   row.append(boxText("strong",o.time||"—"),boxText("i","","rd-cal-event-dot"));
+   event.append(row,boxText("b",o.name||"Без имени"),boxText("span",o.master||"Мастер не назначен"));
+   const bottom=makeNode("span","rd-cal-event-bottom");
+   bottom.append(boxText("em",statusName(o),"rd-cal-mini-state"));
+   if(amount(o))bottom.append(boxText("small",amount(o)));
+   event.append(bottom);
    event.addEventListener("click",()=>openForm(o.id));day.append(event);
   }
   board.append(day);
-  const count=items.length;
   const chip=makeNode("button","rd-day-chip"+(date===selectedDate?" is-selected":""));
   chip.type="button";chip.setAttribute("aria-pressed",String(date===selectedDate));
-  chip.append(boxText("span",parseDate(date).toLocaleDateString("ru-RU",{weekday:"short"})),
-              boxText("strong",String(parseDate(date).getDate())),
-              boxText("small",count?count+" зап.":"—"));
-  chip.addEventListener("click",()=>{selectedDate=date;currentTab="calendar";render()});
-  weekStrip.append(chip);
+  chip.append(boxText("span",dateObj.toLocaleDateString("ru-RU",{weekday:"short"})),
+   boxText("strong",String(dateObj.getDate())),boxText("small",String(items.length)));
+  chip.addEventListener("click",()=>selectDay(date));weekStrip.append(chip);
  }
- const selected=orders.filter(o=>o.date===selectedDate).sort((a,b)=>String(a.time||"").localeCompare(String(b.time||"")));
- const heading=makeNode("div","rd-selected-heading");
- heading.append(boxText("h3",parseDate(selectedDate).toLocaleDateString("ru-RU",{day:"numeric",month:"long",weekday:"long"})),
-  boxText("span",selected.length+" "+(selected.length===1?"запись":selected.length>1&&selected.length<5?"записи":"записей"),"rd-selected-count"));
- dayDetail.append(heading);
- if(!selected.length)dayDetail.append(boxText("p","На этот день записей нет.","rd-empty"));
- for(const o of selected){
-  const event=makeNode("button","rd-mobile-event");event.type="button";
-  const left=makeNode("div","rd-calendar-time");left.append(boxText("strong",o.time||"—"));
+ const detailHeading=makeNode("div","rd-selected-heading");
+ const total=calendarMode==="list"?weekDays.reduce((sum,d)=>sum+d.items.length,0):
+  orders.filter(o=>o.date===selectedDate).length;
+ detailHeading.append(boxText("h3",calendarMode==="list"?"Записи за неделю":
+  parseDate(selectedDate).toLocaleDateString("ru-RU",{day:"numeric",month:"long",weekday:"long"})),
+  boxText("span",dayCount(total),"rd-selected-count"));
+ const detailTools=makeNode("div","rd-selected-actions");
+ const hideLabel=makeNode("label","rd-calendar-done-toggle");
+ const hideInput=$("rdCalendarHideDone");
+ hideLabel.append(hideInput,boxText("span","Скрыть выполненные"));
+ detailTools.append(hideLabel);
+ detailHeading.append(detailTools);
+ detail.append(detailHeading);
+ function showOrder(o){
+  const card=makeNode("article","rd-mobile-event "+statusClass(o));
+  const time=makeNode("div","rd-calendar-time");
+  time.append(boxText("strong",o.time||"—"),boxText("small",o.date?dateLong(o.date):""));
   const content=makeNode("div","rd-calendar-entry");
-  content.append(boxText("strong",o.name||"Без имени"),
-    boxText("span",(o.master||"Мастер не назначен")+" · "+(o.address||"Адрес не указан"),"rd-calendar-meta"));
-  if(smText(o.details))content.append(boxText("small",o.details,"rd-calendar-note"));
-  const badge=boxText("span",o.status||"Новый","rd-calendar-badge");
-  if(o.status==="Выполнен")badge.classList.add("is-done");
-  else if(o.status==="В работе")badge.classList.add("is-progress");
-  else badge.classList.add("is-booked");
-  event.append(left,content,badge);
-  event.setAttribute("aria-label","Открыть заявку: "+(o.name||"Без имени")+", "+(o.time||"время не указано"));
-  event.addEventListener("click",()=>openForm(o.id));dayDetail.append(event);
+  const first=makeNode("div","rd-cal-order-heading");
+  first.append(boxText("strong",o.name||"Без имени"),boxText("span",statusName(o),"rd-calendar-badge "+statusClass(o)));
+  content.append(first);
+  const meta=makeNode("div","rd-cal-order-meta");
+  meta.append(boxText("span","Мастер: "+(o.master||"не назначен")));
+  if(smText(o.address))meta.append(boxText("span",o.address));
+  if(amount(o))meta.append(boxText("span",amount(o),"rd-cal-price"));
+  content.append(meta);
+  const specs=[];
+  if(o.radiators!==""&&o.radiators!=null)specs.push("Радиаторы: "+o.radiators+" шт.");
+  if(o.floorLoops!==""&&o.floorLoops!=null)specs.push("Тёплый пол: "+o.floorLoops+" контур(ов)");
+  if(specs.length)content.append(boxText("div",specs.join(" · "),"rd-calendar-note"));
+  if(smText(o.details))content.append(boxText("p",o.details,"rd-calendar-note"));
+  const actions=makeNode("div","rd-calendar-actions");
+  const phone=smText(o.phone),normalized=normalizePhone(phone);
+  if(phone){
+   const call=makeNode("a","rd-cal-action","Позвонить");
+   call.href="tel:"+phone.replace(/[^+\d]/g,"");actions.append(call);
+  }
+  if(normalized){
+   const whatsapp=makeNode("a","rd-cal-action rd-cal-whatsapp","WhatsApp");
+   whatsapp.href="https://wa.me/"+normalized;whatsapp.target="_blank";whatsapp.rel="noopener noreferrer";
+   actions.append(whatsapp);
+  }
+  if(currentRole==="owner"||currentRole==="manager"){
+   const edit=makeNode("button","rd-cal-action rd-cal-edit","Изменить");
+   edit.type="button";edit.addEventListener("click",()=>openForm(o.id));actions.append(edit);
+  }
+  if(actions.children.length)content.append(actions);
+  card.append(time,content);detail.append(card);
  }
+ if(calendarMode==="list"){
+  for(const d of weekDays){
+   if(!d.items.length)continue;
+   const title=boxText("h4",parseDate(d.date).toLocaleDateString("ru-RU",{weekday:"long",day:"numeric",month:"long"}),"rd-cal-list-day");
+   detail.append(title);
+   d.items.forEach(showOrder);
+  }
+ }else weekDays.find(d=>d.date===selectedDate)?.items.forEach(showOrder);
+ if(!total)detail.append(boxText("p","На выбранный период записей нет.","rd-empty"));
 }
 function drawClients(){
  if(!ready||activePage!=="clients")return;
