@@ -237,3 +237,14 @@ body.rd .rd-order-extra .info{margin:8px 0}
  body.rd #rdCalendarBoard{padding:14px}
  body.rd .rd-toolbar{margin-bottom:14px}
 }
+
+
+/* Full client history stays in the clients screen, including cancelled/completed. */
+body.rd #rdClientHistory[hidden],body.rd #rdClientsList[hidden],body.rd #rdClientToolbar[hidden]{display:none!important}
+body.rd .rd-client-history>button{margin-bottom:12px;max-width:210px}
+body.rd .rd-client-history>h2{margin:10px 0 7px;font-size:22px}
+body.rd .rd-history-row{display:flex;flex-direction:column;align-items:flex-start;gap:8px;border-top:1px solid #354059;padding:15px 0;color:#d4dfee;font-size:13px;overflow-wrap:anywhere}
+body.rd .rd-history-row strong{font-size:15px;color:#eff4ff}
+body.rd .rd-history-row span{color:#aebed5}
+body.rd .rd-history-row button{margin-top:3px;border-radius:9px;padding:9px 13px}
+@media(max-width:790px){body.rd .rd-client-history{padding:15px}body.rd .rd-history-row{padding:14px 0}}
