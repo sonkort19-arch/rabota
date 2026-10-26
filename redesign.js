@@ -23,7 +23,17 @@ const iconPaths={
  alert:'<path d="M12 3 2 21h20L12 3Z"/><path d="M12 9v5m0 3v.01"/>',
  wallet:'<rect x="3" y="6" width="18" height="15" rx="3"/><path d="M4 9V6a3 3 0 0 1 3-3h11M16 13h6v5h-6a2.5 2.5 0 0 1 0-5Z"/>',
  chart:'<path d="M3 20V4M3 20h18M7 16l4-5 4 3 5-8"/>',
- plus:'<path d="M12 4v16M4 12h16"/>'
+ plus:'<path d="M12 4v16M4 12h16"/>',
+ progress:'<circle cx="12" cy="12" r="3"/><path d="M19.5 12a7.5 7.5 0 0 0-.1-1.1l1.5-1.2-1.5-2.6-1.9.6a7.9 7.9 0 0 0-1.9-1.1L15.3 4h-3l-.4 2.6a7.9 7.9 0 0 0-1.9 1.1l-1.9-.6-1.5 2.6 1.5 1.2a7.5 7.5 0 0 0 0 2.2l-1.5 1.2 1.5 2.6 1.9-.6a7.9 7.9 0 0 0 1.9 1.1l.4 2.6h3l.4-2.6a7.9 7.9 0 0 0 1.9-1.1l1.9.6 1.5-2.6-1.5-1.2a7.5 7.5 0 0 0 .1-1.1Z"/>',
+ pin:'<path d="M20 10c0 5-8 12-8 12S4 15 4 10a8 8 0 1 1 16 0Z"/><circle cx="12" cy="10" r="2.5"/>',
+ radiator:'<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M7 5v14M11 5v14M15 5v14M19 5v14M3 9h18"/>',
+ heat:'<path d="M5 20c-3-5 4-6 1-11M11 20c-3-5 4-6 1-11M17 20c-3-5 4-6 1-11"/>',
+ note:'<path d="M4 4h16v13H9l-5 4V4Z"/><path d="M8 9h8M8 13h6"/>',
+ phone:'<path d="M6 3h4l1 5-2.5 2c1.3 2.7 2.8 4.2 5.5 5.5l2-2.5 5 1v4c0 1.5-1.5 2.5-3.2 2.2C9.7 19.3 4.7 14.3 3.8 6.2 3.5 4.5 4.5 3 6 3Z"/>',
+ message:'<path d="M20 11.6A8.4 8.4 0 0 1 7.7 19L3 21l1.7-4.8A8.4 8.4 0 1 1 20 11.6Z"/><path d="M9 9c1 3 2 4 5 5"/>',
+ pencil:'<path d="m4 20 4.5-1 11-11a2 2 0 0 0-3-3l-11 11L4 20ZM14.5 7.5l3 3"/>',
+ location:'<path d="M3 20h18"/><path d="m5 17 7-12 7 12"/>'
+
 };
 function uiIcon(name,extra=""){
  const svg=document.createElementNS("http://www.w3.org/2000/svg","svg");
@@ -57,15 +67,19 @@ function sectionView(id,title,subtitle){
 }
 function stats(node,items){
  const wrap=makeNode("div","rd-stats");
- items.forEach((item,i)=>{
-  const kind=item.label.includes("Клиенты")?"clients":item.label.includes("оплач")||item.label.includes("Оплач")?"wallet":
-   item.label.includes("Выполнено")?"check":item.label==="Новые"?"clock":item.label.includes("работе")?"orders":
-   item.label.includes("сегодня")?"calendar":"orders";
-  const n=makeNode("div","rd-stat rd-stat-"+kind);
-  const heading=makeNode("div","rd-stat-heading");
-  const emblem=makeNode("span","rd-stat-icon");emblem.append(uiIcon(kind));
-  heading.append(emblem,boxText("small",item.label));
-  n.append(heading,boxText("strong",item.value,"rd-accent"),boxText("span",item.hint));wrap.append(n);
+ items.forEach(item=>{
+  const label=item.label;
+  const kind=label==="В работе"?"progress":label==="Новые"?"clock":
+   label==="Не оплачено"||label.includes("оплач")||label.includes("Оплач")?"wallet":
+   label.includes("Выполнено")?"check":label.includes("Клиенты")?"clients":
+   label.includes("сегодня")?"calendar":"orders";
+  const card=makeNode("div","rd-stat rd-stat-"+kind);
+  const icon=makeNode("span","rd-stat-icon");
+  icon.setAttribute("aria-hidden","true");
+  icon.append(uiIcon(kind));
+  const body=makeNode("div","rd-stat-body");
+  body.append(boxText("small",label),boxText("strong",item.value,"rd-accent"),boxText("span",item.hint,"rd-stat-hint"));
+  card.append(icon,body);wrap.append(card);
  });
  node.append(wrap);
 }
@@ -604,10 +618,27 @@ function compactOrderCard(card){
   const avatar=boxText("span",(name.textContent.trim()[0]||"К").toLocaleUpperCase("ru"),"rd-order-avatar");
   top.prepend(avatar);
  }
+ const dateBadge=top?.querySelector(".date-pill");
+ if(dateBadge)dateBadge.prepend(uiIcon("calendar"));
  const lines=[...card.querySelectorAll(":scope > .info")];
+ const infoKind=text=>text.startsWith("Адрес:")?"pin":
+  text.startsWith("Мастер:")?"clients":text.startsWith("Стоимость:")?"wallet":
+  text.startsWith("Радиаторы:")?"radiator":text.startsWith("Тёплый пол:")?"heat":
+  text.startsWith("Комментарий:")?"note":text.startsWith("Телефон:")?"phone":"note";
+ for(const line of lines){
+  const label=line.textContent.trim();
+  line.classList.add("rd-info-row");
+  line.prepend(uiIcon(infoKind(label)));
+ }
+ const actions=card.querySelector(":scope > .actions");if(!actions)return;
+ for(const button of actions.querySelectorAll(".action")){
+  const glyph=button.classList.contains("wa")?"message":
+   button.classList.contains("edit")?"pencil":
+   button.classList.contains("map-link")?"pin":"phone";
+  button.prepend(uiIcon(glyph));
+ }
  const expandable=lines.filter(el=>!/^(Адрес:|Мастер:|Стоимость:)/.test(el.textContent.trim()));
  if(!expandable.length)return;
- const actions=card.querySelector(":scope > .actions");if(!actions)return;
  const extra=makeNode("div","rd-order-extra");extra.hidden=true;
  for(const el of expandable)extra.append(el);
  const toggle=makeNode("button","rd-order-expand","Показать детали заявки");
