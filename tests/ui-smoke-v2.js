@@ -66,8 +66,9 @@ function runSmoke(source) {
     const parseDate=day=>new Date(day+"T12:00:00");
     const addDays=(date,num)=>{const d=parseDate(date);d.setDate(d.getDate()+num);return d.toISOString().slice(0,10)};
     const render=()=>window.__rdRefresh?.();
+    const openedForms=[];
     const init=new Function("document","window","currentRole","financeActive","currentTab","selectedDate","getOrders","normalizePhone","parseDate","addDays","render","openForm",source+"\nwindow.__testCurrentTab=()=>currentTab;");
-    init(document,window,role,false,"all","2026-10-27",()=>syntheticOrders,x=>String(x||"").replace(/\D/g,"").slice(-10),parseDate,addDays,render,()=>{});
+    init(document,window,role,false,"all","2026-10-27",()=>syntheticOrders,x=>String(x||"").replace(/\D/g,"").slice(-10),parseDate,addDays,render,id=>openedForms.push(id));
     window.__rdAccess();
     const get=id=>document.getElementById(id),nav=key=>all.find(n=>n.classList.contains("rd-nav-btn")&&n.dataset.page===key);
     const expect=(result,description)=>{if(!result)throw Error(role+" / "+description)};
@@ -98,6 +99,40 @@ function runSmoke(source) {
     const event=get("rdCalendarBoard").querySelector(".rd-mobile-event");
     expect(event.querySelector(".rd-calendar-time").children[0].textContent==="10:00","appointment time not invented");
     expect(event.querySelector(".rd-calendar-badge").textContent==="Записан","appointment status reflects data");
+
+    expect(get("rdCalendarBoard").querySelectorAll(".rd-calendar-mode").length===3,"week/day/list controls exist");
+    expect(get("rdCalendarMaster").children.length===2,"master filter from real synthetic orders");
+    expect(get("rdCalendarStatus").children.length>=4,"status filters available");
+    expect(get("rdCalendarBoard").querySelectorAll(".rd-cal-action").length>=3,"calendar details expose actions");
+    const firstAction=get("rdCalendarBoard").querySelectorAll(".rd-cal-edit")[0];
+    expect(Boolean(firstAction),"edit button available for owner/manager");
+    firstAction.click();
+    expect(openedForms[0]==="sample-1","edit opens existing order without saving");
+    const modes=get("rdCalendarBoard").querySelectorAll(".rd-calendar-mode");
+    modes[2].click();
+    expect(get("rdCalendarBoard").dataset.calendarMode==="list","list mode is functional");
+    expect(get("rdCalendarBoard").querySelectorAll(".rd-mobile-event").length===3,"list mode shows all week bookings");
+    modes[1].click();
+    expect(get("rdCalendarBoard").dataset.calendarMode==="day","day mode is functional");
+    expect(get("rdCalendarBoard").querySelectorAll(".rd-mobile-event").length===2,"day mode shows selected date only");
+    modes[0].click();
+    expect(get("rdCalendarBoard").dataset.calendarMode==="week","week mode is functional");
+    const statusFilter=get("rdCalendarStatus");
+    statusFilter.value="В работе";statusFilter.fire("change");
+    expect(get("rdCalendarBoard").querySelectorAll(".rd-mobile-event").length===1,"status filter reduces day list");
+    statusFilter.value="";statusFilter.fire("change");
+    expect(get("rdCalendarBoard").querySelectorAll(".rd-mobile-event").length===2,"status reset shows all");
+    const date=get("rdCalendarDate");
+    date.value="2026-10-26";date.fire("change");
+    expect(get("rdCalendarBoard").querySelectorAll(".rd-mobile-event").length===1,"date selector selects another day");
+    const done=get("rdCalendarHideDone");
+    done.checked=true;done.fire("change");
+    expect(get("rdCalendarBoard").querySelectorAll(".rd-mobile-event").length===0,"hide completed excludes done orders");
+    done.checked=false;done.fire("change");
+    expect(get("rdCalendarBoard").querySelectorAll(".rd-mobile-event").length===1,"restoring completed shows done");
+    date.value="2026-10-27";date.fire("change");
+    expect(get("rdCalendarBoard").querySelectorAll(".rd-mobile-event").length===2,"restore baseline day");
+
     nav("orders").click();
     expect(get("rdOrdersIntro").hidden===false,"orders heading shown after calendar");
     expect(get("rdOrderStats").hidden===false,"order summary shown after calendar");
@@ -126,7 +161,7 @@ function runSmoke(source) {
       expect(!nav("finance"),"manager finance protected");
       expect(!nav("ai"),"manager AI protected");
     }
-    return {role,passed:true,checks:38};
+    return {role,passed:true,checks:54};
   }
   return [scenario("owner"),scenario("manager")];
 }
