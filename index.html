@@ -889,7 +889,7 @@
         btn.classList.toggle("active",btn.dataset.tab===currentTab);
         btn.setAttribute("aria-current",btn.dataset.tab===currentTab?"page":"false");
       });
-      document.getElementById("calendarPanel").hidden = currentTab !== "calendar";
+      document.getElementById("calendarPanel").hidden = currentTab !== "calendar" || window.__rdCurrentPage === "calendar";
       let shown;
       if (currentTab === "history") {
         shown = getOrders().filter(o=>o.status==="Выполнен");
