@@ -143,7 +143,7 @@ function drawHome(){
  drawChart(chart,series);
  const assistant=panel("✦ ИИ-помощник","Спрашивайте о заказах и расписании");
  for(const label of ["Найти свободное окно","Показать неоплаченные заказы","Сколько заказов за неделю?"]){
-  const b=makeNode("button","rd-quick",label+"  ›");b.type="button";b.addEventListener("click",()=>window.location.assign("/ai.html"));assistant.append(b);
+  const b=makeNode("button","rd-quick",label+"  ›");b.type="button";b.addEventListener("click",()=>window.location.assign("/ai.html?draft="+encodeURIComponent(label)));assistant.append(b);
  }
  const ai=makeNode("button","rd-primary","Открыть ИИ-чат");ai.style.width="100%";ai.style.marginTop="9px";ai.addEventListener("click",()=>window.location.assign("/ai.html"));assistant.append(ai);middle.append(chart,assistant);root.append(middle);
  const two=makeNode("div","rd-grid-main rd-blockgap");
