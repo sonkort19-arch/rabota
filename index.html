@@ -11,7 +11,7 @@
   <style>
     :root {font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;color:#192335;background:#f6f7fb;font-synthesis:none}
     * {box-sizing:border-box}
-    body {margin:0;min-height:100vh}
+    body {margin:0;min-height:100vh;overflow-x:clip}
     button,input,select,textarea {font:inherit}
     button {cursor:pointer;-webkit-tap-highlight-color:transparent}
     button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible {outline:3px solid #9db8ff;outline-offset:2px}
@@ -66,18 +66,19 @@
     .payment {border:1px solid #e0e7ee;border-radius:10px;background:white;padding:10px;min-height:42px;font-size:13px;font-weight:700;color:#a43f2c}
     .payment.paid {color:#167341;background:#eaf9ef}
     .overlay[hidden] {display:none}
-    .overlay {position:fixed;inset:0;z-index:50;background:#101c3570;display:flex;align-items:flex-end;justify-content:center}
-    .sheet {width:min(100%,670px);max-height:96dvh;overflow:auto;overscroll-behavior:contain;background:white;border-radius:23px 23px 0 0;padding:21px 18px max(24px,env(safe-area-inset-bottom))}
+    .overlay {position:fixed;inset:0;z-index:50;background:#101c3570;display:flex;align-items:flex-end;justify-content:center;overflow:hidden;max-width:100vw;touch-action:pan-y pinch-zoom}
+    .sheet {width:min(100%,670px);max-width:100%;min-width:0;max-height:96dvh;overflow-y:auto;overflow-x:hidden;overscroll-behavior-y:contain;overscroll-behavior-x:none;-webkit-overflow-scrolling:touch;touch-action:pan-y pinch-zoom;background:white;border-radius:23px 23px 0 0;padding:21px 18px max(24px,env(safe-area-inset-bottom))}
     .sheet-head {display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:10px}
     .close {width:38px;height:38px;border:0;background:#f0f2f5;color:#495669;border-radius:50%;font-size:25px;line-height:1}
     form label {display:block;font-weight:650;font-size:13px;margin:15px 0 6px}
-    form input,form select,form textarea {width:100%;border:1px solid #d9e0ea;border-radius:11px;background:#fff;color:#192335;padding:12px 11px;min-height:47px;font-size:16px}
+    form input,form select,form textarea {width:100%;max-width:100%;min-width:0;border:1px solid #d9e0ea;border-radius:11px;background:#fff;color:#192335;padding:12px 11px;min-height:47px;font-size:16px}
     form textarea {resize:vertical;min-height:84px}
-    .form-grid {display:grid;grid-template-columns:1fr 1fr;gap:0 11px}
+    .form-grid {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 11px}
     .form-grid>* {min-width:0}
     .form-grid .field {min-width:0}
     .form-title {font-size:14px;font-weight:750;margin:21px 0 0;color:#1b5bd0}
-    .save {width:100%;margin-top:23px}
+    .save {width:100%;margin-top:23px;position:sticky;bottom:0;z-index:2;touch-action:manipulation;box-shadow:0 -4px 18px rgba(255,255,255,.82)}
+    .save:disabled {cursor:wait;opacity:.85}
     .error {color:#b42318;font-size:13px;min-height:18px;margin-top:9px}
     .inline {display:flex;align-items:center;gap:9px;margin-top:15px}
     .inline input {width:20px;height:20px;min-height:20px}
@@ -950,7 +951,9 @@
         const masters=[...new Set(getOrders().map(o=>String(o.master||"").trim()).filter(Boolean))];
         if(masters.length===1)controls.master.value=masters[0];
       }
-      overlay.hidden=false;document.body.style.overflow="hidden";controls.name.focus();
+      overlay.hidden=false;document.body.style.overflow="hidden";
+      // Avoid opening the keyboard and shifting the visual viewport on touch screens.
+      if(window.matchMedia("(pointer:fine)").matches)controls.name.focus({preventScroll:true});
     }
     function closeForm() {
       overlay.hidden=true;document.body.style.overflow="";form.reset();editingId=null;
@@ -966,8 +969,12 @@
     calendarDate.addEventListener("change",()=>{if(calendarDate.value){selectedDate=calendarDate.value;render();}});
     document.querySelectorAll("[data-tab]").forEach(btn=>btn.addEventListener("click",()=>{currentTab=btn.dataset.tab;render();}));
 
+    form.addEventListener("invalid",()=>{formStatus.textContent="Проверьте обязательные поля формы.";},true);
     form.addEventListener("submit",async event => {
-      event.preventDefault();formStatus.textContent="";
+      event.preventDefault();
+      const saveBtn=form.querySelector('button[type="submit"]');
+      if(saveBtn.disabled)return;
+      formStatus.textContent="";
       const name=controls.name.value.trim(),phone=controls.phone.value.trim();
       const date=controls.date.value,time=controls.time.value,status=controls.status.value;
       if(!name||!phone||!date||!time||!STATUSES.includes(status)) {
@@ -1012,15 +1019,20 @@
         paid:controls.paid.checked,status,details:controls.details.value.trim(),
         completedAt:status==="Выполнен"?(existing&&existing.completedAt||now):null
       };
-      const saveBtn=form.querySelector('button[type="submit"]');
+      const originalSaveLabel=saveBtn.textContent;
       saveBtn.disabled=true;
+      saveBtn.textContent="Сохраняем…";
+      formStatus.textContent="Отправляем заказ в базу…";
       try {
         await persistOrder(order);
         selectedDate=date;
         currentTab=status==="Выполнен"?"history":status==="Отменён"?"all":"calendar";
         closeForm();render();
-      } catch(error) {formStatus.textContent=friendlyError(error);}
-      finally {saveBtn.disabled=false;}
+      } catch(error) {
+        formStatus.textContent=friendlyError(error);
+        formStatus.scrollIntoView({block:"nearest",inline:"nearest"});
+      }
+      finally {saveBtn.disabled=false;saveBtn.textContent=originalSaveLabel;}
     });
 
     function updateImportButton() {
