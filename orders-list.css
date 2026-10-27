@@ -1,0 +1,161 @@
+/* Работа · современный компактный список заказов.
+   Only affects owner/manager order rows. The master schedule remains unchanged. */
+body.rd #appScreen.rd-view-orders #orders:has(>.rd-list-row){
+  display:flex;flex-direction:column;gap:9px;min-width:0;
+}
+body.rd #appScreen.rd-view-orders #orders>.rd-list-columns{
+  display:grid;grid-template-columns:minmax(220px,2.1fr) minmax(105px,1.05fr)
+    minmax(85px,.9fr) minmax(100px,.9fr) minmax(95px,.95fr) minmax(95px,.9fr) 20px;
+  align-items:center;column-gap:10px;padding:3px 16px 3px 18px;
+  color:#8290a8;font-size:11px;line-height:1.3;font-weight:700;
+}
+body.rd #appScreen.rd-view-orders #orders>.order-card.rd-list-row{
+  display:block;width:100%;min-width:0;margin:0!important;padding:0!important;
+  border:1px solid #e3eaf7;border-radius:16px;overflow:hidden;
+  background:#fff;box-shadow:0 3px 12px rgba(27,50,96,.035);
+  transition:border-color .15s,box-shadow .15s;
+}
+body.rd #appScreen.rd-view-orders #orders>.order-card.rd-list-row:hover,
+body.rd #appScreen.rd-view-orders #orders>.order-card.rd-list-row.is-open{
+  border-color:#c6d5f8;box-shadow:0 7px 19px rgba(42,74,139,.085);
+}
+body.rd #orders .rd-list-toggle{
+  width:100%;border:0;border-radius:0;background:transparent;color:#1d2b47;
+  display:grid;grid-template-columns:minmax(220px,2.1fr) minmax(105px,1.05fr)
+    minmax(85px,.9fr) minmax(100px,.9fr) minmax(95px,.95fr) minmax(95px,.9fr) 20px;
+  align-items:center;text-align:left;column-gap:10px;
+  padding:15px 16px 15px 18px;min-height:85px;cursor:pointer;
+  -webkit-tap-highlight-color:transparent;
+}
+body.rd #orders .rd-list-toggle:hover{background:#fafbff}
+body.rd #orders .rd-list-toggle:focus-visible{outline:3px solid #8ea4ff;outline-offset:-3px}
+body.rd #orders .rd-list-toggle>span{min-width:0}
+body.rd #orders .rd-list-person{display:flex;align-items:center;gap:11px;min-width:0}
+body.rd #orders .rd-list-avatar{
+  display:grid;place-items:center;width:37px;height:37px;flex:0 0 37px;
+  border-radius:12px;background:#edf2ff;color:#4c64df;font-size:15px;font-weight:800;
+}
+body.rd #orders .rd-list-identity{min-width:0;display:flex;flex-direction:column;gap:4px}
+body.rd #orders .rd-list-name{
+  color:#1b2943;font-size:14px;line-height:1.25;font-weight:800;
+  overflow-wrap:anywhere;
+}
+body.rd #orders .rd-list-address{
+  display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical;overflow:hidden;
+  color:#8692a7;font-size:11px;line-height:1.4;overflow-wrap:anywhere;
+}
+body.rd #orders .rd-list-when,
+body.rd #orders .rd-list-master,
+body.rd #orders .rd-list-price{
+  display:flex;min-width:0;flex-direction:column;gap:5px;
+}
+body.rd #orders .rd-list-when strong,
+body.rd #orders .rd-list-price strong,
+body.rd #orders .rd-list-master strong{
+  color:#223352;font-size:13px;font-weight:740;line-height:1.35;overflow-wrap:anywhere;
+}
+body.rd #orders .rd-list-price strong{font-weight:850;white-space:nowrap}
+body.rd #orders .rd-list-when small,
+body.rd #orders .rd-list-master small,
+body.rd #orders .rd-list-price small{font-size:11px;color:#8895ae}
+body.rd #orders .rd-list-master small,
+body.rd #orders .rd-list-price small{display:none}
+body.rd #orders .rd-list-status,
+body.rd #orders .rd-list-pay{
+  display:inline-flex;align-items:center;justify-content:center;max-width:100%;
+  min-height:26px;padding:5px 9px;border-radius:9px;
+  font-size:11px;font-weight:780;line-height:1.15;white-space:normal;text-align:center;
+}
+body.rd #orders .rd-list-status.s-new{background:#f3eafa;color:#8141a3}
+body.rd #orders .rd-list-status.s-booked{background:#eaf0ff;color:#395ac1}
+body.rd #orders .rd-list-status.s-progress{background:#fff1dd;color:#a9701b}
+body.rd #orders .rd-list-status.s-done{background:#e1f7e8;color:#158252}
+body.rd #orders .rd-list-status.s-cancelled{background:#feeaec;color:#b9485c}
+body.rd #orders .rd-list-pay.is-unpaid{background:#fff4ed;color:#bc6437}
+body.rd #orders .rd-list-pay.is-paid{background:#e4f8ee;color:#14754d}
+body.rd #orders .rd-list-arrow{text-align:center;color:#7b8bab;font-size:24px;line-height:1}
+body.rd #orders .rd-list-chevron{display:inline-block;transition:transform .18s}
+body.rd #orders .is-open .rd-list-chevron{transform:rotate(180deg)}
+body.rd #orders .rd-list-details{
+  display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px 18px;
+  padding:16px 20px 20px;border-top:1px solid #eaf0fa;background:#fbfcff;
+}
+body.rd #orders .rd-list-details[hidden]{display:none!important}
+body.rd #orders .rd-list-details-title{
+  grid-column:1/-1;color:#485b7e;font-size:12px;font-weight:800;
+  letter-spacing:.01em;margin-bottom:4px;
+}
+body.rd #orders .rd-list-details>.card-top,
+body.rd #orders .rd-list-details>.status-badge{display:none!important}
+body.rd #orders .rd-list-details>.info.rd-list-info{
+  display:block;min-width:0;margin:0!important;padding:7px 0;
+  font-size:12px;color:#52627e;line-height:1.5;overflow-wrap:anywhere;
+}
+body.rd #orders .rd-list-details>.actions,
+body.rd #orders .rd-list-details>.card-controls{grid-column:1/-1}
+body.rd #orders .rd-list-details>.actions{
+  display:flex;align-items:center;gap:8px;margin:9px 0 0;
+}
+body.rd #orders .rd-list-details>.actions .action{
+  margin:0;min-width:0;min-height:40px;padding:9px 13px;font-size:12px;
+}
+body.rd #orders .rd-list-details>.actions .action.edit{margin-left:auto}
+body.rd #orders .rd-list-details>.card-controls{
+  display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;
+  max-width:560px;margin-top:12px;
+}
+body.rd #orders .rd-list-details .control-label{font-size:11px}
+@media(max-width:1130px){
+  body.rd #appScreen.rd-view-orders #orders>.rd-list-columns,
+  body.rd #orders .rd-list-toggle{
+    grid-template-columns:minmax(180px,1.8fr) minmax(94px,1fr) minmax(80px,.9fr)
+      minmax(95px,.9fr) minmax(82px,.9fr) 20px;
+    column-gap:8px;
+  }
+  body.rd #appScreen.rd-view-orders #orders>.rd-list-columns>span:nth-child(6),
+  body.rd #orders .rd-list-toggle>.rd-list-paid{display:none}
+}
+@media(max-width:790px){
+  body.rd #appScreen.rd-view-orders #orders>.rd-list-columns{display:none}
+  body.rd #appScreen.rd-view-orders #orders:has(>.rd-list-row){gap:9px}
+  body.rd #appScreen.rd-view-orders #orders>.order-card.rd-list-row{border-radius:15px}
+  body.rd #orders .rd-list-toggle{
+    display:grid;grid-template-columns:minmax(0,1fr) auto 19px;
+    grid-template-areas:"who when arrow" "master price state" "paid paid paid";
+    align-items:center;gap:12px 9px;
+    min-height:0;padding:14px 13px;
+  }
+  body.rd #orders .rd-list-person{grid-area:who}
+  body.rd #orders .rd-list-when{grid-area:when;text-align:right;align-items:flex-end}
+  body.rd #orders .rd-list-master{grid-area:master}
+  body.rd #orders .rd-list-price{grid-area:price;align-items:flex-end}
+  body.rd #orders .rd-list-state{grid-area:state}
+  body.rd #orders .rd-list-paid{grid-area:paid;display:block!important}
+  body.rd #orders .rd-list-arrow{grid-area:arrow}
+  body.rd #orders .rd-list-avatar{width:34px;height:34px;flex-basis:34px;border-radius:10px}
+  body.rd #orders .rd-list-name{font-size:14px}
+  body.rd #orders .rd-list-address{font-size:11px;max-width:210px}
+  body.rd #orders .rd-list-master small,
+  body.rd #orders .rd-list-price small{display:block}
+  body.rd #orders .rd-list-master strong,
+  body.rd #orders .rd-list-price strong{font-size:12px}
+  body.rd #orders .rd-list-when strong{font-size:12px}
+  body.rd #orders .rd-list-when small{font-size:11px}
+  body.rd #orders .rd-list-pay{min-height:23px;padding:4px 8px}
+  body.rd #orders .rd-list-details{grid-template-columns:1fr;padding:14px 13px 17px;gap:2px}
+  body.rd #orders .rd-list-details>.actions,
+  body.rd #orders .rd-list-details>.card-controls,
+  body.rd #orders .rd-list-details-title{grid-column:1}
+  body.rd #orders .rd-list-details>.actions{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
+  body.rd #orders .rd-list-details>.actions .action{justify-content:center;padding:9px 3px;font-size:11px;margin:0!important}
+}
+@media(max-width:390px){
+  body.rd #orders .rd-list-toggle{padding:12px 10px;gap:10px 5px}
+  body.rd #orders .rd-list-avatar{width:30px;height:30px;flex-basis:30px}
+  body.rd #orders .rd-list-status{font-size:10px;padding:4px 6px}
+  body.rd #orders .rd-list-name{font-size:13px}
+}
+@media(prefers-reduced-motion:reduce){
+  body.rd #orders .rd-list-chevron,
+  body.rd #appScreen.rd-view-orders #orders>.order-card.rd-list-row{transition:none}
+}
