@@ -6,27 +6,38 @@ body.rd #rdOrderStats .rd-stats{
  gap:13px;align-items:stretch;margin:0 0 18px;
 }
 body.rd #rdOrderStats .rd-stat{
- display:grid;grid-template-columns:46px minmax(0,1fr);gap:14px;
- align-content:start;align-items:start;
- min-height:138px;min-width:0;
- padding:20px 17px;
+ /* Both rd-stat-heading and rd-stat-body must span the card width.
+    The former 46px CSS grid column collapsed the heading letter by letter. */
+ display:flex;flex-direction:column;align-items:stretch;justify-content:flex-start;
+ gap:10px;min-height:138px;min-width:0;
+ padding:17px 17px 16px;
  background:#fff;border:1px solid #e5ebf6;border-radius:18px;
  box-shadow:0 5px 22px rgba(38,58,102,.045);
 }
+body.rd #rdOrderStats .rd-stat .rd-stat-heading{
+ display:flex;align-items:center;gap:10px;min-width:0;width:100%;min-height:36px;
+}
+body.rd #rdOrderStats .rd-stat .rd-stat-heading small{
+ display:block;min-width:0;flex:1 1 auto;white-space:normal;
+ overflow-wrap:normal;word-break:normal;font-size:12px;line-height:1.35;
+}
+body.rd #rdOrderStats .rd-stat .rd-stat-body{
+ display:flex;flex-direction:column;gap:6px;width:100%;min-width:0;min-height:0;
+}
 body.rd #rdOrderStats .rd-stat-icon{
- display:grid;place-items:center;flex:none;
- width:46px;height:46px;min-width:46px;
- padding:0;margin:0;border-radius:14px;
+ display:grid;place-items:center;flex:0 0 36px;
+ width:36px;height:36px;min-width:36px;
+ padding:0;margin:0;border-radius:12px;
  background:#eaf1ff;color:#285eeb;
 }
 body.rd #rdOrderStats .rd-stat-icon .rd-svgicon{
- width:23px;height:23px;display:block;margin:0;flex:none;
+ width:20px;height:20px;display:block;margin:0;flex:none;
  stroke:currentColor;
 }
+/* The body now contains only value and hint; label stays alongside the icon. */
 body.rd #rdOrderStats .rd-stat-body{
- display:flex;flex-direction:column;
- align-items:flex-start;justify-content:flex-start;gap:0;
- min-width:0;min-height:95px;
+ align-items:flex-start;justify-content:flex-start;
+ min-width:0;min-height:0;
 }
 body.rd #rdOrderStats .rd-stat-body small{
  display:block;min-width:0;margin:2px 0 9px;padding:0;
@@ -34,14 +45,15 @@ body.rd #rdOrderStats .rd-stat-body small{
  line-height:1.35;white-space:normal;overflow-wrap:anywhere;
 }
 body.rd #rdOrderStats .rd-stat-body strong{
- display:block;min-width:0;margin:0 0 9px!important;padding:0!important;
- font-size:29px;font-weight:810;color:#142341;
- line-height:1.05;letter-spacing:-.9px;white-space:normal;
+ display:block;min-width:0;margin:0!important;padding:0!important;
+ font-size:27px;font-weight:810;color:#142341;
+ line-height:1.12;letter-spacing:-.7px;white-space:normal;overflow-wrap:anywhere;
 }
 body.rd #rdOrderStats .rd-stat-body .rd-stat-hint{
  display:block;margin:0!important;padding:0!important;
  color:#8391ab;font-size:11px;line-height:1.5;
- font-weight:450;max-width:100%;
+ font-weight:450;width:100%;max-width:100%;
+ overflow-wrap:normal;word-break:normal;
 }
 body.rd #rdOrderStats .rd-stat-clock .rd-stat-icon{background:#f4eaff;color:#8450d7}
 body.rd #rdOrderStats .rd-stat-progress .rd-stat-icon{background:#fff0df;color:#ef8614}
@@ -108,14 +120,14 @@ body.rd #orders .order-card .actions .action .rd-svgicon{
 @media(max-width:790px){
  body.rd #rdOrderStats .rd-stats{gap:9px;margin-bottom:14px}
  body.rd #rdOrderStats .rd-stat{
-  grid-template-columns:35px minmax(0,1fr);gap:9px;
-  min-height:113px;padding:14px 11px;border-radius:15px;
+  gap:8px;min-height:113px;padding:14px 11px;border-radius:15px;
  }
- body.rd #rdOrderStats .rd-stat-icon{width:35px;height:35px;min-width:35px;border-radius:11px}
+ body.rd #rdOrderStats .rd-stat .rd-stat-heading{gap:8px;min-height:32px}
+ body.rd #rdOrderStats .rd-stat .rd-stat-heading small{font-size:11px}
+ body.rd #rdOrderStats .rd-stat-icon{width:32px;height:32px;min-width:32px;flex-basis:32px;border-radius:11px}
  body.rd #rdOrderStats .rd-stat-icon .rd-svgicon{width:19px;height:19px}
- body.rd #rdOrderStats .rd-stat-body{min-height:87px}
- body.rd #rdOrderStats .rd-stat-body small{font-size:10px;margin:1px 0 7px}
- body.rd #rdOrderStats .rd-stat-body strong{font-size:24px;margin-bottom:7px!important}
+ body.rd #rdOrderStats .rd-stat-body{min-height:0}
+ body.rd #rdOrderStats .rd-stat-body strong{font-size:24px;margin:0!important}
  body.rd #rdOrderStats .rd-stat-body .rd-stat-hint{font-size:10px;line-height:1.4}
  body.rd #ordersArea #orders>.order-card{padding:15px 12px}
  body.rd #orders .order-card .rd-order-avatar{width:32px;height:32px;flex:0 0 32px;font-size:14px}
@@ -126,9 +138,10 @@ body.rd #orders .order-card .actions .action .rd-svgicon{
  body.rd #orders .order-card .actions .action .rd-svgicon{width:14px;height:14px;flex-basis:14px}
 }
 @media(max-width:390px){
- body.rd #rdOrderStats .rd-stat{grid-template-columns:32px minmax(0,1fr);gap:7px;padding:12px 9px}
+ body.rd #rdOrderStats .rd-stat{gap:7px;padding:12px 9px}
  body.rd #rdOrderStats .rd-stat-icon{width:32px;height:32px;min-width:32px}
  body.rd #rdOrderStats .rd-stat-icon .rd-svgicon{width:18px;height:18px}
  body.rd #rdOrderStats .rd-stat-body strong{font-size:21px}
+ body.rd #rdOrderStats .rd-stat .rd-stat-heading small{font-size:10px;line-height:1.35}
  body.rd #orders .order-card .date-pill .rd-svgicon{display:none}
 }
