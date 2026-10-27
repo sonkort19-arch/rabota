@@ -1,3 +1,9 @@
+/* Keep the viewport width identical when switching between short payroll and long cash views.
+   On Windows Chrome the vertical scrollbar otherwise changes the centered app's x position. */
+html {
+  overflow-y: scroll;
+  scrollbar-gutter: stable;
+}
 /* Работа / Финансы: зарплата по сотрудникам. Только owner finance UI */
 body.rd #financePanel .fp-tabs{
  display:flex;align-items:stretch;gap:4px;margin:5px 0 18px;padding:5px;
