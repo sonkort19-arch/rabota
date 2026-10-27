@@ -77,9 +77,11 @@ function stats(node,items){
   const icon=makeNode("span","rd-stat-icon");
   icon.setAttribute("aria-hidden","true");
   icon.append(uiIcon(kind));
-  const body=makeNode("div","rd-stat-body");
-  body.append(boxText("small",label),boxText("strong",item.value,"rd-accent"),boxText("span",item.hint,"rd-stat-hint"));
-  card.append(icon,body);wrap.append(card);
+  const heading=makeNode("div","rd-stat-heading");
+  heading.append(icon,boxText("small",label));
+  const statBody=makeNode("div","rd-stat-body");
+  statBody.append(boxText("strong",item.value,"rd-accent"),boxText("span",item.hint,"rd-stat-hint"));
+  card.append(heading,statBody);wrap.append(card);
  });
  node.append(wrap);
 }
@@ -327,9 +329,16 @@ function drawChart(parent,values,month){
   const by=p.y<top+67?p.y+13:p.y-61;
   tooltip.setAttribute("transform","translate("+bx.toFixed(1)+" "+by.toFixed(1)+")");
  };
- let peak=0;for(let i=1;i<points.length;i++)if(points[i].value>points[peak].value)peak=i;
- if(points.length&&points[peak].value>0)showDay(peak);
- else {hoverLine.style.display="none";hoverDot.style.display="none";tooltip.style.display="none";}
+ // Do not leave a tooltip floating over the chart on first render.
+ // It becomes visible only when the user hovers, taps or focuses a point.
+ const hideChartTip=()=>{
+  hoverLine.style.display="none";hoverDot.style.display="none";tooltip.style.display="none";
+ };
+ hideChartTip();
+ svg.addEventListener("mouseleave",hideChartTip);
+ svg.addEventListener("focusout",event=>{
+  if(!event.relatedTarget||!svg.contains(event.relatedTarget))hideChartTip();
+ });
  // Show exact daily counts on hover, focus or tap. No data is sent or saved.
  for(let i=0;i<points.length;i++){
   const p=points[i];
@@ -357,7 +366,7 @@ function drawHome(){
  const root=$("rdHome");while(root.children.length>3)root.lastElementChild.remove();
  const orders=activeOrders(),today=todayMoscow(),month=today.slice(0,7);
  const thisMonth=orders.filter(o=>o.date?.startsWith(month));
- const customers=new Set(thisMonth.map(o=>normalizePhone(o.phone)||o.name.toLocaleLowerCase("ru")));
+ const customers=new Set(thisMonth.map(o=>normalizePhone(o.phone)||String(o.name||"").toLocaleLowerCase("ru")).filter(Boolean));
  const complete=thisMonth.filter(o=>o.status==="Выполнен");
  const paid=thisMonth.filter(o=>o.paid&&o.price!=null&&Number.isFinite(o.price));
  stats(root,[
@@ -374,17 +383,17 @@ function drawHome(){
  const series=Array.from({length:days},(_,i)=>thisMonth.filter(o=>o.date===month+"-"+String(i+1).padStart(2,"0")).length);
  drawChart(chart,series,month);
  if(currentRole==="owner"){
-  const assistant=panel("✦ ИИ-помощник","Спрашивайте о заказах и расписании");
+  const assistant=panel("ИИ-помощник","Спрашивайте о заказах и расписании");
   for(const label of ["Найти свободное окно","Показать неоплаченные заказы","Сколько заказов за неделю?"]){
-   const b=makeNode("button","rd-quick",label+"  ›");b.type="button";b.addEventListener("click",()=>window.location.assign("/ai.html?draft="+encodeURIComponent(label)));assistant.append(b);
+   const b=makeNode("button","rd-quick",label);b.type="button";b.addEventListener("click",()=>window.location.assign("/ai.html?draft="+encodeURIComponent(label)));assistant.append(b);
   }
   const ai=makeNode("button","rd-primary","Открыть ИИ-чат");ai.style.width="100%";ai.style.marginTop="9px";ai.addEventListener("click",()=>window.location.assign("/ai.html"));assistant.append(ai);
   middle.append(chart,assistant);
  }else{
   const actions=panel("Быстрые действия","Работа с заявками и расписанием");
-  const create=makeNode("button","rd-quick","Новая заявка  ›");create.type="button";
+  const create=makeNode("button","rd-quick","Новая заявка");create.type="button";
   create.addEventListener("click",()=>{navigate("orders");$("newOrderBtn").click()});
-  const goCalendar=makeNode("button","rd-quick","Посмотреть календарь  ›");goCalendar.type="button";
+  const goCalendar=makeNode("button","rd-quick","Посмотреть календарь");goCalendar.type="button";
   goCalendar.addEventListener("click",()=>navigate("calendar"));
   actions.append(create,goCalendar);middle.append(chart,actions);
  }
