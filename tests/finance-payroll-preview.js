@@ -71,7 +71,7 @@ test("employee views show earned and paid entries; preview never executes payout
  assert.equal(select(f.root,"fp-ledger-row").length,1);
  select(f.root,"fp-subtab")[1].click();
  assert.ok(f.root.textContent.includes("История выплат"));
- select(f.root,"fp-pay")[0].click();
+ select(f.root,"fp-balance-payout")[0].click();
  assert.equal(select(f.body,"fp-modal").length,1);
  const inputs=select(f.body,"fp-input");
  inputs[0].value="5000";inputs[1].value="Частичная зарплата";inputs.forEach(e=>e.input());
