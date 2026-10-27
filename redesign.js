@@ -93,7 +93,7 @@ function makeMobileMenu(){
  const veil=makeNode("button","rd-more-veil");veil.type="button";veil.hidden=true;veil.setAttribute("aria-label","Закрыть дополнительное меню");
  const sheet=makeNode("section","rd-more-sheet");sheet.hidden=true;sheet.id="rdMoreSheet";sheet.setAttribute("aria-label","Дополнительные разделы");
  sheet.append(boxText("h2","Другие разделы"));
- const items=currentRole==="owner"?["clients","finance"]:["clients"];
+ const items=currentRole==="owner"?["clients","finance","ai"]:["clients"];
  for(const key of items){const btn=navButton(key);btn.classList.add("rd-more-item");sheet.append(btn)}
  const exit=makeNode("button","rd-nav-btn rd-more-item");exit.type="button";exit.append(boxText("span","⇥","rd-icon"),boxText("span","Выйти"));exit.addEventListener("click",()=>{$("logoutBtn").click()});sheet.append(exit);
  function close(){sheet.hidden=true;veil.hidden=true;document.body.classList.remove("rd-menu-open");toggle?.setAttribute("aria-expanded","false")}
