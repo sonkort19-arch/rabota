@@ -197,6 +197,7 @@
   <link rel="stylesheet" href="/calendar-v3.css">
   <link rel="stylesheet" href="/orders-polish.css">
   <link rel="stylesheet" href="/mobile-order-form.css">
+  <link rel="stylesheet" href="/master-notifications.css">
 </head>
 <body>
 
@@ -233,18 +234,37 @@
         <strong id="masterBalanceAmount" class="balance-amount" aria-live="polite">—</strong>
         <span class="balance-arrow" aria-hidden="true">›</span>
       </button>
-    </div><button class="secondary" id="logoutBtn" type="button">Выйти</button></header>
+    </div><div class="master-header-actions">
+        <section id="masterPushPanel" class="push-panel push-compact" hidden aria-label="Уведомления о новых заявках">
+          <button id="pushBellBtn" class="push-bell" type="button" aria-label="Открыть новые заявки" aria-expanded="false" aria-controls="pushPopover">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9"/><path d="M10 21h4"/></svg>
+            <span id="pushUnreadCount" class="push-unread" hidden>0</span>
+          </button>
+          <div id="pushPopover" class="push-popover" hidden aria-label="Непрочитанные уведомления">
+            <div class="push-popover-head">
+              <strong>Уведомления</strong>
+              <button type="button" class="push-close" id="closePushPopover" aria-label="Закрыть уведомления">×</button>
+            </div>
+            <div class="push-setting-row">
+              <div class="push-setting-label">
+                <strong>Уведомления на телефон</strong>
+                <span>О новых заказах</span>
+              </div>
+              <label class="push-toggle">
+                <input id="pushToggle" type="checkbox" role="switch" aria-label="Уведомления о новых заказах на телефон" disabled>
+                <span id="pushToggleText">Выкл</span>
+              </label>
+            </div>
+            <div id="pushStatus" class="push-status" role="status" aria-live="polite"></div>
+            <div class="push-list-heading">Новые заявки</div>
+            <div id="recentNotificationList"><div class="push-empty">Загрузка…</div></div>
+            <button class="secondary" id="testPushBtn" type="button" hidden>Проверить уведомление на телефоне</button>
+          </div>
+        </section>
+      <button class="secondary" id="logoutBtn" type="button">Выйти</button>
+    </div></header>
     <a id="aiChatLink" class="secondary ai-chat-entry" href="/ai.html" hidden>✦ Открыть ИИ-чат</a>
     <div class="sync-note" id="syncStatus" role="status">Синхронизация...</div>
-    <section id="masterPushPanel" class="push-panel" hidden aria-label="Уведомления о заявках">
-      <strong>🔔 Уведомления о новых заявках</strong>
-      <div class="push-actions">
-        <button class="primary" id="enablePushBtn" type="button">Включить уведомления</button>
-        <button class="secondary" id="testPushBtn" type="button" hidden>Проверить уведомление</button>
-      </div>
-      <div id="pushStatus" class="push-status" role="status">Разрешите уведомления на телефоне, чтобы сразу узнавать о новых заявках.</div>
-      <div id="recentNotificationList"></div>
-    </section>
     <div id="viewSwitch" class="view-switch" hidden>
       <button id="viewOrdersBtn" class="view-button is-selected" type="button">Заявки</button>
       <button id="viewFinanceBtn" class="view-button" type="button">Финансы</button>
@@ -1395,83 +1415,9 @@
     });
 
 
-    function pushStatus(message){document.getElementById("pushStatus").textContent=message;}
-    function vapidBytes(encoded){
-      const base64=(encoded+"=".repeat((4-encoded.length%4)%4)).replace(/-/g,"+").replace(/_/g,"/");
-      return Uint8Array.from(atob(base64),x=>x.charCodeAt(0));
-    }
-    async function refreshRabotaNotifications(){
-      if(currentRole!=="master"||!currentUser)return;
-      const rows=await dbRequest("rabota_order_notifications?select=id,client_name,visit_date,visit_time,read_at,created_at&order=created_at.desc&limit=15","GET");
-      const unread=(Array.isArray(rows)?rows:[]).filter(r=>!r.read_at);
-      const el=document.getElementById("recentNotificationList");
-      el.replaceChildren();
-      for(const record of unread.slice(0,5)){
-        const row=make("div","push-notice");
-        row.append(make("strong","","Новая заявка: "+(record.client_name||"Клиент")),document.createElement("br"));
-        row.append(make("span","",(record.visit_date?formatDate(record.visit_date):"Дата уточняется")+" в "+(record.visit_time?String(record.visit_time).slice(0,5):"время уточняется")));
-        row.append(document.createElement("br"));
-        const btn=make("button","secondary","Прочитано");
-        btn.type="button";
-        btn.addEventListener("click",async()=>{
-          btn.disabled=true;
-          try{
-            await dbRequest("rabota_order_notifications?id=eq."+encodeURIComponent(record.id),"PATCH",{read_at:new Date().toISOString()});
-            await refreshRabotaNotifications();
-          }catch(err){btn.disabled=false;pushStatus(friendlyError(err));}
-        });
-        row.append(btn);el.append(row);
-      }
-      if(unread.length)pushStatus("Новых уведомлений: "+unread.length+". Отметьте «Прочитано» после просмотра.");
-    }
-    async function removePushOnLogout(){
-      if(!("serviceWorker" in navigator)||!session||currentRole!=="master")return;
-      const registration=await navigator.serviceWorker.getRegistration("/");
-      const subscription=registration&&await registration.pushManager?.getSubscription();
-      if(!subscription)return;
-      try{await dbRequest("rabota_push_subscriptions?endpoint=eq."+encodeURIComponent(subscription.endpoint),"DELETE");}
-      finally{await subscription.unsubscribe();}
-    }
-    document.getElementById("enablePushBtn").addEventListener("click",async()=>{
-      const btn=document.getElementById("enablePushBtn");
-      if(!window.isSecureContext||!("serviceWorker" in navigator)||!("PushManager" in window)||!("Notification" in window)){
-        pushStatus("На этом устройстве push не поддерживаются. Используйте установленное приложение.");return;
-      }
-      const ios=/iPad|iPhone|iPod/i.test(navigator.userAgent);
-      const installed=window.matchMedia("(display-mode: standalone)").matches||navigator.standalone===true;
-      if(ios&&!installed){
-        pushStatus("На iPhone откройте в Safari → Поделиться → На экран «Домой». Запустите приложение с главного экрана и включите уведомления.");return;
-      }
-      btn.disabled=true;
-      try{
-        const permission=await Notification.requestPermission();
-        if(permission!=="granted")throw new Error("Разрешите уведомления для приложения в настройках телефона.");
-        await navigator.serviceWorker.register("/sw.js",{scope:"/"});
-        const worker=await navigator.serviceWorker.ready;
-        let subscription=await worker.pushManager.getSubscription();
-        if(!subscription)subscription=await worker.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:vapidBytes(PUSH_PUBLIC_KEY)});
-        await dbRequest("rpc/rabota_register_push_subscription","POST",{p_subscription:subscription.toJSON()});
-        pushStatus("Уведомления включены. Новые заявки будут приходить на телефон.");
-        btn.textContent="Уведомления включены";
-        document.getElementById("testPushBtn").hidden=false;
-      }catch(err){pushStatus("Не удалось включить: "+friendlyError(err));}
-      finally{btn.disabled=false;}
-    });
-    document.getElementById("testPushBtn").addEventListener("click",async()=>{
-      const btn=document.getElementById("testPushBtn");btn.disabled=true;
-      try{
-        await ensureSession();
-        const res=await fetch(SUPABASE_URL+"/functions/v1/rabota-push",{
-          method:"POST",
-          headers:{"Content-Type":"application/json",apikey:SUPABASE_KEY,Authorization:"Bearer "+session.access_token},
-          body:JSON.stringify({action:"test"})
-        });
-        const data=await res.json().catch(()=>({}));
-        if(!res.ok||!data.delivered)throw new Error("Проверочное уведомление не доставлено. Проверьте интернет и разрешения.");
-        pushStatus("Проверочное уведомление отправлено на телефон.");
-      }catch(err){pushStatus(friendlyError(err));}
-      finally{btn.disabled=false;}
-    });
+    // The compact bell UI lives in master-notifications.js; preserve master reload/logout hooks.
+    function refreshRabotaNotifications(){return window.__rdRefreshMasterNotices?.();}
+    async function removePushOnLogout(){await window.__rdDisableMasterPush?.();}
 
     const loginMessage=document.getElementById("authMessage");
     const accessMessage=document.getElementById("accessMessage");
@@ -1501,6 +1447,7 @@
       financeVisible();
       await reloadOrders();
       showScreen("appScreen");
+      if(currentRole==="master")window.__rdInitMasterPush?.();
       window.__rdAccess?.();
       if(currentRole==="owner") {
         try{await loadTeam();}catch(error){console.warn(error);}
@@ -1571,5 +1518,6 @@
 
   </script>
   <script src="/redesign.js"></script>
+  <script src="/master-notifications.js"></script>
 </body>
 </html>
