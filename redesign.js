@@ -684,6 +684,7 @@ window.__rdAccess=()=>{
  if(currentRole==="master"){app.classList.add("rd-master");return}
  if(!["owner","manager"].includes(currentRole))return;
  build();
+ window.__rdLeadsSyncNav?.();
 };
 window.__rdRefresh=()=>{
  if(!ready)return;
