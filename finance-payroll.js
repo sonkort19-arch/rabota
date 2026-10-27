@@ -71,11 +71,29 @@
  }
  function employeeDetail(m,redraw){
    const p=who(m,ui.person),wrap=el("section","fp-person-detail");
-   wrap.append(div("fp-detail-head",button("← К сотрудникам","fp-link",()=>{ui.person=null;redraw()}),
-     el("h2","",p.name),button("Выплатить","fp-pay",()=>payout(m,p))));
-   wrap.append(div("fp-metrics",metric("Начислено",p.accrued,"За всё время","blue"),
-      metric("Выдано",p.paid,"Неотменённые операции","green"),
-      metric("Остаток",p.due,"К выплате","orange")));
+   const possessive=p.key==="raul"?"Рауля":"Тимура";
+   wrap.append(div("fp-person-heading",
+     button("← К сотрудникам","fp-link",()=>{ui.person=null;redraw()}),
+     el("span","fp-person-role",p.role)));
+   const hero=el("section","fp-balance-hero");
+   hero.setAttribute("aria-label","Баланс сотрудника "+p.name);
+   const headline=div("fp-balance-headline",
+     el("span","fp-balance-eyebrow","Зарплата · "+p.name),
+     el("h2","fp-balance-label","Баланс "+possessive),
+     el("strong","fp-balance-value",money(p.due)),
+     el("p","fp-balance-description",p.due>0?"Осталось выплатить сотруднику":"Задолженности по зарплате нет"));
+   const payoutButton=button("Выплатить","fp-balance-payout",()=>payout(m,p));
+   payoutButton.disabled=!Number.isFinite(p.due)||p.due<=0;
+   payoutButton.setAttribute("aria-label","Выплатить зарплату: "+p.name);
+   hero.append(headline,payoutButton);
+   wrap.append(hero);
+   wrap.append(div("fp-person-summary",
+     div("fp-person-summary-item",
+       el("span","","Начислено за всё время"),
+       el("strong","",money(p.accrued))),
+     div("fp-person-summary-item",
+       el("span","","Уже выплачено"),
+       el("strong","",money(p.paid)))));
    const tabs=el("div","fp-subtabs");
    for(const [key,label] of [["accruals","Начисления"],["payments","Выплаты"]]){
      const b=button(label,"fp-subtab"+(ui.view===key?" active":""),()=>{ui.view=key;ui.month="all";redraw()});
@@ -107,11 +125,14 @@
  }
  function overview(m,redraw){
    const wrap=el("div","fp-screen");
+   // Show company-wide payroll totals on the employee list only. When drilling
+   // into one employee, their balance must be the first, primary number.
+   if(ui.person){wrap.append(employeeDetail(m,redraw));return wrap;}
    wrap.append(div("fp-metrics",
      metric("К выплате сотрудникам",m.raulDue+m.timurDue,"Рауль и Тимур","blue"),
      metric("Всего начислено",m.raulAccrued+m.timurAccrued,"По выполненным и оплаченным заказам","green"),
      metric("Всего выдано",m.raulPaid+m.timurPaid,"По истории операций","purple")));
-   wrap.append(ui.person?employeeDetail(m,redraw):employeeList(m,redraw));return wrap
+   wrap.append(employeeList(m,redraw));return wrap
  }
  function cash(m){
    const wrap=el("div","fp-screen");

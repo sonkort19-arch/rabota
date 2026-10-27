@@ -71,7 +71,7 @@ test("employee views show earned and paid entries; preview never executes payout
  assert.equal(select(f.root,"fp-ledger-row").length,1);
  select(f.root,"fp-subtab")[1].click();
  assert.ok(f.root.textContent.includes("История выплат"));
- select(f.root,"fp-pay")[0].click();
+ select(f.root,"fp-balance-payout")[0].click();
  assert.equal(select(f.body,"fp-modal").length,1);
  const inputs=select(f.body,"fp-input");
  inputs[0].value="5000";inputs[1].value="Частичная зарплата";inputs.forEach(e=>e.input());
@@ -99,6 +99,31 @@ test("switching finance tabs preserves button identity, focus target and active 
  assert.equal(salary.getAttribute("aria-pressed"),"true");
  assert.equal(f.history.hidden,true);
  assert.equal(f.entry.hidden,true);
+});
+test("employee detail starts with balance, payout and only two supporting totals",()=>{
+ const f=fixture();
+ select(f.root,"fp-person-button")[0].click();
+ const hero=select(f.root,"fp-balance-hero")[0];
+ assert.ok(hero,"balance hero must exist");
+ assert.ok(hero.textContent.includes("Баланс Рауля"));
+ assert.ok(hero.textContent.includes("7 250,00")||hero.textContent.includes("7 250,00"));
+ assert.equal(select(f.root,"fp-metric").length,0,"no repeated company-wide KPI strip in employee view");
+ assert.equal(select(f.root,"fp-person-summary-item").length,2);
+ const button=select(f.root,"fp-balance-payout")[0];
+ assert.equal(button.textContent,"Выплатить");
+ assert.equal(button.disabled,false);
+ button.click();
+ assert.equal(select(f.body,"fp-modal").length,1);
+ assert.equal(f.confirmed,0);
+});
+test("Timur detail has independent balance and the same transaction tabs",()=>{
+ const f=fixture();
+ select(f.root,"fp-person-button")[1].click();
+ const hero=select(f.root,"fp-balance-hero")[0];
+ assert.ok(hero.textContent.includes("Баланс Тимура"));
+ assert.ok(hero.textContent.includes("1 500,00")||hero.textContent.includes("1 500,00"));
+ assert.equal(select(f.root,"fp-subtab").length,2);
+ assert.equal(select(f.root,"fp-metric").length,0);
 });
 test("cash and operations retain old report and operation controls",()=>{
  const f=fixture();
