@@ -12,6 +12,13 @@ assert.doesNotThrow(()=>new Function(src));
 assert(html.includes('id="pushUnreadCount"')&&html.includes('id="pushPopover"'));
 assert(html.includes('id="pushToggle" type="checkbox" role="switch"'));
 assert(html.includes('src="/master-notifications.js"'));
+assert(html.indexOf('id="masterPushPanel"')>html.indexOf('<main id="appScreen"'));
+assert(html.indexOf('id="masterPushPanel"')<html.indexOf('</header>'),"bell stays in header");
+assert(html.indexOf('id="pushToggle"')>html.indexOf('id="pushPopover"'),"push toggle inside popup");
+assert(html.indexOf('id="pushToggle"')<html.indexOf('id="recentNotificationList"'),"switch precedes notification list");
+assert(!html.includes('class="push-widget"'),"large dashboard notification card removed");
+assert(css.includes('.master-header-actions'),"compact header alignment");
+assert(css.includes('.push-setting-row'),"popup-only phone notifications setting");
 assert(css.includes("position: absolute;"));
 class Element{
   constructor(id=""){this.id=id;this.hidden=["pushPopover","pushUnreadCount","testPushBtn"].includes(id);this.checked=false;this.disabled=false;this.children=[];this.attrs={};this.events={};this.textContent="";this.classList={toggle(){}};}
