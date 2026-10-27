@@ -34,13 +34,13 @@
   }
   function parseNotes(value,base=today()){
     const s=text(value),lower=s.toLocaleLowerCase("ru"),o={};
-    const radiator=lower.match(/(\d{1,3})\s*(?:шт\.?\s*)?(?:радиатор[а-яё]*|батаре[а-яё]*|бат\b|алюм[а-яё]*|биметал[а-яё]*)/)||
-      lower.match(/(?:радиатор[а-яё]*|батаре[а-яё]*|бат\b|алюм[а-яё]*|биметал[а-яё]*)\s*(\d{1,3})/);
+    const radiator=lower.match(/(\d{1,3})\s*(?:шт\.?\s*)?(?:радиатор[а-яё]*|батаре[а-яё]*|бат(?![а-яё])|алюм[а-яё]*|биметал[а-яё]*)/)||
+      lower.match(/(?:радиатор[а-яё]*|батаре[а-яё]*|бат(?![а-яё])|алюм[а-яё]*|биметал[а-яё]*)\s*(\d{1,3})/);
     if(radiator)o.radiators=radiator[1];
-    const loops=lower.match(/(\d{1,3})\s*(?:контур[а-яё]*|тп\b|тепл[а-яё]*\s*пол[а-яё]*)/)||
-      lower.match(/(?:тп\b|контур[а-яё]*)\s*(\d{1,3})/);
+    const loops=lower.match(/(\d{1,3})\s*(?:контур[а-яё]*|тп(?![а-яё])|тепл[а-яё]*\s*пол[а-яё]*)/)||
+      lower.match(/(?:тп(?![а-яё])|контур[а-яё]*)\s*(\d{1,3})/);
     if(loops)o.loops=loops[1];
-    if(/\bалюм|алюмин|алюмини/.test(lower))o.material="Алюминиевые";
+    if(/алюм|алюмин|алюмини/.test(lower))o.material="Алюминиевые";
     else if(/биметалл/.test(lower))o.material="Биметаллические";
     else if(/чугун/.test(lower))o.material="Чугунные";
     else if(/стальн/.test(lower))o.material="Стальные";
