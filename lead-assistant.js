@@ -62,8 +62,6 @@
     if(follow||o.clientWillCall||o.reason)o.status="waiting";
     return o;
   }
-  const logic={today,shifted,nextMonth,weekday,dueFromText,parseNotes,calc,phoneKey,needsCall};
-  window.__rdLeadLogic=logic;
   let draft=blank(),activeFilter="all",openId=null,notice="",leadCache=[],initialized=false;
   const context=()=>window.__rdLeadContext?.()||{};
   const storeKey=()=>{const id=context().userId;if(!id)return null;return "rabota-preview-leads-v1:"+id};
@@ -81,6 +79,7 @@
   const isOpen=lead=>!["ready","lost"].includes(lead.status);
   const needsCall=(lead,day=today(),clock=nowClock())=>isOpen(lead)&&!!lead.followUpDate&&
     (lead.followUpDate<day||(lead.followUpDate===day&&clock>=(lead.followUpTime||"18:00")));
+  window.__rdLeadLogic={today,shifted,nextMonth,weekday,dueFromText,parseNotes,calc,phoneKey,needsCall};
   const countDue=()=>load().filter(l=>needsCall(l)).length;
   function syncNav(){const count=countDue();
     document.querySelectorAll(".rd-nav-btn[data-page=leads]").forEach(b=>{
