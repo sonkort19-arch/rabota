@@ -186,6 +186,35 @@ async function businessSnapshot(tokenHeaders, question) {
  };
 }
 
+
+/* Ask one concrete question instead of sending incomplete AI output to the RPC.
+ * Real booking/overlap checks remain exclusively in Supabase RPC. */
+function clarifyOrderCandidate(candidate) {
+  const str = v => typeof v === "string" ? v.trim() : "";
+  const name = str(candidate.client_name);
+  const date = str(candidate.date);
+  const time = str(candidate.time);
+  if (name.length < 2) return "Как зовут клиента, для которого нужно оформить или перенести заявку?";
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date) ||
+      !Number.isFinite(Date.parse(date + "T12:00:00Z")) ||
+      new Date(date + "T12:00:00Z").toISOString().slice(0,10) !== date) {
+    return "На какую точную дату записать клиента? Укажите день, месяц и год.";
+  }
+  if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(time)) {
+    return "На какое точное время записать клиента по Москве?";
+  }
+  if (candidate.action === "create") {
+    const phone = str(candidate.phone);
+    if (!phone) return "Укажите номер телефона клиента для новой заявки.";
+    if (!/^[+0-9 ()-]+$/.test(phone) ||
+        ![10,11].includes(phone.replace(/\D/g,"").length)) {
+      return "Уточните номер телефона клиента: нужно 10–11 цифр.";
+    }
+    if (!str(candidate.master)) return "Какого мастера назначить на эту заявку?";
+  }
+  return null;
+}
+
 module.exports = async function handler(req, res) {
   res.setHeader("Cache-Control", "no-store");
   if (req.method !== "POST") {
@@ -276,10 +305,13 @@ module.exports = async function handler(req, res) {
       try { candidate = JSON.parse(call.arguments); } catch (_) {
         return res.status(502).json({error:"ИИ не смог корректно подготовить заявку. Повторите запрос."});
       }
-      if (!candidate || !["create","move"].includes(candidate.action) ||
-          ![candidate.client_name,candidate.date,candidate.time].every(x=>typeof x==="string"&&x.trim())) {
-        return res.status(502).json({error:"Не хватает данных для предпросмотра заявки. Уточните имя, дату и время."});
+      if (!candidate || !["create","move"].includes(candidate.action)) {
+        return res.status(502).json({error:"ИИ вернул некорректное действие. Повторите запрос."});
       }
+      // A tool call is only a suggestion from the model. Validate before giving
+      // the UI a proposal; otherwise the RPC would reject an incomplete draft.
+      const clarification = clarifyOrderCandidate(candidate);
+      if (clarification) return res.status(200).json({reply:clarification});
       const str = v => typeof v==="string" ? v.trim() : "";
       return res.status(200).json({
         reply:"Подготовлю изменение. Проверьте данные перед подтверждением.",
