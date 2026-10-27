@@ -80,6 +80,26 @@ test("employee views show earned and paid entries; preview never executes payout
  assert.equal(f.confirmed,0);
  assert.ok(f.body.textContent.includes("не записана в Supabase"));
 });
+test("switching finance tabs preserves button identity, focus target and active states",()=>{
+ const f=fixture();
+ const all=select(f.root,"fp-tab");
+ assert.equal(all.length,3);
+ const salary=all[0],cash=all[1],ops=all[2];
+ assert.equal(salary.getAttribute("aria-pressed"),"true");
+ cash.click();
+ assert.equal(select(f.root,"fp-tab")[1],cash);
+ assert.equal(select(f.root,"fp-tab")[0],salary);
+ assert.equal(cash.getAttribute("aria-pressed"),"true");
+ assert.equal(salary.getAttribute("aria-pressed"),"false");
+ ops.click();
+ assert.equal(select(f.root,"fp-tab")[2],ops);
+ assert.equal(ops.getAttribute("aria-pressed"),"true");
+ salary.click();
+ assert.equal(select(f.root,"fp-tab")[0],salary);
+ assert.equal(salary.getAttribute("aria-pressed"),"true");
+ assert.equal(f.history.hidden,true);
+ assert.equal(f.entry.hidden,true);
+});
 test("cash and operations retain old report and operation controls",()=>{
  const f=fixture();
  select(f.root,"fp-tab")[1].click();

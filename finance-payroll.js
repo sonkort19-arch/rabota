@@ -150,11 +150,14 @@
    const tabs=el("div","fp-tabs"),panel=el("div","fp-panel");
    root.append(tabs,panel,legacy);
    const historyTitle=$("financePanel")?.querySelector(":scope > h2.finance-title");
+   // Build navigation only once per financial snapshot. Replacing the clicked
+   // button on every switch loses keyboard focus and can cause visual flicker.
    const redraw=()=>{
-     tabs.replaceChildren();panel.replaceChildren();
-     for(const [v,label] of [["salary","Зарплата"],["cash","Касса компании"],["operations","Операции"]]){
-       const b=button(label,"fp-tab"+(ui.tab===v?" active":""),()=>{ui.tab=v;ui.person=null;ui.month="all";redraw()});
-       b.setAttribute("aria-pressed",String(ui.tab===v));tabs.append(b);
+     panel.replaceChildren();
+     for(const b of tabs.children){
+       const active=b.getAttribute("data-finance-tab")===ui.tab;
+       b.className="fp-tab"+(active?" active":"");
+       b.setAttribute("aria-pressed",String(active));
      }
      legacy.hidden=ui.tab!=="cash";history.hidden=ui.tab!=="operations";entry.hidden=ui.tab!=="operations";
      if(historyTitle)historyTitle.hidden=ui.tab!=="operations";
@@ -162,6 +165,15 @@
      else if(ui.tab==="cash")panel.append(cash(m));
      else panel.append(el("p","fp-hint","Здесь сохранены прежние формы ручных операций, история и возможность отмены записей. В этой тестовой версии запись и отмена финансовых операций отключены. Реальные данные не изменяются."));
    };
+   for(const [value,label] of [["salary","Зарплата"],["cash","Касса компании"],["operations","Операции"]]){
+     const b=button(label,"fp-tab",()=>{
+       if(ui.tab===value)return;
+       ui.tab=value;ui.person=null;ui.month="all";
+       redraw();
+     });
+     b.setAttribute("data-finance-tab",value);
+     tabs.append(b);
+   }
    redraw();
  };
 })();
