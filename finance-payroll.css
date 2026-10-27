@@ -1,0 +1,195 @@
+/* Работа / Финансы: зарплата по сотрудникам. Только owner finance UI */
+body.rd #financePanel .fp-tabs{
+ display:flex;align-items:stretch;gap:4px;margin:5px 0 18px;padding:5px;
+ background:#f1f4fa;border:1px solid #e6ebf5;border-radius:14px
+}
+body.rd #financePanel .fp-tab{
+ min-height:45px;flex:1;border:0;border-radius:10px;background:transparent;
+ color:#61708c;font-size:13px;font-weight:750;cursor:pointer
+}
+body.rd #financePanel .fp-tab.active{
+ color:#3158d2;background:#fff;box-shadow:0 2px 8px rgba(40,65,115,.11)
+}
+body.rd #financePanel .fp-panel{min-width:0}
+body.rd #financePanel .fp-screen{display:flex;flex-direction:column;gap:18px;min-width:0}
+body.rd #financePanel .fp-metrics{
+ display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px
+}
+body.rd #financePanel .fp-metric{
+ min-width:0;padding:20px 20px 18px;border-radius:16px;border:1px solid #e3e9f4;
+ background:#fff;display:flex;flex-direction:column;gap:9px;
+ box-shadow:0 3px 17px rgba(23,45,89,.035)
+}
+body.rd #financePanel .fp-metric.fp-blue{background:#f4f7ff;border-color:#dbe5fe}
+body.rd #financePanel .fp-metric.fp-green{background:#f3fbf8;border-color:#def3e8}
+body.rd #financePanel .fp-metric.fp-purple{background:#faf7ff;border-color:#ebe3fb}
+body.rd #financePanel .fp-metric.fp-orange{background:#fff8ef;border-color:#f9ead8}
+body.rd #financePanel .fp-metric small{font-size:12px;color:#65738d;font-weight:650}
+body.rd #financePanel .fp-metric strong{
+ font-size:27px;letter-spacing:-.7px;line-height:1.15;font-weight:840;color:#1e2c46;overflow-wrap:anywhere
+}
+body.rd #financePanel .fp-metric.fp-blue strong{color:#315ce2}
+body.rd #financePanel .fp-metric.fp-orange strong{color:#bd5a17}
+body.rd #financePanel .fp-metric span{color:#8793a9;font-size:11px;line-height:1.4}
+body.rd #financePanel .fp-section,body.rd #financePanel .fp-person-detail{
+ border:1px solid #e5ebf4;background:#fff;border-radius:17px;padding:18px 20px;
+ box-shadow:0 4px 18px rgba(29,48,92,.04);min-width:0
+}
+body.rd #financePanel .fp-title-row{
+ display:flex;align-items:center;justify-content:space-between;gap:12px;margin:0 0 15px
+}
+body.rd #financePanel .fp-title-row h2,body.rd #financePanel .fp-detail-head h2{
+ margin:0;color:#202f49;font-size:19px;font-weight:790
+}
+body.rd #financePanel .fp-title-row h3{font-size:16px;margin:0;color:#25334d}
+body.rd #financePanel .fp-title-row small{font-size:11px;color:#8792a8}
+body.rd #financePanel .fp-people{border:1px solid #e7ecf5;border-radius:13px;overflow:hidden}
+body.rd #financePanel .fp-people-head,body.rd #financePanel .fp-person-row{
+ display:grid;grid-template-columns:minmax(150px,1.55fr) minmax(85px,1fr) minmax(85px,1fr)
+ minmax(95px,1fr) minmax(90px,.85fr);
+ column-gap:10px;align-items:center;padding:13px 15px
+}
+body.rd #financePanel .fp-people-head{
+ background:#f6f8fc;color:#7b879f;font-size:11px;font-weight:750
+}
+body.rd #financePanel .fp-person-row{border-top:1px solid #ebeff6;min-height:75px}
+body.rd #financePanel .fp-person-row:hover{background:#fbfcff}
+body.rd #financePanel .fp-person-button{
+ display:flex;align-items:center;gap:10px;text-align:left;padding:0;background:none;
+ border:none;min-width:0;cursor:pointer
+}
+body.rd #financePanel .fp-person-button:hover .fp-name strong{color:#2e57d8}
+body.rd #financePanel .fp-avatar{
+ display:grid;place-items:center;border-radius:50%;width:37px;height:37px;
+ flex:0 0 37px;background:#e8eeff;color:#3b5bd2;font-weight:800
+}
+body.rd #financePanel .fp-name{min-width:0;display:flex;flex-direction:column;gap:4px}
+body.rd #financePanel .fp-name strong{font-size:14px;color:#1a2b49}
+body.rd #financePanel .fp-name small{font-size:11px;color:#8996ab}
+body.rd #financePanel .fp-person-row>span,
+body.rd #financePanel .fp-person-row>.fp-due{font-size:13px;color:#2b3a56;font-weight:650}
+body.rd #financePanel .fp-person-row>.fp-due{color:#ae5316;font-size:14px;font-weight:800}
+body.rd #financePanel .fp-pay{
+ min-height:37px;padding:8px 12px;border:1px solid #cbdafe;
+ border-radius:9px;background:#ecf2ff;color:#3157c9;font-weight:750;font-size:12px;
+ cursor:pointer
+}
+body.rd #financePanel .fp-pay:hover{background:#dfebff}
+body.rd #financePanel .fp-detail-head{
+ display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:17px
+}
+body.rd #financePanel .fp-detail-head h2{flex:1}
+body.rd #financePanel .fp-link{
+ padding:9px 12px;border:0;border-radius:10px;background:#f0f4fd;color:#3658bc;
+ font-size:12px;font-weight:750;cursor:pointer
+}
+body.rd #financePanel .fp-subtabs{
+ display:flex;align-items:center;gap:4px;background:#f4f6fb;
+ padding:5px;border-radius:11px;width:max-content;max-width:100%;margin:21px 0 17px
+}
+body.rd #financePanel .fp-subtab{padding:10px 19px;border:0;background:none;color:#65738e;font-size:13px;font-weight:730;border-radius:8px;cursor:pointer}
+body.rd #financePanel .fp-subtab.active{background:#fff;color:#3457d2;box-shadow:0 2px 9px #1b36651a}
+body.rd #financePanel .fp-period{
+ min-height:36px;padding:5px 10px;max-width:190px;border:1px solid #dce4f1;
+ border-radius:9px;background:#fff;color:#33445f;font-size:12px
+}
+body.rd #financePanel .fp-total{
+ display:flex;justify-content:space-between;align-items:center;gap:12px;
+ background:#f7f9fd;border:1px solid #e8edf7;border-radius:9px;
+ padding:12px 15px;color:#68758b;font-size:12px
+}
+body.rd #financePanel .fp-total strong{font-size:14px;color:#26364f}
+body.rd #financePanel .fp-ledger{margin-top:10px}
+body.rd #financePanel .fp-ledger-row{
+ display:grid;grid-template-columns:115px minmax(0,1fr) 130px;
+ gap:12px;align-items:center;border-bottom:1px solid #eef1f6;padding:12px 3px
+}
+body.rd #financePanel .fp-ledger-row:last-child{border-bottom:0}
+body.rd #financePanel .fp-date{color:#8390a5;font-size:12px}
+body.rd #financePanel .fp-ledger-description{display:flex;flex-direction:column;gap:4px;min-width:0}
+body.rd #financePanel .fp-ledger-description strong{font-size:13px;color:#24334e;overflow-wrap:anywhere}
+body.rd #financePanel .fp-ledger-description small{font-size:11px;color:#8793a7}
+body.rd #financePanel .fp-ledger-row>strong{text-align:right;font-size:13px;white-space:nowrap}
+body.rd #financePanel .fp-positive{color:#148056}
+body.rd #financePanel .fp-negative{color:#c55b40}
+body.rd #financePanel .fp-hint{
+ color:#79869e;font-size:12px;line-height:1.5;margin:12px 0 0
+}
+body.rd #financePanel .fp-original{margin-top:18px}
+body.rd #financePanel .fp-original[hidden],body.rd #financePanel #financeHistory[hidden],
+body.rd #financePanel #financeEntry[hidden]{display:none!important}
+body.rd #financePanel .fp-original .finance-title{font-size:16px}
+body.rd #financePanel .fp-original .finance-hero{padding:15px}
+body.rd #financePanel .fp-original .finance-hero-value{font-size:23px}
+body.rd .fp-backdrop{
+ position:fixed;inset:0;z-index:1000;background:#101b3499;
+ display:grid;place-items:center;padding:14px;backdrop-filter:blur(3px)
+}
+body.rd .fp-modal{
+ width:min(100%,470px);max-height:90dvh;overflow:auto;background:#fff;
+ border:1px solid #e0e7f1;border-radius:19px;padding:25px;
+ box-shadow:0 24px 75px #111d386b;color:#25334b
+}
+body.rd .fp-modal-heading{display:flex;align-items:center;justify-content:space-between;gap:10px}
+body.rd .fp-modal-heading h2{margin:0;font-size:19px}
+body.rd .fp-close{border:0;border-radius:9px;background:#f3f5fa;color:#66758e;font-size:24px;padding:4px 12px;cursor:pointer}
+body.rd .fp-modal-balance{display:flex;align-items:center;justify-content:space-between;gap:12px;background:#f4f7ff;border:1px solid #e3eaf9;border-radius:12px;padding:15px;margin:20px 0;color:#697993}
+body.rd .fp-modal-balance strong{font-size:22px;color:#3159dc}
+body.rd .fp-label{display:flex;flex-direction:column;font-size:12px;font-weight:750;gap:8px;margin:13px 0 0}
+body.rd .fp-input{border:1px solid #d5deed;border-radius:10px;padding:11px 12px;width:100%;background:#fff;color:#1f2f48;font-size:16px;min-height:44px}
+body.rd .fp-input:focus{outline:2px solid #a9bafa}
+body.rd textarea.fp-input{resize:vertical}
+body.rd .fp-after{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:16px;padding:14px;background:#fff6ea;border-radius:11px;color:#6a7483;font-size:12px}
+body.rd .fp-after strong{font-size:20px;color:#bc5b21}
+body.rd .fp-error{font-size:12px;color:#b44b36;min-height:16px;margin:8px 0}
+body.rd .fp-modal .fp-hint{color:#7f899c;font-size:12px;line-height:1.4}
+body.rd .fp-actions{display:flex;gap:10px;margin-top:16px}
+body.rd .fp-actions button{flex:1;min-height:45px;border-radius:10px;font-weight:800;font-size:13px;cursor:pointer}
+body.rd .fp-secondary{background:#f1f4fa;border:1px solid #e4e8f1;color:#4b5a78}
+body.rd .fp-primary{color:#fff;background:#3563e8;border:1px solid #3563e8}
+body.rd .fp-primary:disabled{opacity:.45;cursor:not-allowed}
+@media(max-width:1050px){
+ body.rd #financePanel .fp-people-head,body.rd #financePanel .fp-person-row{
+ grid-template-columns:minmax(140px,1.6fr) minmax(75px,1fr) minmax(85px,1fr) minmax(80px,.85fr);
+ }
+ body.rd #financePanel .fp-people-head>span:nth-child(3),body.rd #financePanel .fp-col-paid{display:none}
+}
+@media(max-width:790px){
+ body.rd #financePanel .fp-tabs{margin:2px 0 13px;gap:2px}
+ body.rd #financePanel .fp-tab{font-size:11px;min-height:43px;padding:5px 3px}
+ body.rd #financePanel .fp-metrics{gap:8px}
+ body.rd #financePanel .fp-metric{padding:13px 10px;gap:7px;border-radius:13px}
+ body.rd #financePanel .fp-metric small{font-size:10px;line-height:1.35}
+ body.rd #financePanel .fp-metric strong{font-size:19px}
+ body.rd #financePanel .fp-metric span{font-size:10px}
+ body.rd #financePanel .fp-section,body.rd #financePanel .fp-person-detail{padding:13px;border-radius:14px}
+ body.rd #financePanel .fp-people-head{display:none}
+ body.rd #financePanel .fp-person-row{
+ display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;padding:13px
+ }
+ body.rd #financePanel .fp-person-button{grid-column:1}
+ body.rd #financePanel .fp-person-row>.fp-due{grid-column:2;grid-row:1;text-align:right}
+ body.rd #financePanel .fp-col-accrued,body.rd #financePanel .fp-col-paid{display:none}
+ body.rd #financePanel .fp-person-row>.fp-pay{grid-column:1/-1;width:100%;min-height:39px}
+ body.rd #financePanel .fp-title-row h2{font-size:17px}
+ body.rd #financePanel .fp-ledger-row{grid-template-columns:75px minmax(0,1fr) 100px;gap:7px}
+ body.rd #financePanel .fp-ledger-row>strong{font-size:12px}
+ body.rd #financePanel .fp-date{font-size:11px}
+ body.rd .fp-modal{padding:17px}
+}
+@media(max-width:410px){
+ body.rd #financePanel .fp-metrics{grid-template-columns:1fr}
+ body.rd #financePanel .fp-metric{padding:13px 15px}
+ body.rd #financePanel .fp-metric strong{font-size:24px}
+ body.rd #financePanel .fp-metric span{font-size:11px}
+ body.rd #financePanel .fp-ledger-row{grid-template-columns:70px minmax(0,1fr);gap:5px}
+ body.rd #financePanel .fp-ledger-row>strong{grid-column:2;text-align:left}
+}
+@media(prefers-reduced-motion:reduce){body.rd .fp-modal,body.rd .fp-backdrop{animation:none}}
+
+/* Preview safety: show that the original finance mutation buttons are disabled. */
+body.rd #financePanel .fp-original button:disabled,
+body.rd #financePanel #financeHistory button:disabled,
+body.rd #financePanel #financeSaveBtn:disabled{
+ opacity:.52;cursor:not-allowed;filter:grayscale(.2);
+}
