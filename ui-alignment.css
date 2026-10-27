@@ -1,0 +1,162 @@
+/* Рабoта — единая геометрия иконок и показателей.
+   Переопределения размещены ПОСЛЕ всех тем и компонентных стилей. */
+body.rd .rd-stats{
+  align-items:stretch;
+}
+body.rd .rd-stat{
+  display:flex;
+  flex-direction:column;
+  align-items:stretch;
+  justify-content:flex-start;
+  gap:12px;
+  min-width:0;
+  min-height:145px;
+  padding:17px 18px;
+}
+body.rd .rd-stat .rd-stat-heading{
+  display:flex;
+  align-items:center;
+  justify-content:flex-start;
+  gap:11px;
+  width:100%;
+  min-width:0;
+  min-height:38px;
+  margin:0;
+}
+body.rd .rd-stat-heading .rd-stat-icon{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  width:38px;
+  height:38px;
+  flex:0 0 38px;
+  min-width:38px;
+  margin:0;
+  border-radius:12px;
+}
+body.rd .rd-stat-heading .rd-stat-icon .rd-svgicon{
+  width:20px;
+  height:20px;
+  display:block;
+  flex:none;
+  margin:0;
+}
+body.rd .rd-stat .rd-stat-heading small{
+  display:block;
+  min-width:0;
+  margin:0;
+  color:#627492;
+  font-size:12px;
+  line-height:1.35;
+  font-weight:700;
+  overflow-wrap:anywhere;
+}
+body.rd .rd-stat .rd-stat-body{
+  display:flex;
+  flex-direction:column;
+  gap:7px;
+  min-width:0;
+  width:100%;
+  padding:0;
+  margin:0;
+}
+body.rd .rd-stat .rd-stat-body strong.rd-accent{
+  display:block;
+  margin:0;
+  padding:0;
+  font-size:27px;
+  line-height:1.15;
+  color:#182742;
+  font-weight:800;
+  letter-spacing:-.6px;
+  text-align:left;
+  overflow-wrap:anywhere;
+  font-variant-numeric:tabular-nums;
+}
+body.rd .rd-stat .rd-stat-body .rd-stat-hint{
+  display:block;
+  margin:0;
+  padding:0;
+  font-size:11px;
+  line-height:1.45;
+  color:#8794aa;
+  overflow-wrap:anywhere;
+}
+/* Each navigation item reserves one fixed icon column. */
+body.rd .rd-nav-btn .rd-icon{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  width:23px;
+  height:23px;
+  min-width:23px;
+  flex:0 0 23px;
+  line-height:1;
+  margin:0;
+  padding:0;
+}
+body.rd .rd-nav-btn .rd-icon .rd-svgicon{
+  display:block;
+  width:20px;
+  height:20px;
+  min-width:20px;
+  min-height:20px;
+  flex:none;
+  margin:0;
+}
+body.rd .rd-panel-heading{
+  display:flex;
+  align-items:center;
+  justify-content:flex-start;
+  min-width:0;
+  gap:10px;
+}
+body.rd .rd-panel-heading>.rd-svgicon{
+  display:block;
+  flex:0 0 21px;
+  width:21px;
+  height:21px;
+  min-width:21px;
+  margin:0;
+}
+body.rd .rd-panel-heading h2{
+  min-width:0;
+  margin:0;
+  line-height:1.35;
+}
+body.rd .rd-panel-heading .rd-chart-month{
+  margin-left:auto;
+  flex:0 1 auto;
+}
+body.rd .rd-order-extra .rd-svgicon,
+body.rd .rd-info-row .rd-svgicon,
+body.rd .order-card .actions .rd-svgicon,
+body.rd .order-card .date-pill .rd-svgicon{
+  display:inline-block;
+  width:16px;
+  height:16px;
+  min-width:16px;
+  vertical-align:middle;
+  flex:0 0 16px;
+}
+body.rd .rd-quick{
+  display:flow-root;
+  line-height:1.35;
+}
+@media(max-width:790px){
+  body.rd .rd-stat{min-height:132px;padding:13px 12px;gap:10px}
+  body.rd .rd-stat .rd-stat-heading{gap:8px;min-height:32px}
+  body.rd .rd-stat-heading .rd-stat-icon{width:32px;height:32px;min-width:32px;flex-basis:32px;border-radius:10px}
+  body.rd .rd-stat-heading .rd-stat-icon .rd-svgicon{width:18px;height:18px}
+  body.rd .rd-stat .rd-stat-heading small{font-size:11px}
+  body.rd .rd-stat .rd-stat-body strong.rd-accent{font-size:24px}
+  body.rd .rd-stat .rd-stat-body .rd-stat-hint{font-size:10px}
+}
+@media(max-width:390px){
+  body.rd .rd-stat{min-height:125px;padding:12px 10px;gap:8px}
+  body.rd .rd-stat-heading .rd-stat-icon{width:30px;height:30px;min-width:30px;flex-basis:30px}
+  body.rd .rd-stat .rd-stat-heading small{font-size:10px}
+  body.rd .rd-stat .rd-stat-body strong.rd-accent{font-size:21px}
+  body.rd .rd-panel-heading{gap:8px}
+  body.rd .rd-panel-heading>.rd-svgicon{width:19px;height:19px;min-width:19px;flex-basis:19px}
+}
