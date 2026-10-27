@@ -198,6 +198,7 @@
   <link rel="stylesheet" href="/orders-polish.css">
   <link rel="stylesheet" href="/mobile-order-form.css">
   <link rel="stylesheet" href="/master-notifications.css">
+  <link rel="stylesheet" href="/orders-list.css">
 </head>
 <body>
 
@@ -944,7 +945,7 @@
       ordersNode.replaceChildren();
       if(!shown.length) ordersNode.append(make("div","empty",currentTab==="history"?"Выполненных заказов нет":"Заказов нет"));
       else if(currentRole==="master" && currentTab!=="history") renderMasterSchedule(shown);
-      else shown.forEach(o=>{const card=makeCard(o);window.__rdDecorateOrder?.(card);card.dataset.search=(o.name+' '+o.phone+' '+o.address+' '+o.master).toLocaleLowerCase('ru');card.dataset.date=o.date||'';card.dataset.master=o.master||'';card.dataset.status=o.status||'';card.dataset.unpaid=String(o.status==='Выполнен'&&!o.paid);ordersNode.append(card);});
+      else shown.forEach(o=>{const card=makeCard(o);window.__rdDecorateOrder?.(card,o);card.dataset.search=(o.name+' '+o.phone+' '+o.address+' '+o.master).toLocaleLowerCase('ru');card.dataset.date=o.date||'';card.dataset.master=o.master||'';card.dataset.status=o.status||'';card.dataset.unpaid=String(o.status==='Выполнен'&&!o.paid);ordersNode.append(card);});
       window.__rdRefresh?.();
     }
     function openForm(id) {
@@ -1519,5 +1520,6 @@
   </script>
   <script src="/redesign.js"></script>
   <script src="/master-notifications.js"></script>
+  <script src="/orders-list.js"></script>
 </body>
 </html>
