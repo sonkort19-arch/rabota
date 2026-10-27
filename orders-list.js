@@ -21,6 +21,12 @@
     const number=Number(value);
     return Number.isFinite(number)?number.toLocaleString("ru-RU",{maximumFractionDigits:2})+" ₽":"Не указана";
   }
+  function compactDate(value){
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(String(value||"")))return String(value||"Без даты");
+    const date=new Date(value+"T12:00:00Z");
+    if(!Number.isFinite(date.getTime()))return String(value);
+    return new Intl.DateTimeFormat("ru-RU",{timeZone:"UTC",day:"numeric",month:"short",year:"numeric"}).format(date);
+  }
   const colorByStatus={
     "Новый":"s-new","Записан":"s-booked","В работе":"s-progress",
     "Выполнен":"s-done","Отменён":"s-cancelled"
@@ -39,7 +45,7 @@
       cell("identity",text("strong",name,"rd-list-name"),
         text("small",order.address||"Адрес не указан","rd-list-address")));
     const time=cell("when",
-      text("strong",order.date?dateLong(order.date):"Без даты"),
+      text("strong",order.date?compactDate(order.date):"Без даты"),
       text("small",order.time||"Время не указано"));
     const master=cell("master",text("small","Мастер"),text("strong",order.master||"Не назначен"));
     const cost=cell("price",text("small","Стоимость"),text("strong",formatMoney(order.price)));
