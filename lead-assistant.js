@@ -12,12 +12,13 @@
   const shifted=(iso,days)=>{const d=new Date(iso+"T12:00:00Z");d.setUTCDate(d.getUTCDate()+days);return d.toISOString().slice(0,10)};
   const nextMonth=iso=>{const d=new Date(iso.slice(0,7)+"-01T12:00:00Z");d.setUTCMonth(d.getUTCMonth()+1);return d.toISOString().slice(0,10)};
   const weekday=(iso,target)=>{const d=new Date(iso+"T12:00:00Z").getUTCDay();return shifted(iso,((target-d+7)%7)||7)};
+  const nowClock=()=>new Intl.DateTimeFormat("en-GB",{timeZone:"Europe/Moscow",hour:"2-digit",minute:"2-digit",hourCycle:"h23"}).format(new Date());
   const humanDate=iso=>iso?new Date(iso+"T12:00:00Z").toLocaleDateString("ru-RU",{day:"numeric",month:"long",year:"numeric",timeZone:"UTC"}):"не назначена";
   const number=x=>x===null||x===undefined||x===""?null:Number(x);
   const calc=(r,c)=>{const a=number(r),b=number(c);return Number.isInteger(a)&&Number.isInteger(b)&&a>=0&&b>=0&&a+b>0?a*2000+b*1000:null};
   const statuses={new:"Новый",hot:"Горячий",waiting:"Думает / ждём",callback:"Перезвонить",ready:"Согласился",lost:"Отказался"};
   const reasons={none:"Не выбрано",salary:"После зарплаты",price:"Дорого",time:"Нет времени",family:"Посоветуется",other:"Другая причина"};
-  const blank=()=>({id:null,name:"",phone:"",address:"",radiators:"",material:"",loops:"",notes:"",status:"new",reason:"none",followUpDate:"",dateApprox:false,clientWillCall:false,consent:false,priceAgreed:false,updatedAt:"",history:[]});
+  const blank=()=>({id:null,name:"",phone:"",address:"",radiators:"",material:"",loops:"",notes:"",status:"new",reason:"none",followUpDate:"",followUpTime:"18:00",dateApprox:false,clientWillCall:false,consent:false,priceAgreed:false,updatedAt:"",history:[]});
   const phoneKey=s=>{let digits=String(s||"").replace(/\D/g,"");if(digits.length===11&&digits[0]==="8")digits="7"+digits.slice(1);if(digits.length===10)digits="7"+digits;return digits.length===11?digits:""};
   function dueFromText(value,base=today()){
     const s=text(value).toLocaleLowerCase("ru");
@@ -52,6 +53,7 @@
     if(address)o.address=cap(address[0],120);
     const follow=dueFromText(s,base);
     if(follow){o.followUpDate=follow.date;o.dateApprox=follow.approx;o.followSource=follow.source}
+    if(/без\s+т[её]плого\s+пола|т[её]плого\s+пола\s+нет/.test(lower))o.loops="0";
     if(/зарплат|получ[а-яё]*\s+деньг|денег\s+нет/.test(lower))o.reason="salary";
     else if(/дорог|цена\s+высок/.test(lower))o.reason="price";
     else if(/нет\s+врем|некогда/.test(lower))o.reason="time";
@@ -60,7 +62,7 @@
     if(follow||o.clientWillCall||o.reason)o.status="waiting";
     return o;
   }
-  const logic={today,shifted,nextMonth,weekday,dueFromText,parseNotes,calc,phoneKey};
+  const logic={today,shifted,nextMonth,weekday,dueFromText,parseNotes,calc,phoneKey,needsCall};
   window.__rdLeadLogic=logic;
   let draft=blank(),activeFilter="all",openId=null,notice="",leadCache=[],initialized=false;
   const context=()=>window.__rdLeadContext?.()||{};
@@ -77,7 +79,8 @@
     catch(e){notice="Браузер не сохранил лиды. Проверьте доступную память.";return false}
   }
   const isOpen=lead=>!["ready","lost"].includes(lead.status);
-  const needsCall=(lead,day=today())=>isOpen(lead)&&!!lead.followUpDate&&lead.followUpDate<=day;
+  const needsCall=(lead,day=today(),clock=nowClock())=>isOpen(lead)&&!!lead.followUpDate&&
+    (lead.followUpDate<day||(lead.followUpDate===day&&clock>=(lead.followUpTime||"18:00")));
   const countDue=()=>load().filter(l=>needsCall(l)).length;
   function syncNav(){const count=countDue();
     document.querySelectorAll(".rd-nav-btn[data-page=leads]").forEach(b=>{
@@ -139,8 +142,8 @@
     }
   }
   function missing(){
-    return [{key:"name",label:"имя"},{key:"phone",label:"телефон"},{key:"address",label:"населённый пункт / адрес"},
-      {key:"radiators",label:"число радиаторов"},{key:"material",label:"тип радиаторов"},{key:"loops",label:"контуры тёплого пола"}]
+    return [{key:"radiators",label:"число радиаторов"},{key:"material",label:"тип радиаторов"},{key:"loops",label:"контуры тёплого пола"},
+      {key:"address",label:"населённый пункт / адрес"},{key:"name",label:"имя"},{key:"phone",label:"телефон"}]
       .filter(item=>text(draft[item.key])==="").map(x=>x.label);
   }
   function fillAdvisor(root){
@@ -148,20 +151,26 @@
     root.append(node("strong","la-advisor-title","Что сказать клиенту"));
     const m=missing(),cost=calc(draft.radiators,draft.loops),chugun=draft.material==="Чугунные";
     let script="";
-    if(m.length&&draft.status==="new")
-      script="Уточните, пожалуйста, "+m[0]+".";
-    else if(chugun)script="У вас чугунные радиаторы. Для такой системы сначала нужно уточнить возможность подключения оборудования. Стоимость и результат пока не обещайте.";
-    else if(cost===null)script="Подскажите количество радиаторов и контуров тёплого пола, чтобы я мог сразу назвать примерную стоимость.";
-    else if(draft.status==="hot"||draft.status==="new")
-      script="Стоимость промывки вашей системы — "+money(cost)+". Мы промываем каждый радиатор отдельно, а котёл и трубы входят в эту сумму. Подскажите, когда вам удобно принять мастера?";
+    if(chugun)script="У вас чугунные радиаторы. Для такой системы сначала нужно уточнить возможность подключения оборудования. Стоимость и результат пока не обещайте.";
     else if(draft.status==="waiting"||draft.status==="callback")
       script=draft.reason==="salary"?"Понимаю. Подскажите, примерно какого числа будет зарплата? Можно один раз напомнить вам после этой даты, если сами не позвоните?":
       "Хорошо. Когда вам будет удобно вернуться к вопросу? Можем согласовать один повторный звонок?";
-    else if(draft.status==="ready")script="Отлично, давайте подберём время. Я проверю расписание мастера и запишу вас после подтверждения.";
-    else script="Спасибо, что обратились. Если вопрос снова станет актуальным, будем рады помочь.";
+    else if(draft.status==="ready")
+      script="Давайте уточним точный адрес и телефон, затем предложим время по календарю. Запишем только после вашего подтверждения.";
+    else if(draft.status==="lost")
+      script="Спасибо за обращение. Если услуга снова понадобится, будем рады помочь.";
+    else if(text(draft.radiators)==="")
+      script="Подскажите, пожалуйста, сколько у вас радиаторов отопления?";
+    else if(!text(draft.material))
+      script="Из какого материала радиаторы: алюминиевые, биметаллические или чугунные?";
+    else if(text(draft.loops)==="")
+      script="Есть ли тёплый пол? Если да, сколько контуров?";
+    else if(cost!==null)
+      script="Стоимость промывки вашей системы — "+money(cost)+". Мы промываем каждый радиатор отдельно, а котёл и трубы входят в эту сумму. Подскажите, когда вам удобно принять мастера?";
+    else script="Давайте уточним состав системы, чтобы правильно рассчитать стоимость.";
     root.append(node("p","",script));
     if(m.length)root.append(node("small","la-muted","Уточнить: "+m.slice(0,4).join(" · ")));
-    if(draft.followUpDate)root.append(node("small","la-muted","Контроль: "+humanDate(draft.followUpDate)+(draft.dateApprox?" (ориентир — спросить точную дату)":"")));
+    if(draft.followUpDate)root.append(node("small","la-muted","Контроль: "+humanDate(draft.followUpDate)+" после "+(draft.followUpTime||"18:00")+(draft.dateApprox?" (ориентир — спросить точную дату)":"")));
     if(draft.followUpDate&&!draft.consent)root.append(node("small","la-warn","Разрешение на повторный звонок не отмечено. Контроль внутренний — не звонить без согласия."));
   }
   function parse(){
@@ -223,7 +232,7 @@
     statusRow.append(field("Статус","status","select","",statuses),field("Причина переноса","reason","select","",reasons));
     wrap.append(statusRow);
     const callbackRow=node("div","la-date-grid");
-    callbackRow.append(field("Дата контроля","followUpDate","date"));
+    callbackRow.append(field("Дата контроля","followUpDate","date"),field("Проверить после (МСК)","followUpTime","time"));
     const shortcuts=node("div","la-shortcuts");
     shortcuts.append(quickDay(1,"Завтра"),quickDay(7,"Через 7 дней"),quickDay(20,"Через 20 дней"),
       btn("Следующий месяц","la-chip",()=>{draft.followUpDate=nextMonth(today());draft.dateApprox=true;draft.status="waiting";render()}));
@@ -252,7 +261,7 @@
     const amount=calc(lead.radiators,lead.loops);
     if(amount!==null)card.append(node("p","la-lead-meta","Предварительно: "+money(amount)));
     if(lead.reason&&lead.reason!=="none")card.append(node("p","la-lead-meta","Причина: "+(reasons[lead.reason]||lead.reason)));
-    if(lead.followUpDate)card.append(node("p","la-follow"+(overdue?" la-alert":""),(overdue?"Пора связаться · ":"Контроль · ")+humanDate(lead.followUpDate)+(lead.dateApprox?" (ориентир)":"")));
+    if(lead.followUpDate)card.append(node("p","la-follow"+(overdue?" la-alert":""),(overdue?"Пора связаться · ":"Контроль · ")+humanDate(lead.followUpDate)+" после "+(lead.followUpTime||"18:00")+(lead.dateApprox?" (ориентир)":"")));
     if(overdue&&!lead.consent)card.append(node("p","la-warn","Нет разрешения на повторный звонок — сначала проверьте согласие."));
     const actions=node("div","la-actions");
     actions.append(btn("Открыть","la-neutral",()=>selectLead(lead.id)));
