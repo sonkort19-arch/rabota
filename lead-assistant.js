@@ -95,6 +95,9 @@
     if(!text(clean.name)||!phoneKey(clean.phone)){
       notice="Для сохранения укажите имя и номер телефона (10–11 цифр).";render();return
     }
+    if(["callback","waiting"].includes(clean.status)&&!clean.followUpDate){
+      notice="Укажите дату контроля, чтобы клиент не потерялся. Если клиент ещё не назвал дату — уточните её.";render();return
+    }
     if(clean.followUpDate&&!/^\d{4}-\d{2}-\d{2}$/.test(clean.followUpDate)){
       notice="Проверьте дату напоминания.";render();return
     }
@@ -264,6 +267,13 @@
     if(overdue&&!lead.consent)card.append(node("p","la-warn","Нет разрешения на повторный звонок — сначала проверьте согласие."));
     const actions=node("div","la-actions");
     actions.append(btn("Открыть","la-neutral",()=>selectLead(lead.id)));
+    actions.append(btn("Удалить","la-neutral",()=>{
+      if(!window.confirm("Удалить местную карточку «"+lead.name+"» без возможности восстановления?"))return;
+      if(persist(load().filter(x=>x.id!==lead.id))){
+        if(openId===lead.id){draft=blank();openId=null}
+        notice="Карточка удалена с этого устройства.";render();
+      }
+    }));
     if(overdue)actions.append(btn("Связались","la-chip",()=>{
       if(!window.confirm("Отметить контакт с клиентом? Напоминание на эту дату будет снято."))return;
       const items=load(),entry=items.find(x=>x.id===lead.id);
@@ -305,7 +315,10 @@
     syncNav();initialized=true;
   }
   window.__rdLeadsRender=render;
+  window.__rdLeadsSyncNav=syncNav;
   window.__rdLeadDueCount=countDue;
+  // Recheck date-based reminders while the CRM stays open.
+  window.setInterval?.(()=>{if(!$("appScreen")?.hidden){syncNav();if(!$("rdLeads")?.hidden)render()}},60000);
   window.addEventListener("focus",()=>{if(initialized){syncNav();if(!$("rdLeads")?.hidden)render()}});
   window.addEventListener("storage",e=>{if(e.key===storeKey()&&initialized){syncNav();if(!$("rdLeads")?.hidden)render()}});
 })();
