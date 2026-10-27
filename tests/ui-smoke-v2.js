@@ -152,7 +152,8 @@ function runSmoke(source) {
     expect(get("rdOrderStats").querySelectorAll(".rd-stat-clock").length===1,"new-orders icon class");
     expect(get("rdOrderStats").querySelectorAll(".rd-stat-progress").length===1,"in-progress icon class");
     expect(get("rdOrderStats").querySelectorAll(".rd-stat-wallet").length===1,"unpaid icon class");
-    expect(kpis.every(x=>x.querySelector(".rd-stat-body").children.length===3),"metric label, value, hint grouped");
+    expect(kpis.every(x=>x.querySelector(".rd-stat-heading")?.children.length===2 && x.querySelector(".rd-stat-body")?.children.length===2),"icon and label share one row; value and hint share one column");
+    expect(kpis.every(x=>x.querySelector(".rd-stat-heading")?.children[0]?.classList.contains("rd-stat-icon")),"all KPI icons are inside their title rows");
     const syntheticCard=document.createElement("article");syntheticCard.className="order-card";
     const top=document.createElement("div");top.className="card-top";
     const cardName=document.createElement("div");cardName.className="client";cardName.textContent="Тестовый клиент";
