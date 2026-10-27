@@ -199,6 +199,7 @@
   <link rel="stylesheet" href="/mobile-order-form.css">
   <link rel="stylesheet" href="/master-notifications.css">
   <link rel="stylesheet" href="/orders-list.css">
+  <link rel="stylesheet" href="/finance-payroll.css">
 </head>
 <body>
 
@@ -1326,6 +1327,17 @@
         }
         history.append(item);
       }
+      // Read-only interface model calculated by the existing finance formulas.
+      // Legacy handlers for cash confirmation and manual operations remain intact.
+      window.__rdFinanceEnhance?.({
+        isOwner, raulAccrued,raulPaid:raulPaid,raulDue,
+        timurAccrued,timurPaid,timurDue,companyEarned,masterHeld,waitingOwner,
+        operations:financeOperations,
+        orders:eligible.map(o=>({
+          date:o.date,name:o.name,price:o.price,
+          raul:financeSplit(o.price).raul,timur:FINANCE_TIMUR_FEE
+        }))
+      });
     }
     function openOrdersView() {
       financeActive=false;financeVisible();
@@ -1521,5 +1533,6 @@
   <script src="/redesign.js"></script>
   <script src="/master-notifications.js"></script>
   <script src="/orders-list.js"></script>
+  <script src="/finance-payroll.js"></script>
 </body>
 </html>
