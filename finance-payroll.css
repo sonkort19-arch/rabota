@@ -186,3 +186,10 @@ body.rd .fp-primary:disabled{opacity:.45;cursor:not-allowed}
  body.rd #financePanel .fp-ledger-row>strong{grid-column:2;text-align:left}
 }
 @media(prefers-reduced-motion:reduce){body.rd .fp-modal,body.rd .fp-backdrop{animation:none}}
+
+/* Preview safety: show that the original finance mutation buttons are disabled. */
+body.rd #financePanel .fp-original button:disabled,
+body.rd #financePanel #financeHistory button:disabled,
+body.rd #financePanel #financeSaveBtn:disabled{
+ opacity:.52;cursor:not-allowed;filter:grayscale(.2);
+}
