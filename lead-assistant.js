@@ -29,16 +29,16 @@
     for(const [w,d] of Object.entries(dayMap))if(s.includes(w))return {date:weekday(base,d),approx:true,source:"ближайший "+w};
     const months=s.match(/через\s+(\d{1,2})\s*месяц/);
     if(months){const d=new Date(base+"T12:00:00Z");d.setUTCMonth(d.getUTCMonth()+Number(months[1]));return {date:d.toISOString().slice(0,10),approx:true,source:"через "+months[1]+" мес."}}
-    if(/следующ\w*\s+месяц|нов\w*\s+месяц/.test(s))return {date:nextMonth(base),approx:true,source:"начало следующего месяца"};
+    if(/следующ[а-яё]*\s+месяц|нов[а-яё]*\s+месяц/.test(s))return {date:nextMonth(base),approx:true,source:"начало следующего месяца"};
     return null;
   }
   function parseNotes(value,base=today()){
     const s=text(value),lower=s.toLocaleLowerCase("ru"),o={};
-    const radiator=lower.match(/(\d{1,3})\s*(?:шт\.?\s*)?(?:радиатор\w*|батаре\w*|бат\b)/)||
-      lower.match(/(?:радиатор\w*|батаре\w*|бат\b)\s*(\d{1,3})/);
+    const radiator=lower.match(/(\d{1,3})\s*(?:шт\.?\s*)?(?:радиатор[а-яё]*|батаре[а-яё]*|бат\b|алюм[а-яё]*|биметал[а-яё]*)/)||
+      lower.match(/(?:радиатор[а-яё]*|батаре[а-яё]*|бат\b|алюм[а-яё]*|биметал[а-яё]*)\s*(\d{1,3})/);
     if(radiator)o.radiators=radiator[1];
-    const loops=lower.match(/(\d{1,3})\s*(?:контур\w*|тп\b|тепл\w*\s*пол\w*)/)||
-      lower.match(/(?:тп\b|контур\w*)\s*(\d{1,3})/);
+    const loops=lower.match(/(\d{1,3})\s*(?:контур[а-яё]*|тп\b|тепл[а-яё]*\s*пол[а-яё]*)/)||
+      lower.match(/(?:тп\b|контур[а-яё]*)\s*(\d{1,3})/);
     if(loops)o.loops=loops[1];
     if(/\bалюм|алюмин|алюмини/.test(lower))o.material="Алюминиевые";
     else if(/биметалл/.test(lower))o.material="Биметаллические";
@@ -52,7 +52,7 @@
     if(address)o.address=cap(address[0],120);
     const follow=dueFromText(s,base);
     if(follow){o.followUpDate=follow.date;o.dateApprox=follow.approx;o.followSource=follow.source}
-    if(/зарплат|получ\w*\s+деньг|денег\s+нет/.test(lower))o.reason="salary";
+    if(/зарплат|получ[а-яё]*\s+деньг|денег\s+нет/.test(lower))o.reason="salary";
     else if(/дорог|цена\s+высок/.test(lower))o.reason="price";
     else if(/нет\s+врем|некогда/.test(lower))o.reason="time";
     else if(/посовет|мужем|женой/.test(lower))o.reason="family";
@@ -170,9 +170,9 @@
     const derived=parseNotes(original);
     for(const [key,value] of Object.entries(derived)){
       if(["followSource"].includes(key))continue;
-      if(key==="dateApprox"||key==="clientWillCall"||key==="followUpDate"){
-        if(!draft.followUpDate){draft[key]=value}continue;
-      }
+      if(key==="followUpDate"){if(!draft.followUpDate)draft.followUpDate=value;continue}
+      if(key==="dateApprox"){if(derived.followUpDate&&draft.followUpDate===derived.followUpDate)draft.dateApprox=value;continue}
+      if(key==="clientWillCall"){if(value)draft.clientWillCall=true;continue}
       if(key==="status"&&draft.status==="new"){draft.status=value;continue}
       if(!text(draft[key])||draft[key]==="none")draft[key]=value;
     }
