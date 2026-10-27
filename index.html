@@ -959,7 +959,9 @@
       // На iPhone автоматический фокус открывал клавиатуру и сдвигал форму.
       if(!window.matchMedia || !window.matchMedia("(pointer: coarse)").matches)controls.name.focus();
     }
-    function closeForm() {
+    function closeForm(force) {
+      // Запретить закрытие до завершения сохранения: результат запроса ещё неизвестен.
+      if(orderSaving && force!==true)return;
       overlay.hidden=true;document.body.style.overflow="";form.reset();editingId=null;
       if(previousFocus&&typeof previousFocus.focus==="function")previousFocus.focus();
     }
@@ -1040,7 +1042,7 @@
         await persistOrder(order);
         selectedDate=date;
         currentTab=status==="Выполнен"?"history":status==="Отменён"?"all":"calendar";
-        closeForm();render();
+        closeForm(true);render();
       } catch(error) {formStatus.classList.remove("is-saving");formStatus.textContent=friendlyError(error);}
       finally {orderSaving=false;saveBtn.disabled=false;saveBtn.textContent="Сохранить заказ";formStatus.classList.remove("is-saving");}
     });
