@@ -128,6 +128,25 @@
    if(!root||!history||!entry)return;
    const legacy=el("div","fp-original");
    while(root.firstChild)legacy.append(root.firstChild);
+   // Preview currently shares Production Supabase. Keep all old accounting controls
+   // visible, but disable their mutations in Preview. Production stays unchanged.
+   if(isPreview()){
+     for(const section of [legacy,history]){
+       for(const control of section.querySelectorAll?.("button")||[]){
+         control.disabled=true;
+         control.title="Только просмотр: финансовые изменения в Preview отключены";
+       }
+     }
+     const save=$("financeSaveBtn"),form=$("financeForm");
+     if(save)save.disabled=true;
+     if(form&&!form.dataset?.financePreviewLock){
+       form.dataset.financePreviewLock="1";
+       form.addEventListener("submit",event=>{
+         event.preventDefault();
+         event.stopImmediatePropagation();
+       },true);
+     }
+   }
    const tabs=el("div","fp-tabs"),panel=el("div","fp-panel");
    root.append(tabs,panel,legacy);
    const historyTitle=$("financePanel")?.querySelector(":scope > h2.finance-title");
