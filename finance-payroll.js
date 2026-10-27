@@ -160,7 +160,7 @@
      if(historyTitle)historyTitle.hidden=ui.tab!=="operations";
      if(ui.tab==="salary")panel.append(overview(m,redraw));
      else if(ui.tab==="cash")panel.append(cash(m));
-     else panel.append(el("p","fp-hint","Здесь сохранены прежние формы ручных операций, история и возможность отмены записей. В Preview не создавайте пробные операции."));
+     else panel.append(el("p","fp-hint","Здесь сохранены прежние формы ручных операций, история и возможность отмены записей. В этой тестовой версии запись и отмена финансовых операций отключены. Реальные данные не изменяются."));
    };
    redraw();
  };
