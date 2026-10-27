@@ -124,8 +124,8 @@
     }else if(type==="textarea"){input.rows=4;input.maxLength=4000;input.placeholder=placeholder}
     else{input.type=type;input.placeholder=placeholder;input.maxLength=type==="number"?undefined:240;if(type==="number"){input.min="0";input.step="1"}}
     input.value=draft[key]??"";
-    input.addEventListener("input",()=>{setField(key,input.value);updatePreview()});
-    input.addEventListener("change",()=>{setField(key,input.value);updatePreview()});
+    input.addEventListener("input",()=>{setField(key,input.value);if(key==="followUpDate")draft.dateApprox=false;updatePreview()});
+    input.addEventListener("change",()=>{setField(key,input.value);if(key==="followUpDate")draft.dateApprox=false;updatePreview()});
     wrap.append(input);return wrap;
   }
   function tick(label,key){
@@ -140,7 +140,7 @@
     const container=$("laAdvisor");if(container)fillAdvisor(container);
     const preview=$("laPrice");if(preview){
       const amount=calc(draft.radiators,draft.loops);
-      preview.textContent=amount===null?"Заполните количество":money(amount);
+      preview.textContent=draft.material==="Чугунные"?"Нужна консультация мастера":amount===null?"Заполните количество":money(amount);
     }
   }
   function missing(){
@@ -226,7 +226,7 @@
       field("Контуров пола","loops","number","1"));
     wrap.append(grid);
     const amount=group("la-price",node("span","","Расчёт по прайсу · радиатор 2 000 ₽ / контур 1 000 ₽"),
-      node("strong","",calc(draft.radiators,draft.loops)===null?"Заполните количество":money(calc(draft.radiators,draft.loops))),
+      node("strong","",draft.material==="Чугунные"?"Нужна консультация мастера":calc(draft.radiators,draft.loops)===null?"Заполните количество":money(calc(draft.radiators,draft.loops))),
       node("small","","Промывка котла и труб включена. Для нестандартной системы — уточнение."));
     amount.querySelector("strong").id="laPrice";wrap.append(amount);
     wrap.append(node("h3","la-subhead","Статус и повторный контакт"));
@@ -261,7 +261,7 @@
     card.append(heading);
     card.append(node("p","la-lead-meta",(lead.phone||"Без телефона")+(lead.address?" · "+lead.address:"")));
     const amount=calc(lead.radiators,lead.loops);
-    if(amount!==null)card.append(node("p","la-lead-meta","Предварительно: "+money(amount)));
+    if(amount!==null&&lead.material!=="Чугунные")card.append(node("p","la-lead-meta","Предварительно: "+money(amount)));
     if(lead.reason&&lead.reason!=="none")card.append(node("p","la-lead-meta","Причина: "+(reasons[lead.reason]||lead.reason)));
     if(lead.followUpDate)card.append(node("p","la-follow"+(overdue?" la-alert":""),(overdue?"Пора связаться · ":"Контроль · ")+humanDate(lead.followUpDate)+" после "+(lead.followUpTime||"18:00")+(lead.dateApprox?" (ориентир)":"")));
     if(overdue&&!lead.consent)card.append(node("p","la-warn","Нет разрешения на повторный звонок — сначала проверьте согласие."));
