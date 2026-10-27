@@ -93,7 +93,7 @@ body.rd #rdLeadsMount .la-alert{color:#a65718}
 body.rd #rdLeadsMount .la-actions{display:flex;gap:7px;margin-top:11px}
 @media(max-width:1150px){
  body.rd #rdLeadsMount .la-layout{grid-template-columns:minmax(0,1fr)}
- body.rd #rdLeadsMount .la-list{order:-1}
+ body.rd #rdLeadsMount .la-editor{order:-1}
 }
 @media(max-width:600px){
  body.rd #rdLeadsMount .la-box{padding:14px;border-radius:14px}
