@@ -7,11 +7,12 @@ const body=document.body;
 body.classList.add("rd");
 const $=id=>document.getElementById(id);
 const makeNode=(tag,className,text)=>{const n=document.createElement(tag);if(className)n.className=className;if(text!=null)n.textContent=String(text);return n};
-const sections=["home","orders","calendar","clients","finance","ai"];
-const titles={home:"Главная",orders:"Заказы",calendar:"Календарь",clients:"Клиенты",finance:"Финансы",ai:"ИИ-чат"};
+const sections=["home","leads","orders","calendar","clients","finance","ai"];
+const titles={home:"Главная",leads:"Лиды",orders:"Заказы",calendar:"Календарь",clients:"Клиенты",finance:"Финансы",ai:"ИИ-чат"};
 /* Consistent, accessible outline icons: no third-party library and no remote assets. */
 const iconPaths={
  home:'<path d="m3 10 9-7 9 7v10a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1z"/>',
+ leads:'<path d="M5 5h14v14H5z"/><path d="M8 9h8M8 13h5"/><circle cx="19" cy="18" r="3"/>',
  orders:'<rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 7h6M9 12h6M9 17h4"/>',
  calendar:'<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M7 3v4M17 3v4M3 10h18M8 14h2M14 14h2M8 18h2"/>',
  clients:'<circle cx="12" cy="8" r="4"/><path d="M4 21v-2a8 8 0 0 1 16 0v2"/>',
@@ -77,9 +78,11 @@ function stats(node,items){
   const icon=makeNode("span","rd-stat-icon");
   icon.setAttribute("aria-hidden","true");
   icon.append(uiIcon(kind));
-  const body=makeNode("div","rd-stat-body");
-  body.append(boxText("small",label),boxText("strong",item.value,"rd-accent"),boxText("span",item.hint,"rd-stat-hint"));
-  card.append(icon,body);wrap.append(card);
+  const heading=makeNode("div","rd-stat-heading");
+  heading.append(icon,boxText("small",label));
+  const statBody=makeNode("div","rd-stat-body");
+  statBody.append(boxText("strong",item.value,"rd-accent"),boxText("span",item.hint,"rd-stat-hint"));
+  card.append(heading,statBody);wrap.append(card);
  });
  node.append(wrap);
 }
@@ -90,7 +93,7 @@ function makeMobileMenu(){
  const veil=makeNode("button","rd-more-veil");veil.type="button";veil.hidden=true;veil.setAttribute("aria-label","Закрыть дополнительное меню");
  const sheet=makeNode("section","rd-more-sheet");sheet.hidden=true;sheet.id="rdMoreSheet";sheet.setAttribute("aria-label","Дополнительные разделы");
  sheet.append(boxText("h2","Другие разделы"));
- const items=currentRole==="owner"?["clients","finance"]:["clients"];
+ const items=currentRole==="owner"?["clients","finance","ai"]:["clients"];
  for(const key of items){const btn=navButton(key);btn.classList.add("rd-more-item");sheet.append(btn)}
  const exit=makeNode("button","rd-nav-btn rd-more-item");exit.type="button";exit.append(boxText("span","⇥","rd-icon"),boxText("span","Выйти"));exit.addEventListener("click",()=>{$("logoutBtn").click()});sheet.append(exit);
  function close(){sheet.hidden=true;veil.hidden=true;document.body.classList.remove("rd-menu-open");toggle?.setAttribute("aria-expanded","false")}
@@ -124,11 +127,13 @@ function build(){
  top.append(search,boxText("span","Данные из Supabase","rd-top-title"));
  const user=makeNode("div","rd-user");user.append(boxText("span",currentRole==="owner"?"В":"М","rd-user-dot"),boxText("strong",currentRole==="owner"?"Владелец":"Менеджер"));top.append(user);
  const mobile=makeNode("nav","rd-mobilebar");mobile.setAttribute("aria-label","Быстрое меню");
- const visible=currentRole==="owner"?["home","orders","calendar","ai"]:["home","orders","calendar","clients"];
+ const visible=["home","leads","orders","calendar"];
  visible.forEach(key=>mobile.append(navButton(key)));
  const more=makeMobileMenu();mobile.append(more.toggle);
  app.prepend(top,side,more.veil,more.sheet,mobile);
  const home=sectionView("rdHome",currentRole==="owner"?"Панель владельца":"Панель менеджера","Обзор заказов и расписания в реальном времени");
+ const leads=sectionView("rdLeads","Лиды","Звонки, консультации и повторные контакты");
+ const leadsRoot=makeNode("div","rd-leads-mount");leadsRoot.id="rdLeadsMount";leads.append(leadsRoot);
  const clients=sectionView("rdClients","Клиенты","Клиенты из доступных вам заказов");
  const clientsToolbar=makeNode("div","rd-toolbar");
  const clientsInput=makeNode("input");clientsInput.id="rdClientSearch";clientsInput.type="search";clientsInput.placeholder="Найти клиента или телефон";clientsInput.setAttribute("aria-label","Поиск клиентов");
@@ -195,6 +200,7 @@ function build(){
  const financeTitle=sectionView("rdFinanceIntro","Финансы","Начисления, касса и история операций");
  app.insertBefore(home,$("ordersArea"));
  app.insertBefore(clients,$("ordersArea"));
+ app.insertBefore(leads,$("ordersArea"));
  $("ordersArea").prepend(ordersTitle,orderStats,orderTools,calendar,calendarNav,board);
  $("financePanel").prepend(financeTitle);
  // Staff access administration is still available, but should not obscure the booking list.
@@ -218,6 +224,7 @@ function navigate(key){
  $("financePanel").hidden=key!=="finance";
  $("rdHome").hidden=key!=="home";
  $("rdClients").hidden=key!=="clients";
+ $("rdLeads").hidden=key!=="leads";
  $("rdOrdersIntro").hidden=!isOrders;
  $("rdOrderStats").hidden=!isOrders;
  $("rdOrderToolbar").hidden=!isOrders;
@@ -242,6 +249,7 @@ function navigate(key){
   render(); // Legacy render triggers __rdRefresh, which rebuilds the selected view.
  }else if(key==="home")drawHome();
  else if(key==="clients")drawClients();
+ else if(key==="leads")window.__rdLeadsRender?.();
  window.scrollTo({top:0,behavior:"instant"});
 }
 function drawChart(parent,values,month){
@@ -327,9 +335,16 @@ function drawChart(parent,values,month){
   const by=p.y<top+67?p.y+13:p.y-61;
   tooltip.setAttribute("transform","translate("+bx.toFixed(1)+" "+by.toFixed(1)+")");
  };
- let peak=0;for(let i=1;i<points.length;i++)if(points[i].value>points[peak].value)peak=i;
- if(points.length&&points[peak].value>0)showDay(peak);
- else {hoverLine.style.display="none";hoverDot.style.display="none";tooltip.style.display="none";}
+ // Do not leave a tooltip floating over the chart on first render.
+ // It becomes visible only when the user hovers, taps or focuses a point.
+ const hideChartTip=()=>{
+  hoverLine.style.display="none";hoverDot.style.display="none";tooltip.style.display="none";
+ };
+ hideChartTip();
+ svg.addEventListener("mouseleave",hideChartTip);
+ svg.addEventListener("focusout",event=>{
+  if(!event.relatedTarget||!svg.contains(event.relatedTarget))hideChartTip();
+ });
  // Show exact daily counts on hover, focus or tap. No data is sent or saved.
  for(let i=0;i<points.length;i++){
   const p=points[i];
@@ -357,7 +372,7 @@ function drawHome(){
  const root=$("rdHome");while(root.children.length>3)root.lastElementChild.remove();
  const orders=activeOrders(),today=todayMoscow(),month=today.slice(0,7);
  const thisMonth=orders.filter(o=>o.date?.startsWith(month));
- const customers=new Set(thisMonth.map(o=>normalizePhone(o.phone)||o.name.toLocaleLowerCase("ru")));
+ const customers=new Set(thisMonth.map(o=>normalizePhone(o.phone)||String(o.name||"").toLocaleLowerCase("ru")).filter(Boolean));
  const complete=thisMonth.filter(o=>o.status==="Выполнен");
  const paid=thisMonth.filter(o=>o.paid&&o.price!=null&&Number.isFinite(o.price));
  stats(root,[
@@ -374,17 +389,17 @@ function drawHome(){
  const series=Array.from({length:days},(_,i)=>thisMonth.filter(o=>o.date===month+"-"+String(i+1).padStart(2,"0")).length);
  drawChart(chart,series,month);
  if(currentRole==="owner"){
-  const assistant=panel("✦ ИИ-помощник","Спрашивайте о заказах и расписании");
+  const assistant=panel("ИИ-помощник","Спрашивайте о заказах и расписании");
   for(const label of ["Найти свободное окно","Показать неоплаченные заказы","Сколько заказов за неделю?"]){
-   const b=makeNode("button","rd-quick",label+"  ›");b.type="button";b.addEventListener("click",()=>window.location.assign("/ai.html?draft="+encodeURIComponent(label)));assistant.append(b);
+   const b=makeNode("button","rd-quick",label);b.type="button";b.addEventListener("click",()=>window.location.assign("/ai.html?draft="+encodeURIComponent(label)));assistant.append(b);
   }
   const ai=makeNode("button","rd-primary","Открыть ИИ-чат");ai.style.width="100%";ai.style.marginTop="9px";ai.addEventListener("click",()=>window.location.assign("/ai.html"));assistant.append(ai);
   middle.append(chart,assistant);
  }else{
   const actions=panel("Быстрые действия","Работа с заявками и расписанием");
-  const create=makeNode("button","rd-quick","Новая заявка  ›");create.type="button";
+  const create=makeNode("button","rd-quick","Новая заявка");create.type="button";
   create.addEventListener("click",()=>{navigate("orders");$("newOrderBtn").click()});
-  const goCalendar=makeNode("button","rd-quick","Посмотреть календарь  ›");goCalendar.type="button";
+  const goCalendar=makeNode("button","rd-quick","Посмотреть календарь");goCalendar.type="button";
   goCalendar.addEventListener("click",()=>navigate("calendar"));
   actions.append(create,goCalendar);middle.append(chart,actions);
  }
@@ -663,11 +678,13 @@ function filterCards(){
  }
  if(total)$("orderCount").textContent="Показано "+visible+" из "+total;
 }
+window.__rdGoToLeads=()=>navigate("leads");
 window.__rdAccess=()=>{
  if(ready&&builtRole!==currentRole){window.location.reload();return}
  if(currentRole==="master"){app.classList.add("rd-master");return}
  if(!["owner","manager"].includes(currentRole))return;
  build();
+ window.__rdLeadsSyncNav?.();
 };
 window.__rdRefresh=()=>{
  if(!ready)return;

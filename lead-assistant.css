@@ -1,0 +1,110 @@
+/* Работа / Лиды: светлый быстрый экран продаж для владельца и менеджера. */
+body.rd #rdLeads{min-width:0}
+body.rd #rdLeadsMount{min-width:0;margin-top:4px}
+body.rd #rdLeadsMount .la-preview-note{
+ border:1px solid #dae4f6;background:#f4f8ff;border-radius:12px;
+ padding:11px 15px;margin-bottom:15px;color:#536b92;font-size:12px;line-height:1.5;
+}
+body.rd #rdLeadsMount .la-layout{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(285px,.84fr);gap:16px;align-items:start}
+body.rd #rdLeadsMount .la-box{min-width:0;border:1px solid #e2e9f3;background:#fff;border-radius:17px;padding:20px;box-shadow:0 3px 15px rgba(28,51,95,.035)}
+body.rd #rdLeadsMount .la-title{display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap;margin-bottom:12px}
+body.rd #rdLeadsMount .la-title h2{font-size:19px;line-height:1.3;color:#24344e;font-weight:780;margin:0}
+body.rd #rdLeadsMount h3.la-subhead{font-size:14px;font-weight:790;color:#31415c;margin:23px 0 12px}
+body.rd #rdLeadsMount .la-muted{font-size:12px;line-height:1.55;color:#8190a9;margin:7px 0 12px}
+body.rd #rdLeadsMount .la-field{display:flex;min-width:0;flex-direction:column;gap:6px;color:#596a85;font-size:12px;font-weight:700;margin-bottom:12px}
+body.rd #rdLeadsMount .la-input{
+ appearance:auto;display:block;width:100%;min-width:0;max-width:100%;
+ min-height:43px;border:1px solid #d9e2f1;border-radius:10px;background:#fff;
+ color:#20314b;font-size:14px;font-weight:500;line-height:1.4;padding:9px 11px;outline:none;
+}
+body.rd #rdLeadsMount textarea.la-input{min-height:112px;resize:vertical}
+body.rd #rdLeadsMount .la-input:focus{border-color:#6e91ec;box-shadow:0 0 0 3px rgba(71,105,218,.11)}
+body.rd #rdLeadsMount .la-field-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 12px}
+body.rd #rdLeadsMount button{font:inherit;cursor:pointer;transition:background .12s ease,border-color .12s ease}
+body.rd #rdLeadsMount button:focus-visible{outline:3px solid #a4baff;outline-offset:2px}
+body.rd #rdLeadsMount button:disabled{cursor:not-allowed;opacity:.55}
+body.rd #rdLeadsMount .la-primary{
+ border:1px solid #3f67db;background:#4169e4;color:#fff;font-size:13px;font-weight:780;
+ padding:11px 15px;min-height:44px;border-radius:10px;
+}
+body.rd #rdLeadsMount .la-primary:hover{background:#3157cb}
+body.rd #rdLeadsMount .la-wide{width:100%;display:block;text-align:center;margin:9px 0}
+body.rd #rdLeadsMount .la-neutral{
+ border:1px solid #dbe5f7;background:#f2f6ff;color:#3159c3;font-size:12px;
+ font-weight:750;padding:9px 13px;min-height:37px;border-radius:9px;
+}
+body.rd #rdLeadsMount .la-neutral:hover{background:#e8efff}
+body.rd #rdLeadsMount .la-price{
+ display:flex;flex-direction:column;gap:6px;background:#f0f5ff;
+ border:1px solid #dfe8fb;border-radius:12px;padding:15px 17px;margin-top:4px;
+}
+body.rd #rdLeadsMount .la-price span{font-size:12px;color:#617492;line-height:1.5}
+body.rd #rdLeadsMount .la-price strong{
+ font-size:29px;font-weight:850;color:#2756d6;line-height:1.15;
+ font-variant-numeric:tabular-nums;overflow-wrap:anywhere;
+}
+body.rd #rdLeadsMount .la-price small{font-size:11px;color:#7689a7;line-height:1.5}
+body.rd #rdLeadsMount .la-date-grid{display:flex;flex-direction:column;gap:4px}
+body.rd #rdLeadsMount .la-shortcuts{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin:-4px 0 14px}
+body.rd #rdLeadsMount .la-chip{
+ background:#f1f5fb;color:#566987;border:1px solid #e0e7f2;border-radius:999px;
+ padding:8px 11px;min-height:33px;font-size:11px;font-weight:730;
+}
+body.rd #rdLeadsMount .la-chip:hover{background:#e5edfb;color:#3255ac}
+body.rd #rdLeadsMount .la-chip.is-active{background:#dfe9ff;color:#2350c2;border-color:#b7cafa}
+body.rd #rdLeadsMount .la-check{display:flex;align-items:flex-start;gap:9px;margin:11px 0;color:#495b75;font-size:12px;line-height:1.5;cursor:pointer}
+body.rd #rdLeadsMount .la-check input{flex:0 0 auto;width:17px;height:17px;accent-color:#4169e4;margin-top:1px}
+body.rd #rdLeadsMount .la-advisor{
+ padding:15px;margin:18px 0 14px;border:1px solid #dbe4f7;
+ border-radius:12px;background:#f8faff;color:#2e415e;
+}
+body.rd #rdLeadsMount .la-advisor-title{font-size:13px;font-weight:800}
+body.rd #rdLeadsMount .la-advisor p{font-size:13px;line-height:1.6;margin:9px 0}
+body.rd #rdLeadsMount .la-advisor small{display:block}
+body.rd #rdLeadsMount .la-warn{font-size:11px;line-height:1.5;color:#ac611e;margin:8px 0}
+body.rd #rdLeadsMount .la-message{font-size:12px;line-height:1.55;border:1px solid #ccddff;border-radius:10px;background:#f1f6ff;padding:11px;color:#3357ac;margin:10px 0}
+body.rd #rdLeadsMount .la-slots{margin-top:17px;padding:14px 0 0;border:0;border-top:1px solid #e8edf6;border-radius:0;box-shadow:none}
+body.rd #rdLeadsMount .la-slots>strong{font-size:14px;color:#283b5b}
+body.rd #rdLeadsMount .la-slot-list{display:flex;flex-wrap:wrap;gap:7px}
+body.rd #rdLeadsMount .la-slot{
+ border:1px solid #d0e0fc;background:#f4f8ff;border-radius:9px;
+ padding:9px 11px;min-height:36px;font-size:12px;font-weight:740;color:#315bc0
+}
+body.rd #rdLeadsMount .la-slot:hover{background:#e6efff}
+body.rd #rdLeadsMount .la-summary{
+ display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin:8px 0 15px;
+}
+body.rd #rdLeadsMount .la-summary-item{
+ display:flex;align-items:flex-start;flex-direction:column;gap:4px;
+ background:#f7f9fd;border:1px solid #edf0f7;padding:12px 10px;border-radius:11px;min-width:0;
+}
+body.rd #rdLeadsMount .la-summary-item strong{font-size:22px;color:#2f4872;line-height:1;font-weight:790}
+body.rd #rdLeadsMount .la-summary-item span{font-size:10px;line-height:1.3;color:#8391a7}
+body.rd #rdLeadsMount .la-filters{display:flex;flex-wrap:wrap;gap:6px;margin:12px 0 15px}
+body.rd #rdLeadsMount .la-empty{border:1px dashed #e2eaf4;border-radius:11px;padding:26px 15px;color:#8390a6;font-size:13px;text-align:center}
+body.rd #rdLeadsMount .la-lead{border:1px solid #e6ecf5;border-radius:12px;padding:13px 14px;margin:10px 0;background:#fff}
+body.rd #rdLeadsMount .la-lead.la-overdue{border-color:#f1d4af;background:#fffaf4}
+body.rd #rdLeadsMount .la-lead-head{display:flex;gap:10px;align-items:center;justify-content:space-between}
+body.rd #rdLeadsMount .la-lead-head>strong{color:#26364e;font-size:14px;overflow-wrap:anywhere}
+body.rd #rdLeadsMount .la-status{font-size:10px;font-weight:750;color:#617391;background:#edf2fa;padding:5px 7px;border-radius:6px;white-space:nowrap}
+body.rd #rdLeadsMount .la-lead-meta{font-size:12px;color:#6b7b94;line-height:1.5;margin:7px 0}
+body.rd #rdLeadsMount .la-follow{font-size:12px;color:#516b97;font-weight:730;margin:10px 0 5px}
+body.rd #rdLeadsMount .la-alert{color:#a65718}
+body.rd #rdLeadsMount .la-actions{display:flex;gap:7px;margin-top:11px}
+@media(max-width:1150px){
+ body.rd #rdLeadsMount .la-layout{grid-template-columns:minmax(0,1fr)}
+ body.rd #rdLeadsMount .la-editor{order:-1}
+}
+@media(max-width:600px){
+ body.rd #rdLeadsMount .la-box{padding:14px;border-radius:14px}
+ body.rd #rdLeadsMount .la-layout{gap:12px}
+ body.rd #rdLeadsMount .la-title h2{font-size:17px}
+ body.rd #rdLeadsMount .la-price strong{font-size:26px}
+ body.rd #rdLeadsMount .la-slot{flex:1 1 130px}
+ body.rd #rdLeadsMount .la-field-grid{gap:0 8px}
+ body.rd #rdLeadsMount .la-preview-note{padding:10px 12px}
+}
+@media(max-width:360px){
+ body.rd #rdLeadsMount .la-field-grid{grid-template-columns:1fr}
+ body.rd #rdLeadsMount .la-filters .la-chip{flex:1}
+}

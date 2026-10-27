@@ -198,6 +198,10 @@
   <link rel="stylesheet" href="/orders-polish.css">
   <link rel="stylesheet" href="/mobile-order-form.css">
   <link rel="stylesheet" href="/master-notifications.css">
+  <link rel="stylesheet" href="/orders-list.css">
+  <link rel="stylesheet" href="/finance-payroll.css">
+  <link rel="stylesheet" href="/lead-assistant.css">
+  <link rel="stylesheet" href="/ui-alignment.css">
 </head>
 <body>
 
@@ -944,12 +948,12 @@
       ordersNode.replaceChildren();
       if(!shown.length) ordersNode.append(make("div","empty",currentTab==="history"?"Выполненных заказов нет":"Заказов нет"));
       else if(currentRole==="master" && currentTab!=="history") renderMasterSchedule(shown);
-      else shown.forEach(o=>{const card=makeCard(o);window.__rdDecorateOrder?.(card);card.dataset.search=(o.name+' '+o.phone+' '+o.address+' '+o.master).toLocaleLowerCase('ru');card.dataset.date=o.date||'';card.dataset.master=o.master||'';card.dataset.status=o.status||'';card.dataset.unpaid=String(o.status==='Выполнен'&&!o.paid);ordersNode.append(card);});
+      else shown.forEach(o=>{const card=makeCard(o);window.__rdDecorateOrder?.(card,o);card.dataset.search=(o.name+' '+o.phone+' '+o.address+' '+o.master).toLocaleLowerCase('ru');card.dataset.date=o.date||'';card.dataset.master=o.master||'';card.dataset.status=o.status||'';card.dataset.unpaid=String(o.status==='Выполнен'&&!o.paid);ordersNode.append(card);});
       window.__rdRefresh?.();
     }
     function openForm(id) {
       if(currentRole!=="owner" && currentRole!=="manager")return;
-      previousFocus=document.activeElement;form.reset();formStatus.textContent="";formStatus.classList.remove("is-saving");
+      previousFocus=document.activeElement;form.reset();delete form.dataset.leadPreview;formStatus.textContent="";formStatus.classList.remove("is-saving");
       editingId=id===undefined?null:String(id);
       updateMasters();
       const existing=editingId===null?null:getOrders().find(x=>String(x.id)===editingId);
@@ -982,7 +986,7 @@
     function closeForm(force) {
       // Запретить закрытие до завершения сохранения: результат запроса ещё неизвестен.
       if(orderSaving && force!==true)return;
-      overlay.hidden=true;document.body.style.overflow="";form.reset();editingId=null;
+      overlay.hidden=true;document.body.style.overflow="";form.reset();delete form.dataset.leadPreview;editingId=null;
       if(previousFocus&&typeof previousFocus.focus==="function")previousFocus.focus();
     }
     document.getElementById("newOrderBtn").addEventListener("click",()=>openForm());
@@ -1325,6 +1329,17 @@
         }
         history.append(item);
       }
+      // Read-only interface model calculated by the existing finance formulas.
+      // Legacy handlers for cash confirmation and manual operations remain intact.
+      window.__rdFinanceEnhance?.({
+        isOwner, raulAccrued,raulPaid:raulPaid,raulDue,
+        timurAccrued,timurPaid,timurDue,companyEarned,masterHeld,waitingOwner,
+        operations:financeOperations,
+        orders:eligible.map(o=>({
+          date:o.date,name:o.name,price:o.price,
+          raul:financeSplit(o.price).raul,timur:FINANCE_TIMUR_FEE
+        }))
+      });
     }
     function openOrdersView() {
       financeActive=false;financeVisible();
@@ -1418,6 +1433,38 @@
     // The compact bell UI lives in master-notifications.js; preserve master reload/logout hooks.
     function refreshRabotaNotifications(){return window.__rdRefreshMasterNotices?.();}
     async function removePushOnLogout(){await window.__rdDisableMasterPush?.();}
+
+    // Read-only adapter: the lead preview uses existing orders for candidate
+    // windows but does not create any records in the real database.
+    window.__rdLeadContext=()=>({
+      role:currentRole,userId:currentUser?.id||null,
+      orders:getOrders().map(o=>({date:o.date,time:o.time,master:o.master,status:o.status}))
+    });
+    const leadDemoHost=()=>/^rabota-[a-z0-9]{7,}-sonkort19-6069s-projects\.vercel\.app$/i.test(window.location.hostname);
+    form.addEventListener("submit",event=>{
+      if(form.dataset.leadPreview!=="1")return;
+      event.preventDefault();event.stopImmediatePropagation();
+      formStatus.textContent="Тестовый режим: данные из лида подставлены, но сохранять заказ в общей базе нельзя.";
+    },true);
+    window.__rdLeadOpenOrder=lead=>{
+      if(!["owner","manager"].includes(currentRole)||!lead)return;
+      openForm();
+      controls.name.value=String(lead.name||"");
+      controls.phone.value=String(lead.phone||"");
+      controls.address.value=String(lead.address||"");
+      controls.type.value=["Алюминиевые","Биметаллические","Чугунные","Другие"].includes(lead.material)?lead.material:"Другие";
+      controls.radiators.value=lead.radiators??"";
+      controls.loops.value=lead.loops??"";
+      controls.price.value=lead.price??"";
+      controls.details.value=String(lead.notes||"").slice(0,1000);
+      // A candidate window is not a confirmed appointment.
+      controls.date.value="";
+      controls.time.value="";
+      if(leadDemoHost()){
+        form.dataset.leadPreview="1";
+        formStatus.textContent="Черновик из лида. В Preview запись заказа отключена.";
+      }
+    };
 
     const loginMessage=document.getElementById("authMessage");
     const accessMessage=document.getElementById("accessMessage");
@@ -1519,5 +1566,8 @@
   </script>
   <script src="/redesign.js"></script>
   <script src="/master-notifications.js"></script>
+  <script src="/orders-list.js"></script>
+  <script src="/finance-payroll.js"></script>
+  <script src="/lead-assistant.js"></script>
 </body>
 </html>
