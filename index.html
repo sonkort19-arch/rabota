@@ -196,6 +196,7 @@
   <link rel="stylesheet" href="/polished-v2.css">
   <link rel="stylesheet" href="/calendar-v3.css">
   <link rel="stylesheet" href="/orders-polish.css">
+  <link rel="stylesheet" href="/mobile-order-form.css">
 </head>
 <body>
 
@@ -342,8 +343,10 @@
         </div>
         <div class="inline"><input id="paid" name="paid" type="checkbox"><label for="paid">Оплачено</label></div>
         <label for="orderDetails">Комментарий</label><textarea id="orderDetails" name="details" maxlength="1000"></textarea>
-        <button class="primary save" type="submit">Сохранить заказ</button>
-        <div class="error" id="formStatus" role="alert"></div>
+        <div class="order-submit-bar">
+          <button class="primary save" type="submit">Сохранить заказ</button>
+          <div class="error" id="formStatus" role="status" aria-live="polite"></div>
+        </div>
       </form>
     </section>
   </div>
@@ -376,6 +379,7 @@
     let currentTab = "calendar";
     let editingId = null;
     let previousFocus = null;
+    let orderSaving = false;
     let selectedDate = localDate(new Date());
     let cloudOrders = [];
     let session = null;
@@ -925,7 +929,7 @@
     }
     function openForm(id) {
       if(currentRole!=="owner" && currentRole!=="manager")return;
-      previousFocus=document.activeElement;form.reset();formStatus.textContent="";
+      previousFocus=document.activeElement;form.reset();formStatus.textContent="";formStatus.classList.remove("is-saving");
       editingId=id===undefined?null:String(id);
       updateMasters();
       const existing=editingId===null?null:getOrders().find(x=>String(x.id)===editingId);
@@ -950,9 +954,14 @@
         const masters=[...new Set(getOrders().map(o=>String(o.master||"").trim()).filter(Boolean))];
         if(masters.length===1)controls.master.value=masters[0];
       }
-      overlay.hidden=false;document.body.style.overflow="hidden";controls.name.focus();
+      overlay.hidden=false;document.body.style.overflow="hidden";
+      overlay.querySelector(".sheet").scrollTop=0;
+      // На iPhone автоматический фокус открывал клавиатуру и сдвигал форму.
+      if(!window.matchMedia || !window.matchMedia("(pointer: coarse)").matches)controls.name.focus();
     }
-    function closeForm() {
+    function closeForm(force) {
+      // Запретить закрытие до завершения сохранения: результат запроса ещё неизвестен.
+      if(orderSaving && force!==true)return;
       overlay.hidden=true;document.body.style.overflow="";form.reset();editingId=null;
       if(previousFocus&&typeof previousFocus.focus==="function")previousFocus.focus();
     }
@@ -966,8 +975,19 @@
     calendarDate.addEventListener("change",()=>{if(calendarDate.value){selectedDate=calendarDate.value;render();}});
     document.querySelectorAll("[data-tab]").forEach(btn=>btn.addEventListener("click",()=>{currentTab=btn.dataset.tab;render();}));
 
+    // В Safari встроенная проверка required может отменить submit без понятной ошибки.
+    form.addEventListener("invalid",event=>{
+      if(overlay.hidden||formStatus.textContent)return;
+      const label=form.querySelector('label[for="'+event.target.id+'"]');
+      formStatus.textContent=label?"Заполните поле: "+label.textContent.replace("*","").trim():"Проверьте обязательные поля.";
+    },true);
+    form.querySelector('button[type="submit"]').addEventListener("click",()=>{
+      if(!orderSaving){formStatus.textContent="";formStatus.classList.remove("is-saving");}
+    });
     form.addEventListener("submit",async event => {
-      event.preventDefault();formStatus.textContent="";
+      event.preventDefault();
+      if(orderSaving)return;
+      formStatus.textContent="";
       const name=controls.name.value.trim(),phone=controls.phone.value.trim();
       const date=controls.date.value,time=controls.time.value,status=controls.status.value;
       if(!name||!phone||!date||!time||!STATUSES.includes(status)) {
@@ -1013,14 +1033,18 @@
         completedAt:status==="Выполнен"?(existing&&existing.completedAt||now):null
       };
       const saveBtn=form.querySelector('button[type="submit"]');
+      orderSaving=true;
       saveBtn.disabled=true;
+      saveBtn.textContent="Сохраняем…";
+      formStatus.classList.add("is-saving");
+      formStatus.textContent="Сохранение заказа…";
       try {
         await persistOrder(order);
         selectedDate=date;
         currentTab=status==="Выполнен"?"history":status==="Отменён"?"all":"calendar";
-        closeForm();render();
-      } catch(error) {formStatus.textContent=friendlyError(error);}
-      finally {saveBtn.disabled=false;}
+        closeForm(true);render();
+      } catch(error) {formStatus.classList.remove("is-saving");formStatus.textContent=friendlyError(error);}
+      finally {orderSaving=false;saveBtn.disabled=false;saveBtn.textContent="Сохранить заказ";formStatus.classList.remove("is-saving");}
     });
 
     function updateImportButton() {
