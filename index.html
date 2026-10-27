@@ -234,36 +234,37 @@
         <strong id="masterBalanceAmount" class="balance-amount" aria-live="polite">—</strong>
         <span class="balance-arrow" aria-hidden="true">›</span>
       </button>
-    </div><button class="secondary" id="logoutBtn" type="button">Выйти</button></header>
-    <a id="aiChatLink" class="secondary ai-chat-entry" href="/ai.html" hidden>✦ Открыть ИИ-чат</a>
-    <div class="sync-note" id="syncStatus" role="status">Синхронизация...</div>
-    <section id="masterPushPanel" class="push-panel push-compact" hidden aria-label="Уведомления о новых заявках">
-      <div class="push-widget">
-        <div class="push-widget-title">
-          <strong>Новые заявки</strong>
-          <span>Уведомления мастера</span>
-        </div>
-        <div class="push-widget-actions">
+    </div><div class="master-header-actions">
+        <section id="masterPushPanel" class="push-panel push-compact" hidden aria-label="Уведомления о новых заявках">
           <button id="pushBellBtn" class="push-bell" type="button" aria-label="Открыть новые заявки" aria-expanded="false" aria-controls="pushPopover">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9"/><path d="M10 21h4"/></svg>
             <span id="pushUnreadCount" class="push-unread" hidden>0</span>
           </button>
-          <label class="push-toggle">
-            <input id="pushToggle" type="checkbox" role="switch" aria-label="Уведомления о новых заказах на телефон" disabled>
-            <span id="pushToggleText">Выкл</span>
-          </label>
-        </div>
-      </div>
-      <div id="pushPopover" class="push-popover" hidden aria-label="Непрочитанные уведомления">
-        <div class="push-popover-head">
-          <strong>Новые заявки</strong>
-          <button type="button" class="push-close" id="closePushPopover" aria-label="Закрыть уведомления">×</button>
-        </div>
-        <div id="recentNotificationList"><div class="push-empty">Загрузка…</div></div>
-        <button class="secondary" id="testPushBtn" type="button" hidden>Проверить уведомление на телефоне</button>
-      </div>
-      <div id="pushStatus" class="push-status" role="status" aria-live="polite"></div>
-    </section>
+          <div id="pushPopover" class="push-popover" hidden aria-label="Непрочитанные уведомления">
+            <div class="push-popover-head">
+              <strong>Уведомления</strong>
+              <button type="button" class="push-close" id="closePushPopover" aria-label="Закрыть уведомления">×</button>
+            </div>
+            <div class="push-setting-row">
+              <div class="push-setting-label">
+                <strong>Уведомления на телефон</strong>
+                <span>О новых заказах</span>
+              </div>
+              <label class="push-toggle">
+                <input id="pushToggle" type="checkbox" role="switch" aria-label="Уведомления о новых заказах на телефон" disabled>
+                <span id="pushToggleText">Выкл</span>
+              </label>
+            </div>
+            <div id="pushStatus" class="push-status" role="status" aria-live="polite"></div>
+            <div class="push-list-heading">Новые заявки</div>
+            <div id="recentNotificationList"><div class="push-empty">Загрузка…</div></div>
+            <button class="secondary" id="testPushBtn" type="button" hidden>Проверить уведомление на телефоне</button>
+          </div>
+        </section>
+      <button class="secondary" id="logoutBtn" type="button">Выйти</button>
+    </div></header>
+    <a id="aiChatLink" class="secondary ai-chat-entry" href="/ai.html" hidden>✦ Открыть ИИ-чат</a>
+    <div class="sync-note" id="syncStatus" role="status">Синхронизация...</div>
     <div id="viewSwitch" class="view-switch" hidden>
       <button id="viewOrdersBtn" class="view-button is-selected" type="button">Заявки</button>
       <button id="viewFinanceBtn" class="view-button" type="button">Финансы</button>
