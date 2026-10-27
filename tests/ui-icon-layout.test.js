@@ -8,6 +8,7 @@ const fs=require("node:fs");
 const path=require("node:path");
 const source=fs.readFileSync(path.join(__dirname,"../redesign.js"),"utf8");
 const css=fs.readFileSync(path.join(__dirname,"../ui-alignment.css"),"utf8");
+const ordersCSS=fs.readFileSync(path.join(__dirname,"../orders-polish.css"),"utf8");
 const html=fs.readFileSync(path.join(__dirname,"../index.html"),"utf8");
 test("metric icons are adjacent to labels, while values remain a separate column",()=>{
  assert.ok(source.includes('heading.append(icon,boxText("small",label))'));
@@ -40,4 +41,15 @@ test("chart tooltips are event-driven; missing customer names cannot crash summa
  assert.ok(source.includes('svg.addEventListener("mouseleave",hideChartTip)'));
  assert.ok(source.includes('String(o.name||"").toLocaleLowerCase("ru")'));
  new Function(source);
+});
+
+test("order KPI cards cannot collapse headings into old 46px CSS grid column",()=>{
+ const cardRule=ordersCSS.match(/body\.rd #rdOrderStats \.rd-stat\s*\{([^}]*)\}/);
+ assert.ok(cardRule,"expected a scoped order KPI layout rule");
+ assert.match(cardRule[1],/display:\s*flex\s*;\s*flex-direction:\s*column/);
+ assert.doesNotMatch(cardRule[1],/grid-template-columns/);
+ assert.match(ordersCSS,/body\.rd #rdOrderStats \.rd-stat \.rd-stat-heading\s*\{[^}]*width:100%/);
+ assert.match(ordersCSS,/body\.rd #rdOrderStats \.rd-stat \.rd-stat-heading small\s*\{[^}]*word-break:normal/);
+ assert.match(ordersCSS,/body\.rd #rdOrderStats \.rd-stat-body strong\s*\{[^}]*margin:0!important/);
+ assert.doesNotMatch(ordersCSS,/grid-template-columns:\s*(?:46|35|32)px\s+minmax\(0,1fr\)/);
 });
