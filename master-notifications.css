@@ -1,53 +1,54 @@
-/* Compact notifications for the master, scoped to this widget only. */
-#masterPushPanel.push-compact {
-  position: relative;
-  margin: 10px 0 15px;
-  padding: 12px 15px;
-  border: 1px solid #dce5f4;
-  border-radius: 16px;
-  background: #fff;
-  color: #263852;
-  box-shadow: 0 3px 13px #1e3d6e0b;
-  overflow: visible;
+/* Компактные уведомления мастера: только верхняя панель, без широкой карточки. */
+body.rd #appScreen.rd-master > header {
+  gap: 10px;
+  align-items: flex-start;
 }
-#masterPushPanel .push-widget {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-}
-#masterPushPanel .push-widget-title {
-  display: grid;
-  gap: 3px;
+body.rd #appScreen.rd-master > header > div:first-child {
+  flex: 1 1 auto;
   min-width: 0;
 }
-#masterPushPanel .push-widget-title strong {
-  font-size: 15px;
-  line-height: 1.25;
-  font-weight: 740;
+body.rd #appScreen.rd-master .master-header-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  flex: 0 0 auto;
+  padding-top: 4px;
 }
-#masterPushPanel .push-widget-title span {
-  color: #687a94;
-  font-size: 12px;
+body.rd #appScreen.rd-master .master-header-actions #logoutBtn {
+  min-height: 44px;
+  white-space: nowrap;
 }
-#masterPushPanel .push-widget-actions {
-  display: grid;
-  justify-items: center;
-  gap: 5px;
-  flex: 0 0 90px;
+#masterPushPanel.push-compact,
+body.rd #masterPushPanel.push-compact {
+  position: relative;
+  display: block;
+  flex: 0 0 auto;
+  width: auto;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: #263852;
+  box-shadow: none;
+  overflow: visible;
 }
+#masterPushPanel.push-compact[hidden] { display: none !important; }
 #masterPushPanel .push-bell {
-  width: 48px;
-  height: 48px;
+  width: 46px;
+  height: 46px;
   display: grid;
   place-items: center;
   position: relative;
-  border: 1px solid #dae4f4;
-  background: #f3f6ff;
-  color: #355c9d;
-  border-radius: 15px;
+  border: 1px solid #dce5f4;
+  background: #f2f5ff;
+  color: #365d9c;
+  border-radius: 14px;
   cursor: pointer;
   touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
 }
 #masterPushPanel .push-bell svg {
   width: 25px;
@@ -60,32 +61,88 @@
 }
 #masterPushPanel .push-bell:active { transform: scale(.97); }
 #masterPushPanel .push-bell:focus-visible,
-#masterPushPanel .push-toggle input:focus-visible {
+#masterPushPanel .push-toggle input:focus-visible,
+#masterPushPanel .push-close:focus-visible {
   outline: 3px solid #96b4ef;
-  outline-offset: 3px;
+  outline-offset: 2px;
 }
 #masterPushPanel .push-unread {
   position: absolute;
-  top: -6px;
+  top: -7px;
   right: -8px;
-  border: 2px solid #fff;
-  border-radius: 999px;
-  padding: 2px 5px;
-  min-width: 23px;
-  height: 23px;
+  min-width: 22px;
+  height: 22px;
+  padding: 1px 5px;
+  border: 2px solid white;
+  border-radius: 99px;
+  color: white;
   background: #e23e47;
-  color: #fff;
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 800;
-  line-height: 15px;
+  line-height: 17px;
   text-align: center;
+  pointer-events: none;
 }
+#masterPushPanel .push-popover {
+  position: absolute;
+  top: calc(100% + 12px);
+  right: 0;
+  z-index: 110;
+  display: flex;
+  flex-direction: column;
+  width: min(365px, calc(100vw - 24px));
+  max-height: min(68dvh, 560px);
+  border: 1px solid #dce5f4;
+  border-radius: 17px;
+  background: #fff;
+  color: #22334e;
+  box-shadow: 0 18px 50px #20345638;
+  overflow: hidden;
+  overscroll-behavior: contain;
+}
+#masterPushPanel .push-popover[hidden] { display: none; }
+#masterPushPanel .push-popover-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 12px 15px;
+  border-bottom: 1px solid #edf0f5;
+}
+#masterPushPanel .push-popover-head strong { font-size: 16px; font-weight: 750; }
+#masterPushPanel .push-close {
+  display: grid;
+  place-items: center;
+  width: 35px;
+  height: 35px;
+  border: 0;
+  border-radius: 10px;
+  color: #53657f;
+  background: #f2f5f9;
+  font-size: 22px;
+  cursor: pointer;
+}
+#masterPushPanel .push-setting-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 15px 11px;
+  border-bottom: 1px solid #edf0f5;
+}
+#masterPushPanel .push-setting-label { display: grid; min-width: 0; gap: 3px; }
+#masterPushPanel .push-setting-label strong {
+  color: #2a3b57;
+  font-size: 13px;
+  font-weight: 700;
+}
+#masterPushPanel .push-setting-label span { font-size: 11px; color: #76859b; }
 #masterPushPanel .push-toggle {
   display: inline-flex;
   align-items: center;
   gap: 7px;
+  flex-shrink: 0;
   font-size: 11px;
-  line-height: 1;
   color: #53657f;
   cursor: pointer;
   user-select: none;
@@ -93,9 +150,10 @@
 #masterPushPanel .push-toggle input {
   appearance: none;
   -webkit-appearance: none;
-  width: 35px;
-  height: 21px;
-  min-width: 35px;
+  width: 38px;
+  height: 22px;
+  min-width: 38px;
+  min-height: 22px;
   margin: 0;
   padding: 0;
   position: relative;
@@ -110,99 +168,81 @@
   position: absolute;
   top: 3px;
   left: 3px;
-  width: 15px;
-  height: 15px;
+  width: 16px;
+  height: 16px;
   border-radius: 50%;
   background: #fff;
   box-shadow: 0 1px 3px #0002;
   transition: transform .16s ease;
 }
-#masterPushPanel .push-toggle input:checked { background: #4664ef; }
-#masterPushPanel .push-toggle input:checked:before { transform: translateX(14px); }
-#masterPushPanel .push-toggle input:disabled { opacity: .6; cursor: wait; }
-#masterPushPanel .push-popover {
-  position: absolute;
-  right: 0;
-  top: calc(100% + 7px);
-  z-index: 110;
-  width: min(390px, calc(100vw - 32px));
-  max-height: min(68dvh, 520px);
-  display: flex;
-  flex-direction: column;
-  border: 1px solid #dce5f4;
-  border-radius: 16px;
-  background: #fff;
-  color: #21334d;
-  box-shadow: 0 20px 50px #1c2f5452;
-  overflow: hidden;
+#masterPushPanel .push-toggle input:checked { background: #5165ec; }
+#masterPushPanel .push-toggle input:checked:before { transform: translateX(16px); }
+#masterPushPanel .push-toggle input:disabled { cursor: wait; opacity: .65; }
+#masterPushPanel #pushStatus {
+  flex: 0 0 auto;
+  margin: 0;
+  padding: 0 15px;
+  font-size: 12px;
+  color: #546c8e;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
 }
-#masterPushPanel .push-popover[hidden] { display: none; }
-#masterPushPanel .push-popover-head {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 8px;
-  padding: 13px 15px;
-  border-bottom: 1px solid #e9edf5;
-}
-#masterPushPanel .push-popover-head strong { font-size: 16px; }
-#masterPushPanel .push-close {
-  border: 0;
-  background: #f1f4f8;
-  border-radius: 10px;
-  width: 35px;
-  height: 35px;
-  color: #53657f;
-  font-size: 22px;
-  cursor: pointer;
+#masterPushPanel #pushStatus:not(:empty) { padding: 10px 15px; background: #f8faff; }
+#masterPushPanel #pushStatus.is-error { color: #a32d35; }
+#masterPushPanel .push-list-heading {
+  padding: 11px 15px 4px;
+  font-size: 12px;
+  font-weight: 750;
+  color: #5b6f8d;
 }
 #masterPushPanel #recentNotificationList {
   overflow-y: auto;
-  min-height: 0;
-  padding: 4px 15px;
-  -webkit-overflow-scrolling: touch;
   overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  padding: 0 15px 8px;
+  min-height: 0;
 }
 #masterPushPanel .push-notice {
   display: flex;
   flex-direction: column;
   gap: 5px;
-  padding: 12px 0;
+  padding: 11px 0;
   border-top: 0;
   border-bottom: 1px solid #edf0f5;
   font-size: 13px;
 }
 #masterPushPanel .push-notice:last-child { border-bottom: 0; }
-#masterPushPanel .push-notice strong { font-size: 14px; overflow-wrap: anywhere; }
+#masterPushPanel .push-notice strong { font-size: 14px; color: #263852; overflow-wrap: anywhere; }
 #masterPushPanel .push-notice span { color: #65768d; }
 #masterPushPanel .push-notice button {
   align-self: flex-start;
   min-height: 35px;
-  margin-top: 5px;
-  border-radius: 10px;
+  margin-top: 4px;
+  padding: 7px 11px;
+  border-radius: 9px;
+  font-size: 12px;
 }
 #masterPushPanel .push-empty {
-  padding: 24px 3px;
+  padding: 22px 2px;
   text-align: center;
   color: #71819b;
   font-size: 13px;
 }
 #masterPushPanel #testPushBtn {
-  margin: 10px 15px 13px;
+  margin: 8px 15px 14px;
   min-height: 38px;
   font-size: 12px;
   align-self: stretch;
 }
-#masterPushPanel #pushStatus {
-  margin: 7px 0 0;
-  color: #536b8d;
-  font-size: 12px;
-  line-height: 1.4;
-  overflow-wrap: anywhere;
+@media(max-width: 420px) {
+  body.rd #appScreen.rd-master > header { gap: 7px; }
+  body.rd #appScreen.rd-master > header h1 { font-size: clamp(21px, 6vw, 25px); }
+  body.rd #appScreen.rd-master .master-header-actions { gap: 6px; }
+  body.rd #appScreen.rd-master .master-header-actions #logoutBtn { padding: 9px 10px; font-size: 13px; }
+  #masterPushPanel .push-bell { width: 43px; height: 43px; }
+  #masterPushPanel .push-popover { right: -64px; width: min(350px, calc(100vw - 24px)); }
 }
-#masterPushPanel #pushStatus:empty { display: none; }
-#masterPushPanel #pushStatus.is-error { color: #ab3030; }
-@media (prefers-reduced-motion: reduce) {
+@media(prefers-reduced-motion: reduce) {
   #masterPushPanel .push-toggle input,
   #masterPushPanel .push-toggle input:before { transition: none; }
 }
