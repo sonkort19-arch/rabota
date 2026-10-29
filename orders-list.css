@@ -120,17 +120,18 @@ body.rd #orders .rd-list-details .control-label{font-size:11px}
   body.rd #appScreen.rd-view-orders #orders:has(>.rd-list-row){gap:9px}
   body.rd #appScreen.rd-view-orders #orders>.order-card.rd-list-row{border-radius:15px}
   body.rd #orders .rd-list-toggle{
-    display:grid;grid-template-columns:minmax(0,1fr) auto 19px;
-    grid-template-areas:"who when arrow" "master price state" "paid paid paid";
+    /* Three responsive columns: full-width status/payment footer, no 19px status cell. */
+    display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr) 20px;
+    grid-template-areas:"who when arrow" "master price price" "state paid paid";
     align-items:center;gap:12px 9px;
     min-height:0;padding:14px 13px;
   }
   body.rd #orders .rd-list-person{grid-area:who}
   body.rd #orders .rd-list-when{grid-area:when;text-align:right;align-items:flex-end}
   body.rd #orders .rd-list-master{grid-area:master}
-  body.rd #orders .rd-list-price{grid-area:price;align-items:flex-end}
-  body.rd #orders .rd-list-state{grid-area:state}
-  body.rd #orders .rd-list-paid{grid-area:paid;display:block!important}
+  body.rd #orders .rd-list-price{grid-area:price;align-items:flex-end;text-align:right}
+  body.rd #orders .rd-list-state{grid-area:state;min-width:0;justify-self:start}
+  body.rd #orders .rd-list-paid{grid-area:paid;display:block!important;min-width:0;justify-self:end;text-align:right}
   body.rd #orders .rd-list-arrow{grid-area:arrow}
   body.rd #orders .rd-list-avatar{width:34px;height:34px;flex-basis:34px;border-radius:10px}
   body.rd #orders .rd-list-name{font-size:14px}
