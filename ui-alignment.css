@@ -160,3 +160,7 @@ body.rd .rd-quick{
   body.rd .rd-panel-heading{gap:8px}
   body.rd .rd-panel-heading>.rd-svgicon{width:19px;height:19px;min-width:19px;flex-basis:19px}
 }
+
+/* Убираем лишний блок управления мастерами из интерфейса заказов.
+   Существующие права доступа, аккаунты и назначения мастеров не изменяются. */
+#teamPanel { display: none !important; }
