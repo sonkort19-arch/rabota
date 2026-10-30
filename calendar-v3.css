@@ -99,10 +99,22 @@ body.rd #rdCalendarBoard[data-calendar-mode="week"] .rd-week-strip{display:none}
 @media(max-width:790px){
  body.rd .rd-calendar-intro{padding-right:0;min-height:0;margin-bottom:10px}
  body.rd .rd-cal-create{position:static;width:100%;margin:11px 0 5px;min-height:47px}
- body.rd #rdCalendarNavigation{display:grid;grid-template-columns:44px 44px 1fr 1fr;gap:8px;padding:10px}
- body.rd #rdCalendarNavigation #rdCalendarDate{grid-column:1/3}
- body.rd #rdCalendarNavigation #rdCalendarMaster{grid-column:3/5}
- body.rd #rdCalendarNavigation #rdCalendarStatus{grid-column:1/5}
+ /* One navigation row, then full-width controls: native iOS date fields need space. */
+ body.rd #rdCalendarNavigation{
+  display:grid;grid-template-columns:44px 44px minmax(0,1fr);
+  align-items:stretch;gap:8px;padding:10px;min-width:0;max-width:100%;
+ }
+ body.rd #rdCalendarNavigation .rd-cal-step{grid-row:1}
+ body.rd #rdCalendarNavigation .rd-cal-today{grid-column:3;grid-row:1;white-space:nowrap}
+ body.rd #rdCalendarNavigation #rdCalendarDate,
+ body.rd #rdCalendarNavigation #rdCalendarMaster,
+ body.rd #rdCalendarNavigation #rdCalendarStatus{
+  grid-column:1/-1;width:100%;min-width:0;max-width:100%;
+  box-sizing:border-box;font-size:16px;overflow:hidden;
+ }
+ body.rd #rdCalendarNavigation #rdCalendarDate{grid-row:2}
+ body.rd #rdCalendarNavigation #rdCalendarMaster{grid-row:3}
+ body.rd #rdCalendarNavigation #rdCalendarStatus{grid-row:4}
  body.rd .rd-calendar-panel{padding:15px 12px}
  body.rd .rd-calendar-heading{justify-content:flex-start;align-items:center}
  body.rd .rd-calendar-heading h2{font-size:15px;width:100%}
@@ -127,7 +139,7 @@ body.rd #rdCalendarBoard[data-calendar-mode="week"] .rd-week-strip{display:none}
  body.rd #rdCalendarBoard .rd-calendar-note{font-size:10px}
 }
 @media(max-width:380px){
- body.rd #rdCalendarNavigation{grid-template-columns:40px 40px 1fr 1fr}
+ body.rd #rdCalendarNavigation{grid-template-columns:40px 40px minmax(0,1fr)}
  body.rd #rdCalendarBoard .rd-calendar-actions{grid-template-columns:repeat(2,minmax(0,1fr))}
  body.rd #rdCalendarBoard .rd-cal-action{font-size:10px}
 }
