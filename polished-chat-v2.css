@@ -91,3 +91,30 @@ html,body{background:#fff;color:var(--ai-ink);-webkit-font-smoothing:antialiased
  .rd-ai-emblem{height:56px;width:56px;font-size:38px}
 }
 @media(prefers-reduced-motion:reduce){.quick-question{transform:none!important;transition:none!important}}
+
+/* Shrink the transcript before the composer; keep long titles inside the header. */
+#main,#messages,#history { min-height:0; }
+.top h1 { min-width:0; flex:1 1 0; }
+.top>span,#menu { flex-shrink:0; }
+.composer-wrap {
+  max-height:calc(100dvh - 80px - env(safe-area-inset-top));
+  overflow-y:auto;
+  overscroll-behavior:contain;
+}
+#proposalCard { overflow-wrap:anywhere; }
+@media (max-width:760px) {
+  #layout aside {
+    visibility:hidden;
+    padding-top:max(18px,env(safe-area-inset-top));
+    padding-bottom:max(18px,env(safe-area-inset-bottom));
+    transition:transform .2s ease,visibility .2s;
+  }
+  body.menu-open #layout aside { visibility:visible; }
+  .top { height:calc(61px + env(safe-area-inset-top)); padding-top:env(safe-area-inset-top); }
+  .composer-wrap {
+    padding-left:max(11px,env(safe-area-inset-left));
+    padding-right:max(11px,env(safe-area-inset-right));
+  }
+}
+@media (pointer:coarse) { #input { font-size:16px; } }
+@media (prefers-reduced-motion:reduce) { #layout aside { transition:none; } }

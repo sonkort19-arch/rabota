@@ -164,3 +164,67 @@ body.rd .rd-quick{
 /* Убираем лишний блок управления мастерами из интерфейса заказов.
    Существующие права доступа, аккаунты и назначения мастеров не изменяются. */
 #teamPanel { display: none !important; }
+
+/* Keep intrinsic text widths inside their cards, including imported client data. */
+body.rd .rd-client,
+body.rd .rd-client-history,
+body.rd .finance-hero,
+body.rd .finance-activity,
+body.rd .finance-line,
+body.rd .finance-activity-top,
+body.rd .rd-cal-order-heading,
+body.rd .rd-selected-heading {
+  min-width:0;
+  overflow-wrap:anywhere;
+}
+body.rd .rd-client :is(strong,span),
+body.rd .finance-line-label,
+body.rd .finance-activity-top>span,
+body.rd .rd-cal-order-heading>strong {
+  min-width:0;
+  overflow-wrap:anywhere;
+}
+body.rd .finance-line-label { flex:1 1 0; }
+body.rd .finance-line>strong { flex:0 0 auto; }
+body.rd .finance-activity-top>span { flex:1 1 0; }
+body.rd .rd-top-search { min-width:0; }
+body.rd .rd-user { flex:0 0 auto; }
+body.rd .rd-shell { overflow-y:auto; overscroll-behavior:contain; }
+body.rd .rd-more-sheet { max-height:calc(100dvh - 100px - env(safe-area-inset-top) - env(safe-area-inset-bottom)); overflow-y:auto; }
+
+/* A sidebar leaves less room on tablets than the full viewport suggests. */
+@media (max-width:1180px) {
+  body.rd .rd-top-title { display:none; }
+  body.rd #rdCalendarNavigation {
+    grid-template-columns:44px 44px minmax(0,1fr);
+  }
+  body.rd #rdCalendarNavigation #rdCalendarDate { grid-column:1/-1; }
+  body.rd #rdCalendarNavigation #rdCalendarMaster { grid-column:1/-1; }
+  body.rd #rdCalendarNavigation #rdCalendarStatus { grid-column:1/-1; }
+}
+@media (max-width:790px) {
+  body.rd .rd-top {
+    height:calc(64px + env(safe-area-inset-top));
+    padding-top:env(safe-area-inset-top);
+    padding-left:max(12px,env(safe-area-inset-left));
+    padding-right:max(12px,env(safe-area-inset-right));
+  }
+  body.rd #appScreen:not(.rd-master) { padding-top:calc(82px + env(safe-area-inset-top)); }
+  body.rd #appScreen.rd-master { padding-top:max(20px,env(safe-area-inset-top)); }
+  body.rd .rd-top:before { top:calc(22px + env(safe-area-inset-top)); }
+  body.rd .rd-top:after { top:calc(38px + env(safe-area-inset-top)); }
+  body.rd .rd-mobilebar {
+    padding-left:max(5px,env(safe-area-inset-left));
+    padding-right:max(5px,env(safe-area-inset-right));
+  }
+  body.rd #rdCalendarBoard .rd-selected-heading { flex-wrap:wrap; }
+}
+@media (pointer:coarse) {
+  body.rd :is(input,select,textarea),
+  body.rd #rdLeadsMount .la-input { font-size:16px; }
+}
+@media (max-width:360px) {
+  body.rd #orderForm .form-grid { grid-template-columns:minmax(0,1fr); }
+  body.rd .finance-line { flex-wrap:wrap; }
+  body.rd .finance-line>strong { max-width:100%; white-space:normal; overflow-wrap:anywhere; }
+}

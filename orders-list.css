@@ -115,7 +115,7 @@ body.rd #orders .rd-list-details .control-label{font-size:11px}
   body.rd #appScreen.rd-view-orders #orders>.rd-list-columns>span:nth-child(6),
   body.rd #orders .rd-list-toggle>.rd-list-paid{display:none}
 }
-@media(max-width:790px){
+@media(max-width:1130px){
   body.rd #appScreen.rd-view-orders #orders>.rd-list-columns{display:none}
   body.rd #appScreen.rd-view-orders #orders:has(>.rd-list-row){gap:9px}
   body.rd #appScreen.rd-view-orders #orders>.order-card.rd-list-row{border-radius:15px}

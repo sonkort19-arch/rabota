@@ -160,7 +160,7 @@ body.rd .fp-primary:disabled{opacity:.45;cursor:not-allowed}
  }
  body.rd #financePanel .fp-people-head>span:nth-child(3),body.rd #financePanel .fp-col-paid{display:none}
 }
-@media(max-width:790px){
+@media(max-width:1050px){
  body.rd #financePanel .fp-tabs{margin:2px 0 13px;gap:2px}
  body.rd #financePanel .fp-tab{font-size:11px;min-height:43px;padding:5px 3px}
  body.rd #financePanel .fp-metrics{gap:8px}
@@ -273,7 +273,7 @@ body.rd #financePanel .fp-person-summary-item>strong{
 body.rd #financePanel .fp-person-detail .fp-subtabs{
   margin:22px 0 17px;
 }
-@media(max-width:790px){
+@media(max-width:1050px){
   body.rd #financePanel .fp-person-detail{padding:12px}
   body.rd #financePanel .fp-balance-hero{
     gap:15px;padding:18px;border-radius:14px;
