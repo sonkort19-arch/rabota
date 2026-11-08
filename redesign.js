@@ -25,7 +25,7 @@ const iconPaths={
  wallet:'<rect x="3" y="6" width="18" height="15" rx="3"/><path d="M4 9V6a3 3 0 0 1 3-3h11M16 13h6v5h-6a2.5 2.5 0 0 1 0-5Z"/>',
  chart:'<path d="M3 20V4M3 20h18M7 16l4-5 4 3 5-8"/>',
  plus:'<path d="M12 4v16M4 12h16"/>',
- progress:'<circle cx="12" cy="12" r="3"/><path d="M19.5 12a7.5 7.5 0 0 0-.1-1.1l1.5-1.2-1.5-2.6-1.9.6a7.9 7.9 0 0 0-1.9-1.1L15.3 4h-3l-.4 2.6a7.9 7.9 0 0 0-1.9 1.1l-1.9-.6-1.5 2.6 1.5 1.2a7.5 7.5 0 0 0 0 2.2l-1.5 1.2 1.5 2.6 1.9-.6a7.9 7.9 0 0 0 1.9 1.1l.4 2.6h3l.4-2.6a7.9 7.9 0 0 0 1.9-1.1l1.9.6 1.5-2.6-1.5-1.2a7.5 7.5 0 0 0 .1-1.1Z"/>',
+  progress:'<path d="M9.11 5.02 L10.17 4.67 L10.37 2.74 L13.63 2.74 L13.83 4.67 L14.89 5.02 L14.89 5.02 L15.89 5.53 L17.39 4.3 L19.7 6.61 L18.47 8.11 L18.98 9.11 L18.98 9.11 L19.33 10.17 L21.26 10.37 L21.26 13.63 L19.33 13.83 L18.98 14.89 L18.98 14.89 L18.47 15.89 L19.7 17.39 L17.39 19.7 L15.89 18.47 L14.89 18.98 L14.89 18.98 L13.83 19.33 L13.63 21.26 L10.37 21.26 L10.17 19.33 L9.11 18.98 L9.11 18.98 L8.11 18.47 L6.61 19.7 L4.3 17.39 L5.53 15.89 L5.02 14.89 L5.02 14.89 L4.67 13.83 L2.74 13.63 L2.74 10.37 L4.67 10.17 L5.02 9.11 L5.02 9.11 L5.53 8.11 L4.3 6.61 L6.61 4.3 L8.11 5.53 L9.11 5.02Z"/><circle cx="12" cy="12" r="2.8"/>',
  pin:'<path d="M20 10c0 5-8 12-8 12S4 15 4 10a8 8 0 1 1 16 0Z"/><circle cx="12" cy="10" r="2.5"/>',
  radiator:'<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M7 5v14M11 5v14M15 5v14M19 5v14M3 9h18"/>',
  heat:'<path d="M5 20c-3-5 4-6 1-11M11 20c-3-5 4-6 1-11M17 20c-3-5 4-6 1-11"/>',
@@ -438,10 +438,10 @@ function drawOrderSummary(){
  const el=$("rdOrderStats");el.replaceChildren();
  const active=getOrders().filter(o=>!["Отменён","Выполнен"].includes(o.status)),newOrders=active.filter(o=>o.status==="Новый");
  const inProgress=active.filter(o=>o.status==="В работе"),unpaid=getOrders().filter(o=>o.status==="Выполнен"&&!o.paid);
- stats(el,[{label:"Активные заказы",value:String(active.length),hint:"Не выполненные и не отменённые"},
- {label:"Новые",value:String(newOrders.length),hint:"Ожидают обработки"},
- {label:"В работе",value:String(inProgress.length),hint:"Текущий статус"},
- {label:"Не оплачено",value:String(unpaid.length),hint:"Завершены без отметки оплаты"}]);
+ stats(el,[{label:"Активные заказы",value:String(active.length),hint:"Ещё не завершены"},
+ {label:"Новые",value:String(newOrders.length),hint:"Ждут обработки"},
+ {label:"В работе",value:String(inProgress.length),hint:"Сейчас выполняются"},
+ {label:"Не оплачено",value:String(unpaid.length),hint:"Завершены без оплаты"}]);
  const select=$("rdMasterFilter"),previous=select.value;
  select.replaceChildren();const initial=makeNode("option","","Все мастера");initial.value="";select.append(initial);
  const masters=[...new Set(getOrders().map(o=>smText(o.master)).filter(Boolean))].sort((a,b)=>a.localeCompare(b,"ru"));
