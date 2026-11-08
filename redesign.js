@@ -565,7 +565,7 @@ function drawCalendar(){
   const phone=smText(o.phone),normalized=normalizePhone(phone);
   if(phone){
    const call=makeNode("a","rd-cal-action","Позвонить");
-   call.href="tel:"+phone.replace(/[^+\\d]/g,"");actions.append(call);
+   call.href="tel:"+phone.replace(/[^+\d]/g,"");actions.append(call);
   }
   if(normalized){
    const whatsapp=makeNode("a","rd-cal-action rd-cal-whatsapp","WhatsApp");
