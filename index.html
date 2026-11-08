@@ -422,6 +422,7 @@
     let orderSaving = false;
     let selectedDate = localDate(new Date());
     let cloudOrders = [];
+    let ordersLoaded = false;
     let session = null;
     let currentUser = null;
     let currentRole = null;
@@ -577,9 +578,15 @@
         items.push(...page);
         if (page.length < 1000) break;
       }
-      cloudOrders = items.map(readOrder);
-      render();
-      updateImportButton();
+      const incoming=items.map(readOrder);
+      const changed=!ordersLoaded || JSON.stringify(incoming)!==JSON.stringify(cloudOrders);
+      cloudOrders=incoming;
+      ordersLoaded=true;
+      // A periodic refresh must not destroy focused controls or expanded cards.
+      if(changed){
+        render();
+        updateImportButton();
+      }
       let syncError=null;
       if(currentRole==="owner"||currentRole==="master") {
         try {await loadFinance();} catch(error){
@@ -605,9 +612,17 @@
       }
       await reloadOrders();
     }
-    function hasConflict(date, time, excludeId) {
+    function hasConflict(date, time, master, excludeId) {
+      const selectedMaster=String(master||"").trim().toLocaleLowerCase("ru");
       return getOrders().some(order => String(order.id) !== String(excludeId) &&
-        order.status !== "Отменён" && order.date === date && order.time === time);
+        order.status !== "Отменён" && order.date === date && order.time === time &&
+        String(order.master||"").trim().toLocaleLowerCase("ru") === selectedMaster);
+    }
+    function masterDayCount(date, master, excludeId) {
+      const selectedMaster=String(master||"").trim().toLocaleLowerCase("ru");
+      return getOrders().filter(order => String(order.id)!==String(excludeId) &&
+        order.status!=="Отменён" && order.date===date &&
+        String(order.master||"").trim().toLocaleLowerCase("ru")===selectedMaster).length;
     }
     // Типовая работа 3 часа и 20 минут дороги. Исключения разрешает диспетчер.
     function findTightBookings(date,time,master,excludeId) {
@@ -921,10 +936,11 @@
 
     function renderCalendar() {
       calendarDate.value = selectedDate;
-      ordersDayDateLabel.textContent = parseDate(selectedDate).toLocaleDateString("ru-RU",
-        {day:"numeric",month:"short",year:"numeric"});
       const base = parseDate(selectedDate);
       const monday = addDays(selectedDate,-((base.getDay()+6)%7));
+      const sunday = addDays(monday,6);
+      ordersDayDateLabel.textContent=parseDate(monday).getDate()+"–"+
+        parseDate(sunday).toLocaleDateString("ru-RU",{day:"numeric",month:"short"});
       const orders = getOrders();
       weekDays.replaceChildren();
       ordersWeekDays.replaceChildren();
@@ -971,22 +987,25 @@
       let shown;
       if (currentTab === "history") {
         shown = getOrders().filter(o=>o.status==="Выполнен");
-        shown.sort((a,b)=>String(b.completedAt||b.createdAt||"").localeCompare(String(a.completedAt||a.createdAt||"")));
+        // History follows the appointment date shown on each card.
+        shown.sort((a,b)=>String(b.date||"").localeCompare(String(a.date||""))||
+          String(b.time||"").localeCompare(String(a.time||""))||
+          String(b.completedAt||"").localeCompare(String(a.completedAt||"")));
         document.getElementById("listTitle").textContent="Выполненные заказы";
       } else if (currentTab==="all") {
         shown=getOrders().filter(o=>{
-          if(currentRole!=="master")return o.status!=="Выполнен";
+          if(currentRole!=="master")return true;
           if(o.status==="Отменён")return false;
           // Не прячем завершённый заказ, пока нужно распределить или сдать оплату.
           if(o.status!=="Выполнен")return true;
           const collected=collectionForOrder(o.id);
           return !o.paid || Boolean(collected&&!collected.confirmed_at);
         });
-        shown.sort((a,b)=>String(a.date||"9999").localeCompare(String(b.date||"9999")) ||
-          String(a.time||"99:99").localeCompare(String(b.time||"99:99")));
+        shown.sort((a,b)=>String(b.date||"").localeCompare(String(a.date||"")) ||
+          String(b.time||"").localeCompare(String(a.time||"")));
         document.getElementById("listTitle").textContent=currentRole==="master"?"Моё расписание":"Все заказы";
       } else {
-        shown=getOrders().filter(o=>o.date===selectedDate&&o.status!=="Выполнен"&&o.status!=="Отменён");
+        shown=getOrders().filter(o=>o.date===selectedDate);
         shown.sort((a,b)=>String(a.time||"").localeCompare(String(b.time||"")));
         document.getElementById("listTitle").textContent="Заказы · "+formatDate(selectedDate);
       }
@@ -994,7 +1013,7 @@
       ordersNode.replaceChildren();
       if(!shown.length) ordersNode.append(make("div","empty",currentTab==="history"?"Выполненных заказов нет":"Заказов нет"));
       else if(currentRole==="master" && currentTab!=="history") renderMasterSchedule(shown);
-      else shown.forEach(o=>{const card=makeCard(o);window.__rdDecorateOrder?.(card,o);card.dataset.search=(o.name+' '+o.phone+' '+o.address+' '+o.master).toLocaleLowerCase('ru');card.dataset.date=o.date||'';card.dataset.master=o.master||'';card.dataset.status=o.status||'';card.dataset.unpaid=String(o.status==='Выполнен'&&!o.paid);ordersNode.append(card);});
+      else shown.forEach(o=>{const card=makeCard(o);window.__rdDecorateOrder?.(card,o);card.dataset.search=(o.name+' '+o.phone+' '+o.address+' '+o.master).toLocaleLowerCase('ru');card.dataset.date=o.date||'';card.dataset.master=o.master||'';card.dataset.status=o.status||'';card.dataset.unpaid=String(o.status==='Выполнен'&&!o.paid);card.dataset.pendingPayment=String(o.status!=="Отменён"&&!o.paid);ordersNode.append(card);});
       window.__rdRefresh?.();
     }
     function openForm(id) {
@@ -1060,29 +1079,11 @@
     document.querySelectorAll("[data-tab]").forEach(btn=>btn.addEventListener("click",()=>{
       const nextTab=btn.dataset.tab;
       if(currentTab===nextTab)return;
-      const isOrdersView=window.__rdCurrentPage==="orders";
-      const tabs=isOrdersView?document.querySelector("#ordersArea > .tabs"):null;
-      const previousTop=tabs?.getBoundingClientRect().top;
-      // An explicit tab change must not inherit a status that belongs to another tab.
-      if(isOrdersView){
-        const statusControl=document.getElementById("rdStatusFilter");
-        if(statusControl)statusControl.value="";
-      }
+      // The filters belong to each tab. Never carry a hidden date or status to another.
+      window.__rdSwitchOrderFilters?.(currentTab,nextTab);
       currentTab=nextTab;
       render();
-      // Safari may scroll-anchor or clamp when a long list is replaced by a short one.
-      // Restore the tab strip to its former on-screen position, within document bounds.
-      if(tabs&&Number.isFinite(previousTop)){
-        requestAnimationFrame(()=>{
-          if(window.__rdCurrentPage!=="orders"||!tabs.isConnected)return;
-          const topLimit=Math.min(88,Math.max(0,window.innerHeight-160));
-          const desiredTop=Math.max(topLimit,Math.min(previousTop,window.innerHeight-140));
-          const currentTop=tabs.getBoundingClientRect().top;
-          const maxY=Math.max(0,document.documentElement.scrollHeight-window.innerHeight);
-          const nextY=Math.max(0,Math.min(maxY,window.scrollY+currentTop-desiredTop));
-          if(Math.abs(nextY-window.scrollY)>2)window.scrollTo({top:nextY,behavior:"instant"});
-        });
-      }
+      // No scrollTo/scrollBy: stable layout + disabled scroll anchoring prevent iOS jumps.
     }));
 
     // В Safari встроенная проверка required может отменить submit без понятной ошибки.
@@ -1116,11 +1117,13 @@
         formStatus.textContent="Укажи правильный номер телефона клиента (10–11 цифр).";
         controls.phone.focus();return;
       }
-      if(raulCreating && getOrders().filter(o=>o.date===date && o.status!=="Отменён").length>=2){
-        formStatus.textContent="На эту дату у Рауля уже два заказа. Выберите другой день.";return;
+      const assignedMaster=raulCreating?currentMasterName.trim():controls.master.value.trim();
+      if(status!=="Отменён"&&masterDayCount(date,assignedMaster,editingId)>=2){
+        formStatus.textContent="У мастера "+(assignedMaster||"без назначения")+
+          " на эту дату уже два заказа. Выберите другой день.";return;
       }
-      if(status!=="Отменён"&&hasConflict(date,time,editingId)) {
-        formStatus.textContent="На эту дату и время уже записан клиент.";controls.time.focus();return;
+      if(status!=="Отменён"&&hasConflict(date,time,assignedMaster,editingId)) {
+        formStatus.textContent="У этого мастера уже есть заказ на выбранное время.";controls.time.focus();return;
       }
       if(status!=="Отменён") {
         const busy=findTightBookings(date,time,controls.master.value,editingId);
