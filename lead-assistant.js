@@ -1,5 +1,4 @@
-/* Работа · продажи по телефону. Изолированный Preview-прототип:
-   лиды хранятся только в localStorage текущего аккаунта и origin, Supabase не меняется. */
+/* Работа · Лиды: shared Supabase queue with protected editor and local preview import. */
 "use strict";
 (()=>{
   const $=id=>document.getElementById(id);
@@ -15,8 +14,8 @@
   const nowClock=()=>new Intl.DateTimeFormat("en-GB",{timeZone:"Europe/Moscow",hour:"2-digit",minute:"2-digit",hourCycle:"h23"}).format(new Date());
   const humanDate=iso=>iso?new Date(iso+"T12:00:00Z").toLocaleDateString("ru-RU",{day:"numeric",month:"long",year:"numeric",timeZone:"UTC"}):"не назначена";
   const number=x=>x===null||x===undefined||x===""?null:Number(x);
-  const calc=(r,c)=>{const a=number(r),b=number(c);return Number.isInteger(a)&&Number.isInteger(b)&&a>=0&&b>=0&&a+b>0?a*2000+b*1000:null};
-  const statuses={new:"Новый",hot:"Горячий",waiting:"Думает / ждём",callback:"Перезвонить",ready:"Согласился",lost:"Отказался"};
+  const calc=(r,c)=>{const a=number(r),b=number(c);return Number.isInteger(a)&&Number.isInteger(b)&&a>=0&&b>=0&&a+b>0?Math.max(10000,a*2000+b*1000):null};
+  const statuses={new:"Новый",hot:"Горячий",waiting:"Думает / ждём",callback:"Перезвонить",ready:"Согласился",booked:"Записан",lost:"Отказался"};
   const reasons={none:"Не выбрано",salary:"После зарплаты",price:"Дорого",time:"Нет времени",family:"Посоветуется",other:"Другая причина"};
   const blank=()=>({id:null,name:"",phone:"",address:"",radiators:"",material:"",loops:"",notes:"",status:"new",reason:"none",followUpDate:"",followUpTime:"18:00",dateApprox:false,clientWillCall:false,consent:false,priceAgreed:false,updatedAt:"",history:[]});
   const phoneKey=s=>{let digits=String(s||"").replace(/\D/g,"");if(digits.length===11&&digits[0]==="8")digits="7"+digits.slice(1);if(digits.length===10)digits="7"+digits;return digits.length===11?digits:""};
@@ -63,56 +62,171 @@
     return o;
   }
   let draft=blank(),activeFilter="all",openId=null,notice="",leadCache=[],initialized=false;
+  let editing=false,cloudReady=false,loading=false,saving=false,loadError="",lastFetch=0,searchTerm="";
+  const notified=new Set();
   const context=()=>window.__rdLeadContext?.()||{};
-  const storeKey=()=>{const id=context().userId;if(!id)return null;return "rabota-preview-leads-v1:"+id};
-  function load(){
+  const storeKey=()=>{const id=context().userId;return id?"rabota-preview-leads-v1:"+id:null};
+  const notificationKey=()=>{const id=context().userId;return id?"rabota-lead-notifications:"+id:null};
+  function localPreviews(){
     const key=storeKey();if(!key)return [];
-    try{const data=JSON.parse(localStorage.getItem(key)||"[]");return Array.isArray(data)?data.filter(x=>x&&typeof x==="object"&&typeof x.id==="string").slice(0,500):[]}
-    catch(e){notice="Не удалось прочитать сохранённые лиды в браузере.";return []}
+    try{const value=JSON.parse(localStorage.getItem(key)||"[]");return Array.isArray(value)?value.filter(x=>x&&typeof x==="object"):[]}catch{return []}
   }
-  function persist(items){
-    const key=storeKey();
-    if(!key){notice="Сессия пользователя ещё не готова.";return false}
-    try{localStorage.setItem(key,JSON.stringify(items));leadCache=items;return true}
-    catch(e){notice="Браузер не сохранил лиды. Проверьте доступную память.";return false}
+  const load=()=>leadCache;
+  function fromRow(row){
+    return {...blank(),id:row.id,name:row.name||"",phone:row.phone||"",address:row.address||"",
+      radiators:row.radiators??"",material:row.material||"",loops:row.loops??"",notes:row.notes||"",
+      status:row.status||"new",reason:row.reason||"none",followUpDate:row.follow_up_date||"",
+      followUpTime:row.follow_up_time?String(row.follow_up_time).slice(0,5):"18:00",
+      dateApprox:Boolean(row.date_approx),clientWillCall:Boolean(row.client_will_call),
+      consent:Boolean(row.consent),priceAgreed:Boolean(row.price_agreed),updatedAt:row.updated_at||"",
+      history:Array.isArray(row.history)?row.history:[]};
   }
-  const isOpen=lead=>!["ready","lost"].includes(lead.status);
+  function toRow(lead){
+    return {name:cap(lead.name,100),phone:cap(lead.phone,30),phone_normalized:phoneKey(lead.phone),
+      address:cap(lead.address,240),radiators:lead.radiators===""?null:Number(lead.radiators),
+      material:cap(lead.material,40),loops:lead.loops===""?null:Number(lead.loops),
+      notes:cap(lead.notes,4000),status:lead.status,reason:lead.reason||"none",
+      follow_up_date:lead.followUpDate||null,follow_up_time:lead.followUpTime||"18:00",
+      date_approx:Boolean(lead.dateApprox),client_will_call:Boolean(lead.clientWillCall),
+      consent:Boolean(lead.consent),price_agreed:Boolean(lead.priceAgreed),
+      history:(lead.history||[]).slice(-30)};
+  }
+  const isOpen=lead=>!["ready","booked","lost"].includes(lead.status);
   const needsCall=(lead,day=today(),clock=nowClock())=>isOpen(lead)&&!!lead.followUpDate&&
     (lead.followUpDate<day||(lead.followUpDate===day&&clock>=(lead.followUpTime||"18:00")));
   window.__rdLeadLogic={today,shifted,nextMonth,weekday,dueFromText,parseNotes,calc,phoneKey,needsCall};
   const countDue=()=>load().filter(l=>needsCall(l)).length;
-  function syncNav(){const count=countDue();
+  function syncNav(){
+    const count=countDue();
     document.querySelectorAll(".rd-nav-btn[data-page=leads]").forEach(b=>{
-      const spans=b.querySelectorAll("span");
-      const label=spans[spans.length-1];
+      const spans=b.querySelectorAll("span"),label=spans[spans.length-1];
       if(label)label.textContent="Лиды"+(count?" · "+count:"");
-      b.setAttribute("aria-label",count?"Лиды, просрочено "+count:"Лиды");
+      b.setAttribute("aria-label",count?"Лиды, нужно связаться: "+count:"Лиды");
     });
   }
-  function selectLead(id){const match=load().find(l=>l.id===id);draft=match?{...blank(),...match}:blank();openId=id||null;notice="";render()}
-  function save(){
+  async function refresh(force=false){
+    if(context().role==="master"||!context().userId||loading||(!force&&cloudReady&&Date.now()-lastFetch<30000))return;
+    loading=true;
+    try{
+      const rows=await dbRequest("rabota_leads?select=*&order=updated_at.desc&limit=1000","GET");
+      if(!Array.isArray(rows))throw new Error("Не удалось получить список лидов.");
+      leadCache=rows.map(fromRow);cloudReady=true;loadError="";lastFetch=Date.now();
+      syncNav();if(!editing)render();
+      maybeNotify();
+    }catch(error){loadError=error.message||String(error);if(!editing)render();}
+    finally{loading=false}
+  }
+  function selectLead(id){
+    const match=load().find(l=>l.id===id);
+    draft=match?{...blank(),...match}:blank();
+    openId=match?.id||null;editing=true;notice="";render();
+  }
+  function listView(){editing=false;openId=null;draft=blank();render();refresh(true)}
+  async function save(){
+    if(saving)return;
     const clean={...blank(),...draft};
-    if(!text(clean.name)||!phoneKey(clean.phone)){
-      notice="Для сохранения укажите имя и номер телефона (10–11 цифр).";render();return
-    }
+    if(!text(clean.name)||!phoneKey(clean.phone)){notice="Укажите имя и правильный телефон (10–11 цифр).";render();return}
     if(["callback","waiting"].includes(clean.status)&&!clean.followUpDate){
-      notice="Укажите дату контроля, чтобы клиент не потерялся. Если клиент ещё не назвал дату — уточните её.";render();return
+      notice="Укажите дату повторного контакта, чтобы не потерять клиента.";render();return
     }
     if(clean.followUpDate&&!/^\d{4}-\d{2}-\d{2}$/.test(clean.followUpDate)){
-      notice="Проверьте дату напоминания.";render();return
+      notice="Проверьте дату повторного контакта.";render();return
     }
-    clean.notes=cap(clean.notes,4000);clean.address=cap(clean.address,240);
-    clean.name=cap(clean.name,100);clean.phone=cap(clean.phone,30);
-    clean.updatedAt=new Date().toISOString();
-    const items=load();
-    const dupe=items.find(l=>l.id!==clean.id&&phoneKey(l.phone)===phoneKey(clean.phone));
-    if(dupe){notice="Этот телефон уже есть у клиента «"+dupe.name+"». Откройте существующий лид, чтобы не создавать дубликат.";render();return}
-    if(!clean.id)clean.id="lead-"+new Date().getTime()+"-"+Math.random().toString(36).slice(2,9);
-    const prev=items.find(l=>l.id===clean.id);
-    clean.history=[...(prev?.history||[]),{at:clean.updatedAt,event:prev?"Карточка обновлена":"Лид создан",status:clean.status}].slice(-30);
-    const next=[clean,...items.filter(l=>l.id!==clean.id)];
-    if(!persist(next)){render();return}
-    draft={...clean};openId=clean.id;notice="Лид сохранён в браузере этого устройства. В общую CRM он пока не передан.";render();
+    const dupe=load().find(l=>l.id!==clean.id&&phoneKey(l.phone)===phoneKey(clean.phone));
+    if(dupe){notice="Телефон уже принадлежит лиду «"+dupe.name+"». Откройте его карточку.";render();return}
+    clean.history=[...(draft.history||[]),{at:new Date().toISOString(),
+      event:clean.id?"Карточка обновлена":"Лид создан",status:clean.status}].slice(-30);
+    const original=clean.id?load().find(l=>l.id===clean.id):null;
+    if(clean.id&&!original){notice="Этот лид не найден в общей базе. Обновите список.";render();return}
+    saving=true;notice="Сохранение в общей базе…";render();
+    try{
+      const data=toRow(clean);
+      const query=original?"rabota_leads?id=eq."+encodeURIComponent(original.id)+
+        "&updated_at=eq."+encodeURIComponent(original.updatedAt):"rabota_leads";
+      const rows=await dbRequest(query,original?"PATCH":"POST",data);
+      if(!Array.isArray(rows)||rows.length!==1)throw new Error("Карточка изменилась на другом устройстве. Вернитесь к списку и обновите данные.");
+      const record=fromRow(rows[0]);leadCache=[record,...leadCache.filter(l=>l.id!==record.id)];
+      lastFetch=0;notice="Лид сохранён в общей базе.";editing=false;openId=null;draft=blank();
+      render();syncNav();
+    }catch(error){notice=error.code==="23505"?"Этот телефон уже есть в базе. Найдите существующего лида.":error.message||String(error);render();}
+    finally{saving=false}
+  }
+  async function deleteLead(lead){
+    if(!window.confirm("Удалить лид «"+lead.name+"» из общей базы без возможности восстановления?"))return;
+    try{
+      const rows=await dbRequest("rabota_leads?id=eq."+encodeURIComponent(lead.id),"DELETE");
+      if(!Array.isArray(rows)||rows.length!==1)throw new Error("Лид не удалён.");
+      leadCache=leadCache.filter(l=>l.id!==lead.id);notice="Лид удалён из общей базы.";
+      editing=false;openId=null;render();syncNav();
+    }catch(error){notice=error.message||String(error);render()}
+  }
+  async function contacted(lead){
+    if(!window.confirm("Отметить повторный контакт? Напоминание будет снято."))return;
+    try{
+      const updated={...lead,followUpDate:"",dateApprox:false,status:"hot"};
+      updated.history=[...(lead.history||[]),{at:new Date().toISOString(),event:"Связались повторно",status:"hot"}].slice(-30);
+      const rows=await dbRequest("rabota_leads?id=eq."+encodeURIComponent(lead.id)+
+        "&updated_at=eq."+encodeURIComponent(lead.updatedAt),"PATCH",toRow(updated));
+      if(!Array.isArray(rows)||rows.length!==1)throw new Error("Карточка изменилась. Обновите данные.");
+      const record=fromRow(rows[0]);leadCache=leadCache.map(l=>l.id===record.id?record:l);
+      notice="Контакт отмечен. При необходимости назначьте следующую дату.";render();syncNav();
+    }catch(error){notice=error.message||String(error);render()}
+  }
+  async function importLocal(){
+    const source=localPreviews().filter(x=>phoneKey(x.phone));
+    if(!source.length){notice="На устройстве нет подходящих старых лидов.";render();return}
+    if(!window.confirm("Перенести до "+source.length+" старых лидов из этого браузера в общую базу? Уже существующие телефоны будут пропущены."))return;
+    let added=0,skipped=0;
+    for(const item of source){
+      const key=phoneKey(item.phone);
+      if(load().some(l=>phoneKey(l.phone)===key)){skipped++;continue}
+      try{
+        const prepared={...blank(),...item,id:null,followUpDate:item.followUpDate||"",
+          status:item.status==="booked"?"booked":statuses[item.status]?item.status:"new"};
+        if(["callback","waiting"].includes(prepared.status)&&!prepared.followUpDate)prepared.status="new";
+        const rows=await dbRequest("rabota_leads","POST",toRow(prepared));
+        if(Array.isArray(rows)&&rows.length===1){leadCache.push(fromRow(rows[0]));added++}else skipped++;
+      }catch(error){skipped++;if(error.code!=="23505")loadError=error.message||String(error)}
+    }
+    notice="Из браузера перенесено: "+added+". Пропущено: "+skipped+
+      ". Исходные записи оставлены на устройстве как резервная копия.";
+    render();syncNav();
+  }
+  async function markBooked(id){
+    const lead=load().find(l=>l.id===id);if(!lead)return;
+    try{
+      const updated={...lead,status:"booked",followUpDate:"",dateApprox:false};
+      updated.history=[...(lead.history||[]),{at:new Date().toISOString(),event:"Заказ оформлен",status:"booked"}].slice(-30);
+      const rows=await dbRequest("rabota_leads?id=eq."+encodeURIComponent(id)+
+        "&updated_at=eq."+encodeURIComponent(lead.updatedAt),"PATCH",toRow(updated));
+      if(Array.isArray(rows)&&rows.length===1){leadCache=leadCache.map(l=>l.id===id?fromRow(rows[0]):l);syncNav()}
+    }catch(error){console.warn("Lead linked order",error)}
+  }
+  window.__rdLeadMarkBooked=markBooked;
+  async function enableReminders(){
+    if(!("Notification" in window)){notice="Системные уведомления недоступны в этом браузере. Внутренние напоминания работают.";render();return}
+    try{
+      const granted=await Notification.requestPermission();
+      if(granted==="granted"){localStorage.setItem(notificationKey(),"1");notice="Уведомления разрешены, пока приложение запущено.";maybeNotify()}
+      else notice="Браузер не разрешил системные уведомления. Внутренние напоминания работают.";
+    }catch(error){notice="Не удалось включить уведомления: "+(error.message||String(error))}
+    render();
+  }
+  async function maybeNotify(){
+    if(!cloudReady||!("Notification" in window)||Notification.permission!=="granted")return;
+    const key=notificationKey();if(!key||localStorage.getItem(key)!=="1")return;
+    for(const lead of load().filter(l=>needsCall(l))){
+      const marker=lead.id+":"+(lead.followUpDate||"")+":"+(lead.followUpTime||"");
+      if(notified.has(marker))continue;
+      notified.add(marker);
+      try{
+        const title="Пора связаться с клиентом";
+        const options={body:lead.name+" · "+humanDate(lead.followUpDate)+" "+lead.followUpTime,tag:"lead-"+lead.id};
+        const registration=await navigator.serviceWorker?.getRegistration?.();
+        if(registration&&registration.showNotification)await registration.showNotification(title,options);
+        else new Notification(title,options);
+      }catch(error){console.warn("Lead notification",error)}
+    }
   }
   function setField(key,value){draft[key]=value}
   function field(label,key,type="text",placeholder="",opts={}){
