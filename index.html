@@ -626,6 +626,8 @@
       node.classList.toggle("sync-error",Boolean(error));
       node.textContent=error?"Нет связи с базой: заявки и баланс могут быть устаревшими":
         "Обновлено "+new Date().toLocaleTimeString("ru-RU",{hour:"2-digit",minute:"2-digit"});
+      const ordersStatus=document.getElementById("rdOrdersSynced");
+      if(ordersStatus){ordersStatus.textContent=node.textContent;ordersStatus.classList.toggle("sync-error",Boolean(error));}
     }
     async function reloadOrders() {
       const items = [];
