@@ -45,7 +45,7 @@ function uiIcon(name,extra=""){
  if(extra)svg.classList.add(extra);
  svg.innerHTML=iconPaths[name]||iconPaths.orders;return svg;
 }
-let activePage="home",ready=false,lastOrderKey="",rdSearchTerm="",selectedClientKey=null,builtRole=null,calendarMode="week",calendarMaster="",calendarStatus="",calendarHideDone=false;
+let activePage="home",ready=false,lastOrderKey="",rdSearchTerm="",selectedClientKey=null,builtRole=null,calendarMode="week",calendarMaster="",calendarStatus="",calendarHideDone=false,calendarOpened=false;
 const orderTabFilters={calendar:{master:"",status:"",search:""},all:{master:"",status:"",search:""},history:{master:"",status:"",search:""}};
 function storeOrderFilters(tab){
  const state=orderTabFilters[tab];if(!state)return;
@@ -165,12 +165,8 @@ function build(){
  clientsToolbar.id="rdClientToolbar";clientsToolbar.append(clientsInput);clients.append(clientsToolbar);
  clients.append(makeNode("div","rd-client-list"));clients.querySelector(".rd-client-list").id="rdClientsList";
  const clientHistory=makeNode("section","rd-panel rd-client-history");clientHistory.id="rdClientHistory";clientHistory.hidden=true;clients.append(clientHistory);
- const calendar=sectionView("rdCalendarIntro","Календарь","Записи по дням и занятость мастеров");
+ const calendar=sectionView("rdCalendarIntro","Календарь","Расписание, занятость мастеров и редактирование записей");
  calendar.classList.add("rd-calendar-intro");
- const calendarCreate=makeNode("button","rd-primary rd-cal-create");
- calendarCreate.type="button";calendarCreate.append(uiIcon("plus"),boxText("span","Новый заказ"));
- calendarCreate.addEventListener("click",()=> $("newOrderBtn").click());
- calendar.append(calendarCreate);
  const calendarNav=makeNode("div","rd-toolbar");calendarNav.id="rdCalendarNavigation";
  const previous=makeNode("button","secondary rd-cal-step","‹");
  previous.type="button";previous.title="Предыдущая неделя";previous.setAttribute("aria-label","Предыдущая неделя");
@@ -179,7 +175,7 @@ function build(){
  next.type="button";next.title="Следующая неделя";next.setAttribute("aria-label","Следующая неделя");
  next.addEventListener("click",()=>$("nextWeek").click());
  const todayBtn=makeNode("button","secondary rd-cal-today","Сегодня");
- todayBtn.type="button";todayBtn.addEventListener("click",()=>$("goToday").click());
+ todayBtn.type="button";todayBtn.addEventListener("click",()=>{selectedDate=todayMoscow();currentTab="calendar";render()});
  const calendarDateField=makeNode("div","rd-cal-date-field");
  const calendarDateLabel=makeNode("span","rd-cal-date-label");calendarDateLabel.id="rdCalendarDateLabel";calendarDateLabel.setAttribute("aria-hidden","true");
  const calendarSelect=makeNode("input");calendarSelect.type="date";calendarSelect.id="rdCalendarDate";calendarSelect.setAttribute("aria-label","Выбрать дату в расписании");
@@ -268,6 +264,9 @@ function navigate(key){
  if(key==="finance")$("viewFinanceBtn").click();
  else if(financeActive)$("viewOrdersBtn").click();
  const isOrders=key==="orders",isCalendar=key==="calendar";
+ // Initial calendar date must be Moscow today, not the date left in the Orders tab.
+ // Revisiting calendar later keeps an explicitly selected date.
+ if(isCalendar&&!calendarOpened){selectedDate=todayMoscow();calendarOpened=true;}
  $("ordersArea").hidden=!(isOrders||isCalendar);
  $("financePanel").hidden=key!=="finance";
  $("rdHome").hidden=key!=="home";
@@ -284,8 +283,6 @@ function navigate(key){
  $("ordersArea").querySelector(".list-head").hidden=!isOrders;
  $("orders").hidden=!isOrders;
  $("newOrderBtn").hidden=!isOrders || !(currentRole==="owner"||currentRole==="manager");
- const calendarAction=$("rdCalendarIntro").querySelector(".rd-cal-create");
- calendarAction.hidden=!isCalendar || !(currentRole==="owner"||currentRole==="manager");
  $("teamPanel").hidden=key!=="orders"||currentRole!=="owner";
  $("rdFinanceIntro").hidden=key!=="finance";
  app.className=app.className.replace(/\brd-view-\S+/g,"").trim()+" rd-view-"+key;
