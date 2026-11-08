@@ -51,8 +51,11 @@
     const cost=cell("price",text("small","Стоимость"),text("strong",formatMoney(order.price)));
     const state=cell("state",text("span",order.status||"Новый",
       "rd-list-status "+(colorByStatus[order.status]||"s-new")));
-    const paid=cell("paid",text("span",order.paid?"Оплачено":"Не оплачено",
+    const paymentLabel=order.status==="Выполнен"?
+      (order.paid?"Оплачено":"Ждём оплату"):"";
+    const paid=cell("paid",text("span",paymentLabel,
       "rd-list-pay "+(order.paid?"is-paid":"is-unpaid")));
+    if(!paymentLabel)paid.setAttribute("aria-hidden","true");
     const arrow=cell("arrow",text("span","⌄","rd-list-chevron"));
     const toggle=text("button","","rd-list-toggle");
     toggle.type="button";
