@@ -47,6 +47,7 @@ function uiIcon(name,extra=""){
 }
 let activePage="home",ready=false,lastOrderKey="",rdSearchTerm="",selectedClientKey=null,builtRole=null,calendarMode="week",calendarMaster="",calendarStatus="",calendarHideDone=false,calendarOpened=false;
 let calendarWeekCache="",calendarDetailCache="",calendarMastersCache="";
+let calendarFiltersOpen=false;
 const calendarExpandedOrders=new Set();
 function selectCalendarDate(date,openDay=false){
  if(!/^\d{4}-\d{2}-\d{2}$/.test(String(date||"")))return;
@@ -57,6 +58,16 @@ function selectCalendarDate(date,openDay=false){
 function switchCalendarMode(mode){
  if(!["week","day","list"].includes(mode)||calendarMode===mode)return;
  calendarMode=mode;drawCalendar();
+}
+function syncCalendarFilterUI(){
+ const nav=$("rdCalendarNavigation"),board=$("rdCalendarBoard"),button=$("rdCalendarFilterToggle");
+ if(!nav||!board||!button)return;
+ nav.classList.toggle("is-filters-open",calendarFiltersOpen);
+ board.classList.toggle("is-filters-open",calendarFiltersOpen);
+ const count=Number(Boolean(calendarMaster))+Number(Boolean(calendarStatus))+Number(calendarHideDone);
+ button.textContent=count?"Фильтры ("+count+")":"Фильтры";
+ button.classList.toggle("has-filters",count>0);
+ button.setAttribute("aria-expanded",String(calendarFiltersOpen));
 }
 const orderTabFilters={calendar:{master:"",status:"",search:""},all:{master:"",status:"",search:""},history:{master:"",status:"",search:""}};
 let orderFiltersOpen=false;
@@ -207,6 +218,11 @@ function build(){
  const clientHistory=makeNode("section","rd-panel rd-client-history");clientHistory.id="rdClientHistory";clientHistory.hidden=true;clients.append(clientHistory);
  const calendar=sectionView("rdCalendarIntro","Календарь","Расписание, занятость мастеров и редактирование записей");
  calendar.classList.add("rd-calendar-intro");
+ const calendarTitlebar=makeNode("div","rd-calendar-titlebar");
+ const calendarSync=makeNode("span","rd-calendar-synced",$("syncStatus")?.textContent||"");
+ calendarSync.id="rdCalendarSynced";calendarSync.setAttribute("role","status");
+ calendarTitlebar.append(calendar.querySelector(".rd-view-title"),calendarSync);
+ calendar.insertBefore(calendarTitlebar,calendar.querySelector(".rd-view-subtitle"));
  const calendarNav=makeNode("div","rd-toolbar");calendarNav.id="rdCalendarNavigation";
  const previous=makeNode("button","secondary rd-cal-step","‹");
  previous.type="button";previous.title="Предыдущая неделя";previous.setAttribute("aria-label","Предыдущая неделя");
@@ -230,7 +246,15 @@ function build(){
   const o=makeNode("option","",label);o.value=value;calendarStatusSelect.append(o)
  });
  calendarStatusSelect.addEventListener("change",()=>{calendarStatus=calendarStatusSelect.value;drawCalendar()});
- calendarNav.append(previous,next,todayBtn,calendarDateField,calendarMasterSelect,calendarStatusSelect);
+ const calendarFilterToggle=makeNode("button","secondary rd-cal-filter-toggle","Фильтры");
+ calendarFilterToggle.id="rdCalendarFilterToggle";calendarFilterToggle.type="button";
+ calendarFilterToggle.setAttribute("aria-controls","rdCalendarMaster rdCalendarStatus rdCalendarHideDone");
+ calendarFilterToggle.setAttribute("aria-expanded","false");
+ calendarFilterToggle.addEventListener("click",()=>{
+  calendarFiltersOpen=!calendarFiltersOpen;syncCalendarFilterUI();
+ });
+ calendarNav.append(previous,calendarDateField,next,todayBtn,calendarFilterToggle,
+  calendarMasterSelect,calendarStatusSelect);
  const board=makeNode("section","rd-panel rd-view-area rd-calendar-panel");board.id="rdCalendarBoard";
  const boardHeading=makeNode("div","rd-calendar-heading");
  const weekHeading=boxText("h2","Расписание на неделю");weekHeading.id="rdCalendarWeekTitle";
@@ -642,7 +666,6 @@ function drawCalendar(){
  if(!ready||activePage!=="calendar")return;
  const calendarDate=$("rdCalendarDate");
  calendarDate.value=selectedDate;
- $("rdCalendarDateLabel").textContent=parseDate(selectedDate).toLocaleDateString("ru-RU",{day:"numeric",month:"short",year:"numeric"});
  const boardRoot=$("rdCalendarBoard");
  const board=boardRoot.querySelector(".rd-week-grid");
  const weekStrip=boardRoot.querySelector(".rd-week-strip");
@@ -663,6 +686,7 @@ function drawCalendar(){
  masterSelect.value=calendarMaster;
   $("rdCalendarStatus").value=calendarStatus;
  $("rdCalendarHideDone").checked=calendarHideDone;
+ syncCalendarFilterUI();
  // Filters are visual only. Never edit real orders during a calendar redraw.
  const orders=allOrders.filter(o=>
   (!calendarMaster||smText(o.master)===calendarMaster)&&
@@ -673,6 +697,14 @@ function drawCalendar(){
  const sunday=addDays(monday,6);
  const weekLabel=parseDate(monday).toLocaleDateString("ru-RU",{day:"numeric",month:"short"})+" – "+
   parseDate(sunday).toLocaleDateString("ru-RU",{day:"numeric",month:"short",year:"numeric"});
+ const firstDate=parseDate(monday),lastDate=parseDate(sunday);
+ const sameMonth=firstDate.getFullYear()===lastDate.getFullYear()&&firstDate.getMonth()===lastDate.getMonth();
+ const shortWeek=sameMonth?
+  firstDate.getDate()+"–"+lastDate.getDate()+" "+lastDate.toLocaleDateString("ru-RU",{month:"short"}):
+  firstDate.toLocaleDateString("ru-RU",{day:"numeric",month:"short"})+"–"+
+  lastDate.toLocaleDateString("ru-RU",{day:"numeric",month:"short"});
+ $("rdCalendarDateLabel").textContent=calendarMode==="day"?
+  parseDate(selectedDate).toLocaleDateString("ru-RU",{day:"numeric",month:"short"}):shortWeek;
  weekTitle.textContent=(calendarMode==="day"?"День":calendarMode==="list"?"Список":"Неделя")+" · "+(calendarMode==="day"?dateLong(selectedDate):weekLabel);
  boardRoot.dataset.calendarMode=calendarMode;
  boardRoot.querySelectorAll(".rd-calendar-mode").forEach(button=>{
