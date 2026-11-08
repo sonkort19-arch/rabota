@@ -46,6 +46,23 @@ function uiIcon(name,extra=""){
  svg.innerHTML=iconPaths[name]||iconPaths.orders;return svg;
 }
 let activePage="home",ready=false,lastOrderKey="",rdSearchTerm="",selectedClientKey=null,builtRole=null,calendarMode="week",calendarMaster="",calendarStatus="",calendarHideDone=false;
+const orderTabFilters={calendar:{master:"",status:"",search:""},all:{master:"",status:"",search:""},history:{master:"",status:"",search:""}};
+function storeOrderFilters(tab){
+ const state=orderTabFilters[tab];if(!state)return;
+ state.master=$("rdMasterFilter")?.value||"";
+ state.status=$("rdStatusFilter")?.value||"";
+ state.search=rdSearchTerm;
+}
+function restoreOrderFilters(tab){
+ const state=orderTabFilters[tab];if(!state)return;
+ const master=$("rdMasterFilter"),status=$("rdStatusFilter"),search=$("rdTopSearch");
+ if(master)master.value=state.master;
+ if(status)status.value=state.status;
+ rdSearchTerm=state.search;
+ if(search)search.value=state.search;
+}
+window.__rdSwitchOrderFilters=(oldTab,newTab)=>{storeOrderFilters(oldTab);restoreOrderFilters(newTab)};
+window.__rdOrderRestoreFilters=restoreOrderFilters;
 function todayMoscow(){return new Intl.DateTimeFormat("sv-SE",{timeZone:"Europe/Moscow",year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date())}
 function dateLong(day){if(!day)return "Дата не указана";return parseDate(day).toLocaleDateString("ru-RU",{day:"numeric",month:"long"})}
 function cash(num){return new Intl.NumberFormat("ru-RU",{maximumFractionDigits:2}).format(Number(num)||0)+" ₽"}
@@ -71,7 +88,7 @@ function stats(node,items){
  items.forEach(item=>{
   const label=item.label;
   const kind=label==="В работе"?"progress":label==="Новые"?"clock":
-   label==="Не оплачено"||label.includes("оплач")||label.includes("Оплач")?"wallet":
+   label==="Не оплачено"||label.includes("оплач")||label.includes("Оплач")||label.includes("оплат")?"wallet":
    label.includes("Выполнено")?"check":label.includes("Клиенты")?"clients":
    label.includes("сегодня")?"calendar":"orders";
   const card=makeNode("div","rd-stat rd-stat-"+kind);
@@ -205,9 +222,16 @@ function build(){
  const dateWrap=makeNode("label","rd-date-filter");dateWrap.append(boxText("span","Дата"),orderDate);
  const masterSelect=makeNode("select");masterSelect.id="rdMasterFilter";masterSelect.setAttribute("aria-label","Фильтр по мастеру");masterSelect.addEventListener("change",filterCards);
  const statusSelect=makeNode("select");statusSelect.id="rdStatusFilter";statusSelect.setAttribute("aria-label","Фильтр по статусу");
- [["","Все статусы"],["Новый","Новый"],["Записан","Записан"],["В работе","В работе"],["Выполнен","Выполнен"],["unpaid","Выполнены без оплаты"]].forEach(([value,label])=>{const opt=makeNode("option","",label);opt.value=value;statusSelect.append(opt)});
- statusSelect.addEventListener("change",()=>{currentTab=["Выполнен","unpaid"].includes(statusSelect.value)?"history":"all";render();filterCards()});
- const clear=makeNode("button","secondary","Сбросить");clear.addEventListener("click",()=>{orderDate.value="";orderListDateFilter="";orderHistoryDateFilter="";statusSelect.value="";masterSelect.value="";rdSearchTerm="";$("rdTopSearch").value="";currentTab="all";render();filterCards()});
+ [["","Все статусы"],["Новый","Новый"],["Записан","Записан"],["В работе","В работе"],["Выполнен","Выполнен"],["Отменён","Отменён"],["unpaid_any","Ожидают оплаты"],["unpaid","Выполнены без оплаты"]].forEach(([value,label])=>{const opt=makeNode("option","",label);opt.value=value;statusSelect.append(opt)});
+ statusSelect.addEventListener("change",filterCards);
+ const clear=makeNode("button","secondary","Сбросить");clear.addEventListener("click",()=>{
+  if(currentTab==="history")orderHistoryDateFilter="";
+  else if(currentTab==="all")orderListDateFilter="";
+  orderDate.value=currentTab==="calendar"?selectedDate:"";
+  statusSelect.value="";masterSelect.value="";rdSearchTerm="";$("rdTopSearch").value="";
+  orderTabFilters[currentTab]={master:"",status:"",search:""};
+  render();
+ });
  orderTools.append(dateWrap,masterSelect,statusSelect,clear);
  const financeTitle=sectionView("rdFinanceIntro","Финансы","Начисления, касса и история операций");
  app.insertBefore(home,$("ordersArea"));
@@ -218,7 +242,7 @@ function build(){
  // Staff access administration is still available, but should not obscure the booking list.
  $("ordersArea").append($("teamPanel"));
  // Original order editor, calendar state, and financial forms are retained.
- $("ordersArea").insertBefore($("ordersArea").querySelector("#newOrderBtn"),$("ordersArea").querySelector("#teamPanel"));
+ $("ordersArea").insertBefore($("newOrderBtn"),$("ordersArea").querySelector(".tabs"));
  builtRole=currentRole;ready=true; navigate("home");drawHome();
 }
 function navigate(key){
@@ -263,6 +287,7 @@ function navigate(key){
    (btn.dataset.page===key||(btn.dataset.page==="more"&&["clients","finance"].includes(key)))?"page":"false"));
  if(isOrders||isCalendar){
   currentTab=isCalendar?"calendar":"all";
+  if(isOrders)restoreOrderFilters(currentTab);
   render(); // Legacy render triggers __rdRefresh, which rebuilds the selected view.
  }else if(key==="home")drawHome();
  else if(key==="clients")drawClients();
@@ -445,11 +470,13 @@ function drawOrderSummary(){
  if(!ready)return;
  const el=$("rdOrderStats");el.replaceChildren();
  const active=getOrders().filter(o=>!["Отменён","Выполнен"].includes(o.status)),newOrders=active.filter(o=>o.status==="Новый");
- const inProgress=active.filter(o=>o.status==="В работе"),unpaid=getOrders().filter(o=>o.status==="Выполнен"&&!o.paid);
+ const inProgress=active.filter(o=>o.status==="В работе");
+ const unpaid=getOrders().filter(o=>o.status!=="Отменён"&&!o.paid);
+ const finishedUnpaid=unpaid.filter(o=>o.status==="Выполнен").length;
  stats(el,[{label:"Активные заказы",value:String(active.length),hint:"Ещё не завершены"},
  {label:"Новые",value:String(newOrders.length),hint:"Ждут обработки"},
  {label:"В работе",value:String(inProgress.length),hint:"Сейчас выполняются"},
- {label:"Не оплачено",value:String(unpaid.length),hint:"Завершены без оплаты"}]);
+ {label:"Ожидают оплаты",value:String(unpaid.length),hint:"Из них завершены: "+finishedUnpaid}]);
  const select=$("rdMasterFilter"),previous=select.value;
  select.replaceChildren();const initial=makeNode("option","","Все мастера");initial.value="";select.append(initial);
  const masters=[...new Set(getOrders().map(o=>smText(o.master)).filter(Boolean))].sort((a,b)=>a.localeCompare(b,"ru"));
@@ -704,7 +731,7 @@ function filterCards(){
   total++;
   const show=(!rdSearchTerm||String(card.dataset.search||"").includes(rdSearchTerm)) &&
     (!date||card.dataset.date===date)&&(!master||card.dataset.master===master)&&
-    (!status||(status==="unpaid"?card.dataset.unpaid==="true":card.dataset.status===status));
+    (!status||(status==="unpaid"?card.dataset.unpaid==="true":status==="unpaid_any"?card.dataset.pendingPayment==="true":card.dataset.status===status));
   card.hidden=!show;if(show)visible++;
  }
  if(total)$("orderCount").textContent="Показано "+visible+" из "+total;
@@ -721,6 +748,7 @@ function filterCards(){
    else orderListDateFilter="";
    $("rdOrderDate").value="";$("rdMasterFilter").value="";$("rdStatusFilter").value="";
    rdSearchTerm="";$("rdTopSearch").value="";
+   orderTabFilters[currentTab]={master:"",status:"",search:""};
    render();
   });
   empty.append(reset);$("orders").append(empty);
