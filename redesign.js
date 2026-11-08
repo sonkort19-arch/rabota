@@ -61,6 +61,7 @@ function switchCalendarMode(mode){
 const orderTabFilters={calendar:{master:"",status:"",search:""},all:{master:"",status:"",search:""},history:{master:"",status:"",search:""}};
 let orderFiltersOpen=false;
 let summaryFilter="";
+let homeAnalyticsOpen=false;
 function clearQuickFilter(){summaryFilter="";}
 function syncOrderFiltersButton(){
  const btn=$("rdOrdersFilterToggle");if(!btn)return;
@@ -189,7 +190,12 @@ function build(){
  visible.forEach(key=>mobile.append(navButton(key)));
  const more=makeMobileMenu();mobile.append(more.toggle);
  app.prepend(top,side,more.veil,more.sheet,mobile);
- const home=sectionView("rdHome",currentRole==="owner"?"Панель владельца":"Панель менеджера","Обзор заказов и расписания в реальном времени");
+ const home=sectionView("rdHome","Главная","Краткая сводка заказов и расписания");
+ const homeTitlebar=makeNode("div","rd-home-titlebar");
+ const homeSync=makeNode("span","rd-home-synced",$("syncStatus")?.textContent||"");
+ homeSync.id="rdHomeSynced";homeSync.setAttribute("role","status");
+ homeTitlebar.append(home.querySelector(".rd-view-title"),homeSync);
+ home.insertBefore(homeTitlebar,home.querySelector(".rd-view-subtitle"));
  const leads=sectionView("rdLeads","Лиды","Звонки, консультации и повторные контакты");
  const leadsRoot=makeNode("div","rd-leads-mount");leadsRoot.id="rdLeadsMount";leads.append(leadsRoot);
  const clients=sectionView("rdClients","Клиенты","Клиенты из доступных вам заказов");
@@ -364,14 +370,14 @@ function drawChart(parent,values,month){
   for(const [key,value] of Object.entries(attrs))node.setAttribute(key,String(value));
   return node;
  };
- const data=values.map(n=>Math.max(0,Number(n)||0));
+ const data=values.map(n=>n===null?null:Math.max(0,Number(n)||0));
  const left=45,right=620,top=24,bottom=195;
- const step=Math.max(1,Math.ceil(Math.max(0,...data)/4));
+ const step=Math.max(1,Math.ceil(Math.max(0,...data.filter(value=>value!==null))/4));
  const ceiling=step*4;
  const dx=(right-left)/Math.max(1,data.length-1);
- const points=data.map((value,i)=>({
+ const points=data.flatMap((value,i)=>value===null?[]:[{
   x:left+i*dx,y:bottom-value/ceiling*(bottom-top),value,day:i+1
- }));
+ }]);
  const defs=mk("defs"),grad=mk("linearGradient",{id:"rdChartGradient",x1:"0",y1:"0",x2:"0",y2:"1"});
  grad.append(
   mk("stop",{offset:"0%","stop-color":"#5976ff","stop-opacity":".32"}),
@@ -412,8 +418,14 @@ function drawChart(parent,values,month){
    " "+q.x.toFixed(2)+" "+q.y.toFixed(2);
  }
  if(points.length){
-  svg.append(mk("path",{d:curve+" L "+right+" "+bottom+" L "+left+" "+bottom+" Z",class:"rd-chart-area"}));
+  svg.append(mk("path",{d:curve+" L "+points[points.length-1].x+" "+bottom+" L "+left+" "+bottom+" Z",class:"rd-chart-area"}));
   svg.append(mk("path",{d:curve,class:"rd-chart-line"}));
+  if(points.length<data.length){
+   const cutX=Math.min(right,points[points.length-1].x+dx/2);
+   svg.append(mk("line",{x1:cutX,x2:cutX,y1:top,y2:bottom,class:"rd-chart-future-separator"}));
+   const label=mk("text",{x:Math.min(right-4,cutX+8),y:top+12,class:"rd-chart-future-label","text-anchor":"start"});
+   label.textContent="Будущие дни";svg.append(label);
+  }
  }
  const hoverLine=mk("line",{x1:left,x2:left,y1:top,y2:bottom,class:"rd-chart-hover-line"});
  const hoverDot=mk("circle",{cx:left,cy:bottom,r:6,class:"rd-chart-hover-dot"});
@@ -466,63 +478,149 @@ function drawChart(parent,values,month){
  }
  parent.append(svg);
 }
+function openDashboardOrders({filter="",orderId=null,date=""}={}){
+ if(!ready)return;
+ navigate("orders");
+ // Clear stale manual filters before selecting a dashboard shortcut.
+ const dateInput=$("rdOrderDate"),master=$("rdMasterFilter"),status=$("rdStatusFilter"),search=$("rdTopSearch");
+ orderListDateFilter="";rdSearchTerm="";summaryFilter="";
+ if(dateInput)dateInput.value="";
+ if(master)master.value="";
+ if(status)status.value="";
+ if(search)search.value="";
+ orderTabFilters.all={master:"",status:"",search:""};
+ if(filter)applySummaryFilter(filter);
+ else{
+  if(date){
+   orderListDateFilter=date;
+   if(dateInput)dateInput.value=date;
+  }
+  render();
+  $("ordersArea")?.querySelector(".list-head")?.scrollIntoView({block:"start",behavior:"smooth"});
+ }
+ if(orderId){
+  const opened=window.__rdOpenOrderDetail?.(String(orderId));
+  if(!opened)console.warn("Не удалось открыть карточку заказа из главной панели");
+ }
+}
+function dashboardMetric(label,value,filter){
+ const button=makeNode("button","rd-home-metric");
+ button.type="button";
+ button.setAttribute("aria-label",label+": "+value+". Показать заказы");
+ button.append(boxText("strong",String(value)),boxText("span",label));
+ button.addEventListener("click",()=>openDashboardOrders(filter));
+ return button;
+}
+function dashboardAction(icon,label,action){
+ const btn=makeNode("button","rd-home-action");
+ btn.type="button";
+ btn.append(uiIcon(icon),boxText("span",label));
+ btn.addEventListener("click",action);
+ return btn;
+}
 function drawHome(){
  if(!ready||activePage!=="home")return;
- const root=$("rdHome");while(root.children.length>3)root.lastElementChild.remove();
+ const root=$("rdHome");
+ while(root.children.length>3)root.lastElementChild.remove();
  const orders=activeOrders(),today=todayMoscow(),month=today.slice(0,7);
  const thisMonth=orders.filter(o=>o.date?.startsWith(month));
  const customers=new Set(thisMonth.map(o=>normalizePhone(o.phone)||String(o.name||"").toLocaleLowerCase("ru")).filter(Boolean));
- const complete=thisMonth.filter(o=>o.status==="Выполнен");
- const paid=thisMonth.filter(o=>o.paid&&o.price!=null&&Number.isFinite(o.price));
- stats(root,[
-  {label:"Заказы сегодня",value:String(orders.filter(o=>o.date===today).length),hint:"Записи на текущую дату (МСК)"},
-  {label:"Клиенты за месяц",value:String(customers.size),hint:"Уникальные номера / имена"},
-  {label:"Стоимость оплаченных заказов",value:cash(paid.reduce((n,o)=>n+o.price,0)),hint:"По дате визита; не фактические поступления месяца"},
-  {label:"Выполнено за месяц",value:String(complete.length),hint:"По статусу «Выполнен»"}
- ]);
- const middle=makeNode("div","rd-grid-main");
- const chart=panel("Динамика заказов","Количество записей по дням месяца (МСК)");
- const monthBadge=boxText("span",parseDate(month+"-01").toLocaleDateString("ru-RU",{month:"long",year:"numeric"}),"rd-chart-month");
- chart.querySelector(".rd-panel-heading").append(monthBadge);
- const monthStart=month+"-01",date0=parseDate(monthStart),days=new Date(date0.getFullYear(),date0.getMonth()+1,0).getDate();
- const series=Array.from({length:days},(_,i)=>thisMonth.filter(o=>o.date===month+"-"+String(i+1).padStart(2,"0")).length);
- drawChart(chart,series,month);
- if(currentRole==="owner"){
-  const assistant=panel("ИИ-помощник","Спрашивайте о заказах и расписании");
-  for(const label of ["Найти свободное окно","Показать неоплаченные заказы","Сколько заказов за неделю?"]){
-   const b=makeNode("button","rd-quick",label);b.type="button";b.addEventListener("click",()=>window.location.assign("/ai.html?draft="+encodeURIComponent(label)));assistant.append(b);
-  }
-  const ai=makeNode("button","rd-primary","Открыть ИИ-чат");ai.style.width="100%";ai.style.marginTop="9px";ai.addEventListener("click",()=>window.location.assign("/ai.html"));assistant.append(ai);
-  middle.append(chart,assistant);
+ const completed=thisMonth.filter(o=>o.status==="Выполнен");
+ // Monetary figure represents recorded paid job prices by appointment date, not bank or cash receipts.
+ const paid=thisMonth.filter(o=>o.paid&&o.price!=null&&Number.isFinite(Number(o.price)));
+ const inProgress=orders.filter(o=>o.status==="В работе");
+ const unpaid=orders.filter(o=>o.status==="Выполнен"&&!o.paid);
+ const noMaster=orders.filter(o=>!smText(o.master)&&o.status!=="Выполнен");
+ const todayCount=orders.filter(o=>o.date===today).length;
+ const metrics=makeNode("div","rd-home-metrics");
+ metrics.append(
+  dashboardMetric("Сегодня",todayCount,{date:today}),
+  dashboardMetric("В работе",inProgress.length,{filter:"progress"}),
+  dashboardMetric("Долги",unpaid.length,{filter:"unpaid"})
+ );
+ root.append(metrics);
+ const paidTotal=paid.reduce((sum,o)=>sum+Number(o.price),0);
+ const paidSummary=makeNode("div","rd-home-paid-summary");
+ paidSummary.append(
+  boxText("span","Стоимость оплаченных заказов за месяц","rd-home-paid-label"),
+  boxText("strong",cash(paidTotal),"rd-home-paid-total"),
+  boxText("small","По дате визита · не остаток кассы и не прибыль","rd-home-paid-hint")
+ );
+ root.append(paidSummary);
+ if(unpaid.length||noMaster.length){
+  const attention=panel("Требуют внимания");
+  attention.classList.add("rd-home-attention","rd-home-primary-panel");
+  if(unpaid.length)rowEntry(attention,"Завершены без оплаты","Нужно получить или проверить оплату",String(unpaid.length),
+   ()=>openDashboardOrders({filter:"unpaid"}));
+  if(noMaster.length)rowEntry(attention,"Не назначен мастер","Нужно назначить исполнителя",String(noMaster.length),
+   ()=>openDashboardOrders({filter:"unassigned"}));
+  root.append(attention);
  }else{
-  const actions=panel("Быстрые действия","Работа с заявками и расписанием");
-  const create=makeNode("button","rd-quick","Новая заявка");create.type="button";
-  create.addEventListener("click",()=>{navigate("orders");$("newOrderBtn").click()});
-  const goCalendar=makeNode("button","rd-quick","Посмотреть календарь");goCalendar.type="button";
-  goCalendar.addEventListener("click",()=>navigate("calendar"));
-  actions.append(create,goCalendar);middle.append(chart,actions);
+  const clear=makeNode("div","rd-home-all-clear");
+  clear.append(uiIcon("check"),boxText("span","Нет срочных задач по оплате и назначению мастеров"));
+  root.append(clear);
  }
- root.append(middle);
- const two=makeNode("div","rd-grid-main rd-blockgap");
- const upcoming=panel("Ближайшие записи");upcoming.classList.add("rd-upcoming-panel");
  const nowMoscow=new Date().toLocaleTimeString("ru-RU",{hour:"2-digit",minute:"2-digit",hour12:false,timeZone:"Europe/Moscow"});
- const future=orders.filter(o=>o.date&&(o.date>today||(o.date===today&&(o.time||"23:59")>=nowMoscow)))
-   .sort((a,b)=>String(a.date+" "+a.time).localeCompare(String(b.date+" "+b.time))).slice(0,5);
- if(!future.length)upcoming.append(boxText("div","Ближайших записей нет","rd-empty"));
- future.forEach(o=>rowEntry(upcoming,o.name,o.master?dateLong(o.date)+" · "+o.master:dateLong(o.date),o.time||"—",()=>{navigate("orders");openForm(o.id)}));
- const notice=panel("Что требует внимания");notice.classList.add("rd-alert-panel");
- const unpaid=orders.filter(o=>o.status==="Выполнен"&&!o.paid),noMaster=orders.filter(o=>!smText(o.master)&&o.status!=="Выполнен");
- rowEntry(notice,"Неоплаченные выполненные заказы","По статусу и отметке оплаты",String(unpaid.length),()=>{
- navigate("orders");$("rdStatusFilter").value="unpaid";currentTab="history";render();filterCards();
-});
- rowEntry(notice,"Заказы без мастера","Нужно назначить исполнителя",String(noMaster.length),()=>navigate("orders"));
- rowEntry(notice,"Свободные окна","Смотрите актуальный календарь","Открыть",()=>navigate("calendar"));
- two.append(upcoming,notice);root.append(two);
- const latest=panel("Последние заказы");const recent=[...getOrders()].sort((a,b)=>String(b.createdAt||"").localeCompare(String(a.createdAt||""))).slice(0,5);
+ const future=orders.filter(o=>o.status!=="Выполнен"&&o.date&&
+   (o.date>today||(o.date===today&&(o.time||"23:59")>=nowMoscow)))
+   .sort((a,b)=>String(a.date+" "+(a.time||"")).localeCompare(String(b.date+" "+(b.time||""))));
+ const upcoming=panel("Ближайшая запись");
+ upcoming.classList.add("rd-home-upcoming","rd-home-primary-panel");
+ if(future.length){
+  const next=future[0];
+  const shortDate=dateLong(next.date)+(next.master?" · "+next.master:"");
+  rowEntry(upcoming,next.name||"Клиент",shortDate,next.time||"—",
+   ()=>openDashboardOrders({orderId:next.id}));
+ }else upcoming.append(boxText("div","Ближайших записей нет","rd-empty"));
+ root.append(upcoming);
+ const actions=makeNode("div","rd-home-actions");
+ if(currentRole==="owner"||currentRole==="manager")
+  actions.append(dashboardAction("plus","Новый заказ",()=>{navigate("orders");$("newOrderBtn").click()}));
+ actions.append(dashboardAction("calendar","Календарь",()=>navigate("calendar")));
+ if(currentRole==="owner")actions.append(dashboardAction("ai","ИИ-чат",()=>window.location.assign("/ai.html")));
+ else actions.append(dashboardAction("orders","Заказы",()=>navigate("orders")));
+ root.append(actions);
+ const details=document.createElement("details");
+ details.className="rd-home-analytics";
+ details.open=homeAnalyticsOpen;
+ const toggle=makeNode("summary","rd-home-analytics-toggle","Аналитика и история");
+ details.append(toggle);
+ details.addEventListener("toggle",()=>{homeAnalyticsOpen=details.open});
+ const analytics=makeNode("div","rd-home-analytics-content");
+ stats(analytics,[
+  {label:"Клиенты за месяц",value:String(customers.size),hint:"Уникальные контакты"},
+  {label:"Выполнено за месяц",value:String(completed.length),hint:"По дате визита"}
+ ]);
+ const chart=panel("Динамика заказов","Записи по дням месяца (МСК), будущие дни не учитываются");
+ const badge=boxText("span",parseDate(month+"-01").toLocaleDateString("ru-RU",{month:"long",year:"numeric"}),"rd-chart-month");
+ chart.querySelector(".rd-panel-heading").append(badge);
+ const start=parseDate(month+"-01");
+ const days=new Date(start.getFullYear(),start.getMonth()+1,0).getDate();
+ const series=Array.from({length:days},(_,i)=>{
+  const date=month+"-"+String(i+1).padStart(2,"0");
+  return date>today?null:thisMonth.filter(o=>o.date===date).length;
+ });
+ drawChart(chart,series,month);
+ analytics.append(chart);
+ const latest=panel("Последние заказы");
+ const recent=[...getOrders()].sort((a,b)=>String(b.createdAt||"").localeCompare(String(a.createdAt||""))).slice(0,5);
  if(!recent.length)latest.append(boxText("div","Заказов пока нет","rd-empty"));
- recent.forEach(o=>rowEntry(latest,o.name,(o.date?dateLong(o.date):"Без даты")+" · "+(o.master||"Без мастера"),o.price==null?"—":cash(o.price),()=>{navigate("orders");openForm(o.id)}));
- latest.classList.add("rd-blockgap");root.append(latest,boxText("div","Финансовая касса и распределение средств остаются в действующем разделе «Финансы».","rd-footer"));
+ recent.forEach(o=>rowEntry(latest,o.name||"Клиент",
+  (o.date?dateLong(o.date):"Без даты")+(o.master?" · "+o.master:""),
+  o.price==null?"—":cash(o.price),()=>openDashboardOrders({orderId:o.id})));
+ analytics.append(latest);
+ if(currentRole==="owner"){
+  const assistant=panel("ИИ-помощник","Вопросы о заказах и расписании");
+  for(const label of ["Найти свободное окно","Показать неоплаченные заказы","Сколько заказов за неделю?"]){
+   const b=makeNode("button","rd-quick",label);b.type="button";
+   b.addEventListener("click",()=>window.location.assign("/ai.html?draft="+encodeURIComponent(label)));
+   assistant.append(b);
+  }
+  analytics.append(assistant);
+ }
+ details.append(analytics);root.append(details);
 }
+
 function drawOrderSummary(){
  if(!ready)return;
  const el=$("rdOrderStats");el.replaceChildren();
@@ -813,7 +911,7 @@ function compactOrderCard(card){
 }
 window.__rdDecorateOrder=compactOrderCard;
 function applySummaryFilter(key){
- if(activePage!=="orders"||!["active","progress","unpaid"].includes(key))return;
+ if(activePage!=="orders"||!["active","progress","unpaid","unassigned"].includes(key))return;
  summaryFilter=summaryFilter===key?"":key;
  currentTab="all";orderListDateFilter="";
  const date=$("rdOrderDate"),master=$("rdMasterFilter"),status=$("rdStatusFilter"),search=$("rdTopSearch");
@@ -842,6 +940,7 @@ function filterCards(){
     (currentTab!=="all"||!summaryFilter||
       (summaryFilter==="active"?!["Выполнен","Отменён"].includes(card.dataset.status):
        summaryFilter==="progress"?card.dataset.status==="В работе":
+       summaryFilter==="unassigned"?!["Отменён","Выполнен"].includes(card.dataset.status)&&!String(card.dataset.master||"").trim():
        card.dataset.unpaid==="true"));
   card.hidden=!show;if(show)visible++;
  }
