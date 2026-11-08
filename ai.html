@@ -388,10 +388,17 @@ function setPendingDraft(draft){
  if(draft.action==="create"){
    lines.push("Телефон: "+draft.phone);
    if(draft.address)lines.push("Адрес: "+draft.address);
+   if(draft.radiators!=null)lines.push("Радиаторы: "+draft.radiators);
+   if(draft.floor_loops!=null)lines.push("Контуры: "+draft.floor_loops);
    if(draft.price!=null)lines.push("Стоимость: "+draft.price+" ₽");
    else lines.push("Стоимость: не указана");
+   if(draft.details)lines.push("Комментарий: "+draft.details);
  }
+ if(draft.schedule_warning)lines.push("ВНИМАНИЕ: "+draft.schedule_warning);
  $("proposalDetails").textContent=lines.join("\n");
+ $("tightScheduleConsent").hidden=!draft.schedule_warning;
+ $("allowTightSchedule").checked=false;
+ $("confirmOrder").textContent=draft.schedule_warning?"Подтвердить плотную запись":"Подтвердить";
 }
 $("cancelOrder").addEventListener("click",()=>{
  if(busy)return;
@@ -402,13 +409,20 @@ $("confirmOrder").addEventListener("click",async()=>{
  if(busy||!pendingDraft||!activeChat)return;
  const draft=pendingDraft;
  setBusy(true);$("notice").textContent="Повторно проверяю расписание и сохраняю...";
+ if(draft.schedule_warning&&!$("allowTightSchedule").checked){
+  return failure(new Error("Для плотного графика сначала отметь отдельное разрешение."));
+ }
  let saved=null;
  try{
-  saved=await db("rpc/rabota_ai_confirm_order","POST",{p_draft_id:draft.draft_id});
+  saved=await db("rpc/rabota_ai_confirm_order_v2","POST",{
+   p_draft_id:draft.draft_id,p_allow_tight_schedule:Boolean(draft.schedule_warning&&$("allowTightSchedule").checked)
+  });
   if(!saved?.ok||!saved?.order_id)throw new Error("Нет подтверждения сохранения от базы.");
-  const rows=await db("rabota_orders?select=id,name,appointment_date,appointment_time,master&id=eq."+encodeURIComponent(saved.order_id));
+  const rows=await db("rabota_orders?select=id,name,appointment_date,appointment_time,master,radiators,floor_loops,details&id=eq."+encodeURIComponent(saved.order_id));
   const actual=rows?.[0];
-  if(!actual||actual.appointment_date!==draft.date||String(actual.appointment_time||"").slice(0,5)!==draft.time){
+  if(!actual||actual.appointment_date!==draft.date||String(actual.appointment_time||"").slice(0,5)!==draft.time||
+   (draft.action==="create"&&((draft.radiators!=null&&actual.radiators!==draft.radiators)||
+    (draft.floor_loops!=null&&actual.floor_loops!==draft.floor_loops)))){
    throw new Error("Изменение выполнено, но не удалось подтвердить запись повторным чтением. Проверьте календарь.");
   }
   setPendingDraft(null);
@@ -429,14 +443,15 @@ $("confirmOrder").addEventListener("click",async()=>{
 
 function setBusy(value){
  $("confirmOrder").disabled=value;$("cancelOrder").disabled=value;
- busy=value;$("send").disabled=value;$("mic").disabled=value;$("newChat").disabled=value;$("input").disabled=value
+ busy=value;$("send").disabled=value;$("mic").disabled=value;$("attachPhoto").disabled=value;$("photoFile").disabled=value;$("newChat").disabled=value;$("input").disabled=value
 }
 async function send(event){
  event.preventDefault();
  if(busy)return;
  setPendingDraft(null);
  if(speechActive)stopDictation(true);
- const text=$("input").value.trim();if(!text)return;
+ const text=$("input").value.trim()||(pendingImageData?"Добавь заказ по фотографии":"");if(!text)return;
+ const image=pendingImageData;
  if(text.length>12000)return failure(new Error("Сообщение слишком длинное."));
  $("notice").textContent="";setBusy(true);
  try{
@@ -445,7 +460,7 @@ async function send(event){
    if(!rows?.[0]?.id)throw new Error("Не удалось создать чат.");
    activeChat=rows[0].id;
   }
-  await db("rabota_ai_messages","POST",{chat_id:activeChat,role:"user",content:text});
+  await db("rabota_ai_messages","POST",{chat_id:activeChat,role:"user",content:(text+(image?" [Фото заметки]":"")).slice(0,12000)});
   $("input").value="";$("input").style.height="auto";
   messages=await db("rabota_ai_messages?select=id,role,content,created_at&chat_id=eq."+encodeURIComponent(activeChat)+"&order=created_at.asc&limit=200");
   const context=messages.slice(-30).map(m=>({role:m.role,content:m.content}));
@@ -453,15 +468,16 @@ async function send(event){
   await ensureSession();
   const response=await fetch("/api/ai-chat",{method:"POST",headers:{
    "Content-Type":"application/json",Authorization:"Bearer "+session.access_token
-  },body:JSON.stringify({messages:context})});
+  },body:JSON.stringify({messages:context,image})});
   const data=await response.json().catch(()=>({}));
   if(!response.ok||!data.reply)throw new Error(data.error||"Ошибка сервера ИИ.");
   if(data.proposal){
     const p=data.proposal;
-    const draft=await db("rpc/rabota_ai_prepare_order","POST",{
+    const draft=await db("rpc/rabota_ai_prepare_order_v2","POST",{
       p_action:p.action,p_client_name:p.client_name,p_date:p.date,p_time:p.time,
       p_master:p.master,p_phone:p.phone,p_address:p.address,p_price:p.price,
-      p_details:p.details,p_original_date:p.original_date
+      p_details:p.details,p_original_date:p.original_date,
+      p_radiators:p.radiators,p_floor_loops:p.floor_loops
     });
     if(!draft||!draft.draft_id)throw new Error("Не удалось подготовить подтверждение заявки.");
     setPendingDraft(draft);
