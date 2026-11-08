@@ -534,28 +534,38 @@ function drawCalendar(){
   boxText("span",dayCount(total),"rd-selected-count"));
  detail.append(detailHeading);
  function showOrder(o){
-  const card=makeNode("article","rd-mobile-event "+statusClass(o));
-  const time=makeNode("div","rd-calendar-time");
-  time.append(boxText("strong",o.time||"—"),boxText("small",o.date?dateLong(o.date):""));
-  const content=makeNode("div","rd-calendar-entry");
-  const first=makeNode("div","rd-cal-order-heading");
-  first.append(boxText("strong",o.name||"Без имени"),boxText("span",statusName(o),"rd-calendar-badge "+statusClass(o)));
-  content.append(first);
-  const meta=makeNode("div","rd-cal-order-meta");
-  meta.append(boxText("span","Мастер: "+(o.master||"не назначен")));
-  if(smText(o.address))meta.append(boxText("span",o.address));
-  if(amount(o))meta.append(boxText("span",amount(o),"rd-cal-price"));
-  content.append(meta);
+  // Native <details> keeps each card collapsed by default and keyboard accessible.
+  const card=makeNode("details","rd-mobile-event rd-cal-collapsible "+statusClass(o));
+  const summary=makeNode("summary","rd-cal-summary");
+  const summaryContent=makeNode("div","rd-cal-summary-content");
+  const heading=makeNode("div","rd-cal-summary-heading");
+  heading.append(
+   boxText("strong",o.time||"—","rd-cal-summary-time"),
+   boxText("strong",o.name||"Без имени","rd-cal-summary-name"),
+   boxText("span",statusName(o),"rd-calendar-badge "+statusClass(o))
+  );
+  const brief=[o.master||"Мастер не назначен"];
+  if(o.radiators!==""&&o.radiators!=null)brief.push(o.radiators+" радиаторов");
+  if(o.floorLoops!==""&&o.floorLoops!=null)brief.push(o.floorLoops+" контур(ов)");
+  const secondary=makeNode("div","rd-cal-summary-bottom");
+  secondary.append(boxText("span",brief.join(" · "),"rd-cal-summary-brief"));
+  if(amount(o))secondary.append(boxText("strong",amount(o),"rd-cal-summary-price"));
+  summaryContent.append(heading,secondary);
+  const chevron=makeNode("span","rd-cal-summary-chevron");
+  chevron.setAttribute("aria-hidden","true");
+  summary.append(summaryContent,chevron);
+  const expanded=makeNode("div","rd-cal-expanded");
+  if(smText(o.address))expanded.append(boxText("div",o.address,"rd-cal-expanded-address"));
   const specs=[];
   if(o.radiators!==""&&o.radiators!=null)specs.push("Радиаторы: "+o.radiators+" шт.");
   if(o.floorLoops!==""&&o.floorLoops!=null)specs.push("Тёплый пол: "+o.floorLoops+" контур(ов)");
-  if(specs.length)content.append(boxText("div",specs.join(" · "),"rd-calendar-note"));
-  if(smText(o.details))content.append(boxText("p",o.details,"rd-calendar-note"));
+  if(specs.length)expanded.append(boxText("div",specs.join(" · "),"rd-calendar-note"));
+  if(smText(o.details))expanded.append(boxText("p",o.details,"rd-calendar-note"));
   const actions=makeNode("div","rd-calendar-actions");
   const phone=smText(o.phone),normalized=normalizePhone(phone);
   if(phone){
    const call=makeNode("a","rd-cal-action","Позвонить");
-   call.href="tel:"+phone.replace(/[^+\d]/g,"");actions.append(call);
+   call.href="tel:"+phone.replace(/[^+\\d]/g,"");actions.append(call);
   }
   if(normalized){
    const whatsapp=makeNode("a","rd-cal-action rd-cal-whatsapp","WhatsApp");
@@ -566,8 +576,10 @@ function drawCalendar(){
    const edit=makeNode("button","rd-cal-action rd-cal-edit","Изменить");
    edit.type="button";edit.addEventListener("click",()=>openForm(o.id));actions.append(edit);
   }
-  if(actions.children.length)content.append(actions);
-  card.append(time,content);detail.append(card);
+  if(actions.children.length)expanded.append(actions);
+  if(!expanded.children.length)expanded.append(boxText("p","Дополнительных сведений нет.","rd-calendar-note"));
+  card.append(summary,expanded);
+  detail.append(card);
  }
  if(calendarMode==="list"){
   for(const d of weekDays){
