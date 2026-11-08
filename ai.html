@@ -110,7 +110,7 @@ aside{width:266px;flex:0 0 266px;background:#171717;border-right:1px solid #2929
     <div class="sidebar-foot">ИИ читает заказы и расписание, готовит заявку по тексту, голосу или фото. Сохранение — только после твоего подтверждения. Фото не хранится в истории.</div>
   </aside>
   <main id="main">
-    <header class="top"><a href="/" class="crm-back" aria-label="Вернуться в CRM">← Работа</a><button id="menu" type="button" aria-label="История чатов">☰</button><h1 id="conversationTitle">ИИ-помощник</h1><span>OpenAI</span></header>
+    <header class="top"><a href="/" class="crm-back" aria-label="Вернуться в CRM">← Работа</a><button id="menu" type="button" aria-label="История чатов">☰</button><h1 id="conversationTitle">ИИ-помощник</h1></header>
     <section id="messages" aria-label="Сообщения" aria-live="polite"><div class="messages-inner" id="messageList"></div></section>
     <div class="composer-wrap">
       <section id="proposalCard" hidden aria-label="Предпросмотр изменения заказа">
@@ -124,9 +124,9 @@ aside{width:266px;flex:0 0 266px;background:#171717;border-right:1px solid #2929
         <div id="proposalHint">Изменение сохранится только после подтверждения. Проверка расписания повторится.</div>
       </section>
       <div id="photoPreview" hidden><img id="photoThumbnail" alt="Подготовленное фото заметки"><span id="photoLabel">Фото приложено</span><button id="removePhoto" type="button" aria-label="Удалить фото">×</button></div>
-      <form id="composer"><input id="photoFile" type="file" accept="image/*" hidden><button id="attachPhoto" type="button" aria-label="Добавить фото заметки" title="Добавить фото">＋</button><textarea id="input" placeholder="Напишите или продиктуйте сообщение..." rows="1" maxlength="12000" aria-label="Сообщение" required></textarea><button id="mic" type="button" aria-label="Продиктовать сообщение" aria-pressed="false" title="Нажмите и говорите"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="2.5" width="6" height="12" rx="3"/><path d="M5.5 10.5a6.5 6.5 0 0 0 13 0M12 17v4m-4 0h8"/></svg></button><button id="send" type="submit" aria-label="Отправить">↑</button></form>
+      <form id="composer"><input id="photoFile" type="file" accept="image/*" hidden><button id="attachPhoto" type="button" aria-label="Добавить фото заметки" title="Добавить фото">＋</button><textarea id="input" placeholder="Напишите или продиктуйте сообщение..." rows="1" maxlength="12000" aria-label="Сообщение"></textarea><button id="mic" type="button" aria-label="Продиктовать сообщение" aria-pressed="false" title="Нажмите и говорите"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="2.5" width="6" height="12" rx="3"/><path d="M5.5 10.5a6.5 6.5 0 0 0 13 0M12 17v4m-4 0h8"/></svg></button><button id="send" type="submit" aria-label="Отправить">↑</button></form>
       <div id="notice" role="status"></div>
-      <div class="hint">Микрофон превращает речь в текст. Проверьте слова и цифры перед отправкой. Ответы ИИ могут содержать ошибки.</div>
+      <div class="hint">Проверяй номер, дату, время и сумму перед подтверждением заказа.</div>
     </div>
   </main>
 </div>
@@ -137,6 +137,9 @@ const SUPABASE_KEY="sb_publishable_tSqbw3aeAgxYuzHhQurCuw_yDze4ZNn";
 const AUTH_KEY="rabota-auth-session-v1";
 let session=null,refreshPromise=null,activeChat=null,chats=[],messages=[],busy=false,pendingDraft=null,pendingImageData=null,photoProcessing=false,photoSequence=0;
 const $=id=>document.getElementById(id);
+function syncSendAvailability(){
+ $("send").disabled=busy||photoProcessing||(!$("input").value.trim()&&!pendingImageData);
+}
 try{session=JSON.parse(localStorage.getItem(AUTH_KEY)||"null")}catch(_){}
 function gate(message){$("layout").hidden=true;$("gate").hidden=false;$("gateText").textContent=message}
 function failure(error){$("notice").textContent=error.message||String(error)}
@@ -184,24 +187,31 @@ function renderMessages(){
  if(!messages.length){
   const empty=document.createElement("div");empty.className="empty-state";
   const emblem=document.createElement("div");emblem.className="rd-ai-emblem";emblem.setAttribute("aria-hidden","true");emblem.textContent="✦";
-  const title=document.createElement("h2");title.textContent="С чего начнём?";
-  const subtitle=document.createElement("p");subtitle.textContent="Вопросы о заказах, клиентах, расписании и финансах — в одном месте.";
+  const title=document.createElement("h2");title.textContent="Чем помочь?";
+  const subtitle=document.createElement("p");subtitle.textContent="Запиши клиента, отправь фото или проверь расписание.";
   const questions=document.createElement("div");questions.className="quick-questions";
   const suggestions=[
-    "Сколько заказов на этой и прошлой неделе?",
-    "Сколько клиентов записано на завтра?",
-    "Какие заказы ещё не оплачены?",
-    "Сколько денег в кассе по учёту?"
+    {label:"Добавить заказ",icon:"＋",kind:"draft"},
+    {label:"Отправить фото",icon:"▣",kind:"photo"},
+    {label:"Свободные окна",icon:"◷",kind:"prompt",prompt:"Покажи свободные окна Рауля на ближайшие три дня, учитывая дорогу и текущие заказы."},
+    {label:"Неоплаченные",icon:"₽",kind:"prompt",prompt:"Покажи выполненные, но не оплаченные заказы и общую сумму."}
   ];
-  for(const [i,question] of suggestions.entries()){
+  for(const suggestion of suggestions){
     const button=document.createElement("button");
     button.type="button";button.className="quick-question";
-    const symbol=document.createElement("span");symbol.className="rd-quick-icon";symbol.setAttribute("aria-hidden","true");symbol.textContent=["▤","♙","₽","▥"][i];
-    const copy=document.createElement("span");copy.className="rd-quick-label";copy.textContent=question;
+    const symbol=document.createElement("span");symbol.className="rd-quick-icon";symbol.setAttribute("aria-hidden","true");symbol.textContent=suggestion.icon;
+    const copy=document.createElement("span");copy.className="rd-quick-label";copy.textContent=suggestion.label;
     const arrow=document.createElement("span");arrow.className="rd-quick-arrow";arrow.setAttribute("aria-hidden","true");arrow.textContent="›";
     button.append(symbol,copy,arrow);
-    button.addEventListener("click",()=>{$("input").value=question;$("input").focus();$("composer").requestSubmit()});
-    questions.append(button)
+    button.addEventListener("click",()=>{
+      if(busy||photoProcessing)return;
+      if(suggestion.kind==="photo"){$("photoFile").click();return}
+      $("input").value=suggestion.kind==="draft"?"Добавь заказ: ":suggestion.prompt;
+      $("input").dispatchEvent(new Event("input",{bubbles:true}));
+      if(suggestion.kind==="draft")$("input").focus();
+      else $("composer").requestSubmit();
+    });
+    questions.append(button);
   }
   empty.append(emblem,title,subtitle,questions);list.append(empty)
  }else for(const m of messages)list.append(item(m.role,m.content));
@@ -257,14 +267,14 @@ async function deleteChat(id){
 function clearAttachedPhoto(){
  photoSequence++;photoProcessing=false;pendingImageData=null;$("photoFile").value="";
  $("photoPreview").hidden=true;$("photoThumbnail").removeAttribute("src");
- if(!busy)$("send").disabled=false;
+ syncSendAvailability();
 }
 $("attachPhoto").addEventListener("click",()=>{if(!busy)$("photoFile").click()});
 $("removePhoto").addEventListener("click",clearAttachedPhoto);
 $("photoFile").addEventListener("change",async()=>{
  const file=$("photoFile").files?.[0];if(!file)return;
  const sequence=++photoSequence;
- photoProcessing=true;$("send").disabled=true;
+ photoProcessing=true;syncSendAvailability();
  if(file.size>12000000){clearAttachedPhoto();failure(new Error("Выберите фотографию до 12 МБ."));return}
  $("notice").textContent="Подготавливаю фото...";
  try{
@@ -294,11 +304,11 @@ $("photoFile").addEventListener("change",async()=>{
   if(encoded.length>2700000)encoded=resize(1350,.77);
   if(encoded.length>2700000)throw new Error("Слишком большое фото, попробуйте обрезать.");
   if(sequence!==photoSequence)return;
-  pendingImageData=encoded;$("photoThumbnail").src=encoded;
+  pendingImageData=encoded;$("photoThumbnail").src=encoded;syncSendAvailability();
   $("photoPreview").hidden=false;$("photoLabel").textContent="Фото: "+file.name;
   $("notice").textContent="Фото готово. Напиши «Добавь заказ» и отправь.";
  }catch(error){if(sequence===photoSequence){clearAttachedPhoto();failure(error)}}
- finally{if(sequence===photoSequence){photoProcessing=false;if(!busy)$("send").disabled=false}}
+ finally{if(sequence===photoSequence){photoProcessing=false;syncSendAvailability()}}
 });
 /* Только ввод русской речи в текст, без аудиосообщений и озвучки ответов. */
 const SpeechRecognizer=window.SpeechRecognition||window.webkitSpeechRecognition;
@@ -413,10 +423,10 @@ $("cancelOrder").addEventListener("click",()=>{
 $("confirmOrder").addEventListener("click",async()=>{
  if(busy||!pendingDraft||!activeChat)return;
  const draft=pendingDraft;
- setBusy(true);$("notice").textContent="Повторно проверяю расписание и сохраняю...";
  if(draft.schedule_warning&&!$("allowTightSchedule").checked){
   return failure(new Error("Для плотного графика сначала отметь отдельное разрешение."));
  }
+ setBusy(true);$("notice").textContent="Повторно проверяю расписание и сохраняю...";
  let saved=null;
  try{
   saved=await db("rpc/rabota_ai_confirm_order_v2","POST",{
@@ -448,7 +458,7 @@ $("confirmOrder").addEventListener("click",async()=>{
 
 function setBusy(value){
  $("confirmOrder").disabled=value;$("cancelOrder").disabled=value;
- busy=value;$("send").disabled=value||photoProcessing;$("mic").disabled=value;$("attachPhoto").disabled=value;$("photoFile").disabled=value;$("newChat").disabled=value;$("input").disabled=value
+ busy=value;$("mic").disabled=value;$("attachPhoto").disabled=value;$("photoFile").disabled=value;$("newChat").disabled=value;$("input").disabled=value;syncSendAvailability()
 }
 async function send(event){
  event.preventDefault();
@@ -499,7 +509,7 @@ $("input").addEventListener("keydown",event=>{
  if(event.key==="Enter"&&!event.shiftKey&&!event.isComposing){event.preventDefault();$("composer").requestSubmit()}
 });
 $("input").addEventListener("input",()=>{
- const el=$("input");el.style.height="auto";el.style.height=Math.min(el.scrollHeight,180)+"px";
+ const el=$("input");el.style.height="auto";el.style.height=Math.min(el.scrollHeight,180)+"px";syncSendAvailability();
 });
 (async()=>{
  try{
@@ -510,7 +520,7 @@ $("input").addEventListener("input",()=>{
   const membership=await db("rabota_members?select=role,active&user_id=eq."+encodeURIComponent(user.id)+"&limit=1");
   if(!membership?.some(m=>m.role==="owner"&&m.active))throw new Error("ИИ-чат доступен только владельцу приложения.");
   $("gate").hidden=true;$("layout").hidden=false;
-  renderMessages();
+  syncSendAvailability();renderMessages();
   await loadChats();
   const previousChat=sessionStorage.getItem("rabota-ai-active-chat");
   if(previousChat && chats.some(chat=>chat.id===previousChat))await openChat(previousChat);
