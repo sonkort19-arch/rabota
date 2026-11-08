@@ -116,23 +116,25 @@
       inside.append(comments);
     }
     if(payload?.controls){
+      const manual=document.createElement("details");
+      manual.className="rd-order-manual-status";
+      manual.append(text("summary","Другой статус","rd-order-manual-label"));
       const controls=text("div","","rd-order-status-controls");
       controls.append(payload.controls);
-      inside.append(controls);
+      manual.append(controls);
+      // Used by the compact footer shortcut. No second visible status selection.
+      inside.append(manual);
     }
     const footer=activeDialog.querySelector(".rd-order-footer");
     footer.replaceChildren();
     const rows=visibleCards(),index=rows.findIndex(n=>n.dataset.rdOrderId===activeId);
-    const nav=text("div","","rd-order-navigation");
-    const prev=text("button","‹ Предыдущий","rd-order-prev");
-    const next=text("button","Следующий ›","rd-order-next");
-    prev.type=next.type="button";
+    const prev=activeDialog.querySelector(".rd-order-prev");
+    const next=activeDialog.querySelector(".rd-order-next");
+    const position=activeDialog.querySelector(".rd-order-position");
     prev.disabled=index<=0;
     next.disabled=index<0||index===rows.length-1;
-    prev.addEventListener("click",()=>moveDialog(-1));
-    next.addEventListener("click",()=>moveDialog(1));
-    nav.append(prev,text("span",(index+1)+" из "+rows.length,"rd-order-position"),next);
-    footer.append(nav);
+    position.textContent=(index+1)+"/"+rows.length;
+    // Existing status control handlers remain active inside the collapsed editor.
     const select=payload?.controls?.querySelector("select.compact-select");
     let ctaLabel=null,newStatus=null,existingButton=null;
     if(order.status==="В работе"&&!order.paid){ctaLabel="Завершить заказ";newStatus="Выполнен";}
@@ -155,6 +157,24 @@
         }else if(existingButton&&!existingButton.disabled)existingButton.click();
       });
       footer.append(cta);
+    }
+    if(payload?.controls){
+      const manualLink=text("button","Другой статус","rd-order-manual-link");
+      manualLink.type="button";
+      manualLink.setAttribute("aria-label","Показать ручное изменение статуса заказа");
+      manualLink.addEventListener("click",()=>{
+        const manual=activeDialog?.querySelector(".rd-order-manual-status");
+        if(!manual)return;
+        manual.open=!manual.open;
+        if(manual.open){
+          manual.scrollIntoView({block:"nearest",behavior:"smooth"});
+          const select=manual.querySelector("select.compact-select");
+          if(select)select.focus({preventScroll:true});
+        }else{
+          manualLink.focus({preventScroll:true});
+        }
+      });
+      footer.append(manualLink);
     }
     if(resetScroll){
       inside.scrollTop=0;
@@ -183,10 +203,21 @@
     const title=text("h2","","rd-order-title");
     title.id="rdOrderDialogTitle";
     heading.append(title,text("p","","rd-order-subtitle"));
+    const nav=text("div","","rd-order-navigation");
+    const prev=text("button","‹","rd-order-prev");
+    const next=text("button","›","rd-order-next");
+    prev.type=next.type="button";
+    prev.setAttribute("aria-label","Предыдущий заказ");
+    next.setAttribute("aria-label","Следующий заказ");
+    prev.addEventListener("click",()=>moveDialog(-1));
+    next.addEventListener("click",()=>moveDialog(1));
+    nav.append(prev,text("span","","rd-order-position"),next);
     const close=text("button","×","rd-order-close");
     close.type="button";close.setAttribute("aria-label","Закрыть заказ");
     close.addEventListener("click",()=>closeDialog());
-    head.append(heading,close);
+    const headControls=text("div","","rd-order-head-controls");
+    headControls.append(nav,close);
+    head.append(heading,headControls);
     dialog.append(head,text("div","","rd-order-content"),text("div","","rd-order-footer"));
     overlay.append(dialog);
     overlay.addEventListener("click",event=>{if(event.target===overlay)closeDialog();});
@@ -238,6 +269,8 @@
       text("small",order.time||"Время не указано"));
     const master=cell("master",text("small","Мастер"),text("strong",order.master||"Не назначен"));
     const cost=cell("price",text("small","Стоимость"),text("strong",formatMoney(order.price)));
+    const meta=cell("meta",
+      text("span",(order.master||"Не назначен")+" · "+formatMoney(order.price),"rd-list-meta-text"));
     const state=cell("state",text("span",order.status||"Новый",
       "rd-list-status "+(colorByStatus[order.status]||"s-new")));
     const paymentLabel=order.status==="Выполнен"?
@@ -249,7 +282,7 @@
     const toggle=text("button","","rd-list-toggle");
     toggle.type="button";
     toggle.setAttribute("aria-haspopup","dialog");
-    toggle.append(person,time,master,cost,state,paid,arrow);
+    toggle.append(person,time,master,cost,meta,state,paid,arrow);
     // The original controls are moved to the dialog, not cloned: their database handlers still work.
     const actions=Array.from(card.children).find(node=>node.classList.contains("actions"))||null;
     const controls=Array.from(card.children).find(node=>node.classList.contains("card-controls"))||null;
