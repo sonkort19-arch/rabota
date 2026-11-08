@@ -294,6 +294,16 @@
     card.classList.add("rd-list-row");
     card.replaceChildren(toggle);
   };
+  // Owner dashboard deep link: open the same compact dialog as tapping a list row.
+  window.__rdOpenOrderDetail=(orderId)=>{
+    if(window.__rdCurrentPage!=="orders"||currentRole==="master")return false;
+    const id=String(orderId||"");
+    const row=orderCard(id);
+    if(!row)return false;
+    const trigger=row.querySelector(".rd-list-toggle");
+    openDialog(id,trigger);
+    return true;
+  };
   window.__rdRefresh=(...args)=>{
     if(typeof originalRefresh==="function")originalRefresh(...args);
     if(activeDialog){
