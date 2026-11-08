@@ -708,6 +708,23 @@ function filterCards(){
   card.hidden=!show;if(show)visible++;
  }
  if(total)$("orderCount").textContent="Показано "+visible+" из "+total;
+ const oldEmpty=$("rdOrderFilterEmpty");if(oldEmpty)oldEmpty.remove();
+ if(total&&visible===0&&["all","history"].includes(currentTab)){
+  const empty=makeNode("div","rd-order-filter-empty");empty.id="rdOrderFilterEmpty";
+  empty.setAttribute("role","status");
+  empty.append(boxText("strong",currentTab==="history"?"Выполненные заказы не найдены":"Заказы не найдены"),
+   boxText("p","По выбранным фильтрам совпадений нет. Заказы остаются в базе."));
+  const reset=makeNode("button","secondary",currentTab==="history"?"Показать всю историю":"Показать все заказы");
+  reset.type="button";
+  reset.addEventListener("click",()=>{
+   if(currentTab==="history")orderHistoryDateFilter="";
+   else orderListDateFilter="";
+   $("rdOrderDate").value="";$("rdMasterFilter").value="";$("rdStatusFilter").value="";
+   rdSearchTerm="";$("rdTopSearch").value="";
+   render();
+  });
+  empty.append(reset);$("orders").append(empty);
+ }
 }
 window.__rdGoToLeads=()=>navigate("leads");
 window.__rdAccess=()=>{
