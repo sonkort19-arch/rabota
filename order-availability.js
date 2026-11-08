@@ -61,7 +61,7 @@
     const count=stats?Math.min(stats.count,MAX_JOBS):null;
     const state=count===null?"unknown":count>=MAX_JOBS?"full":count===1?"partial":"free";
     dayLoad.className="oa-load oa-load-"+state;
-    dayLoad.textContent=count===null?"Выберите мастера":count+" из "+MAX_JOBS;
+    dayLoad.textContent=count===null?"Выберите мастера":(count===0?"0 заказов":count===1?"1 заказ":"2 заказа")+" из "+MAX_JOBS;
     toggle.setAttribute("aria-label","Дата: "+dateText(dayInput.value)+". "+
       (stats?stats.count+" из "+MAX_JOBS+" записей":"Мастер не выбран")+
       (calendarBody.hidden?". Открыть календарь":". Свернуть календарь"));
@@ -164,16 +164,16 @@
       message.textContent="День заполнен: у мастера уже 2 заказа. Выберите другую дату.";
     }else if(stats.count===1){
       message.classList.add("oa-message-partial");
-      message.textContent="Записан 1 заказ из 2. Время нужно согласовать с учётом дороги.";
+      message.textContent="1 заказ из 2. Учитывайте 3 часа работы и 20 минут на дорогу.";
     }else if(stats.count>=MAX_JOBS){
       message.classList.add("oa-message-full");
       message.textContent="На день запланировано 2 заказа. Для нового заказа выберите другую дату.";
     }else{
       message.classList.add("oa-message-free");
-      message.textContent="На эту дату заказов пока нет. Время предварительно свободно.";
+      message.textContent="Записей пока нет. Выберите удобное время.";
     }
     if(stats.all.length){
-      existing.append(el("div","oa-subtitle","Записи мастера на этот день"));
+      existing.append(el("div","oa-subtitle","Занято:"));
       for(const order of stats.all){
         const row=el("div","oa-booking-row");
         row.append(el("strong","",order.time||"Время не указано"));
@@ -182,17 +182,19 @@
         existing.append(row);
       }
     }
-    slots.append(el("div","oa-subtitle","Варианты времени (ориентировочно)"));
+    slots.append(el("div","oa-subtitle","Выберите время"));
     let available=0;
     for(const time of suggestedTimes){
       const state=timeState(time,date,master);
       const label=state==="busy"?"Занято":state==="tight"?"Мало времени":
-        state==="full"?"День занят":state==="unknown"?"Уточнить":"Можно записать";
+        state==="full"?"День занят":state==="unknown"?"Уточнить":"Свободно";
       const button=el("button","oa-slot oa-slot-"+state+(timeInput.value===time?" is-selected":""));
       button.type="button";
       button.disabled=state!=="available";
       button.setAttribute("aria-label",time+": "+label);
-      button.append(el("strong","",time),el("small","",label));
+      button.setAttribute("aria-pressed",String(timeInput.value===time));
+      button.dataset.baseLabel=label;
+      button.append(el("strong","",time),el("small","",timeInput.value===time&&state==="available"?"Выбрано":label));
       if(!button.disabled){
         available++;
         button.addEventListener("click",()=>{
@@ -206,11 +208,15 @@
     if(!available&&stats.canBook)
       slots.append(el("p","oa-no-slots","Нет подходящих типовых интервалов. Выберите другой день или уточните время вручную."));
     slots.append(el("p","oa-slot-note",
-      "Подсказка по текущим заказам, не гарантия свободного времени. Перед сохранением система проверит конфликты."));
+      "Свободно по текущим заказам. Проверка повторится при сохранении."));
   }
   function renderSlots(){
     for(const button of $("oaSlotSuggestions").querySelectorAll(".oa-slot")){
-      button.classList.toggle("is-selected",button.querySelector("strong")?.textContent===timeInput.value);
+      const selected=button.querySelector("strong")?.textContent===timeInput.value&&!button.disabled;
+      button.classList.toggle("is-selected",selected);
+      button.setAttribute("aria-pressed",String(selected));
+      const caption=button.querySelector("small");
+      if(caption)caption.textContent=selected?"Выбрано":button.dataset.baseLabel||"";
     }
   }
   function render(){
