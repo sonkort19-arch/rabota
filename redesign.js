@@ -689,7 +689,7 @@ function compactOrderCard(card){
 window.__rdDecorateOrder=compactOrderCard;
 function filterCards(){
  if(!ready||activePage!=="orders")return;
- const date=$("rdOrderDate").value,master=$("rdMasterFilter").value,status=$("rdStatusFilter").value;
+ const date=currentTab==="calendar"?"":$("rdOrderDate").value,master=$("rdMasterFilter").value,status=$("rdStatusFilter").value;
  let visible=0,total=0;
  for(const card of $("orders").querySelectorAll(".order-card")){
   total++;
