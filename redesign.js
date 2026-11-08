@@ -46,6 +46,18 @@ function uiIcon(name,extra=""){
  svg.innerHTML=iconPaths[name]||iconPaths.orders;return svg;
 }
 let activePage="home",ready=false,lastOrderKey="",rdSearchTerm="",selectedClientKey=null,builtRole=null,calendarMode="week",calendarMaster="",calendarStatus="",calendarHideDone=false,calendarOpened=false;
+let calendarWeekCache="",calendarDetailCache="",calendarMastersCache="";
+const calendarExpandedOrders=new Set();
+function selectCalendarDate(date,openDay=false){
+ if(!/^\d{4}-\d{2}-\d{2}$/.test(String(date||"")))return;
+ const mode=openDay?"day":calendarMode;
+ if(selectedDate===date&&calendarMode===mode)return;
+ selectedDate=date;calendarMode=mode;drawCalendar();
+}
+function switchCalendarMode(mode){
+ if(!["week","day","list"].includes(mode)||calendarMode===mode)return;
+ calendarMode=mode;drawCalendar();
+}
 const orderTabFilters={calendar:{master:"",status:"",search:""},all:{master:"",status:"",search:""},history:{master:"",status:"",search:""}};
 function storeOrderFilters(tab){
  const state=orderTabFilters[tab];if(!state)return;
@@ -170,17 +182,17 @@ function build(){
  const calendarNav=makeNode("div","rd-toolbar");calendarNav.id="rdCalendarNavigation";
  const previous=makeNode("button","secondary rd-cal-step","‹");
  previous.type="button";previous.title="Предыдущая неделя";previous.setAttribute("aria-label","Предыдущая неделя");
- previous.addEventListener("click",()=>$("prevWeek").click());
+ previous.addEventListener("click",()=>selectCalendarDate(addDays(selectedDate,-7)));
  const next=makeNode("button","secondary rd-cal-step","›");
  next.type="button";next.title="Следующая неделя";next.setAttribute("aria-label","Следующая неделя");
- next.addEventListener("click",()=>$("nextWeek").click());
+ next.addEventListener("click",()=>selectCalendarDate(addDays(selectedDate,7)));
  const todayBtn=makeNode("button","secondary rd-cal-today","Сегодня");
- todayBtn.type="button";todayBtn.addEventListener("click",()=>{selectedDate=todayMoscow();currentTab="calendar";render()});
+ todayBtn.type="button";todayBtn.addEventListener("click",()=>selectCalendarDate(todayMoscow()));
  const calendarDateField=makeNode("div","rd-cal-date-field");
  const calendarDateLabel=makeNode("span","rd-cal-date-label");calendarDateLabel.id="rdCalendarDateLabel";calendarDateLabel.setAttribute("aria-hidden","true");
  const calendarSelect=makeNode("input");calendarSelect.type="date";calendarSelect.id="rdCalendarDate";calendarSelect.setAttribute("aria-label","Выбрать дату в расписании");
  calendarDateField.append(calendarDateLabel,calendarSelect);
- calendarSelect.addEventListener("change",()=>{if(!calendarSelect.value)return;selectedDate=calendarSelect.value;currentTab="calendar";render()});
+ calendarSelect.addEventListener("change",()=>selectCalendarDate(calendarSelect.value));
  const calendarMasterSelect=makeNode("select");calendarMasterSelect.id="rdCalendarMaster";
  calendarMasterSelect.setAttribute("aria-label","Показать мастера");
  calendarMasterSelect.addEventListener("change",()=>{calendarMaster=calendarMasterSelect.value;drawCalendar()});
@@ -197,7 +209,7 @@ function build(){
  const modes=makeNode("div","rd-calendar-modes");modes.setAttribute("role","group");modes.setAttribute("aria-label","Режим просмотра календаря");
  [["week","Неделя"],["day","День"],["list","Список"]].forEach(([mode,label])=>{
   const btn=makeNode("button","rd-calendar-mode",label);btn.type="button";btn.dataset.mode=mode;
-  btn.addEventListener("click",()=>{calendarMode=mode;drawCalendar()});modes.append(btn)
+  btn.addEventListener("click",()=>switchCalendarMode(mode));modes.append(btn)
  });
  boardHeading.append(weekHeading,modes);
  const doneLabel=makeNode("label","rd-calendar-done-toggle");
@@ -501,13 +513,16 @@ function drawCalendar(){
  const doneLabel=boardRoot.querySelector(".rd-calendar-done-toggle");
  const allOrders=getOrders().filter(o=>o.date && o.status!=="Отменён");
  const masters=[...new Set(allOrders.map(o=>smText(o.master)).filter(Boolean))].sort((a,b)=>a.localeCompare(b,"ru"));
- const previousMaster=calendarMaster;
- if(previousMaster && !masters.includes(previousMaster))calendarMaster="";
- masterSelect.replaceChildren();
- const all=makeNode("option","","Все мастера");all.value="";masterSelect.append(all);
- for(const name of masters){const opt=makeNode("option","",name);opt.value=name;masterSelect.append(opt)}
+ if(calendarMaster && !masters.includes(calendarMaster))calendarMaster="";
+ const masterKey=masters.join("\u001f");
+ if(calendarMastersCache!==masterKey||!masterSelect.options.length){
+  masterSelect.replaceChildren();
+  const all=makeNode("option","","Все мастера");all.value="";masterSelect.append(all);
+  for(const name of masters){const opt=makeNode("option","",name);opt.value=name;masterSelect.append(opt)}
+  calendarMastersCache=masterKey;
+ }
  masterSelect.value=calendarMaster;
- $("rdCalendarStatus").value=calendarStatus;
+  $("rdCalendarStatus").value=calendarStatus;
  $("rdCalendarHideDone").checked=calendarHideDone;
  // Filters are visual only. Never edit real orders during a calendar redraw.
  const orders=allOrders.filter(o=>
@@ -519,27 +534,38 @@ function drawCalendar(){
  const sunday=addDays(monday,6);
  const weekLabel=parseDate(monday).toLocaleDateString("ru-RU",{day:"numeric",month:"short"})+" – "+
   parseDate(sunday).toLocaleDateString("ru-RU",{day:"numeric",month:"short",year:"numeric"});
- weekTitle.textContent=(calendarMode==="day"?"День":"Неделя")+" · "+(calendarMode==="day"?dateLong(selectedDate):weekLabel);
+ weekTitle.textContent=(calendarMode==="day"?"День":calendarMode==="list"?"Список":"Неделя")+" · "+(calendarMode==="day"?dateLong(selectedDate):weekLabel);
  boardRoot.dataset.calendarMode=calendarMode;
  boardRoot.querySelectorAll(".rd-calendar-mode").forEach(button=>{
   const selected=button.dataset.mode===calendarMode;
   button.setAttribute("aria-pressed",String(selected));
   button.classList.toggle("is-active",selected);
  });
- board.replaceChildren();weekStrip.replaceChildren();detail.replaceChildren();
  const today=todayMoscow(),weekDays=[];
+ // Reuse the seven-day navigation until week, filters or data really change.
+ const weekKey=[monday,calendarMaster,calendarStatus,String(calendarHideDone),
+  String(window.__rdOrdersRevision||0)].join("|");
+ const rebuildWeek=weekKey!==calendarWeekCache||board.children.length!==7||weekStrip.children.length!==7;
+ if(rebuildWeek){board.replaceChildren();weekStrip.replaceChildren();}
+ const detailKey=[calendarMode,calendarMode==="day"?selectedDate:monday,weekKey].join("|");
+ const rebuildDetail=detailKey!==calendarDetailCache||!detail.children.length;
  const byTime=(a,b)=>String(a.time||"").localeCompare(String(b.time||""));
  const statusClass=o=>o.status==="Выполнен"?"is-done":o.status==="В работе"?"is-progress":"is-booked";
  const statusName=o=>o.status||"Новый";
  const amount=o=>o.price!=null&&o.price!==""&&Number.isFinite(Number(o.price))?cash(o.price):null;
  const dayCount=n=>n+" "+(n%10===1&&n%100!==11?"запись":n%10>=2&&n%10<=4&&(n%100<12||n%100>14)?"записи":"записей");
- const selectDay=date=>{
-  selectedDate=date;calendarMode="day";currentTab="calendar";render();
- };
+ const selectDay=date=>selectCalendarDate(date,true);
  for(let i=0;i<7;i++){
   const date=addDays(monday,i),items=orders.filter(o=>o.date===date).sort(byTime);
   weekDays.push({date,items});
   const dateObj=parseDate(date);
+  if(!rebuildWeek){
+   const day=board.children[i],chip=weekStrip.children[i];
+   day?.classList.toggle("is-today",date===selectedDate);
+   chip?.classList.toggle("is-selected",date===selectedDate);
+   chip?.setAttribute("aria-pressed",String(date===selectedDate));
+   continue;
+  }
   const day=makeNode("section","rd-calendar-day"+(date===selectedDate?" is-today":""));
   const dayHeader=makeNode("button","rd-cal-dayhead");
   dayHeader.type="button";dayHeader.setAttribute("aria-label","Показать заявки на "+dateObj.toLocaleDateString("ru-RU"));
@@ -571,16 +597,28 @@ function drawCalendar(){
    boxText("strong",String(dateObj.getDate())),boxText("small",String(items.length)));
   chip.addEventListener("click",()=>selectDay(date));weekStrip.append(chip);
  }
+ calendarWeekCache=weekKey;
+ if(!rebuildDetail)return;
+ detail.replaceChildren();
  const detailHeading=makeNode("div","rd-selected-heading");
- const total=calendarMode==="list"?weekDays.reduce((sum,d)=>sum+d.items.length,0):
-  orders.filter(o=>o.date===selectedDate).length;
- detailHeading.append(boxText("h3",calendarMode==="list"?"Записи за неделю":
-  parseDate(selectedDate).toLocaleDateString("ru-RU",{day:"numeric",month:"long",weekday:"long"})),
-  boxText("span",dayCount(total),"rd-selected-count"));
+ const total=calendarMode==="day"?
+  (weekDays.find(d=>d.date===selectedDate)?.items.length||0):
+  weekDays.reduce((sum,d)=>sum+d.items.length,0);
+ const title=calendarMode==="day"?
+  parseDate(selectedDate).toLocaleDateString("ru-RU",{day:"numeric",month:"long",weekday:"long"}):
+  "Записи за неделю";
+ detailHeading.append(boxText("h3",title),boxText("span",dayCount(total),"rd-selected-count"));
  detail.append(detailHeading);
- function showOrder(o){
+  function showOrder(o,withDate=false){
   // Native <details> keeps each card collapsed by default and keyboard accessible.
   const card=makeNode("details","rd-mobile-event rd-cal-collapsible "+statusClass(o));
+  const orderKey=String(o.id);
+  card.dataset.orderId=orderKey;
+  card.open=calendarExpandedOrders.has(orderKey);
+  card.addEventListener("toggle",()=>{
+   if(card.open)calendarExpandedOrders.add(orderKey);
+   else calendarExpandedOrders.delete(orderKey);
+  });
   const summary=makeNode("summary","rd-cal-summary");
   const summaryContent=makeNode("div","rd-cal-summary-content");
   const heading=makeNode("div","rd-cal-summary-heading");
@@ -589,7 +627,9 @@ function drawCalendar(){
    boxText("strong",o.name||"Без имени","rd-cal-summary-name"),
    boxText("span",statusName(o),"rd-calendar-badge "+statusClass(o))
   );
-  const brief=[o.master||"Мастер не назначен"];
+  const brief=withDate&&o.date?
+   [parseDate(o.date).toLocaleDateString("ru-RU",{day:"numeric",month:"short"}),o.master||"Мастер не назначен"]:
+   [o.master||"Мастер не назначен"];
   if(o.radiators!==""&&o.radiators!=null)brief.push(o.radiators+" радиаторов");
   if(o.floorLoops!==""&&o.floorLoops!=null)brief.push(o.floorLoops+" контур(ов)");
   const secondary=makeNode("div","rd-cal-summary-bottom");
@@ -626,15 +666,20 @@ function drawCalendar(){
   card.append(summary,expanded);
   detail.append(card);
  }
- if(calendarMode==="list"){
+ if(calendarMode==="week"){
   for(const d of weekDays){
    if(!d.items.length)continue;
-   const title=boxText("h4",parseDate(d.date).toLocaleDateString("ru-RU",{weekday:"long",day:"numeric",month:"long"}),"rd-cal-list-day");
-   detail.append(title);
-   d.items.forEach(showOrder);
+   detail.append(boxText("h4",parseDate(d.date).toLocaleDateString("ru-RU",
+    {weekday:"long",day:"numeric",month:"long"}),"rd-cal-list-day"));
+   d.items.forEach(o=>showOrder(o));
   }
- }else weekDays.find(d=>d.date===selectedDate)?.items.forEach(showOrder);
+ }else if(calendarMode==="list"){
+  for(const d of weekDays)d.items.forEach(o=>showOrder(o,true));
+ }else{
+  weekDays.find(d=>d.date===selectedDate)?.items.forEach(o=>showOrder(o));
+ }
  if(!total)detail.append(boxText("p","На выбранный период записей нет.","rd-empty"));
+ calendarDetailCache=detailKey;
 }
 function drawClients(){
  if(!ready||activePage!=="clients")return;
