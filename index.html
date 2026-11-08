@@ -584,6 +584,8 @@
       ordersLoaded=true;
       // A periodic refresh must not destroy focused controls or expanded cards.
       if(changed){
+        // Invalidate calendar views only when fresh order data actually differs.
+        window.__rdOrdersRevision=(window.__rdOrdersRevision||0)+1;
         render();
         updateImportButton();
       }
