@@ -560,7 +560,7 @@
       return obj;
     }
     function friendlyError(error) {
-      if (error && error.code === "23505") return "На это время уже есть запись либо заказ уже перенесён.";
+      if (error && error.code === "23505") return "В это время у выбранного мастера уже есть заказ либо запись дублируется.";
       return error instanceof Error ? error.message : String(error);
     }
     function reportSync(error) {
