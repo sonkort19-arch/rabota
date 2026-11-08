@@ -164,3 +164,95 @@ body.rd #orders .rd-list-details .control-label{font-size:11px}
 /* Не выводить пустую метку оплаты до завершения заказа. */
 body.rd #orders .rd-list-pay:empty{display:none!important}
 body.rd #orders .rd-list-paid:has(.rd-list-pay:empty){visibility:hidden}
+
+
+/* Full order details are shown in one floating dialog, never inline under a list row. */
+.rd-order-overlay{
+  position:fixed;inset:0;z-index:10900;background:rgba(15,27,49,.62);
+  display:flex;align-items:center;justify-content:center;
+  padding:max(10px,env(safe-area-inset-top)) 12px max(10px,env(safe-area-inset-bottom));
+  box-sizing:border-box;overscroll-behavior:contain
+}
+.rd-order-dialog{
+  display:flex;flex-direction:column;box-sizing:border-box;
+  width:min(100%,480px);height:auto;max-height:min(85dvh,760px);
+  min-width:0;min-height:0;overflow:hidden;background:#fff;
+  border-radius:20px;color:#1a2944;box-shadow:0 22px 65px rgba(7,27,61,.3)
+}
+.rd-order-dialog:focus{outline:0}
+.rd-order-head{
+  display:flex;justify-content:space-between;align-items:flex-start;gap:10px;
+  flex:0 0 auto;padding:17px 17px 13px;background:#fff;border-bottom:1px solid #e9eef7
+}
+.rd-order-heading{min-width:0}
+.rd-order-title{margin:0;font-size:21px;line-height:1.3;overflow-wrap:anywhere}
+.rd-order-subtitle{color:#7886a0;font-size:12px;line-height:1.4;margin:4px 0 0}
+.rd-order-close{
+  flex:0 0 38px;display:grid;place-items:center;width:38px;height:38px;min-height:38px;
+  border:0;border-radius:11px;background:#f1f4fa;color:#52627e;font-size:26px
+}
+.rd-order-content{flex:1 1 auto;min-height:0;overflow:auto;padding:13px 17px;
+  -webkit-overflow-scrolling:touch;overscroll-behavior:contain}
+.rd-order-summary{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;
+  padding:0 0 12px;border-bottom:1px solid #eef1f7}
+.rd-order-state,.rd-order-payment-state{font-size:12px;font-weight:750;
+  padding:7px 10px;line-height:1.2;border-radius:9px}
+.rd-order-state.s-new{background:#f3eafa;color:#8141a3}
+.rd-order-state.s-booked{background:#eaf0ff;color:#395ac1}
+.rd-order-state.s-progress{background:#fff1dd;color:#a9701b}
+.rd-order-state.s-done{background:#e1f7e8;color:#158252}
+.rd-order-state.s-cancelled{background:#feeaec;color:#b9485c}
+.rd-order-total{margin-left:auto;font-size:22px;color:#1c2c49;white-space:nowrap;font-variant-numeric:tabular-nums}
+.rd-order-payment-state{flex-basis:100%;width:max-content;max-width:100%;flex-grow:0}
+.rd-order-payment-state.is-paid{color:#14754d;background:#e4f8ee}
+.rd-order-payment-state.is-unpaid{color:#a5582c;background:#fff4ed}
+.rd-order-attributes{display:grid;gap:9px;padding:14px 0}
+.rd-order-detail{display:grid;grid-template-columns:92px minmax(0,1fr);gap:9px;align-items:start;
+  font-size:13px;line-height:1.45}
+.rd-order-detail-label{color:#7c8ba4;font-weight:650}
+.rd-order-detail-value{color:#2a3b58;overflow-wrap:anywhere}
+.rd-order-actions{padding:2px 0 12px}
+.rd-order-actions-list.actions{display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px;margin:0!important}
+.rd-order-actions-list.actions .action{
+  min-width:0!important;min-height:45px!important;margin:0!important;
+  padding:9px 5px!important;display:flex;align-items:center;justify-content:center;
+  border:1px solid #d8e1f3;border-radius:11px;font-size:12px;font-weight:700;
+  text-align:center;text-decoration:none
+}
+.rd-order-comment{background:#f8faff;border:1px solid #e2e8f5;border-radius:11px;margin-bottom:12px}
+.rd-order-comment-toggle{padding:11px 13px;cursor:pointer;font-size:13px;font-weight:700;color:#4e6384}
+.rd-order-comment-text{margin:0;padding:0 13px 13px;font-size:12px;line-height:1.5;
+  color:#52637e;overflow-wrap:anywhere;white-space:pre-wrap}
+.rd-order-status-controls .card-controls{display:flex;gap:10px;flex-wrap:wrap;
+  align-items:end;justify-content:space-between;margin:0 0 4px!important}
+.rd-order-status-controls .card-controls>div{min-width:0;flex:1 1 140px}
+.rd-order-status-controls .control-label{display:block;font-size:12px;color:#73839d;margin-bottom:6px}
+.rd-order-status-controls .compact-select{box-sizing:border-box;width:100%;min-height:45px;
+  padding:8px;border:1px solid #d6dfef;border-radius:11px;background:white;color:#233353;font-size:15px}
+.rd-order-status-controls .payment{display:inline-flex;align-items:center;justify-content:center;
+  min-height:44px;max-width:100%;padding:8px 12px;border-radius:10px;font-size:12px}
+.rd-order-footer{flex:0 0 auto;z-index:1;border-top:1px solid #e8edf5;
+  background:#fff;padding:10px 17px max(12px,env(safe-area-inset-bottom))}
+.rd-order-navigation{display:grid;grid-template-columns:1fr auto 1fr;gap:9px;align-items:center}
+.rd-order-navigation button{min-height:39px;padding:7px 8px;border:1px solid #e0e7f4;
+  border-radius:9px;background:#f8faff;color:#465c83;font-weight:650;font-size:12px}
+.rd-order-navigation button:disabled{opacity:.35;cursor:not-allowed}
+.rd-order-position{font-size:12px;color:#8090a8;white-space:nowrap}
+.rd-order-primary{width:100%;min-height:47px;margin-top:9px;border:0;
+  border-radius:11px;background:#2b9565;color:#fff;font-size:15px;font-weight:750}
+.rd-order-primary:disabled{opacity:.6}
+.rd-order-prev{text-align:left}.rd-order-next{text-align:right}
+@media(max-width:520px){
+  .rd-order-overlay{align-items:flex-end;padding:9px 9px max(9px,env(safe-area-inset-bottom))}
+  .rd-order-dialog{width:100%;max-height:85dvh;border-radius:18px}
+  .rd-order-content{padding-inline:13px}
+  .rd-order-head{padding:15px 13px 12px}
+  .rd-order-footer{padding-inline:13px}
+  .rd-order-detail{grid-template-columns:79px minmax(0,1fr);gap:6px;font-size:12px}
+  .rd-order-total{font-size:20px}
+}
+@media(max-width:355px){
+  .rd-order-dialog{max-height:85dvh}
+  .rd-order-actions-list.actions .action{font-size:11px!important}
+  .rd-order-navigation button{font-size:11px}
+}
