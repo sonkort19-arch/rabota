@@ -72,6 +72,14 @@ aside{width:266px;flex:0 0 266px;background:#171717;border-right:1px solid #2929
 #confirmOrder{background:#e7e7e7;color:#222}
 #confirmOrder:disabled,#cancelOrder:disabled{opacity:.5;cursor:wait}
 #proposalHint{color:#a7a7a7;font-size:12px;padding-top:8px}
+.tight-consent{display:flex;gap:10px;align-items:flex-start;border:1px solid #aa7a40;border-radius:11px;padding:10px;margin:10px 0;background:#443327;color:#ffdcb3;font-size:13px}
+.tight-consent input{flex:0 0 20px;width:20px;height:20px;margin:0;accent-color:#f0ba7c}
+#photoPreview{display:flex;align-items:center;gap:8px;margin:0 0 7px;padding:7px;border:1px solid #666;border-radius:12px;background:#333;font-size:12px}
+#photoThumbnail{width:43px;height:43px;border-radius:8px;object-fit:cover;flex:0 0 43px}
+#photoLabel{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#removePhoto{border:0;background:none;color:#fff;font-size:23px;min-height:35px;min-width:35px}
+#attachPhoto{flex:0 0 36px;width:36px;height:36px;border:0;border-radius:10px;background:transparent;color:#ddd;font-size:25px;line-height:1;align-self:flex-end;padding:0}
+#attachPhoto:disabled{opacity:.4}
 #scrim{display:none}
 @media(max-width:760px){
  aside{position:fixed;top:0;bottom:0;left:0;z-index:20;transform:translateX(-100%);transition:transform .2s ease;box-shadow:12px 0 35px #0003}
@@ -99,7 +107,7 @@ aside{width:266px;flex:0 0 266px;background:#171717;border-right:1px solid #2929
     <button id="newChat" type="button">＋ Новый чат</button>
     <div class="sidebar-label">История переписок</div>
     <div id="history" aria-label="История чатов"></div>
-    <div class="sidebar-foot">ИИ читает текущие заказы, расписание и финансы из «Работы». Действия и изменения заказов отключены. История чата хранится в Supabase.</div>
+    <div class="sidebar-foot">ИИ читает заказы и расписание, готовит заявку по тексту, голосу или фото. Сохранение — только после твоего подтверждения. Фото не хранится в истории.</div>
   </aside>
   <main id="main">
     <header class="top"><a href="/" class="crm-back" aria-label="Вернуться в CRM">← Работа</a><button id="menu" type="button" aria-label="История чатов">☰</button><h1 id="conversationTitle">ИИ-помощник</h1><span>OpenAI</span></header>
@@ -108,13 +116,15 @@ aside{width:266px;flex:0 0 266px;background:#171717;border-right:1px solid #2929
       <section id="proposalCard" hidden aria-label="Предпросмотр изменения заказа">
         <strong id="proposalTitle">Проверка заявки</strong>
         <div id="proposalDetails"></div>
+        <div id="tightScheduleConsent" hidden><label class="tight-consent"><input type="checkbox" id="allowTightSchedule"> Разрешаю плотное расписание. Возможную задержку принимаю.</label></div>
         <div id="proposalActions">
           <button id="confirmOrder" type="button">Подтвердить</button>
           <button id="cancelOrder" type="button">Отмена</button>
         </div>
         <div id="proposalHint">Изменение сохранится только после подтверждения. Проверка расписания повторится.</div>
       </section>
-      <form id="composer"><textarea id="input" placeholder="Напишите или продиктуйте сообщение..." rows="1" maxlength="12000" aria-label="Сообщение" required></textarea><button id="mic" type="button" aria-label="Продиктовать сообщение" aria-pressed="false" title="Нажмите и говорите"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="2.5" width="6" height="12" rx="3"/><path d="M5.5 10.5a6.5 6.5 0 0 0 13 0M12 17v4m-4 0h8"/></svg></button><button id="send" type="submit" aria-label="Отправить">↑</button></form>
+      <div id="photoPreview" hidden><img id="photoThumbnail" alt="Подготовленное фото заметки"><span id="photoLabel">Фото приложено</span><button id="removePhoto" type="button" aria-label="Удалить фото">×</button></div>
+      <form id="composer"><input id="photoFile" type="file" accept="image/*" hidden><button id="attachPhoto" type="button" aria-label="Добавить фото заметки" title="Добавить фото">＋</button><textarea id="input" placeholder="Напишите или продиктуйте сообщение..." rows="1" maxlength="12000" aria-label="Сообщение" required></textarea><button id="mic" type="button" aria-label="Продиктовать сообщение" aria-pressed="false" title="Нажмите и говорите"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="2.5" width="6" height="12" rx="3"/><path d="M5.5 10.5a6.5 6.5 0 0 0 13 0M12 17v4m-4 0h8"/></svg></button><button id="send" type="submit" aria-label="Отправить">↑</button></form>
       <div id="notice" role="status"></div>
       <div class="hint">Микрофон превращает речь в текст. Проверьте слова и цифры перед отправкой. Ответы ИИ могут содержать ошибки.</div>
     </div>
@@ -125,7 +135,7 @@ aside{width:266px;flex:0 0 266px;background:#171717;border-right:1px solid #2929
 const SUPABASE_URL="https://yedzfmibceboncrytbqz.supabase.co";
 const SUPABASE_KEY="sb_publishable_tSqbw3aeAgxYuzHhQurCuw_yDze4ZNn";
 const AUTH_KEY="rabota-auth-session-v1";
-let session=null,refreshPromise=null,activeChat=null,chats=[],messages=[],busy=false,pendingDraft=null;
+let session=null,refreshPromise=null,activeChat=null,chats=[],messages=[],busy=false,pendingDraft=null,pendingImageData=null;
 const $=id=>document.getElementById(id);
 try{session=JSON.parse(localStorage.getItem(AUTH_KEY)||"null")}catch(_){}
 function gate(message){$("layout").hidden=true;$("gate").hidden=false;$("gateText").textContent=message}
@@ -218,6 +228,7 @@ async function openChat(id){
  if(busy)return;
  setPendingDraft(null);
  if(speechActive)stopDictation(true);
+ clearAttachedPhoto();
  $("notice").textContent="";activeChat=id;sessionStorage.setItem("rabota-ai-active-chat",id);closeMenu();
  try{
   const rows=await db("rabota_ai_messages?select=id,role,content,created_at&chat_id=eq."+encodeURIComponent(id)+"&order=created_at.asc&limit=200");
@@ -228,6 +239,7 @@ function newChat(){
  if(busy)return;
  setPendingDraft(null);
  if(speechActive)stopDictation(true);
+ clearAttachedPhoto();
  activeChat=null;sessionStorage.removeItem("rabota-ai-active-chat");messages=[];$("notice").textContent="";
  closeMenu();renderChats();renderMessages();$("input").focus()
 }
@@ -241,6 +253,48 @@ async function deleteChat(id){
  }catch(error){failure(error)}
 }
 
+/* Photo is sent to the AI once, not stored with message history. */
+function clearAttachedPhoto(){
+ pendingImageData=null;$("photoFile").value="";
+ $("photoPreview").hidden=true;$("photoThumbnail").removeAttribute("src");
+}
+$("attachPhoto").addEventListener("click",()=>{if(!busy)$("photoFile").click()});
+$("removePhoto").addEventListener("click",clearAttachedPhoto);
+$("photoFile").addEventListener("change",async()=>{
+ const file=$("photoFile").files?.[0];if(!file)return;
+ if(file.size>12000000){clearAttachedPhoto();failure(new Error("Выберите фотографию до 12 МБ."));return}
+ $("notice").textContent="Подготавливаю фото...";
+ try{
+  const image=await new Promise((resolve,reject)=>{
+   const reader=new FileReader();
+   reader.onerror=()=>reject(new Error("Не удалось прочитать файл."));
+   reader.onload=()=>{
+    const bitmap=new Image();
+    bitmap.onerror=()=>reject(new Error("Браузер не смог открыть изображение. Выберите JPEG или PNG."));
+    bitmap.onload=()=>resolve(bitmap);
+    bitmap.src=reader.result;
+   };
+   reader.readAsDataURL(file);
+  });
+  const resize=(maxEdge,quality)=>{
+   const scale=Math.min(1,maxEdge/Math.max(image.naturalWidth,image.naturalHeight));
+   const canvas=document.createElement("canvas");
+   canvas.width=Math.max(1,Math.round(image.naturalWidth*scale));
+   canvas.height=Math.max(1,Math.round(image.naturalHeight*scale));
+   const context=canvas.getContext("2d");
+   if(!context)throw new Error("Не удалось обработать фото.");
+   context.fillStyle="#fff";context.fillRect(0,0,canvas.width,canvas.height);
+   context.drawImage(image,0,0,canvas.width,canvas.height);
+   return canvas.toDataURL("image/jpeg",quality);
+  };
+  let encoded=resize(1800,.84);
+  if(encoded.length>2700000)encoded=resize(1350,.77);
+  if(encoded.length>2700000)throw new Error("Слишком большое фото, попробуйте обрезать.");
+  pendingImageData=encoded;$("photoThumbnail").src=encoded;
+  $("photoPreview").hidden=false;$("photoLabel").textContent="Фото: "+file.name;
+  $("notice").textContent="Фото готово. Напиши «Добавь заказ» и отправь.";
+ }catch(error){clearAttachedPhoto();failure(error)}
+});
 /* Только ввод русской речи в текст, без аудиосообщений и озвучки ответов. */
 const SpeechRecognizer=window.SpeechRecognition||window.webkitSpeechRecognition;
 let speechRecognition=null,speechActive=false,speechBase="";
