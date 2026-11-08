@@ -628,6 +628,8 @@
         "Обновлено "+new Date().toLocaleTimeString("ru-RU",{hour:"2-digit",minute:"2-digit"});
       const ordersStatus=document.getElementById("rdOrdersSynced");
       if(ordersStatus){ordersStatus.textContent=node.textContent;ordersStatus.classList.toggle("sync-error",Boolean(error));}
+      const homeStatus=document.getElementById("rdHomeSynced");
+      if(homeStatus){homeStatus.textContent=node.textContent;homeStatus.classList.toggle("sync-error",Boolean(error));}
     }
     async function reloadOrders() {
       const items = [];
