@@ -9,6 +9,14 @@ const $=id=>document.getElementById(id);
 const makeNode=(tag,className,text)=>{const n=document.createElement(tag);if(className)n.className=className;if(text!=null)n.textContent=String(text);return n};
 const sections=["home","leads","orders","calendar","clients","finance","ai"];
 const titles={home:"Главная",leads:"Лиды",orders:"Заказы",calendar:"Календарь",clients:"Клиенты",finance:"Финансы",ai:"ИИ-чат"};
+const crmReturnPages=new Set(["home","leads","orders","calendar","clients","finance"]);
+function aiChatUrl(draft){
+ const source=crmReturnPages.has(activePage)?activePage:"home";
+ const query=new URLSearchParams({from:source});
+ if(draft)query.set("draft",draft);
+ return "/ai.html?"+query.toString();
+}
+function openAiChat(draft){window.location.assign(aiChatUrl(draft))}
 /* Consistent, accessible outline icons: no third-party library and no remote assets. */
 const iconPaths={
  home:'<path d="m3 10 9-7 9 7v10a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1z"/>',
@@ -328,10 +336,13 @@ function build(){
  $("ordersArea").append($("teamPanel"));
  // Original order editor, calendar state, and financial forms are retained.
  $("ordersArea").insertBefore($("newOrderBtn"),$("ordersArea").querySelector(".tabs"));
- builtRole=currentRole;ready=true; navigate("home");drawHome();
+ builtRole=currentRole;ready=true;
+ const requested=new URLSearchParams(window.location.search).get("view");
+ const initial=crmReturnPages.has(requested)&&(requested!=="finance"||currentRole==="owner")?requested:"home";
+ navigate(initial);
 }
 function navigate(key){
- if(key==="ai"){window.location.assign("/ai.html");return}
+ if(key==="ai"){openAiChat();return}
  if(!ready)return;
  if(key==="finance"&&currentRole!=="owner")return;
  if(activePage==="orders"&&key!=="orders")storeOrderFilters(currentTab);
@@ -601,7 +612,7 @@ function drawHome(){
  if(currentRole==="owner"||currentRole==="manager")
   actions.append(dashboardAction("plus","Новый заказ",()=>{navigate("orders");$("newOrderBtn").click()}));
  actions.append(dashboardAction("calendar","Календарь",()=>navigate("calendar")));
- if(currentRole==="owner")actions.append(dashboardAction("ai","ИИ-чат",()=>window.location.assign("/ai.html")));
+ if(currentRole==="owner")actions.append(dashboardAction("ai","ИИ-чат",()=>openAiChat()));
  else actions.append(dashboardAction("orders","Заказы",()=>navigate("orders")));
  root.append(actions);
  const details=document.createElement("details");
@@ -637,7 +648,7 @@ function drawHome(){
   const assistant=panel("ИИ-помощник","Вопросы о заказах и расписании");
   for(const label of ["Найти свободное окно","Показать неоплаченные заказы","Сколько заказов за неделю?"]){
    const b=makeNode("button","rd-quick",label);b.type="button";
-   b.addEventListener("click",()=>window.location.assign("/ai.html?draft="+encodeURIComponent(label)));
+   b.addEventListener("click",()=>openAiChat(label));
    assistant.append(b);
   }
   analytics.append(assistant);
