@@ -198,7 +198,8 @@ function build(){
     if(orderDate.value){selectedDate=orderDate.value;render()}
     return;
   }
-  orderListDateFilter=orderDate.value;
+  if(currentTab==="history")orderHistoryDateFilter=orderDate.value;
+  else orderListDateFilter=orderDate.value;
   filterCards();
 });
  const dateWrap=makeNode("label","rd-date-filter");dateWrap.append(boxText("span","Дата"),orderDate);
@@ -206,7 +207,7 @@ function build(){
  const statusSelect=makeNode("select");statusSelect.id="rdStatusFilter";statusSelect.setAttribute("aria-label","Фильтр по статусу");
  [["","Все статусы"],["Новый","Новый"],["Записан","Записан"],["В работе","В работе"],["Выполнен","Выполнен"],["unpaid","Выполнены без оплаты"]].forEach(([value,label])=>{const opt=makeNode("option","",label);opt.value=value;statusSelect.append(opt)});
  statusSelect.addEventListener("change",()=>{currentTab=["Выполнен","unpaid"].includes(statusSelect.value)?"history":"all";render();filterCards()});
- const clear=makeNode("button","secondary","Сбросить");clear.addEventListener("click",()=>{orderDate.value="";orderListDateFilter="";statusSelect.value="";masterSelect.value="";rdSearchTerm="";$("rdTopSearch").value="";currentTab="all";render();filterCards()});
+ const clear=makeNode("button","secondary","Сбросить");clear.addEventListener("click",()=>{orderDate.value="";orderListDateFilter="";orderHistoryDateFilter="";statusSelect.value="";masterSelect.value="";rdSearchTerm="";$("rdTopSearch").value="";currentTab="all";render();filterCards()});
  orderTools.append(dateWrap,masterSelect,statusSelect,clear);
  const financeTitle=sectionView("rdFinanceIntro","Финансы","Начисления, касса и история операций");
  app.insertBefore(home,$("ordersArea"));
@@ -696,7 +697,8 @@ function compactOrderCard(card){
 window.__rdDecorateOrder=compactOrderCard;
 function filterCards(){
  if(!ready||activePage!=="orders")return;
- const date=currentTab==="calendar"?"":orderListDateFilter,master=$("rdMasterFilter").value,status=$("rdStatusFilter").value;
+ const date=currentTab==="calendar"?"":currentTab==="history"?orderHistoryDateFilter:orderListDateFilter,
+  master=$("rdMasterFilter").value,status=$("rdStatusFilter").value;
  let visible=0,total=0;
  for(const card of $("orders").querySelectorAll(".order-card")){
   total++;
