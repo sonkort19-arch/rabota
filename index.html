@@ -416,6 +416,7 @@
     };
     let currentTab = "calendar";
     let orderListDateFilter = "";
+    let orderHistoryDateFilter = "";
     let editingId = null;
     let previousFocus = null;
     let orderSaving = false;
@@ -965,7 +966,8 @@
       ordersDayPicker.hidden = !redesignedOrders || currentTab!=="calendar";
       const toolbarDateFilter = document.getElementById("rdOrderDate");
       if(toolbarDateFilter && redesignedOrders)
-        toolbarDateFilter.value=currentTab==="calendar"?selectedDate:orderListDateFilter;
+        toolbarDateFilter.value=currentTab==="calendar"?selectedDate:
+          currentTab==="history"?orderHistoryDateFilter:orderListDateFilter;
       let shown;
       if (currentTab === "history") {
         shown = getOrders().filter(o=>o.status==="Выполнен");
@@ -1056,16 +1058,29 @@
     document.getElementById("rdOrdersNextWeek").addEventListener("click",()=>{selectedDate=addDays(selectedDate,7);currentTab="calendar";render();});
     document.getElementById("rdOrdersToday").addEventListener("click",()=>{selectedDate=localDate(new Date());currentTab="calendar";render();});
     document.querySelectorAll("[data-tab]").forEach(btn=>btn.addEventListener("click",()=>{
-      if(currentTab===btn.dataset.tab)return;
-      const tabs=document.querySelector("#ordersArea > .tabs");
-      const tabTop=tabs?.getBoundingClientRect().top;
-      currentTab=btn.dataset.tab;render();
-      // Preserve the visible position of the tab strip after Safari adjusts page height.
-      if(window.__rdCurrentPage==="orders"&&Number.isFinite(tabTop)&&tabs){
+      const nextTab=btn.dataset.tab;
+      if(currentTab===nextTab)return;
+      const isOrdersView=window.__rdCurrentPage==="orders";
+      const tabs=isOrdersView?document.querySelector("#ordersArea > .tabs"):null;
+      const previousTop=tabs?.getBoundingClientRect().top;
+      // An explicit tab change must not inherit a status that belongs to another tab.
+      if(isOrdersView){
+        const statusControl=document.getElementById("rdStatusFilter");
+        if(statusControl)statusControl.value="";
+      }
+      currentTab=nextTab;
+      render();
+      // Safari may scroll-anchor or clamp when a long list is replaced by a short one.
+      // Restore the tab strip to its former on-screen position, within document bounds.
+      if(tabs&&Number.isFinite(previousTop)){
         requestAnimationFrame(()=>{
           if(window.__rdCurrentPage!=="orders"||!tabs.isConnected)return;
-          const delta=tabs.getBoundingClientRect().top-tabTop;
-          if(Math.abs(delta)>1)window.scrollBy(0,delta);
+          const topLimit=Math.min(88,Math.max(0,window.innerHeight-160));
+          const desiredTop=Math.max(topLimit,Math.min(previousTop,window.innerHeight-140));
+          const currentTop=tabs.getBoundingClientRect().top;
+          const maxY=Math.max(0,document.documentElement.scrollHeight-window.innerHeight);
+          const nextY=Math.max(0,Math.min(maxY,window.scrollY+currentTop-desiredTop));
+          if(Math.abs(nextY-window.scrollY)>2)window.scrollTo({top:nextY,behavior:"instant"});
         });
       }
     }));
