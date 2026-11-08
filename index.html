@@ -630,6 +630,8 @@
       if(ordersStatus){ordersStatus.textContent=node.textContent;ordersStatus.classList.toggle("sync-error",Boolean(error));}
       const homeStatus=document.getElementById("rdHomeSynced");
       if(homeStatus){homeStatus.textContent=node.textContent;homeStatus.classList.toggle("sync-error",Boolean(error));}
+      const calendarStatus=document.getElementById("rdCalendarSynced");
+      if(calendarStatus){calendarStatus.textContent=node.textContent;calendarStatus.classList.toggle("sync-error",Boolean(error));}
     }
     async function reloadOrders() {
       const items = [];
