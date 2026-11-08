@@ -966,3 +966,73 @@ body.rd #rdOrdersFilterRow{display:none}
   body.rd #appScreen.rd-view-orders #rdOrderStats .rd-stat .rd-stat-heading small{font-size:10px}
   body.rd #appScreen.rd-view-orders #rdOrderStats .rd-stat .rd-stat-body strong.rd-accent{font-size:21px}
 }
+
+
+/* Orders header and shortcuts: avoid repeated labels; preserve sync warnings. */
+body.rd #appScreen.rd-view-orders #syncStatus{display:none!important}
+body.rd #ordersArea .rd-orders-titlebar{
+  display:flex;align-items:baseline;justify-content:space-between;flex-wrap:wrap;
+  gap:4px 10px;min-width:0
+}
+body.rd #ordersArea .rd-orders-synced{
+  display:block;min-width:0;flex:0 1 auto;font-size:11px;
+  font-weight:500;color:#8795ab;line-height:1.35;text-align:right
+}
+body.rd #ordersArea .rd-orders-synced.sync-error{
+  color:#b42318;font-weight:700;max-width:100%;text-align:left
+}
+body.rd #rdOrderStats .rd-stat-shortcut{
+  box-sizing:border-box;appearance:none;-webkit-appearance:none;
+  font-family:inherit;color:inherit;text-align:left;cursor:pointer;
+  width:100%;touch-action:manipulation;
+  transition:border-color .15s,box-shadow .15s,background .15s
+}
+body.rd #rdOrderStats .rd-stat-shortcut:focus-visible{
+  outline:3px solid #6b7cf0;outline-offset:2px
+}
+body.rd #rdOrderStats .rd-stat-shortcut.is-selected{
+  border-color:#596fe9!important;box-shadow:inset 0 0 0 1px #596fe9,0 3px 10px #5064db16;
+  background:#edf1ff
+}
+body.rd #rdOrderStats .rd-stat-shortcut:active{transform:scale(.985)}
+body.rd #ordersArea>.list-head .rd-orders-list-actions{
+  display:flex;align-items:center;justify-content:flex-end;
+  gap:8px;min-width:0;flex:0 0 auto
+}
+body.rd #ordersArea>.list-head .rd-orders-list-actions #orderCount{
+  font-variant-numeric:tabular-nums;white-space:nowrap
+}
+body.rd #ordersArea>.list-head{scroll-margin-top:155px}
+@media(max-width:790px){
+  body.rd #appScreen.rd-view-orders #rdOrdersIntro{margin:0 0 8px}
+  body.rd #appScreen.rd-view-orders #rdOrdersIntro .rd-orders-titlebar .rd-view-title{
+    margin:0;font-size:23px
+  }
+  body.rd #appScreen.rd-view-orders #rdOrdersIntro .rd-orders-synced{
+    font-size:10px;line-height:1.25
+  }
+  body.rd #appScreen.rd-view-orders #ordersArea>.list-head{
+    gap:6px;min-height:38px;margin:4px 0 9px
+  }
+  body.rd #appScreen.rd-view-orders #ordersArea>.list-head h2{
+    min-width:0;font-size:18px;line-height:1.25;margin:0
+  }
+  body.rd #appScreen.rd-view-orders #ordersArea>.list-head .rd-orders-list-actions{
+    gap:7px;flex:0 1 auto
+  }
+  body.rd #appScreen.rd-view-orders #ordersArea>.list-head #orderCount{
+    color:#8592a6;font-size:10px
+  }
+  body.rd #appScreen.rd-view-orders #rdOrdersFilterToggle{
+    min-height:35px;padding:6px 9px;font-size:12px;border-radius:10px;
+  }
+  body.rd #appScreen.rd-view-orders #rdOrderStats .rd-stat-shortcut{
+    padding:9px 8px;min-height:74px
+  }
+}
+@media(max-width:360px){
+  body.rd #appScreen.rd-view-orders #ordersArea>.list-head #orderCount{
+    display:none
+  }
+  body.rd #appScreen.rd-view-orders #ordersArea>.list-head h2{font-size:17px}
+}
