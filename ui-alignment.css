@@ -543,8 +543,7 @@ body.rd #rdOrderStats .rd-stat .rd-stat-body .rd-stat-hint {
 
 /* Stable order tabs and compact, iOS-safe day selection (2026-11-08). */
 body.rd #ordersArea > #calendarPanel[hidden],
-body.rd #ordersArea > #rdOrdersDayPicker[hidden],
-body.rd #rdOrderToolbar .rd-date-filter[hidden] {
+body.rd #ordersArea > #rdOrdersDayPicker[hidden] {
   display:none!important;
 }
 body.rd #ordersArea > .tabs {
@@ -624,28 +623,6 @@ body.rd .rd-orders-date-field > span {
   pointer-events:none;
   text-align:center;
 }
-body.rd .rd-orders-date-field > input[type="date"] {
-  position:absolute;
-  inset:0;
-  box-sizing:border-box;
-  z-index:1;
-  display:block;
-  width:100%;
-  height:100%;
-  min-width:0;
-  min-height:0;
-  max-width:100%;
-  max-height:100%;
-  padding:0;
-  margin:0;
-  border:0;
-  border-radius:0;
-  opacity:0;
-  appearance:none;
-  -webkit-appearance:none;
-  cursor:pointer;
-}
-body.rd .rd-orders-date-field:focus-within,
 body.rd .rd-orders-day-toolbar > button:focus-visible,
 body.rd .rd-orders-weekday:focus-visible {
   outline:2px solid #5766f5;
