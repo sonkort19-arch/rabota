@@ -410,6 +410,13 @@
     let currentUser = null;
     let currentRole = null;
     let currentMasterName = "";
+    // Raul may register new bookings for himself, but may not edit existing jobs.
+    function raulCanCreateOrder() {
+      return currentRole==="master" && String(currentMasterName||"").trim().toLocaleLowerCase("ru")==="рауль";
+    }
+    function canCreateOrder() {
+      return currentRole==="owner" || currentRole==="manager" || raulCanCreateOrder();
+    }
     let refreshPromise = null;
     let financeActive = false;
     let financeOperations = [];
@@ -952,7 +959,8 @@
       window.__rdRefresh?.();
     }
     function openForm(id) {
-      if(currentRole!=="owner" && currentRole!=="manager")return;
+      const raulCreating=raulCanCreateOrder();
+      if(!canCreateOrder() || (currentRole==="master" && (id!==undefined || !raulCreating)))return;
       previousFocus=document.activeElement;form.reset();delete form.dataset.leadPreview;formStatus.textContent="";formStatus.classList.remove("is-saving");
       editingId=id===undefined?null:String(id);
       updateMasters();
@@ -978,6 +986,16 @@
         const masters=[...new Set(getOrders().map(o=>String(o.master||"").trim()).filter(Boolean))];
         if(masters.length===1)controls.master.value=masters[0];
       }
+      if(raulCreating){
+        controls.master.value=currentMasterName.trim();
+        controls.status.value="Записан";
+        controls.paid.checked=false;
+      }
+      controls.master.readOnly=raulCreating;
+      controls.status.disabled=raulCreating;
+      controls.paid.disabled=raulCreating;
+      controls.status.closest(".field").style.display=raulCreating?"none":"";
+      controls.paid.parentElement.style.display=raulCreating?"none":"";
       overlay.hidden=false;document.body.style.overflow="hidden";
       overlay.querySelector(".sheet").scrollTop=0;
       // На iPhone автоматический фокус открывал клавиатуру и сдвигал форму.
@@ -1012,6 +1030,15 @@
       event.preventDefault();
       if(orderSaving)return;
       formStatus.textContent="";
+      const raulCreating=raulCanCreateOrder();
+      if(!canCreateOrder() || (currentRole==="master" && (!raulCreating || editingId!==null))){
+        formStatus.textContent="Нет прав для сохранения этого заказа.";return;
+      }
+      if(raulCreating){
+        controls.master.value=currentMasterName.trim();
+        controls.status.value="Записан";
+        controls.paid.checked=false;
+      }
       const name=controls.name.value.trim(),phone=controls.phone.value.trim();
       const date=controls.date.value,time=controls.time.value,status=controls.status.value;
       if(!name||!phone||!date||!time||!STATUSES.includes(status)) {
@@ -1020,6 +1047,9 @@
       if(!normalizePhone(phone)) {
         formStatus.textContent="Укажи правильный номер телефона клиента (10–11 цифр).";
         controls.phone.focus();return;
+      }
+      if(raulCreating && getOrders().filter(o=>o.date===date && o.status!=="Отменён").length>=2){
+        formStatus.textContent="На эту дату у Рауля уже два заказа. Выберите другой день.";return;
       }
       if(status!=="Отменён"&&hasConflict(date,time,editingId)) {
         formStatus.textContent="На эту дату и время уже записан клиент.";controls.time.focus();return;
@@ -1051,10 +1081,10 @@
         legacyId:existing?existing.legacyId:null,
         name,phone,address:controls.address.value.trim(),
         radiatorType:controls.type.value,radiators:controls.radiators.value,
-        floorLoops:controls.loops.value,master:controls.master.value.trim(),
+        floorLoops:controls.loops.value,master:raulCreating?currentMasterName.trim():controls.master.value.trim(),
         date,time,price:controls.price.value===""?null:Number(controls.price.value),
-        paid:controls.paid.checked,status,details:controls.details.value.trim(),
-        completedAt:status==="Выполнен"?(existing&&existing.completedAt||now):null
+        paid:raulCreating?false:controls.paid.checked,status:raulCreating?"Записан":status,details:controls.details.value.trim(),
+        completedAt:raulCreating?null:(status==="Выполнен"?(existing&&existing.completedAt||now):null)
       };
       const saveBtn=form.querySelector('button[type="submit"]');
       orderSaving=true;
@@ -1065,7 +1095,7 @@
       try {
         await persistOrder(order);
         selectedDate=date;
-        currentTab=status==="Выполнен"?"history":status==="Отменён"?"all":"calendar";
+        currentTab=raulCreating?"all":status==="Выполнен"?"history":status==="Отменён"?"all":"calendar";
         closeForm(true);render();
       } catch(error) {formStatus.classList.remove("is-saving");formStatus.textContent=friendlyError(error);}
       finally {orderSaving=false;saveBtn.disabled=false;saveBtn.textContent="Сохранить заказ";formStatus.classList.remove("is-saving");}
@@ -1487,7 +1517,7 @@
       document.querySelector('[data-tab="calendar"]').textContent="По дням";
       document.getElementById("appScreen").classList.toggle("master-mode",currentRole==="master");
       document.getElementById("masterPushPanel").hidden=currentRole!=="master";
-      document.getElementById("newOrderBtn").hidden=!(currentRole==="owner"||currentRole==="manager");
+      document.getElementById("newOrderBtn").hidden=!canCreateOrder();
       document.getElementById("aiChatLink").hidden=currentRole!=="owner";
       if (currentRole==="master") currentTab="all";
       financeActive=false;
