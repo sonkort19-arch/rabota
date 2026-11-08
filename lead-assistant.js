@@ -327,112 +327,177 @@
   }
   function editor(){
     const wrap=node("section","la-box la-editor");
-    wrap.append(group("la-title",node("h2","",openId?"Карточка клиента":"Новый звонок"),btn("Очистить","la-neutral",()=>selectLead(null))));
-    wrap.append(node("p","la-muted","Пишите как слышите. Опечатки допустимы: «Андрей 5 батарей алюм 1 тп после зп через 20 дней»."));
-    const notes=field("Быстрые заметки","notes","textarea","Имя, батареи, контуры, сомнения, когда перезвонить...");
-    wrap.append(notes,btn("Разобрать заметки","la-primary la-wide",parse));
-    wrap.append(node("h3","la-subhead","Контакты и отопление"));
+    const back=btn("← К списку","la-neutral",listView);
+    const header=group("la-title",node("h2","",openId?"Карточка клиента":"Новый лид"),back);
+    wrap.append(header);
+    if(notice){const message=node("p","la-message",notice);message.setAttribute("role","status");wrap.append(message)}
+    const contact=node("div","la-field-grid");
+    contact.append(field("Имя клиента *","name","text","Имя клиента"),
+      field("Номер телефона *","phone","tel","+7..."));
+    wrap.append(contact,field("Заметка о разговоре","notes","textarea",
+      "Например: Андрей, 5 батарей, позвонить после зарплаты"));
+    const parseRow=group("la-quiet-actions",btn("Разобрать заметку","la-neutral",parse));
+    wrap.append(parseRow);
+    wrap.append(node("h3","la-subhead","Что дальше?"));
+    wrap.append(field("Статус клиента","status","select","",statuses));
+    if(["waiting","callback"].includes(draft.status)||draft.followUpDate){
+      const callRow=node("div","la-field-grid");
+      callRow.append(field("Дата перезвона","followUpDate","date"),
+        field("После какого времени (МСК)","followUpTime","time"));
+      wrap.append(callRow);
+      const shortcuts=node("div","la-shortcuts");
+      shortcuts.append(quickDay(1,"Завтра"),quickDay(7,"Через 7 дней"),
+        quickDay(20,"Через 20 дней"),
+        btn("Следующий месяц","la-chip",()=>{draft.followUpDate=nextMonth(today());draft.dateApprox=true;draft.status="waiting";render()}));
+      wrap.append(shortcuts);
+      wrap.append(tick("Клиент разрешил повторный звонок","consent"));
+      if(draft.dateApprox&&draft.followUpDate)wrap.append(node("p","la-warn","Дата приблизительная — её нужно уточнить."));
+    }else if(!["ready","booked","lost"].includes(draft.status)){
+      wrap.append(btn("Назначить перезвон","la-neutral",()=>{draft.status="callback";render()}));
+    }
+    const extras=node("details","la-extra");
+    const extraHeading=node("summary","","Отопление, расчёт и другие подробности");
+    extras.append(extraHeading);
+    const extraBody=node("div","la-extra-body");
     const grid=node("div","la-field-grid");
-    grid.append(field("Имя *","name","text","Например, Андрей"),field("Телефон *","phone","tel","+7..."),
-      field("Адрес / населённый пункт","address","text","Гизель, улица..."),
+    grid.append(field("Адрес / населённый пункт","address","text","Гизель, улица..."),
       field("Радиаторов","radiators","number","5"),
-      field("Материал","material","select","",{ "":"Неизвестно", "Алюминиевые":"Алюминиевые", "Биметаллические":"Биметаллические", "Чугунные":"Чугунные", "Стальные":"Стальные", "Другие":"Другие"}),
-      field("Контуров пола","loops","number","1"));
-    wrap.append(grid);
-    const amount=group("la-price",node("span","","Расчёт по прайсу · радиатор 2 000 ₽ / контур 1 000 ₽"),
-      node("strong","",draft.material==="Чугунные"?"Нужна консультация мастера":calc(draft.radiators,draft.loops)===null?"Заполните количество":money(calc(draft.radiators,draft.loops))),
-      node("small","","Промывка котла и труб включена. Для нестандартной системы — уточнение."));
-    amount.querySelector("strong").id="laPrice";wrap.append(amount);
-    wrap.append(node("h3","la-subhead","Статус и повторный контакт"));
-    const statusRow=node("div","la-field-grid");
-    statusRow.append(field("Статус","status","select","",statuses),field("Причина переноса","reason","select","",reasons));
-    wrap.append(statusRow);
-    const callbackRow=node("div","la-date-grid");
-    callbackRow.append(field("Дата контроля","followUpDate","date"),field("Проверить после (МСК)","followUpTime","time"));
-    const shortcuts=node("div","la-shortcuts");
-    shortcuts.append(quickDay(1,"Завтра"),quickDay(7,"Через 7 дней"),quickDay(20,"Через 20 дней"),
-      btn("Следующий месяц","la-chip",()=>{draft.followUpDate=nextMonth(today());draft.dateApprox=true;draft.status="waiting";render()}));
-    callbackRow.append(shortcuts);wrap.append(callbackRow);
-    if(draft.dateApprox&&draft.followUpDate)wrap.append(node("p","la-warn","Дата приблизительная. Уточните у клиента день зарплаты или удобного звонка."));
-    wrap.append(tick("Клиент обещал позвонить сам","clientWillCall"),tick("Клиент разрешил один повторный звонок","consent"),
-      tick("Цена согласована с клиентом","priceAgreed"));
-    const helper=node("div","la-advisor");helper.id="laAdvisor";fillAdvisor(helper);wrap.append(helper);
-    if(notice){const n=node("p","la-message",notice);n.setAttribute("role","status");wrap.append(n)}
-    wrap.append(btn(openId?"Сохранить изменения":"Сохранить потенциального клиента","la-primary la-wide",save));
+      field("Материал","material","select","",{"":"Неизвестно","Алюминиевые":"Алюминиевые",
+        "Биметаллические":"Биметаллические","Чугунные":"Чугунные","Стальные":"Стальные","Другие":"Другие"}),
+      field("Контуров тёплого пола","loops","number","1"),
+      field("Причина переноса","reason","select","",reasons));
+    extraBody.append(grid);
+    const amount=group("la-price",
+      node("span","","Предварительная стоимость · минимум 10 000 ₽"),
+      node("strong","",draft.material==="Чугунные"?"Нужна консультация мастера":
+        calc(draft.radiators,draft.loops)===null?"Укажите радиаторы или контуры":money(calc(draft.radiators,draft.loops))),
+      node("small","","Радиатор — 2 000 ₽, контур — 1 000 ₽. Котёл и трубы включены. Для чугуна и нестандартных систем требуется проверка."));
+    amount.querySelector("strong").id="laPrice";
+    extraBody.append(amount,tick("Клиент сам обещал позвонить","clientWillCall"),
+      tick("Стоимость согласована","priceAgreed"));
+    const adviser=node("details","la-extra");
+    adviser.append(node("summary","","Подсказка для разговора"));
+    const advice=node("div","la-advisor");advice.id="laAdvisor";fillAdvisor(advice);adviser.append(advice);
+    extraBody.append(adviser);
     if(openId&&draft.status==="ready"){
-      wrap.append(btn("Передать данные в новый заказ","la-neutral la-wide",()=>{
-        if(!draft.name||!phoneKey(draft.phone)){notice="Нужны имя и телефон.";render();return}
+      extraBody.append(previewSlots());
+    }
+    extras.append(extraBody);wrap.append(extras);
+    const action=btn(saving?"Сохраняем…":openId?"Сохранить изменения":"Сохранить лид",
+      "la-primary la-wide",save);action.disabled=saving||!cloudReady;wrap.append(action);
+    if(!cloudReady)wrap.append(node("p","la-warn",loadError?"Нет связи с базой. Проверьте интернет и обновите раздел.":"Загрузка общей базы лидов…"));
+    if(openId&&draft.status==="ready"){
+      wrap.append(btn("Перевести в заказ","la-neutral la-wide",()=>{
+        if(!draft.name||!phoneKey(draft.phone)){notice="Сначала укажите имя и номер телефона.";render();return}
         window.__rdLeadOpenOrder?.({...draft,price:calc(draft.radiators,draft.loops)});
       }));
-      wrap.append(node("p","la-muted","Согласие на услугу не создаёт заказ автоматически. В тестовой версии сохранение заказа из лида отключено."));
+      wrap.append(node("p","la-muted","Откроется форма заказа. Запись создаётся только после сохранения подтверждённого заказа."));
     }
-    wrap.append(previewSlots());return wrap;
+    if(openId)wrap.append(btn("Удалить лид","la-text-danger",()=>deleteLead(draft)));
+    return wrap;
   }
+  const link=(label,cls,href)=>{const a=node("a",cls,label);a.href=href;return a};
   function leadCard(lead){
     const overdue=needsCall(lead),card=node("article","la-lead"+(overdue?" la-overdue":""));
-    const heading=group("la-lead-head",node("strong","",lead.name||"Без имени"),
-      node("span","la-status",statuses[lead.status]||"Лид"));
-    card.append(heading);
-    card.append(node("p","la-lead-meta",(lead.phone||"Без телефона")+(lead.address?" · "+lead.address:"")));
-    const amount=calc(lead.radiators,lead.loops);
-    if(amount!==null&&lead.material!=="Чугунные")card.append(node("p","la-lead-meta","Предварительно: "+money(amount)));
-    if(lead.reason&&lead.reason!=="none")card.append(node("p","la-lead-meta","Причина: "+(reasons[lead.reason]||lead.reason)));
-    if(lead.followUpDate)card.append(node("p","la-follow"+(overdue?" la-alert":""),(overdue?"Пора связаться · ":"Контроль · ")+humanDate(lead.followUpDate)+" после "+(lead.followUpTime||"18:00")+(lead.dateApprox?" (ориентир)":"")));
-    if(overdue&&!lead.consent)card.append(node("p","la-warn","Нет разрешения на повторный звонок — сначала проверьте согласие."));
+    const header=group("la-lead-head",node("strong","",lead.name||"Без имени"),
+      node("span","la-status"+(overdue?" la-status-due":""),overdue?"Перезвонить":statuses[lead.status]||"Лид"));
+    card.append(header);
+    const brief=[];
+    if(lead.radiators!==""&&lead.radiators!=null)brief.push(lead.radiators+" радиаторов");
+    if(lead.loops!==""&&lead.loops!=null&&Number(lead.loops)>0)brief.push(lead.loops+" контур(ов)");
+    const price=calc(lead.radiators,lead.loops);
+    if(price!==null&&lead.material!=="Чугунные")brief.push(money(price));
+    if(brief.length)card.append(node("p","la-lead-meta",brief.join(" · ")));
+    if(lead.followUpDate)card.append(node("p","la-follow"+(overdue?" la-alert":""),
+      (overdue?"Связаться: ":"Контроль: ")+humanDate(lead.followUpDate)+", "+(lead.followUpTime||"18:00")));
+    if(lead.reason&&lead.reason!=="none")card.append(node("p","la-reason",reasons[lead.reason]||lead.reason));
     const actions=node("div","la-actions");
+    const phone=phoneKey(lead.phone);
+    if(phone){
+      actions.append(link("Позвонить","la-link-call","tel:+"+phone));
+      const wa=link("WhatsApp","la-link-wa","https://wa.me/"+phone);wa.target="_blank";wa.rel="noopener noreferrer";actions.append(wa);
+    }
     actions.append(btn("Открыть","la-neutral",()=>selectLead(lead.id)));
-    actions.append(btn("Удалить","la-neutral",()=>{
-      if(!window.confirm("Удалить местную карточку «"+lead.name+"» без возможности восстановления?"))return;
-      if(persist(load().filter(x=>x.id!==lead.id))){
-        if(openId===lead.id){draft=blank();openId=null}
-        notice="Карточка удалена с этого устройства.";render();
-      }
-    }));
-    if(overdue)actions.append(btn("Связались","la-chip",()=>{
-      if(!window.confirm("Отметить контакт с клиентом? Напоминание на эту дату будет снято."))return;
-      const items=load(),entry=items.find(x=>x.id===lead.id);
-      if(!entry)return;entry.followUpDate="";entry.dateApprox=false;entry.status="hot";
-      entry.updatedAt=new Date().toISOString();
-      entry.history=[...(entry.history||[]),{at:entry.updatedAt,event:"Связались повторно",status:"hot"}].slice(-30);
-      if(persist(items)){if(openId===entry.id)draft={...entry};notice="Повторный контакт отмечен. При необходимости назначьте новую дату.";render()}
+    if(overdue)actions.append(btn("Связались","la-chip",()=>contacted(lead)));
+    if(lead.status==="ready")actions.append(btn("В заказ","la-chip",()=>{
+      window.__rdLeadOpenOrder?.({...lead,price:calc(lead.radiators,lead.loops)});
     }));
     card.append(actions);return card;
   }
+  function filterVisible(){
+    const container=$("laLeadList");if(!container)return;
+    const query=searchTerm.toLocaleLowerCase("ru").trim();
+    let visible=0;
+    for(const card of container.querySelectorAll("[data-lead-search]")){
+      card.hidden=!!query&&!card.dataset.leadSearch.includes(query);
+      if(!card.hidden)visible++;
+    }
+    const count=$("laListCount");if(count)count.textContent=query?"Найдено: "+visible:"";
+  }
   function leadsList(){
     const wrap=node("section","la-box la-list");
-    wrap.append(group("la-title",node("h2","","Лиды и задачи"),btn("+ Новый звонок","la-neutral",()=>selectLead(null))));
+    const heading=group("la-title",node("h2","","Лиды"),
+      btn("+ Новый лид","la-primary",()=>selectLead(null)));
+    wrap.append(heading);
+    if(notice){const message=node("p","la-message",notice);message.setAttribute("role","status");wrap.append(message)}
+    if(loadError)wrap.append(node("p","la-warn","Нет связи с общей базой: "+loadError));
+    if(!cloudReady)wrap.append(node("p","la-muted","Загружаем лиды из общей CRM…"));
     const all=load(),due=all.filter(l=>needsCall(l));
     const summary=node("div","la-summary");
-    for(const [num,label] of [[all.length,"Всего лидов"],[due.length,"На контроле"],[all.filter(l=>l.status==="ready").length,"Согласились"]])
+    for(const [num,label] of [[all.filter(l=>isOpen(l)).length,"Активные"],
+      [due.length,"Перезвонить"],[all.filter(l=>l.status==="ready").length,"Согласились"]])
       summary.append(group("la-summary-item",node("strong","",num),node("span","",label)));
     wrap.append(summary);
+    const toolbar=node("div","la-toolbar");
+    const input=node("input","la-input");input.type="search";input.placeholder="Имя или телефон";input.value=searchTerm;
+    input.setAttribute("aria-label","Поиск среди лидов");
+    input.addEventListener("input",()=>{searchTerm=input.value;filterVisible()});
+    toolbar.append(input,btn("Обновить","la-neutral",()=>refresh(true)));wrap.append(toolbar);
     const tabs=node("div","la-filters");
-    for(const [key,label] of [["all","Все"],["due","Контроль"],["waiting","Ожидают"],["ready","Согласились"]]){
+    for(const [key,label] of [["all","Все"],["due","Перезвонить"],["waiting","Ожидают"],["ready","Согласились"]]){
       const b=btn(label,"la-chip"+(activeFilter===key?" is-active":""),()=>{activeFilter=key;render()});
       b.setAttribute("aria-pressed",String(activeFilter===key));tabs.append(b);
     }
     wrap.append(tabs);
-    let items=all.filter(l=>activeFilter==="due"?needsCall(l):activeFilter==="waiting"?["waiting","callback"].includes(l.status):activeFilter==="ready"?l.status==="ready":true);
-    items.sort((a,b)=>Number(needsCall(b))-Number(needsCall(a))||(a.followUpDate||"9999").localeCompare(b.followUpDate||"9999")||String(b.updatedAt||"").localeCompare(String(a.updatedAt||"")));
-    if(!items.length)wrap.append(node("div","la-empty",activeFilter==="all"?"Лидов пока нет. Начните с нового звонка.":"В этой категории клиентов нет."));
-    for(const lead of items.slice(0,100))wrap.append(leadCard(lead));
-    if(items.length>100)wrap.append(node("p","la-muted","Показаны первые 100 записей."));
+    let items=all.filter(l=>activeFilter==="due"?needsCall(l):
+      activeFilter==="waiting"?["waiting","callback"].includes(l.status):
+      activeFilter==="ready"?l.status==="ready":true);
+    items.sort((a,b)=>Number(needsCall(b))-Number(needsCall(a))||
+      (a.followUpDate||"9999").localeCompare(b.followUpDate||"9999")||
+      String(b.updatedAt||"").localeCompare(String(a.updatedAt||"")));
+    const list=node("div","la-lead-list");list.id="laLeadList";
+    if(!items.length&&cloudReady)list.append(node("div","la-empty",activeFilter==="all"?
+      "Пока нет лидов. Добавьте первого клиента.":"Здесь пока нет клиентов."));
+    for(const lead of items.slice(0,100)){
+      const card=leadCard(lead);card.dataset.leadSearch=(lead.name+" "+lead.phone+" "+lead.address).toLocaleLowerCase("ru");
+      list.append(card);
+    }
+    if(items.length>100)wrap.append(node("p","la-muted","Показаны первые 100 из "+items.length+" лидов."));
+    wrap.append(list);
+    const count=node("small","la-muted");count.id="laListCount";wrap.append(count);
+    const old=localPreviews().filter(x=>phoneKey(x.phone)&&!all.some(y=>phoneKey(x.phone)===phoneKey(y.phone)));
+    if(old.length)wrap.append(btn("Перенести старые лиды с этого устройства ("+old.length+")","la-neutral la-import",importLocal));
+    wrap.append(btn("Включить напоминания на устройстве","la-notify",enableReminders));
     return wrap;
   }
   function render(){
-    const root=$("rdLeadsMount");
-    if(!root||context().role==="master")return;
+    const root=$("rdLeadsMount");if(!root||context().role==="master")return;
     root.replaceChildren();
-    const warning=node("div","la-preview-note","Тестовый режим: лиды сохраняются только в браузере этого устройства и аккаунта. Между менеджерами не синхронизируются. Push-уведомлений и отправки сообщений клиентам пока нет.");
-    const layout=node("div","la-layout");layout.append(editor(),leadsList());
-    root.append(warning,layout);
+    root.append(editing?editor():leadsList());
+    if(!editing)filterVisible();
     syncNav();initialized=true;
   }
-  window.__rdLeadsRender=render;
+  window.__rdLeadsRender=()=>{render();refresh()};
   window.__rdLeadsSyncNav=syncNav;
   window.__rdLeadDueCount=countDue;
-  // Recheck date-based reminders while the CRM stays open.
-  window.setInterval?.(()=>{if(!$("appScreen")?.hidden){syncNav();if(!$("rdLeads")?.hidden)render()}},60000);
-  window.addEventListener("focus",()=>{if(initialized){syncNav();if(!$("rdLeads")?.hidden)render()}});
-  window.addEventListener("storage",e=>{if(e.key===storeKey()&&initialized){syncNav();if(!$("rdLeads")?.hidden)render()}});
+  window.setInterval?.(()=>{
+    if(!$("appScreen")?.hidden&&context().role!=="master"){
+      syncNav();maybeNotify();
+      if(!$("rdLeads")?.hidden&&!editing)refresh();
+    }
+  },60000);
+  window.addEventListener("focus",()=>{
+    if(initialized&&!editing&&context().role!=="master")refresh(true)
+  });
+
 })();
