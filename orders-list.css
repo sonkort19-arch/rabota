@@ -256,3 +256,80 @@ body.rd #orders .rd-list-paid:has(.rd-list-pay:empty){visibility:hidden}
   .rd-order-actions-list.actions .action{font-size:11px!important}
   .rd-order-navigation button{font-size:11px}
 }
+
+
+/* Compact list cards and single-purpose order dialogs (Nov 2026). */
+body.rd #orders .rd-list-meta{display:none}
+.rd-order-head-controls{display:flex;align-items:center;gap:7px;flex:0 0 auto}
+.rd-order-navigation{display:flex;align-items:center;justify-content:center;gap:4px;min-width:0}
+.rd-order-navigation button{
+  display:grid;place-items:center;flex:0 0 31px;
+  width:31px;min-width:31px;min-height:36px;padding:0;
+  border:1px solid #dfe7f4;border-radius:10px;
+  background:#f7f9fd;color:#4a6286;font-size:25px;line-height:1
+}
+.rd-order-navigation button:disabled{opacity:.35;cursor:not-allowed}
+.rd-order-position{
+  min-width:37px;text-align:center;white-space:nowrap;
+  color:#8491a6;font-size:11px;font-variant-numeric:tabular-nums
+}
+.rd-order-close{width:37px;height:37px;min-width:37px;min-height:37px}
+.rd-order-head{gap:8px;padding:13px 14px 10px}
+.rd-order-heading{min-width:0;flex:1}
+.rd-order-title{font-size:19px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rd-order-subtitle{font-size:11px;margin-top:3px;overflow-wrap:anywhere}
+.rd-order-dialog{height:fit-content;max-height:min(82dvh,720px)}
+.rd-order-content{flex:0 1 auto;min-height:0;padding:11px 14px 9px}
+.rd-order-summary{padding-bottom:10px}
+.rd-order-attributes{gap:7px;padding:11px 0}
+.rd-order-actions{padding:2px 0 9px}
+.rd-order-actions-list.actions .action{min-height:42px!important}
+.rd-order-footer{padding:8px 14px max(8px,env(safe-area-inset-bottom))}
+.rd-order-primary{min-height:46px;margin:0}
+.rd-order-manual-status{margin-top:0;border-top:1px solid #edf1f8}
+.rd-order-manual-label{display:none}
+.rd-order-status-controls{padding:10px 2px 4px}
+.rd-order-manual-link{
+  display:block;width:100%;border:0;background:none;
+  min-height:32px;margin:2px 0 0;padding:4px 8px;
+  color:#657694;font-size:12px;font-weight:650;text-align:center
+}
+.rd-order-manual-status:not([open]) .rd-order-status-controls{display:none}
+@media(max-width:699px){
+  body.rd #appScreen.rd-view-orders #orders:has(>.rd-list-row){gap:7px}
+  body.rd #orders .rd-list-toggle{
+    grid-template-columns:minmax(0,1fr) minmax(0,1fr) 18px;
+    grid-template-areas:"who when arrow" "meta meta meta" "state paid paid";
+    padding:10px 12px;gap:5px 7px;min-height:0
+  }
+  body.rd #orders .rd-list-master,
+  body.rd #orders .rd-list-price{display:none!important}
+  body.rd #orders .rd-list-meta{
+    display:block;grid-area:meta;min-width:0;color:#536686
+  }
+  body.rd #orders .rd-list-meta-text{
+    display:block;font-size:12px;font-weight:650;line-height:1.25;
+    overflow:hidden;text-overflow:ellipsis;white-space:nowrap
+  }
+  body.rd #orders .rd-list-state{align-self:center}
+  body.rd #orders .rd-list-status,
+  body.rd #orders .rd-list-pay{min-height:22px;padding:4px 8px;font-size:10px}
+  body.rd #orders .rd-list-avatar{width:32px;height:32px;flex-basis:32px}
+  body.rd #orders .rd-list-person{gap:8px}
+  body.rd #orders .rd-list-identity{gap:2px}
+  body.rd #orders .rd-list-when{gap:1px}
+  .rd-order-overlay{align-items:flex-end}
+  .rd-order-dialog{width:100%;max-height:82dvh}
+  .rd-order-head{padding:12px 12px 9px}
+  .rd-order-content{padding:10px 12px 7px}
+  .rd-order-footer{padding:8px 12px max(8px,env(safe-area-inset-bottom))}
+  .rd-order-attributes{gap:7px}
+}
+@media(max-width:375px){
+  .rd-order-head-controls{gap:3px}
+  .rd-order-navigation{gap:1px}
+  .rd-order-navigation button{width:29px;min-width:29px}
+  .rd-order-position{min-width:34px;font-size:10px}
+  .rd-order-close{min-width:34px;width:34px}
+  body.rd #orders .rd-list-toggle{padding:10px 10px}
+}
