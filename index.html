@@ -197,6 +197,7 @@
   <link rel="stylesheet" href="/calendar-v3.css">
   <link rel="stylesheet" href="/orders-polish.css">
   <link rel="stylesheet" href="/mobile-order-form.css">
+  <link rel="stylesheet" href="/order-availability.css">
   <link rel="stylesheet" href="/master-notifications.css">
   <link rel="stylesheet" href="/orders-list.css">
   <link rel="stylesheet" href="/finance-payroll.css">
@@ -362,9 +363,34 @@
           </div>
           <datalist id="masterNames"></datalist>
           <div class="form-title">Запись</div>
-          <div class="form-grid order-schedule-grid">
-            <div class="field"><label for="orderDate">Дата *</label><input id="orderDate" name="orderDate" type="date" required></div>
-            <div class="field"><label for="orderTime">Время *</label><input id="orderTime" name="orderTime" type="time" required></div>
+          <input id="orderDate" name="orderDate" type="hidden">
+          <section id="oaCalendar" class="oa-calendar" aria-label="Выбор даты и занятость мастера">
+            <div class="oa-top">
+              <div class="oa-date-label"><span>Дата *</span><strong id="oaSelectedDate">Выберите день</strong></div>
+              <button id="oaToday" class="oa-today" type="button">Сегодня</button>
+            </div>
+            <div class="oa-month-nav">
+              <button type="button" id="oaPrevMonth" aria-label="Предыдущий месяц">‹</button>
+              <strong id="oaMonthTitle">Ноябрь 2026</strong>
+              <button type="button" id="oaNextMonth" aria-label="Следующий месяц">›</button>
+            </div>
+            <div class="oa-week-names" aria-hidden="true">
+              <span>Пн</span><span>Вт</span><span>Ср</span><span>Чт</span><span>Пт</span><span>Сб</span><span>Вс</span>
+            </div>
+            <div id="oaMonthGrid" class="oa-month-grid" role="group" aria-label="Доступность дней"></div>
+            <div class="oa-legend">
+              <span><i class="oa-dot oa-free"></i>0 записей</span>
+              <span><i class="oa-dot oa-partial"></i>1 из 2</span>
+              <span><i class="oa-dot oa-full"></i>2 из 2</span>
+            </div>
+            <div id="oaAvailabilityMessage" class="oa-message" role="status" aria-live="polite"></div>
+            <div id="oaExistingBookings" class="oa-existing"></div>
+            <div id="oaSlotSuggestions" class="oa-slots" role="group" aria-label="Предлагаемое время"></div>
+          </section>
+          <div class="order-time-field">
+            <label for="orderTime">Время *</label>
+            <input id="orderTime" name="orderTime" type="time" required>
+            <p class="oa-time-hint">Время можно выбрать выше или указать вручную. Ориентир: работа около 3 часов и 20 минут на дорогу.</p>
           </div>
           <details class="order-advanced" id="orderAdvanced">
             <summary>Дополнительные параметры <span>Тип радиаторов, статус, оплата, комментарий</span></summary>
@@ -597,6 +623,7 @@
         // Invalidate calendar views only when fresh order data actually differs.
         window.__rdOrdersRevision=(window.__rdOrdersRevision||0)+1;
         render();
+        window.__rdOrderAvailability?.refresh(incoming);
         updateImportButton();
       }
       let syncError=null;
@@ -1069,6 +1096,7 @@
       controls.status.closest(".field").style.display=raulCreating?"none":"";
       controls.paid.parentElement.style.display=raulCreating?"none":"";
       overlay.hidden=false;document.body.style.overflow="hidden";
+      window.__rdOrderAvailability?.open(getOrders(),editingId);
       document.getElementById("orderFormScroll").scrollTop=0;
       // На iPhone автоматический фокус открывал клавиатуру и сдвигал форму.
       if(!window.matchMedia || !window.matchMedia("(pointer: coarse)").matches)controls.name.focus();
@@ -1076,7 +1104,7 @@
     function closeForm(force) {
       // Запретить закрытие до завершения сохранения: результат запроса ещё неизвестен.
       if(orderSaving && force!==true)return;
-      overlay.hidden=true;document.body.style.overflow="";form.reset();delete form.dataset.leadPreview;delete form.dataset.leadId;editingId=null;
+      overlay.hidden=true;window.__rdOrderAvailability?.close();document.body.style.overflow="";form.reset();delete form.dataset.leadPreview;delete form.dataset.leadId;editingId=null;
       if(previousFocus&&typeof previousFocus.focus==="function")previousFocus.focus();
     }
     document.getElementById("newOrderBtn").addEventListener("click",()=>openForm());
@@ -1578,6 +1606,7 @@
       // A candidate window is not a confirmed appointment.
       controls.date.value="";
       controls.time.value="";
+      window.__rdOrderAvailability?.refresh(getOrders());
       if(leadDemoHost()){
         form.dataset.leadPreview="1";
         formStatus.textContent="Черновик из лида. В Preview запись заказа отключена.";
@@ -1682,6 +1711,7 @@
     initialize();
 
   </script>
+  <script src="/order-availability.js"></script>
   <script src="/redesign.js"></script>
   <script src="/master-notifications.js"></script>
   <script src="/orders-list.js"></script>
