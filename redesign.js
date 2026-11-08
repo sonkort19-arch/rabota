@@ -845,7 +845,7 @@ function filterCards(){
        card.dataset.unpaid==="true"));
   card.hidden=!show;if(show)visible++;
  }
- if(total)$("orderCount").textContent="Показано "+visible+" из "+total;
+ if(total)$("orderCount").textContent=visible+" из "+total;
  syncOrderFiltersButton();
  syncSummaryButtons();
  const oldEmpty=$("rdOrderFilterEmpty");if(oldEmpty)oldEmpty.remove();
