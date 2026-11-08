@@ -228,3 +228,82 @@ body.rd .rd-more-sheet { max-height:calc(100dvh - 100px - env(safe-area-inset-to
   body.rd .finance-line { flex-wrap:wrap; }
   body.rd .finance-line>strong { max-width:100%; white-space:normal; overflow-wrap:anywhere; }
 }
+
+/* Mobile calendar: fit all seven days and keep order cards inside the viewport. */
+@media (max-width:790px) {
+  html, body.rd { overflow-x:clip; }
+  body.rd #appScreen,
+  body.rd #ordersArea,
+  body.rd #rdCalendarBoard,
+  body.rd #rdCalendarBoard .rd-selected-day { min-width:0; max-width:100%; }
+  body.rd #rdCalendarBoard[data-calendar-mode="week"] .rd-week-strip,
+  body.rd #rdCalendarBoard[data-calendar-mode="day"] .rd-week-strip {
+    display:grid!important;
+    grid-template-columns:repeat(7,minmax(0,1fr));
+    gap:4px;
+    min-width:0;
+    width:100%;
+    max-width:100%;
+    overflow:visible;
+    margin:9px 0;
+    padding:2px 0 6px;
+  }
+  body.rd #rdCalendarBoard .rd-day-chip {
+    box-sizing:border-box;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+    flex:none;
+    min-width:0;
+    max-width:none;
+    width:100%;
+    min-height:69px;
+    padding:7px 0;
+    font-size:10px;
+    line-height:1.25;
+  }
+  body.rd #rdCalendarBoard .rd-day-chip strong { font-size:18px; line-height:1.1; }
+  body.rd #rdCalendarBoard .rd-day-chip small { font-size:9px; }
+  body.rd #rdCalendarBoard .rd-selected-heading { max-width:100%; align-items:flex-start; gap:8px; }
+  body.rd #rdCalendarBoard .rd-selected-heading h3 { min-width:0; flex:1 1 170px; overflow-wrap:anywhere; }
+  body.rd #rdCalendarBoard .rd-selected-count { flex:0 0 auto; max-width:100%; }
+  body.rd #rdCalendarBoard .rd-mobile-event {
+    box-sizing:border-box;
+    min-width:0;
+    max-width:100%;
+    width:100%;
+    display:flex;
+    flex-direction:column;
+    gap:10px;
+  }
+  body.rd #rdCalendarBoard .rd-calendar-time {
+    display:flex;
+    flex-direction:row;
+    justify-content:space-between;
+    align-items:center;
+    width:100%;
+    min-width:0;
+    flex:0 0 auto;
+    gap:8px;
+    border-right:0;
+    border-bottom:1px solid #ebeff8;
+    padding:0 0 9px;
+  }
+  body.rd #rdCalendarBoard .rd-calendar-time small { max-width:60%; text-align:right; }
+  body.rd #rdCalendarBoard .rd-calendar-entry { min-width:0; width:100%; flex:1 1 auto; }
+  body.rd #rdCalendarBoard .rd-cal-order-meta {
+    display:grid;
+    grid-template-columns:minmax(0,1fr);
+    min-width:0;
+    gap:5px;
+  }
+  body.rd #rdCalendarBoard .rd-cal-order-meta span { min-width:0; max-width:100%; }
+  body.rd #rdCalendarBoard .rd-calendar-actions { width:100%; max-width:100%; }
+  body.rd #rdCalendarBoard .rd-calendar-actions .rd-cal-action { min-width:0; overflow-wrap:anywhere; }
+}
+@media (max-width:360px) {
+  body.rd #rdCalendarBoard .rd-week-strip { gap:3px; }
+  body.rd #rdCalendarBoard .rd-day-chip { padding:6px 0; font-size:9px; }
+  body.rd #rdCalendarBoard .rd-day-chip strong { font-size:16px; }
+}
