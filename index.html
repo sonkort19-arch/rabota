@@ -961,7 +961,7 @@
     function openForm(id) {
       const raulCreating=raulCanCreateOrder();
       if(!canCreateOrder() || (currentRole==="master" && (id!==undefined || !raulCreating)))return;
-      previousFocus=document.activeElement;form.reset();delete form.dataset.leadPreview;formStatus.textContent="";formStatus.classList.remove("is-saving");
+      previousFocus=document.activeElement;form.reset();delete form.dataset.leadPreview;delete form.dataset.leadId;formStatus.textContent="";formStatus.classList.remove("is-saving");
       editingId=id===undefined?null:String(id);
       updateMasters();
       const existing=editingId===null?null:getOrders().find(x=>String(x.id)===editingId);
@@ -1004,7 +1004,7 @@
     function closeForm(force) {
       // Запретить закрытие до завершения сохранения: результат запроса ещё неизвестен.
       if(orderSaving && force!==true)return;
-      overlay.hidden=true;document.body.style.overflow="";form.reset();delete form.dataset.leadPreview;editingId=null;
+      overlay.hidden=true;document.body.style.overflow="";form.reset();delete form.dataset.leadPreview;delete form.dataset.leadId;editingId=null;
       if(previousFocus&&typeof previousFocus.focus==="function")previousFocus.focus();
     }
     document.getElementById("newOrderBtn").addEventListener("click",()=>openForm());
@@ -1094,6 +1094,8 @@
       formStatus.textContent="Сохранение заказа…";
       try {
         await persistOrder(order);
+        const sourceLeadId=!existing&&status!=="Отменён"?form.dataset.leadId:null;
+        if(sourceLeadId)await window.__rdLeadMarkBooked?.(sourceLeadId);
         selectedDate=date;
         currentTab=raulCreating?"all":status==="Выполнен"?"history":status==="Отменён"?"all":"calendar";
         closeForm(true);render();
@@ -1479,6 +1481,7 @@
     window.__rdLeadOpenOrder=lead=>{
       if(!["owner","manager"].includes(currentRole)||!lead)return;
       openForm();
+      if(typeof lead.id==="string"&&/^[a-f0-9-]{36}$/i.test(lead.id))form.dataset.leadId=lead.id;
       controls.name.value=String(lead.name||"");
       controls.phone.value=String(lead.phone||"");
       controls.address.value=String(lead.address||"");
