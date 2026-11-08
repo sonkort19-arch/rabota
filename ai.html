@@ -103,14 +103,14 @@ aside{width:266px;flex:0 0 266px;background:#171717;border-right:1px solid #2929
 <div id="scrim"></div>
 <div id="layout" hidden>
   <aside>
-    <div class="brand"><strong>Работа · ИИ</strong><a class="back" href="/">← Заказы</a></div>
+    <div class="brand"><strong>Работа · ИИ</strong></div>
     <button id="newChat" type="button">＋ Новый чат</button>
     <div class="sidebar-label">История переписок</div>
     <div id="history" aria-label="История чатов"></div>
     <div class="sidebar-foot">ИИ читает заказы и расписание, готовит заявку по тексту, голосу или фото. Сохранение — только после твоего подтверждения. Фото не хранится в истории.</div>
   </aside>
   <main id="main">
-    <header class="top"><a href="/" class="crm-back" aria-label="Вернуться в CRM">← Работа</a><button id="menu" type="button" aria-label="История чатов">☰</button><h1 id="conversationTitle">ИИ-помощник</h1></header>
+    <header class="top"><a href="/" id="crmBack" class="crm-back" aria-label="Вернуться в CRM">← Работа</a><button id="menu" type="button" aria-label="История чатов">☰</button><h1 id="conversationTitle">ИИ-помощник</h1></header>
     <section id="messages" aria-label="Сообщения" aria-live="polite"><div class="messages-inner" id="messageList"></div></section>
     <div class="composer-wrap">
       <section id="proposalCard" hidden aria-label="Предпросмотр изменения заказа">
@@ -137,6 +137,10 @@ const SUPABASE_KEY="sb_publishable_tSqbw3aeAgxYuzHhQurCuw_yDze4ZNn";
 const AUTH_KEY="rabota-auth-session-v1";
 let session=null,refreshPromise=null,activeChat=null,chats=[],messages=[],busy=false,pendingDraft=null,pendingImageData=null,photoProcessing=false,photoSequence=0;
 const $=id=>document.getElementById(id);
+const allowedReturnPages=new Set(["home","orders","calendar","leads","clients","finance"]);
+const sourcePage=new URLSearchParams(window.location.search).get("from");
+const returnPage=allowedReturnPages.has(sourcePage)?sourcePage:"home";
+$("crmBack").href=returnPage==="home"?"/":"/?view="+encodeURIComponent(returnPage);
 function syncSendAvailability(){
  $("send").disabled=busy||photoProcessing||(!$("input").value.trim()&&!pendingImageData);
 }
