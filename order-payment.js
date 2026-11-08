@@ -87,7 +87,6 @@
         change.textContent=editing?"Редактирование":"Изменить";
         if(editing){
           input.focus({preventScroll:true});
-          input.select?.();
         }else{
           input.blur();
           updateSum();
