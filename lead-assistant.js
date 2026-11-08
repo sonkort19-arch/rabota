@@ -18,7 +18,7 @@
   const statuses={new:"Новый",hot:"Горячий",waiting:"Думает / ждём",callback:"Перезвонить",ready:"Согласился",booked:"Записан",lost:"Отказался"};
   const reasons={none:"Не выбрано",salary:"После зарплаты",price:"Дорого",time:"Нет времени",family:"Посоветуется",other:"Другая причина"};
   const blank=()=>({id:null,name:"",phone:"",address:"",radiators:"",material:"",loops:"",notes:"",status:"new",reason:"none",followUpDate:"",followUpTime:"18:00",dateApprox:false,clientWillCall:false,consent:false,priceAgreed:false,updatedAt:"",history:[]});
-  const phoneKey=s=>{let digits=String(s||"").replace(/\D/g,"");if(digits.length===11&&digits[0]==="8")digits="7"+digits.slice(1);if(digits.length===10)digits="7"+digits;return digits.length===11?digits:""};
+  const phoneKey=s=>{let digits=String(s||"").replace(/\D/g,"");if(digits.length===11&&digits[0]==="8")digits="7"+digits.slice(1);if(digits.length===10)digits="7"+digits;return digits.length===11&&digits[0]==="7"?digits:""};
   function dueFromText(value,base=today()){
     const s=text(value).toLocaleLowerCase("ru");
     const after=s.match(/через\s+(\d{1,3})\s*(день|дня|дней|сут)/);
@@ -63,6 +63,7 @@
   }
   let draft=blank(),activeFilter="all",openId=null,notice="",leadCache=[],initialized=false;
   let editing=false,cloudReady=false,loading=false,saving=false,loadError="",lastFetch=0,searchTerm="";
+  let cachedUserId=null;
   const notified=new Set();
   const context=()=>window.__rdLeadContext?.()||{};
   const storeKey=()=>{const id=context().userId;return id?"rabota-preview-leads-v1:"+id:null};
@@ -70,6 +71,12 @@
   function localPreviews(){
     const key=storeKey();if(!key)return [];
     try{const value=JSON.parse(localStorage.getItem(key)||"[]");return Array.isArray(value)?value.filter(x=>x&&typeof x==="object"):[]}catch{return []}
+  }
+  function resetForAccount(){
+    const id=context().userId||null;
+    if(id===cachedUserId)return;
+    cachedUserId=id;leadCache=[];cloudReady=false;loading=false;saving=false;loadError="";
+    lastFetch=0;searchTerm="";editing=false;openId=null;notice="";draft=blank();notified.clear();
   }
   const load=()=>leadCache;
   function fromRow(row){
@@ -97,6 +104,7 @@
   window.__rdLeadLogic={today,shifted,nextMonth,weekday,dueFromText,parseNotes,calc,phoneKey,needsCall};
   const countDue=()=>load().filter(l=>needsCall(l)).length;
   function syncNav(){
+    resetForAccount();
     const count=countDue();
     document.querySelectorAll(".rd-nav-btn[data-page=leads]").forEach(b=>{
       const spans=b.querySelectorAll("span"),label=spans[spans.length-1];
@@ -105,15 +113,23 @@
     });
   }
   async function refresh(force=false){
-    if(context().role==="master"||!context().userId||loading||(!force&&cloudReady&&Date.now()-lastFetch<30000))return;
+    resetForAccount();
+    const account=cachedUserId;
+    if(context().role==="master"||!account||loading||(!force&&cloudReady&&Date.now()-lastFetch<30000))return;
     loading=true;
     try{
-      const rows=await dbRequest("rabota_leads?select=*&order=updated_at.desc&limit=1000","GET");
-      if(!Array.isArray(rows))throw new Error("Не удалось получить список лидов.");
+      const rows=[];
+      for(let offset=0;offset<100000;offset+=1000){
+        const page=await dbRequest("rabota_leads?select=*&order=updated_at.desc&limit=1000&offset="+offset,"GET");
+        if(!Array.isArray(page))throw new Error("Не удалось получить список лидов.");
+        rows.push(...page);
+        if(page.length<1000)break;
+      }
+      if(account!==context().userId)return;
       leadCache=rows.map(fromRow);cloudReady=true;loadError="";lastFetch=Date.now();
       syncNav();if(!editing)render();
       maybeNotify();
-    }catch(error){loadError=error.message||String(error);if(!editing)render();}
+    }catch(error){if(account===context().userId){loadError=error.message||String(error);if(!editing)render()}}
     finally{loading=false}
   }
   function selectLead(id){
@@ -489,7 +505,7 @@
     if(!editing)filterVisible();
     syncNav();initialized=true;
   }
-  window.__rdLeadsRender=()=>{render();refresh()};
+  window.__rdLeadsRender=()=>{resetForAccount();render();refresh()};
   window.__rdLeadsSearch=value=>{searchTerm=String(value||"");const field=$("laLeadList")?.parentElement?.querySelector("input[type=search]");if(field)field.value=searchTerm;filterVisible()};
   window.__rdLeadsSyncNav=syncNav;
   window.__rdLeadDueCount=countDue;
