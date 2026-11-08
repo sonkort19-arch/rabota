@@ -139,7 +139,13 @@ function build(){
  if(activePage==="leads"){window.__rdLeadsSearch?.(search.value);return}
  rdSearchTerm=search.value.toLocaleLowerCase("ru").trim();
  if(activePage==="clients"){selectedClientKey=null;drawClients();return}
- if(rdSearchTerm&&activePage!=="orders")navigate("orders");
+ if(rdSearchTerm&&activePage!=="orders"){
+  const intendedSearch=rdSearchTerm;
+  navigate("orders");
+  rdSearchTerm=intendedSearch;
+  orderTabFilters.all.search=intendedSearch;
+  $("rdTopSearch").value=intendedSearch;
+ }
  filterCards();
 });
  top.append(search,boxText("span","Данные из Supabase","rd-top-title"));
@@ -249,6 +255,7 @@ function navigate(key){
  if(key==="ai"){window.location.assign("/ai.html");return}
  if(!ready)return;
  if(key==="finance"&&currentRole!=="owner")return;
+ if(activePage==="orders"&&key!=="orders")storeOrderFilters(currentTab);
  const globalSearch=$("rdTopSearch");
  if(globalSearch){
   globalSearch.placeholder=key==="leads"?"Поиск лидов по имени и телефону...":"Поиск заказов, клиентов, адресов...";
