@@ -204,7 +204,14 @@
   <link rel="stylesheet" href="/finance-payroll.css">
   <link rel="stylesheet" href="/lead-assistant.css">
   <link rel="stylesheet" href="/ui-alignment.css">
-</head>
+<style>
+      body.ai-workspace-open #appScreen main > :not(header):not(#aiChatLink):not(#aiWorkspace){display:none!important}
+      #aiWorkspace{margin:0 -16px;overflow:hidden}
+      .ai-workspace-head{display:flex;justify-content:space-between;align-items:center;padding:8px 16px 12px;gap:12px}
+      #aiWorkspaceFrame{display:block;width:100%;height:calc(100dvh - 165px);min-height:400px;border:0;background:#212121}
+      body.ai-workspace-open #aiChatLink{display:none!important}
+      @media(min-width:761px){#aiWorkspace{margin:0}#aiWorkspaceFrame{height:calc(100dvh - 170px)}}
+    </style></head>
 <body>
 
   <section id="loginScreen" class="login-screen" hidden>
@@ -269,7 +276,11 @@
         </section>
       <button class="secondary" id="logoutBtn" type="button">Выйти</button>
     </div></header>
-    <a id="aiChatLink" class="secondary ai-chat-entry" href="/ai.html" hidden>✦ Открыть ИИ-чат</a>
+    <a id="aiChatLink" class="secondary ai-chat-entry" href="/ai.html" hidden>✦ ИИ-помощник</a>
+    <section id="aiWorkspace" hidden aria-label="ИИ-помощник">
+      <div class="ai-workspace-head"><strong>ИИ-помощник</strong><button type="button" id="aiCloseWorkspace" class="secondary">← К заказам</button></div>
+      <iframe id="aiWorkspaceFrame" title="ИИ-помощник" loading="lazy" referrerpolicy="same-origin"></iframe>
+    </section>
     <div class="sync-note" id="syncStatus" role="status">Синхронизация...</div>
     <div id="viewSwitch" class="view-switch" hidden>
       <button id="viewOrdersBtn" class="view-button is-selected" type="button">Заявки</button>
@@ -1804,5 +1815,27 @@
   <script src="/orders-list.js"></script>
   <script src="/finance-payroll.js"></script>
   <script src="/lead-assistant.js"></script>
-</body>
+<script>
+    (() => {
+      const link=document.getElementById("aiChatLink"), panel=document.getElementById("aiWorkspace"), frame=document.getElementById("aiWorkspaceFrame");
+      const close=document.getElementById("aiCloseWorkspace");
+      if(!link||!panel||!frame||!close)return;
+      function openAI(event){
+        if(event)event.preventDefault();
+        if(link.hidden)return;
+        panel.hidden=false;document.body.classList.add("ai-workspace-open");
+        if(!frame.getAttribute("src"))frame.src="/ai.html?embedded=1";
+        link.setAttribute("aria-expanded","true");
+      }
+      function closeAI(){
+        panel.hidden=true;document.body.classList.remove("ai-workspace-open");
+        link.setAttribute("aria-expanded","false");
+      }
+      link.addEventListener("click",openAI);
+      close.addEventListener("click",closeAI);
+      window.addEventListener("message",event=>{
+        if(event.origin===location.origin&&event.source===frame.contentWindow&&event.data?.type==="rabota-ai-back")closeAI();
+      });
+    })();
+  </script></body>
 </html>
