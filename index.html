@@ -303,10 +303,9 @@
     <section id="rdOrdersDayPicker" class="rd-orders-day-picker" aria-label="Быстрый выбор дня" hidden>
       <div class="rd-orders-day-toolbar">
         <button type="button" id="rdOrdersPrevWeek" class="rd-orders-week-step" aria-label="Предыдущая неделя">‹</button>
-        <label class="rd-orders-date-field">
-          <span id="rdOrdersDayDateLabel" aria-hidden="true"></span>
-          <input id="rdOrdersDayDate" type="date" aria-label="Выбрать дату заказа">
-        </label>
+        <div class="rd-orders-date-field" aria-label="Выбранная дата">
+          <span id="rdOrdersDayDateLabel"></span>
+        </div>
         <button type="button" id="rdOrdersToday" class="rd-orders-today">Сегодня</button>
         <button type="button" id="rdOrdersNextWeek" class="rd-orders-week-step" aria-label="Следующая неделя">›</button>
       </div>
@@ -404,7 +403,6 @@
     const calendarDate = document.getElementById("calendarDate");
     const weekDays = document.getElementById("weekDays");
     const ordersDayPicker = document.getElementById("rdOrdersDayPicker");
-    const ordersDayDate = document.getElementById("rdOrdersDayDate");
     const ordersDayDateLabel = document.getElementById("rdOrdersDayDateLabel");
     const ordersWeekDays = document.getElementById("rdOrdersWeekDays");
     const controls = {
@@ -417,6 +415,7 @@
       details: document.getElementById("orderDetails")
     };
     let currentTab = "calendar";
+    let orderListDateFilter = "";
     let editingId = null;
     let previousFocus = null;
     let orderSaving = false;
@@ -921,7 +920,6 @@
 
     function renderCalendar() {
       calendarDate.value = selectedDate;
-      ordersDayDate.value = selectedDate;
       ordersDayDateLabel.textContent = parseDate(selectedDate).toLocaleDateString("ru-RU",
         {day:"numeric",month:"short",year:"numeric"});
       const base = parseDate(selectedDate);
@@ -965,8 +963,9 @@
       document.getElementById("calendarPanel").hidden = redesignedOrders ||
         currentTab!=="calendar" || window.__rdCurrentPage==="calendar";
       ordersDayPicker.hidden = !redesignedOrders || currentTab!=="calendar";
-      const legacyDateFilter = document.querySelector("#rdOrderToolbar .rd-date-filter");
-      if(legacyDateFilter)legacyDateFilter.hidden=redesignedOrders&&currentTab==="calendar";
+      const toolbarDateFilter = document.getElementById("rdOrderDate");
+      if(toolbarDateFilter && redesignedOrders)
+        toolbarDateFilter.value=currentTab==="calendar"?selectedDate:orderListDateFilter;
       let shown;
       if (currentTab === "history") {
         shown = getOrders().filter(o=>o.status==="Выполнен");
@@ -1053,7 +1052,6 @@
     document.getElementById("nextWeek").addEventListener("click",()=>{selectedDate=addDays(selectedDate,7);currentTab="calendar";render();});
     document.getElementById("goToday").addEventListener("click",()=>{selectedDate=localDate(new Date());currentTab="calendar";render();});
     calendarDate.addEventListener("change",()=>{if(calendarDate.value){selectedDate=calendarDate.value;render();}});
-    ordersDayDate.addEventListener("change",()=>{if(ordersDayDate.value){selectedDate=ordersDayDate.value;currentTab="calendar";render();}});
     document.getElementById("rdOrdersPrevWeek").addEventListener("click",()=>{selectedDate=addDays(selectedDate,-7);currentTab="calendar";render();});
     document.getElementById("rdOrdersNextWeek").addEventListener("click",()=>{selectedDate=addDays(selectedDate,7);currentTab="calendar";render();});
     document.getElementById("rdOrdersToday").addEventListener("click",()=>{selectedDate=localDate(new Date());currentTab="calendar";render();});
