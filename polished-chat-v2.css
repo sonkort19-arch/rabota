@@ -244,3 +244,21 @@ html,body{background:#fff;color:var(--ai-ink);-webkit-font-smoothing:antialiased
   .rd-ai-emblem{height:44px;width:44px;font-size:29px}
   .quick-questions{margin-top:7px}
 }
+
+
+/* Balance the empty assistant screen without altering existing conversations. */
+@media (max-width:760px) and (min-height:720px){
+  #messages.is-empty .messages-inner{
+    padding-top:clamp(56px,7dvh,105px);
+    padding-bottom:18px;
+  }
+}
+@media (max-width:760px) and (max-height:719px){
+  #messages.is-empty .messages-inner{
+    padding-top:8px;
+    padding-bottom:6px;
+  }
+}
+#messages:not(.is-empty) .messages-inner{
+  padding-top:0;
+}
