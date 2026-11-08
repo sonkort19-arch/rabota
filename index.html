@@ -366,26 +366,37 @@
           <input id="orderDate" name="orderDate" type="hidden">
           <section id="oaCalendar" class="oa-calendar" aria-label="Выбор даты и занятость мастера">
             <div class="oa-top">
-              <div class="oa-date-label"><span>Дата *</span><strong id="oaSelectedDate">Выберите день</strong></div>
-              <button id="oaToday" class="oa-today" type="button">Сегодня</button>
+              <button id="oaToggle" class="oa-toggle" type="button" aria-expanded="false" aria-controls="oaCalendarBody">
+                <span class="oa-date-symbol" aria-hidden="true"></span>
+                <span class="oa-date-label"><span>Дата *</span><strong id="oaSelectedDate">Выберите день</strong></span>
+                <span id="oaDayLoad" class="oa-load oa-load-unknown">—</span>
+                <span class="oa-toggle-chevron" aria-hidden="true"></span>
+              </button>
             </div>
-            <div class="oa-month-nav">
-              <button type="button" id="oaPrevMonth" aria-label="Предыдущий месяц">‹</button>
-              <strong id="oaMonthTitle">Ноябрь 2026</strong>
-              <button type="button" id="oaNextMonth" aria-label="Следующий месяц">›</button>
+            <div id="oaCalendarBody" class="oa-calendar-body" hidden>
+              <div class="oa-expanded-actions">
+                <button id="oaToday" class="oa-today" type="button">Сегодня</button>
+              </div>
+              <div class="oa-month-nav">
+                <button type="button" id="oaPrevMonth" aria-label="Предыдущий месяц">‹</button>
+                <strong id="oaMonthTitle">Ноябрь 2026</strong>
+                <button type="button" id="oaNextMonth" aria-label="Следующий месяц">›</button>
+              </div>
+              <div class="oa-week-names" aria-hidden="true">
+                <span>Пн</span><span>Вт</span><span>Ср</span><span>Чт</span><span>Пт</span><span>Сб</span><span>Вс</span>
+              </div>
+              <div id="oaMonthGrid" class="oa-month-grid" role="group" aria-label="Доступность дней"></div>
+              <div class="oa-legend">
+                <span><i class="oa-dot oa-free"></i>0 записей</span>
+                <span><i class="oa-dot oa-partial"></i>1 из 2</span>
+                <span><i class="oa-dot oa-full"></i>2 из 2</span>
+              </div>
             </div>
-            <div class="oa-week-names" aria-hidden="true">
-              <span>Пн</span><span>Вт</span><span>Ср</span><span>Чт</span><span>Пт</span><span>Сб</span><span>Вс</span>
+            <div class="oa-day-summary">
+              <div id="oaAvailabilityMessage" class="oa-message" role="status" aria-live="polite"></div>
+              <div id="oaExistingBookings" class="oa-existing"></div>
+              <div id="oaSlotSuggestions" class="oa-slots" role="group" aria-label="Предлагаемое время"></div>
             </div>
-            <div id="oaMonthGrid" class="oa-month-grid" role="group" aria-label="Доступность дней"></div>
-            <div class="oa-legend">
-              <span><i class="oa-dot oa-free"></i>0 записей</span>
-              <span><i class="oa-dot oa-partial"></i>1 из 2</span>
-              <span><i class="oa-dot oa-full"></i>2 из 2</span>
-            </div>
-            <div id="oaAvailabilityMessage" class="oa-message" role="status" aria-live="polite"></div>
-            <div id="oaExistingBookings" class="oa-existing"></div>
-            <div id="oaSlotSuggestions" class="oa-slots" role="group" aria-label="Предлагаемое время"></div>
           </section>
           <div class="order-time-field">
             <label for="orderTime">Время *</label>

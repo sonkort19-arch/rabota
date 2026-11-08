@@ -244,3 +244,54 @@
   #orderForm .oa-legend { gap:4px; }
   #orderForm .oa-legend span { font-size:9px; }
 }
+
+
+/* Compact order-date picker: day details remain visible while the month grid folds. */
+#orderForm .oa-calendar { padding:0; overflow:hidden; background:#fff; }
+#orderForm .oa-top { display:block; }
+#orderForm .oa-toggle {
+  display:flex; align-items:center; gap:10px; width:100%; min-width:0;
+  min-height:64px; padding:11px 13px; margin:0; text-align:left;
+  border:0; border-radius:13px 13px 0 0; background:#f8faff;
+  color:#233250; cursor:pointer; touch-action:manipulation;
+}
+#orderForm .oa-toggle:focus-visible { outline:2px solid #4254e9; outline-offset:-3px; }
+#orderForm .oa-date-symbol {
+  position:relative; width:20px; height:20px; flex:0 0 20px;
+  border:2px solid #6177df; border-radius:5px; box-sizing:border-box;
+}
+#orderForm .oa-date-symbol::before {
+  content:""; position:absolute; top:5px; left:0; right:0; border-top:2px solid #6177df;
+}
+#orderForm .oa-toggle .oa-date-label { flex:1 1 auto; min-width:0; text-align:left; }
+#orderForm .oa-toggle .oa-date-label strong { font-size:15px; overflow-wrap:anywhere; }
+#orderForm .oa-load {
+  flex:0 0 auto; max-width:120px; padding:6px 8px; border:1px solid #dce4f1;
+  border-radius:30px; font-size:11px; font-weight:750; text-align:center;
+  color:#62738d; background:#f1f4f9; line-height:1.25;
+}
+#orderForm .oa-load.oa-load-free { background:#e8f8ef; border-color:#c7ebd8; color:#17764d; }
+#orderForm .oa-load.oa-load-partial { background:#fff4e0; border-color:#f3dab0; color:#94600b; }
+#orderForm .oa-load.oa-load-full { background:#ffebea; border-color:#f0c4c0; color:#ad4440; }
+#orderForm .oa-toggle-chevron {
+  display:block; flex:0 0 8px; width:8px; height:8px;
+  border-right:2px solid #607394; border-bottom:2px solid #607394;
+  transform:translateY(-2px) rotate(45deg); transition:transform .15s ease;
+}
+#orderForm .oa-calendar.is-expanded .oa-toggle-chevron { transform:translateY(2px) rotate(225deg); }
+#orderForm .oa-calendar-body { padding:0 12px 4px; border-top:1px solid #e5ebf7; }
+#orderForm .oa-calendar-body[hidden] { display:none!important; }
+#orderForm .oa-expanded-actions { display:flex; justify-content:flex-end; margin-top:9px; }
+#orderForm .oa-month-nav { margin-top:6px; }
+#orderForm .oa-day-summary { padding:0 12px 12px; }
+#orderForm .oa-day-summary .oa-message { margin-top:9px; }
+@media(max-width:360px){
+  #orderForm .oa-toggle { padding:10px 9px; gap:7px; }
+  #orderForm .oa-toggle .oa-date-label strong { font-size:14px; }
+  #orderForm .oa-load { max-width:95px; font-size:10px; padding:6px; }
+  #orderForm .oa-calendar-body { padding-inline:9px; }
+  #orderForm .oa-day-summary { padding-inline:9px; }
+}
+@media(prefers-reduced-motion:reduce){
+  #orderForm .oa-toggle-chevron { transition:none; }
+}

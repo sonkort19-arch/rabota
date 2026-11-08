@@ -5,7 +5,8 @@
   const $=id=>document.getElementById(id);
   const grid=$("oaMonthGrid"), dayInput=$("orderDate"), timeInput=$("orderTime");
   const masterInput=$("master"), message=$("oaAvailabilityMessage");
-  if(!grid||!dayInput||!timeInput||!masterInput||!message)return;
+  const toggle=$("oaToggle"), calendarBody=$("oaCalendarBody"), dayLoad=$("oaDayLoad");
+  if(!grid||!dayInput||!timeInput||!masterInput||!message||!toggle||!calendarBody||!dayLoad)return;
 
   const MAX_JOBS=2;
   const ESTIMATED_GAP_MINUTES=200; // 3 hours of work + 20 minutes for travel.
@@ -48,6 +49,22 @@
     if(!all)return null;
     const others=all.filter(order=>!isOwn(order));
     return {all,others,count:all.length,canBook:others.length<MAX_JOBS};
+  }
+  function setExpanded(expanded){
+    calendarBody.hidden=!expanded;
+    toggle.setAttribute("aria-expanded",String(expanded));
+    $("oaCalendar").classList.toggle("is-expanded",expanded);
+    updateHeader();
+  }
+  function updateHeader(){
+    const stats=availability(dayInput.value,masterInput.value);
+    const count=stats?Math.min(stats.count,MAX_JOBS):null;
+    const state=count===null?"unknown":count>=MAX_JOBS?"full":count===1?"partial":"free";
+    dayLoad.className="oa-load oa-load-"+state;
+    dayLoad.textContent=count===null?"Выберите мастера":count+" из "+MAX_JOBS;
+    toggle.setAttribute("aria-label","Дата: "+dateText(dayInput.value)+". "+
+      (stats?stats.count+" из "+MAX_JOBS+" записей":"Мастер не выбран")+
+      (calendarBody.hidden?". Открыть календарь":". Свернуть календарь"));
   }
   function timeState(time,date,master){
     const stats=availability(date,master);
@@ -92,12 +109,16 @@
       timeInput.value=""; // A time from a different date must never carry over.
     }
     render();
+    setExpanded(false);
+    if(document.activeElement && calendarBody.contains(document.activeElement))
+      toggle.focus({preventScroll:true});
   }
   function renderMonth(){
     const first=new Date(viewYear,viewMonth,1,12);
     const monthName=first.toLocaleDateString("ru-RU",{month:"long",year:"numeric"});
     $("oaMonthTitle").textContent=monthName.charAt(0).toUpperCase()+monthName.slice(1);
     $("oaSelectedDate").textContent=dateText(dayInput.value);
+    updateHeader();
     const firstColumn=(first.getDay()+6)%7;
     const days=new Date(viewYear,viewMonth+1,0).getDate();
     const frag=document.createDocumentFragment();
@@ -198,6 +219,13 @@
     renderMonth();
     renderDay();
   }
+  toggle.addEventListener("click",()=>{
+    if(calendarBody.hidden){
+      setMonthFromDate(dayInput.value);
+      render();
+      setExpanded(true);
+    }else setExpanded(false);
+  });
   $("oaPrevMonth").addEventListener("click",()=>changeMonth(-1));
   $("oaNextMonth").addEventListener("click",()=>changeMonth(1));
   $("oaToday").addEventListener("click",()=>{
@@ -215,6 +243,7 @@
       editingId=id==null?null:String(id);
       visible=true;
       setMonthFromDate(dayInput.value);
+      setExpanded(false);
       render();
     },
     refresh(rows){
@@ -226,6 +255,7 @@
     close(){
       visible=false;
       editingId=null;
+      setExpanded(false);
     },
     inspect(date,master){return availability(date,master)},
     checkTime(time,date,master){return timeState(time,date,master)}
