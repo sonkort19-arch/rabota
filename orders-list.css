@@ -243,7 +243,7 @@ body.rd #orders .rd-list-paid:has(.rd-list-pay:empty){visibility:hidden}
 .rd-order-primary:disabled{opacity:.6}
 .rd-order-prev{text-align:left}.rd-order-next{text-align:right}
 @media(max-width:520px){
-  .rd-order-overlay{align-items:flex-end;padding:9px 9px max(9px,env(safe-area-inset-bottom))}
+  .rd-order-overlay{align-items:center;padding:max(12px,env(safe-area-inset-top)) 9px max(12px,env(safe-area-inset-bottom))}
   .rd-order-dialog{width:100%;max-height:85dvh;border-radius:18px}
   .rd-order-content{padding-inline:13px}
   .rd-order-head{padding:15px 13px 12px}
@@ -318,7 +318,7 @@ body.rd #orders .rd-list-meta{display:none}
   body.rd #orders .rd-list-person{gap:8px}
   body.rd #orders .rd-list-identity{gap:2px}
   body.rd #orders .rd-list-when{gap:1px}
-  .rd-order-overlay{align-items:flex-end}
+  .rd-order-overlay{align-items:center}
   .rd-order-dialog{width:100%;max-height:82dvh}
   .rd-order-head{padding:12px 12px 9px}
   .rd-order-content{padding:10px 12px 7px}
