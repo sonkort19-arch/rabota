@@ -156,7 +156,10 @@ function build(){
  next.addEventListener("click",()=>$("nextWeek").click());
  const todayBtn=makeNode("button","secondary rd-cal-today","Сегодня");
  todayBtn.type="button";todayBtn.addEventListener("click",()=>$("goToday").click());
+ const calendarDateField=makeNode("div","rd-cal-date-field");
+ const calendarDateLabel=makeNode("span","rd-cal-date-label");calendarDateLabel.id="rdCalendarDateLabel";calendarDateLabel.setAttribute("aria-hidden","true");
  const calendarSelect=makeNode("input");calendarSelect.type="date";calendarSelect.id="rdCalendarDate";calendarSelect.setAttribute("aria-label","Выбрать дату в расписании");
+ calendarDateField.append(calendarDateLabel,calendarSelect);
  calendarSelect.addEventListener("change",()=>{if(!calendarSelect.value)return;selectedDate=calendarSelect.value;currentTab="calendar";render()});
  const calendarMasterSelect=makeNode("select");calendarMasterSelect.id="rdCalendarMaster";
  calendarMasterSelect.setAttribute("aria-label","Показать мастера");
@@ -167,7 +170,7 @@ function build(){
   const o=makeNode("option","",label);o.value=value;calendarStatusSelect.append(o)
  });
  calendarStatusSelect.addEventListener("change",()=>{calendarStatus=calendarStatusSelect.value;drawCalendar()});
- calendarNav.append(previous,next,todayBtn,calendarSelect,calendarMasterSelect,calendarStatusSelect);
+ calendarNav.append(previous,next,todayBtn,calendarDateField,calendarMasterSelect,calendarStatusSelect);
  const board=makeNode("section","rd-panel rd-view-area rd-calendar-panel");board.id="rdCalendarBoard";
  const boardHeading=makeNode("div","rd-calendar-heading");
  const weekHeading=boxText("h2","Расписание на неделю");weekHeading.id="rdCalendarWeekTitle";
@@ -443,6 +446,7 @@ function drawCalendar(){
  if(!ready||activePage!=="calendar")return;
  const calendarDate=$("rdCalendarDate");
  calendarDate.value=selectedDate;
+ $("rdCalendarDateLabel").textContent=parseDate(selectedDate).toLocaleDateString("ru-RU",{day:"numeric",month:"short",year:"numeric"});
  const boardRoot=$("rdCalendarBoard");
  const board=boardRoot.querySelector(".rd-week-grid");
  const weekStrip=boardRoot.querySelector(".rd-week-strip");
