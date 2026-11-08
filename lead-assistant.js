@@ -138,6 +138,7 @@
       event:clean.id?"Карточка обновлена":"Лид создан",status:clean.status}].slice(-30);
     const original=clean.id?load().find(l=>l.id===clean.id):null;
     if(clean.id&&!original){notice="Этот лид не найден в общей базе. Обновите список.";render();return}
+    if(!cloudReady){notice="Нет соединения с общей базой. Обновите список лидов.";render();return}
     saving=true;notice="Сохранение в общей базе…";render();
     try{
       const data=toRow(clean);
@@ -239,7 +240,7 @@
     else{input.type=type;input.placeholder=placeholder;input.maxLength=type==="number"?undefined:240;if(type==="number"){input.min="0";input.step="1"}}
     input.value=draft[key]??"";
     input.addEventListener("input",()=>{setField(key,input.value);if(key==="followUpDate")draft.dateApprox=false;updatePreview()});
-    input.addEventListener("change",()=>{setField(key,input.value);if(key==="followUpDate")draft.dateApprox=false;updatePreview()});
+    input.addEventListener("change",()=>{setField(key,input.value);if(key==="followUpDate")draft.dateApprox=false;if(key==="status"){render();return}updatePreview()});
     wrap.append(input);return wrap;
   }
   function tick(label,key){
@@ -254,7 +255,7 @@
     const container=$("laAdvisor");if(container)fillAdvisor(container);
     const preview=$("laPrice");if(preview){
       const amount=calc(draft.radiators,draft.loops);
-      preview.textContent=draft.material==="Чугунные"?"Нужна консультация мастера":amount===null?"Заполните количество":money(amount);
+      preview.textContent=draft.material==="Чугунные"?"Нужна консультация мастера":amount===null?"Укажите радиаторы или контуры":money(amount);
     }
   }
   function missing(){
@@ -310,7 +311,8 @@
     const master="Рауль",out=node("div","la-slot-list");
     for(let day=0;day<3;day++){
       const date=shifted(today(),day);
-      for(const time of ["10:00","13:30","17:00"]){
+      if(orders.filter(o=>o.date===date&&o.status!=="Отменён"&&text(o.master).toLocaleLowerCase("ru")===master.toLocaleLowerCase("ru")).length>=2)continue;
+      for(const time of ["10:00","15:00","18:00"]){
         const nowTime=new Intl.DateTimeFormat("en-GB",{timeZone:"Europe/Moscow",hour:"2-digit",minute:"2-digit",hourCycle:"h23"}).format(new Date());
         if(date===today()&&time<=nowTime)continue;
         const candidate=Number(time.slice(0,2))*60+Number(time.slice(3));
@@ -488,6 +490,7 @@
     syncNav();initialized=true;
   }
   window.__rdLeadsRender=()=>{render();refresh()};
+  window.__rdLeadsSearch=value=>{searchTerm=String(value||"");const field=$("laLeadList")?.parentElement?.querySelector("input[type=search]");if(field)field.value=searchTerm;filterVisible()};
   window.__rdLeadsSyncNav=syncNav;
   window.__rdLeadDueCount=countDue;
   window.setInterval?.(()=>{
