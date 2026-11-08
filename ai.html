@@ -184,6 +184,7 @@ function item(role,content,extraClass=""){
 function renderMessages(){
  const list=$("messageList");list.replaceChildren();
  $("conversationTitle").textContent=chats.find(c=>c.id===activeChat)?.title||"ИИ-помощник";
+ $("messages").classList.toggle("is-empty",messages.length===0);
  if(!messages.length){
   const empty=document.createElement("div");empty.className="empty-state";
   const emblem=document.createElement("div");emblem.className="rd-ai-emblem";emblem.setAttribute("aria-hidden","true");emblem.textContent="✦";
