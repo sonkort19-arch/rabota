@@ -198,6 +198,7 @@
   <link rel="stylesheet" href="/orders-polish.css">
   <link rel="stylesheet" href="/mobile-order-form.css">
   <link rel="stylesheet" href="/order-availability.css">
+  <link rel="stylesheet" href="/order-payment.css">
   <link rel="stylesheet" href="/master-notifications.css">
   <link rel="stylesheet" href="/orders-list.css">
   <link rel="stylesheet" href="/finance-payroll.css">
@@ -419,7 +420,7 @@
                   </select>
                 </div>
               </div>
-              <div class="inline"><input id="paid" name="paid" type="checkbox"><label for="paid">Оплачено</label></div>
+              <div class="inline" hidden><input id="paid" name="paid" type="checkbox" tabindex="-1" aria-hidden="true"><label for="paid">Оплачено</label></div>
               <label for="orderDetails">Комментарий</label>
               <textarea id="orderDetails" name="details" maxlength="1000"></textarea>
             </div>
@@ -587,7 +588,9 @@
         master:row.master || "",date:row.appointment_date || "",
         time:row.appointment_time ? row.appointment_time.slice(0,5) : "",
         price:row.price == null ? null : Number(row.price),assignedUserId:row.assigned_user_id || null,
-        paid:Boolean(row.paid),status:row.status || "Новый",details:row.details || ""
+        paid:Boolean(row.paid),status:row.status || "Новый",details:row.details || "",
+        paymentMethod:row.payment_method||"",paymentAmount:row.payment_amount==null?null:Number(row.payment_amount),
+        paymentReceivedBy:row.payment_received_by||"",paidAt:row.paid_at||null,paidBy:row.paid_by||null
       };
     }
     function serializeOrder(order) {
@@ -603,6 +606,13 @@
         details:order.details || "",completed_at:order.completedAt || null,
         updated_at:new Date().toISOString()
       };
+      if (order.paymentMethod && order.paid) {
+        obj.payment_method=order.paymentMethod;
+        obj.payment_amount=order.paymentAmount??order.price;
+        obj.payment_received_by=order.paymentReceivedBy||"company";
+        obj.paid_at=order.paidAt||new Date().toISOString();
+        obj.paid_by=order.paidBy||currentUser?.id||null;
+      }
       if (order.legacyId) obj.legacy_id = order.legacyId;
       return obj;
     }
@@ -693,6 +703,33 @@
       list.replaceChildren();
       names.forEach(name => {const opt = document.createElement("option");opt.value = name;list.append(opt);});
     }
+
+    // One confirmation replaces the separate "paid" toggle, without recording payouts.
+    async function openPaymentForOrder(order) {
+      if(typeof window.__rdPaymentPrompt!=="function") {
+        alert("Окно оплаты пока не загрузилось. Обновите страницу.");return false;
+      }
+      const isMaster=currentRole==="master";
+      const complete=order.status!=="Выполнен";
+      const decision=await window.__rdPaymentPrompt(order,{
+        complete,canUnpaid:complete,receiver:isMaster?"master":"company"
+      });
+      if(!decision)return false;
+      if(decision.kind==="paid") {
+        await dbRequest("rpc/rabota_record_order_payment","POST",{
+          p_order_id:order.id,p_amount:decision.amount,p_method:decision.method
+        });
+        await reloadOrders();
+      } else if(complete) {
+        if(isMaster){
+          await dbRequest("rpc/rabota_master_action","POST",{p_order_id:order.id,p_action:"complete"});
+          await reloadOrders();
+        }else{
+          await persistOrder({...order,status:"Выполнен",paid:false,completedAt:order.completedAt||new Date().toISOString()});
+        }
+      }
+      return true;
+    }
     function collectionForOrder(orderId) {
       return financeCollections.find(c=>String(c.order_id)===String(orderId))||null;
     }
@@ -702,41 +739,51 @@
       const wrap=make("div","cash-share");
       const collection=collectionForOrder(order.id);
       if(!collection) {
-        if(order.paid) {
-          wrap.append(make("div","cash-share-status","Оплата уже отмечена администратором. Выплаты оформляются через кассу."));
+        if(!order.paid) {
+          wrap.append(make("div","cash-share-status","Работа выполнена, оплата ещё не отмечена."));
+          const btn=make("button","primary","Принять оплату");
+          btn.type="button";
+          btn.addEventListener("click",async()=>{
+            btn.disabled=true;
+            try{await openPaymentForOrder(order);}
+            catch(error){alert(friendlyError(error));btn.disabled=false;}
+          });
+          wrap.append(btn);
+          card.append(wrap);return;
+        }
+        if(order.paymentMethod!=="cash"||order.paymentReceivedBy!=="master") {
+          wrap.append(make("div","cash-share-status",
+            "Оплата отмечена. Наличные не распределены; выплаты оформляются отдельно через финансы."));
           card.append(wrap);return;
         }
         if(!Number.isFinite(order.price)||order.price<=3000) {
-          wrap.append(make("p","cash-share-hint","Для распределения суммы свяжитесь с администратором."));
+          wrap.append(make("div","cash-share-status","Для распределения суммы свяжитесь с администратором."));
           card.append(wrap);return;
         }
         const raul=financeSplit(order.price).raul;
         const timur=1500;
         const company=financeSplit(order.price).company;
-        wrap.append(make("div","cash-share-status","Если клиент рассчитался наличными:"));
-        const lines=[["Заказ оплачен",money(order.price)],["Рауль забрал",money(raul)],["Тимуру передано",money(timur)],["Компании нужно передать",money(company)]];
+        wrap.append(make("div","cash-share-status","Наличные получены. После фактической выдачи денег:"));
+        const lines=[["Заказ оплачен",money(order.price)],["Рауль оставил себе",money(raul)],
+          ["Тимуру выдано",money(timur)],["Компании нужно передать",money(company)]];
         for(const [label,amount] of lines){
           const line=make("div","cash-share-line");
           line.append(make("span","",label),make("strong","",amount));
           wrap.append(line);
         }
-        const btn=make("button","primary","Распределить оплату");
+        const btn=make("button","primary","Распределить наличные");
         btn.type="button";
         btn.addEventListener("click",async()=>{
-          const message="ПОДТВЕРДИ ФАКТИЧЕСКИЕ ДЕЙСТВИЯ:\n\n"+
-            "Клиент "+(order.name||"")+" оплатил наличными "+money(order.price)+".\n"+
-            "Ты оставил себе "+money(raul)+".\n"+
-            "Тимуру передал "+money(timur)+".\n"+
-            "Деньги компании "+money(company)+" находятся у тебя до сдачи.\n\n"+
-            "Всё так? Эти суммы будут записаны как уже выплаченные.";
-          if(!confirm(message))return;
+          if(!confirm("Ты действительно оставил себе "+money(raul)+
+            ", передал Тимуру "+money(timur)+
+            ", а долю компании "+money(company)+" держишь до сдачи?\n\n"+
+            "Записать эти выплаты как уже совершённые?"))return;
           btn.disabled=true;
-          try{
-            await dbRequest("rpc/rabota_cash_distribute","POST",{p_order_id:order.id});
-            await reloadOrders();
-          }catch(error){alert(friendlyError(error));btn.disabled=false;}
+          try{await dbRequest("rpc/rabota_cash_distribute","POST",{p_order_id:order.id});await reloadOrders();}
+          catch(error){alert(friendlyError(error));btn.disabled=false;}
         });
-        wrap.append(btn,make("p","cash-share-hint","Нажимай только после получения денег и фактической выплаты Тимуру. Система не переводит деньги автоматически."));
+        wrap.append(btn,make("p","cash-share-hint",
+          "Не отмечай распределение, пока деньги действительно не выданы."));
       }else{
         const line=make("div","cash-share-line");
         line.append(make("span","","Доля компании"),make("strong","",money(collection.company_amount)));
@@ -820,63 +867,33 @@
         const action = (state === "Новый" || state === "Записан") ? "accept" :
                        state === "В работе" ? "complete" : null;
         if (action) {
-          const cashReady = action === "complete" &&
-            String(currentMasterName||"").trim().toLowerCase()==="рауль" &&
-            !order.paid && Number.isFinite(order.price) && order.price>3000;
-          if(cashReady){
-            const calculation=make("div","cash-share");
-            calculation.append(make("div","cash-share-status","После завершения и получения оплаты:"));
-            [
-              ["Себе забрать",money(financeSplit(order.price).raul)],
-              ["Тимуру отдать",money(1500)],
-              ["Компании оставить",money(financeSplit(order.price).company)]
-            ].forEach(([label,amount])=>{
-              const line=make("div","cash-share-line");
-              line.append(make("span","",label),make("strong","",amount));
-              calculation.append(line);
-            });
-            calculation.append(make("p","cash-share-hint","После подтверждения оплата и выплаты запишутся автоматически. Доля компании останется у тебя до сдачи владельцу."));
-            card.append(calculation);
-          }
-          const btn = make("button","primary master-action",action === "accept" ? "Принять заказ" : "Заказ выполнен");
-          btn.type = "button";
-          btn.addEventListener("click",async () => {
-            if(action==="complete" && cashReady) {
-              const raul=money(financeSplit(order.price).raul);
-              const company=money(financeSplit(order.price).company);
-              const msg="Заказ выполнен и клиент оплатил НАЛИЧНЫМИ "+money(order.price)+"?\n\n"+
-                "Подтверди, что ты уже:\n"+
-                "• забрал себе "+raul+"\n"+
-                "• выдал Тимуру 1 500 ₽\n\n"+
-                "Компании нужно передать "+company+".\n\n"+
-                "ОК — завершить заказ и автоматически записать эти выплаты.\n"+
-                "Отмена — ничего не менять.";
-              if(!confirm(msg))return;
-            } else if(action==="complete" && !confirm("Подтвердить выполнение заказа? Без распределения оплаты."))return;
-            btn.disabled = true;
-            try {
-              if(action==="complete" && cashReady) {
-                await dbRequest("rpc/rabota_cash_distribute","POST",{p_order_id:order.id});
+          const btn=make("button","primary master-action",action==="accept"?"Принять заказ":"Заказ выполнен");
+          btn.type="button";
+          btn.addEventListener("click",async()=>{
+            btn.disabled=true;
+            try{
+              if(action==="complete"&&!order.paid) {
+                const success=await openPaymentForOrder(order);
+                if(!success)btn.disabled=false;
               }else{
+                if(action==="complete"&&!confirm("Подтвердить выполнение заказа?")){btn.disabled=false;return;}
                 await dbRequest("rpc/rabota_master_action","POST",{p_order_id:order.id,p_action:action});
+                await reloadOrders();
               }
-              await reloadOrders();
             }catch(error){alert(friendlyError(error));btn.disabled=false;}
           });
           card.append(btn);
-          if(cashReady) {
-            const unpaid=make("button","secondary master-action","Завершить без оплаты");
-            unpaid.type="button";
-            unpaid.addEventListener("click",async()=>{
-              if(!confirm("Работа выполнена, но клиент ещё не оплатил?\n\nБаланс Рауля, Тимура и касса останутся без изменений."))return;
-              unpaid.disabled=true;btn.disabled=true;
-              try{
-                await dbRequest("rpc/rabota_master_action","POST",{p_order_id:order.id,p_action:"complete"});
-                await reloadOrders();
-              }catch(error){alert(friendlyError(error));unpaid.disabled=false;btn.disabled=false;}
-            });
-            card.append(unpaid);
-          }
+        }
+        if(state==="Выполнен"&&!order.paid&&
+          String(currentMasterName||"").trim().toLowerCase()!=="рауль"){
+          const btn=make("button","primary master-action","Принять оплату");
+          btn.type="button";
+          btn.addEventListener("click",async()=>{
+            btn.disabled=true;
+            try{const ok=await openPaymentForOrder(order);if(!ok)btn.disabled=false;}
+            catch(error){alert(friendlyError(error));btn.disabled=false;}
+          });
+          card.append(btn);
         }
         appendCashDistribution(card,order);
         return card;
@@ -892,27 +909,37 @@
         select.append(option);
       });
       select.addEventListener("change",async () => {
-        select.disabled = true;
+        select.disabled=true;
         try {
-          const next = {...order,status:select.value,completedAt:select.value === "Выполнен" ?
-            (order.completedAt || new Date().toISOString()) : null};
-          await persistOrder(next);
-        } catch (error) {alert(friendlyError(error));select.value = state;}
-        finally {select.disabled = false;}
+          if(select.value==="Выполнен"&&!order.paid) {
+            const success=await openPaymentForOrder(order);
+            if(!success)select.value=state;
+          }else{
+            const next={...order,status:select.value,completedAt:select.value==="Выполнен"?
+              (order.completedAt||new Date().toISOString()):null};
+            await persistOrder(next);
+          }
+        }catch(error){alert(friendlyError(error));select.value=state;}
+        finally{select.disabled=false;}
       });
       stateWrap.append(select);
-      const payWrap = make("div");
-      payWrap.append(make("span","control-label","Оплата"));
-      const paid = Boolean(order.paid);
-      const payment = make("button","payment" + (paid ? " paid" : ""),paid ? "Оплачено ✓" : "Не оплачено");
-      payment.type = "button";
-      payment.addEventListener("click",async () => {
-        payment.disabled = true;
-        try {await persistOrder({...order,paid:!paid});}
-        catch(error) {alert(friendlyError(error));}
-        finally {payment.disabled = false;}
-      });
-      payWrap.append(payment);
+      const payWrap=make("div");
+      if(state==="Выполнен"){
+        payWrap.append(make("span","control-label","Оплата"));
+        if(order.paid){
+          payWrap.append(make("span","payment paid",
+            "Оплачено ✓"+(order.paymentMethod==="cash"?" · наличные":order.paymentMethod==="card"?" · карта":"")));
+        }else{
+          const payment=make("button","payment","Принять оплату");
+          payment.type="button";
+          payment.addEventListener("click",async()=>{
+            payment.disabled=true;
+            try{const ok=await openPaymentForOrder(order);if(!ok)payment.disabled=false;}
+            catch(error){alert(friendlyError(error));payment.disabled=false;}
+          });
+          payWrap.append(payment);
+        }
+      }
       bottom.append(stateWrap,payWrap);
       card.append(bottom);
       return card;
@@ -1066,10 +1093,12 @@
       else shown.forEach(o=>{const card=makeCard(o);window.__rdDecorateOrder?.(card,o);card.dataset.search=(o.name+' '+o.phone+' '+o.address+' '+o.master).toLocaleLowerCase('ru');card.dataset.date=o.date||'';card.dataset.master=o.master||'';card.dataset.status=o.status||'';card.dataset.unpaid=String(o.status==='Выполнен'&&!o.paid);card.dataset.pendingPayment=String(o.status!=="Отменён"&&!o.paid);ordersNode.append(card);});
       window.__rdRefresh?.();
     }
+    let formPaymentChoice=null;
     function openForm(id) {
       const raulCreating=raulCanCreateOrder();
       if(!canCreateOrder() || (currentRole==="master" && (id!==undefined || !raulCreating)))return;
       previousFocus=document.activeElement;form.reset();delete form.dataset.leadPreview;delete form.dataset.leadId;formStatus.textContent="";formStatus.classList.remove("is-saving");
+      formPaymentChoice=null;
       const advanced=document.getElementById("orderAdvanced");advanced.open=false;
       editingId=id===undefined?null:String(id);
       updateMasters();
@@ -1105,7 +1134,7 @@
       controls.status.disabled=raulCreating;
       controls.paid.disabled=raulCreating;
       controls.status.closest(".field").style.display=raulCreating?"none":"";
-      controls.paid.parentElement.style.display=raulCreating?"none":"";
+      controls.paid.parentElement.style.display="none";
       overlay.hidden=false;document.body.style.overflow="hidden";
       window.__rdOrderAvailability?.open(getOrders(),editingId);
       document.getElementById("orderFormScroll").scrollTop=0;
@@ -1148,6 +1177,22 @@
     form.querySelector('button[type="submit"]').addEventListener("click",()=>{
       if(!orderSaving){formStatus.textContent="";formStatus.classList.remove("is-saving");}
     });
+
+    controls.status.addEventListener("change",async()=>{
+      if(controls.status.value!=="Выполнен"){formPaymentChoice=null;return;}
+      if(currentRole==="master")return;
+      const old=editingId===null?null:getOrders().find(o=>String(o.id)===String(editingId));
+      if(old?.status==="Выполнен")return; // A completed unpaid order uses "Принять оплату".
+      if(typeof window.__rdPaymentPrompt!=="function")return;
+      const choice=await window.__rdPaymentPrompt({
+        name:controls.name.value.trim()||"Клиент",price:controls.price.value
+      },{complete:true,receiver:"company"});
+      if(!choice){controls.status.value=old?.status||"Записан";return;}
+      formPaymentChoice=choice;
+      controls.paid.checked=choice.kind==="paid";
+      if(choice.kind==="paid")controls.price.value=choice.amount;
+      form.requestSubmit();
+    });
     form.addEventListener("submit",async event => {
       event.preventDefault();
       if(orderSaving)return;
@@ -1163,6 +1208,18 @@
       }
       const name=controls.name.value.trim(),phone=controls.phone.value.trim();
       const date=controls.date.value,time=controls.time.value,status=controls.status.value;
+      const original=editingId===null?null:getOrders().find(o=>String(o.id)===editingId);
+      if(status==="Выполнен"&&!original?.paid&&!formPaymentChoice) {
+        if(typeof window.__rdPaymentPrompt!=="function"){
+          formStatus.textContent="Окно оплаты не загружено. Обновите страницу.";return;
+        }
+        formPaymentChoice=await window.__rdPaymentPrompt({
+          name:name||"Клиент",price:controls.price.value
+        },{complete:original?.status!=="Выполнен",receiver:"company"});
+        if(!formPaymentChoice)return;
+        controls.paid.checked=formPaymentChoice.kind==="paid";
+        if(formPaymentChoice.kind==="paid")controls.price.value=formPaymentChoice.amount;
+      }
       if(!name||!phone||!date||!time||!STATUSES.includes(status)) {
         formStatus.textContent="Заполните обязательные поля.";return;
       }
@@ -1207,7 +1264,14 @@
         radiatorType:controls.type.value,radiators:controls.radiators.value,
         floorLoops:controls.loops.value,master:raulCreating?currentMasterName.trim():controls.master.value.trim(),
         date,time,price:controls.price.value===""?null:Number(controls.price.value),
-        paid:raulCreating?false:controls.paid.checked,status:raulCreating?"Записан":status,details:controls.details.value.trim(),
+        paid:raulCreating?false:(status==="Выполнен"&&formPaymentChoice?
+          formPaymentChoice.kind==="paid":controls.paid.checked),
+        status:raulCreating?"Записан":status,details:controls.details.value.trim(),
+        paymentMethod:formPaymentChoice?.kind==="paid"?formPaymentChoice.method:(existing?.paymentMethod||""),
+        paymentAmount:formPaymentChoice?.kind==="paid"?formPaymentChoice.amount:(existing?.paymentAmount??null),
+        paymentReceivedBy:formPaymentChoice?.kind==="paid"?"company":(existing?.paymentReceivedBy||""),
+        paidAt:formPaymentChoice?.kind==="paid"?now:(existing?.paidAt||null),
+        paidBy:formPaymentChoice?.kind==="paid"?(currentUser?.id||null):(existing?.paidBy||null),
         completedAt:raulCreating?null:(status==="Выполнен"?(existing&&existing.completedAt||now):null)
       };
       const saveBtn=form.querySelector('button[type="submit"]');
@@ -1402,9 +1466,13 @@
       if(bookedPending.length)root.append(make("p","finance-tip","Ожидают выполнения и/или оплаты: "+bookedPending.length+" заказ(ов). Они не входят в начисления."));
 
       if(isOwner){
-        const receivedOrders=getOrders().filter(o=>o.paid && o.status!=="Отменён");
+        const receivedOrders=getOrders().filter(o=>o.paid&&o.status!=="Отменён");
         const cashCollections=new Set(financeCollections.map(c=>String(c.order_id)));
-        const directReceipts=sumBy(receivedOrders.filter(o=>!cashCollections.has(String(o.id))),o=>o.price);
+        // Payments reported by a master are not yet receipts in the company's cash desk.
+        const masterUnallocated=receivedOrders.filter(o=>
+          o.paymentReceivedBy==="master"&&!cashCollections.has(String(o.id)));
+        const directReceipts=sumBy(receivedOrders.filter(o=>
+          !cashCollections.has(String(o.id))&&o.paymentReceivedBy!=="master"),o=>o.price);
         const confirmedDeposits=sumBy(financeCollections.filter(c=>c.confirmed_at),c=>c.company_amount);
         const cashIn=roundMoney(directReceipts+confirmedDeposits);
         const allPayouts=sumBy(payments.filter(o=>(o.kind==="raul_payout"||o.kind==="timur_payout")&&!o.order_id),o=>o.amount);
@@ -1436,7 +1504,8 @@
         }
         root.append(financeMetric("Деньги в кассе по учёту",cashBalance,"Оплаченные заказы − проведённые выплаты − расходы",true));
         const cash=make("div","finance-hero");
-        cash.append(financeLine("Поступило напрямую в кассу",money(directReceipts)));
+        cash.append(financeLine("Поступило напрямую компании",money(directReceipts)));
+        cash.append(financeLine("Получено мастером, ещё не распределено",money(sumBy(masterUnallocated,o=>o.price))));
         cash.append(financeLine("Подтверждено от мастера",money(confirmedDeposits)));
         cash.append(financeLine("Деньги компании ещё у мастера / в пути",money(sumBy(unconfirmedCash,c=>c.company_amount))));
         cash.append(financeLine("Выдано Раулю и Тимуру",money(allPayouts)));
@@ -1722,6 +1791,7 @@
     initialize();
 
   </script>
+  <script src="/order-payment.js"></script>
   <script src="/order-availability.js"></script>
   <script src="/redesign.js"></script>
   <script src="/master-notifications.js"></script>
