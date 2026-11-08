@@ -1782,6 +1782,13 @@
       // Rebuild the responsive navigation for the next account's role.
       window.location.reload();
     }
+    document.getElementById("aiChatLink").addEventListener("click",event=>{
+      // Legacy entry: preserve the current CRM section without trusting external URLs.
+      const allowed=new Set(["home","orders","calendar","leads","clients","finance"]);
+      const current=window.__rdCurrentPage;
+      const origin=allowed.has(current)?current:"home";
+      event.currentTarget.href="/ai.html?"+new URLSearchParams({from:origin}).toString();
+    });
     document.getElementById("logoutBtn").addEventListener("click",logout);
     document.getElementById("accessLogout").addEventListener("click",logout);
     window.addEventListener("focus",async()=>{
