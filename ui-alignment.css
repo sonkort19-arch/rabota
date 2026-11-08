@@ -703,3 +703,38 @@ body.rd .rd-orders-weekday.is-selected strong { color:#fff; }
   body.rd .rd-orders-weekday strong { font-size:15px; }
   body.rd .rd-orders-weekday span { font-size:9px; }
 }
+
+/* Filtered order history: explain zero matches instead of a blank list. */
+body.rd #appScreen.rd-view-orders #orders > .rd-order-filter-empty {
+  display:flex;
+  flex-direction:column;
+  gap:9px;
+  align-items:flex-start;
+  box-sizing:border-box;
+  width:100%;
+  max-width:100%;
+  margin:12px 0 20px;
+  padding:18px;
+  border:1px solid #e1e9f8;
+  border-radius:15px;
+  background:#fff;
+  color:#263858;
+}
+body.rd #appScreen.rd-view-orders #orders > .rd-order-filter-empty strong { font-size:15px; }
+body.rd #appScreen.rd-view-orders #orders > .rd-order-filter-empty p {
+  font-size:12px;
+  line-height:1.5;
+  color:#7485a2;
+  margin:0;
+}
+body.rd #appScreen.rd-view-orders #orders > .rd-order-filter-empty button {
+  align-self:flex-start;
+  min-height:40px;
+  padding:8px 15px;
+  border:1px solid #dfe6f7;
+  border-radius:10px;
+  background:#f1f4ff;
+  color:#455ed9;
+  font-size:12px;
+  font-weight:700;
+}
