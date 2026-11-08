@@ -1,0 +1,245 @@
+/* CRM Работа — inline booking calendar, iPhone-friendly.
+   Colours represent recorded bookings, not confirmed working availability. */
+#orderForm .oa-calendar {
+  box-sizing:border-box;
+  margin-top:11px;
+  padding:12px;
+  min-width:0;
+  border:1px solid #dfe7f5;
+  border-radius:14px;
+  background:#fbfcff;
+}
+#orderForm .oa-top,
+#orderForm .oa-month-nav {
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:9px;
+  min-width:0;
+}
+#orderForm .oa-date-label {
+  display:flex;
+  flex-direction:column;
+  min-width:0;
+  gap:3px;
+}
+#orderForm .oa-date-label span {
+  font-size:12px;
+  font-weight:650;
+  color:#7786a3;
+}
+#orderForm .oa-date-label strong {
+  color:#1d2c4b;
+  font-size:15px;
+  line-height:1.3;
+}
+#orderForm .oa-today {
+  flex:0 0 auto;
+  min-height:35px;
+  padding:7px 11px;
+  border:1px solid #d9e2fb;
+  border-radius:9px;
+  background:#eef2ff;
+  color:#465ce7;
+  font-size:12px;
+  font-weight:750;
+}
+#orderForm .oa-month-nav {
+  justify-content:center;
+  margin:11px 0 7px;
+}
+#orderForm .oa-month-nav strong {
+  flex:1 1 auto;
+  text-align:center;
+  font-size:15px;
+  font-weight:750;
+}
+#orderForm .oa-month-nav button {
+  flex:0 0 36px;
+  width:36px;
+  height:36px;
+  min-height:36px;
+  padding:0;
+  border:1px solid #dce5f6;
+  border-radius:9px;
+  background:white;
+  color:#445bd5;
+  font-size:25px;
+  line-height:1;
+}
+#orderForm .oa-week-names,
+#orderForm .oa-month-grid {
+  display:grid;
+  grid-template-columns:repeat(7,minmax(0,1fr));
+  gap:5px;
+  width:100%;
+  min-width:0;
+}
+#orderForm .oa-week-names {
+  margin:0 0 5px;
+  padding:0 2px;
+}
+#orderForm .oa-week-names span {
+  text-align:center;
+  color:#8b98ad;
+  font-size:11px;
+  font-weight:650;
+}
+#orderForm .oa-day {
+  display:flex;
+  box-sizing:border-box;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  gap:3px;
+  min-width:0;
+  min-height:48px;
+  padding:4px 1px;
+  border:1px solid #dfe6f3;
+  border-radius:9px;
+  background:white;
+  color:#223252;
+  font-weight:700;
+  cursor:pointer;
+}
+#orderForm .oa-day-number {
+  font-size:15px;
+  line-height:1.1;
+}
+#orderForm .oa-day-count {
+  font-size:9px;
+  font-weight:700;
+  line-height:1.15;
+  color:inherit;
+  opacity:.85;
+}
+#orderForm .oa-day.oa-free { background:#e9f8f0; border-color:#c7ebd8; color:#17764d; }
+#orderForm .oa-day.oa-partial { background:#fff5e5; border-color:#f3dab0; color:#96600b; }
+#orderForm .oa-day.oa-full { background:#ffebea; border-color:#f0c4c0; color:#ad4440; }
+#orderForm .oa-day.oa-unknown { color:#64748b; background:#f2f5fa; }
+#orderForm .oa-day.is-selected {
+  border:2px solid #5363f3;
+  box-shadow:0 0 0 1px #5363f326;
+}
+#orderForm .oa-day.is-today:not(.is-selected) { text-decoration:underline; text-underline-offset:2px; }
+#orderForm .oa-day:disabled { opacity:.72; cursor:not-allowed; }
+#orderForm .oa-day:focus-visible,
+#orderForm .oa-month-nav button:focus-visible,
+#orderForm .oa-today:focus-visible,
+#orderForm .oa-slot:focus-visible {
+  outline:2px solid #4254e9;
+  outline-offset:2px;
+}
+#orderForm .oa-legend {
+  display:flex;
+  flex-wrap:wrap;
+  justify-content:space-between;
+  gap:4px 8px;
+  margin:10px 0 6px;
+  padding:0 1px;
+}
+#orderForm .oa-legend span {
+  display:inline-flex;
+  align-items:center;
+  gap:4px;
+  color:#64758f;
+  font-size:10px;
+  font-weight:650;
+  white-space:nowrap;
+}
+#orderForm .oa-dot {
+  display:inline-block;
+  width:8px;
+  height:8px;
+  border-radius:50%;
+  background:#d9e0ea;
+}
+#orderForm .oa-dot.oa-free { background:#36ae75; }
+#orderForm .oa-dot.oa-partial { background:#dfad43; }
+#orderForm .oa-dot.oa-full { background:#d66a66; }
+#orderForm .oa-message {
+  margin-top:9px;
+  padding:9px 10px;
+  border:1px solid #dce5f7;
+  border-radius:9px;
+  background:#f1f5fe;
+  color:#51627c;
+  font-size:12px;
+  line-height:1.4;
+}
+#orderForm .oa-message.oa-message-free { color:#186a4c; border-color:#cbead9; background:#eefaf3; }
+#orderForm .oa-message.oa-message-partial { color:#8a5a18; border-color:#f0ddbc; background:#fff8ed; }
+#orderForm .oa-message.oa-message-full { color:#ab4742; border-color:#f1c7c2; background:#fff2f0; }
+#orderForm .oa-subtitle {
+  margin:12px 0 6px;
+  font-size:12px;
+  font-weight:750;
+  color:#344668;
+}
+#orderForm .oa-booking-row {
+  display:flex;
+  align-items:center;
+  flex-wrap:wrap;
+  gap:5px 9px;
+  padding:5px 0;
+  color:#50617e;
+  font-size:12px;
+}
+#orderForm .oa-booking-row strong { color:#253755; font-size:12px; }
+#orderForm .oa-booking-row small { font-size:10px; color:#4257d9; }
+#orderForm .oa-slots {
+  display:flex;
+  flex-wrap:wrap;
+  gap:7px;
+  margin-top:8px;
+}
+#orderForm .oa-slots .oa-subtitle { flex:0 0 100%; margin:2px 0 1px; }
+#orderForm .oa-slot {
+  display:flex;
+  box-sizing:border-box;
+  flex:1 1 88px;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  min-width:0;
+  gap:3px;
+  min-height:50px;
+  padding:8px 4px;
+  border:1px solid #bee6d3;
+  border-radius:10px;
+  background:#effaf4;
+  color:#197349;
+  cursor:pointer;
+}
+#orderForm .oa-slot strong { font-size:14px; line-height:1.15; }
+#orderForm .oa-slot small { font-size:10px; line-height:1.15; text-align:center; }
+#orderForm .oa-slot.is-selected { outline:2px solid #5365f1; outline-offset:0; }
+#orderForm .oa-slot:disabled { opacity:1; cursor:not-allowed; }
+#orderForm .oa-slot.oa-slot-busy,
+#orderForm .oa-slot.oa-slot-full { border-color:#eed0ce; background:#fff1f1; color:#a45150; }
+#orderForm .oa-slot.oa-slot-tight,
+#orderForm .oa-slot.oa-slot-unknown { border-color:#f2ddbf; background:#fff7e9; color:#94621d; }
+#orderForm .oa-slot-note,
+#orderForm .oa-no-slots,
+#orderForm .oa-time-hint {
+  flex:0 0 100%;
+  margin:6px 0 0;
+  font-size:11px;
+  line-height:1.4;
+  color:#7b8ba4;
+}
+#orderForm .oa-no-slots { color:#9b5e1f; }
+#orderForm .order-time-field {
+  margin-top:12px;
+}
+#orderForm .order-time-field label { margin-top:0; }
+#orderForm .order-time-field input[type="time"] { width:100%; }
+@media(max-width:360px) {
+  #orderForm .oa-calendar { padding:9px; }
+  #orderForm .oa-week-names,
+  #orderForm .oa-month-grid { gap:3px; }
+  #orderForm .oa-day { min-height:43px; border-radius:7px; }
+  #orderForm .oa-day-number { font-size:14px; }
+  #orderForm .oa-legend { gap:4px; }
+  #orderForm .oa-legend span { font-size:9px; }
+}
