@@ -738,3 +738,87 @@ body.rd #appScreen.rd-view-orders #orders > .rd-order-filter-empty button {
   font-size:12px;
   font-weight:700;
 }
+
+
+/* 2026-11-08: stable Orders tab strip, compact summary and action placement. */
+body.rd #appScreen.rd-view-orders #ordersArea { overflow-anchor:none; }
+body.rd #appScreen.rd-view-orders #ordersArea > .tabs,
+body.rd #appScreen.rd-view-orders #orders {
+  max-width:100%;
+  min-width:0;
+}
+body.rd #appScreen.rd-view-orders #newOrderBtn {
+  box-sizing:border-box;
+  display:block;
+  width:100%;
+  min-height:45px;
+  margin:7px 0 10px;
+  padding:10px 14px;
+  border-radius:13px;
+  font-size:15px;
+  font-weight:750;
+}
+body.rd #appScreen.rd-view-orders #newOrderBtn[hidden] { display:none!important; }
+body.rd #appScreen.rd-view-orders #newOrderBtn .plus {
+  font-size:21px;
+  vertical-align:middle;
+  margin-right:6px;
+}
+@media(max-width:790px) {
+  body.rd #appScreen.rd-view-orders #ordersArea > .tabs {
+    position:sticky;
+    top:calc(68px + env(safe-area-inset-top));
+    z-index:12;
+    margin-top:8px;
+    padding:5px;
+    box-shadow:0 4px 12px rgba(27,46,86,.08);
+    -webkit-backdrop-filter:blur(9px);
+    backdrop-filter:blur(9px);
+  }
+  body.rd #appScreen.rd-view-orders #ordersArea > .tabs .tab {
+    min-width:0;
+    padding:11px 3px;
+    font-size:13px;
+    line-height:1.25;
+    white-space:normal;
+  }
+  body.rd #appScreen.rd-view-orders #orders {
+    min-height:32dvh;
+    padding-bottom:8px;
+  }
+  body.rd #rdOrderStats .rd-stats {
+    gap:7px;
+    margin-bottom:10px;
+  }
+  body.rd #rdOrderStats .rd-stat {
+    min-height:98px;
+    padding:9px 11px;
+    gap:5px;
+    border-radius:13px;
+  }
+  body.rd #rdOrderStats .rd-stat .rd-stat-heading { min-height:29px; gap:6px; }
+  body.rd #rdOrderStats .rd-stat-heading .rd-stat-icon {
+    flex-basis:29px;
+    width:29px;
+    height:29px;
+    min-width:29px;
+    border-radius:9px;
+  }
+  body.rd #rdOrderStats .rd-stat-heading .rd-stat-icon svg.rd-svgicon {
+    width:17px;
+    min-width:17px;
+    height:17px;
+    min-height:17px;
+  }
+  body.rd #rdOrderStats .rd-stat .rd-stat-heading small { font-size:11px; line-height:1.2; }
+  body.rd #rdOrderStats .rd-stat .rd-stat-body strong.rd-accent { font-size:22px; }
+  body.rd #rdOrderStats .rd-stat .rd-stat-body .rd-stat-hint { font-size:10px; line-height:1.25; }
+  body.rd #rdOrderToolbar { margin-bottom:8px; }
+  body.rd #appScreen.rd-view-orders #newOrderBtn { min-height:43px; font-size:14px; margin:4px 0 10px; }
+}
+@media(max-width:360px) {
+  body.rd #rdOrderStats .rd-stat { min-height:96px; padding:8px; }
+  body.rd #rdOrderStats .rd-stat .rd-stat-heading small { font-size:10px; }
+  body.rd #rdOrderStats .rd-stat .rd-stat-body strong.rd-accent { font-size:21px; }
+  body.rd #appScreen.rd-view-orders #ordersArea > .tabs .tab { font-size:12px; }
+}
