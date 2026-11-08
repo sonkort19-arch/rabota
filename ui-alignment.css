@@ -822,3 +822,61 @@ body.rd #appScreen.rd-view-orders #newOrderBtn .plus {
   body.rd #rdOrderStats .rd-stat .rd-stat-body strong.rd-accent { font-size:21px; }
   body.rd #appScreen.rd-view-orders #ordersArea > .tabs .tab { font-size:12px; }
 }
+
+
+/* Calendar navigation performance and stable mobile modes — 2026-11-08. */
+body.rd #rdCalendarBoard,
+body.rd #rdCalendarBoard .rd-selected-day,
+body.rd #rdCalendarBoard .rd-week-strip {
+  overflow-anchor:none;
+}
+body.rd #rdCalendarBoard .rd-calendar-heading {
+  min-height:52px;
+}
+body.rd #rdCalendarBoard .rd-selected-day {
+  min-height:210px;
+}
+body.rd #rdCalendarBoard .rd-cal-list-day {
+  margin:15px 0 8px;
+}
+@media(min-width:791px) {
+  /* On desktops the seven-column week grid already shows every weekday. */
+  body.rd #rdCalendarBoard[data-calendar-mode="week"] .rd-selected-day {
+    display:none;
+  }
+}
+@media(max-width:790px) {
+  /* Keep the same seven-day strip mounted in every mode: no toolbar jump. */
+  body.rd #rdCalendarBoard[data-calendar-mode="list"] .rd-week-strip,
+  body.rd #rdCalendarBoard[data-calendar-mode="week"] .rd-week-strip,
+  body.rd #rdCalendarBoard[data-calendar-mode="day"] .rd-week-strip {
+    display:grid!important;
+    grid-template-columns:repeat(7,minmax(0,1fr));
+    width:100%;
+    max-width:100%;
+    min-width:0;
+    gap:4px;
+    margin:9px 0;
+    padding:2px 0 6px;
+    overflow:visible;
+  }
+  body.rd #rdCalendarBoard .rd-calendar-heading {
+    min-height:53px;
+  }
+  body.rd #rdCalendarBoard .rd-selected-day {
+    min-height:230px;
+    margin-top:10px;
+  }
+  body.rd #rdCalendarBoard[data-calendar-mode="list"] .rd-cal-collapsible {
+    margin:5px 0;
+  }
+  body.rd #rdCalendarBoard[data-calendar-mode="list"] .rd-cal-summary {
+    padding:9px 10px;
+  }
+  body.rd #rdCalendarBoard[data-calendar-mode="list"] .rd-cal-summary-content {
+    gap:3px;
+  }
+  body.rd #rdCalendarBoard[data-calendar-mode="list"] .rd-cal-summary-heading {
+    gap:4px 7px;
+  }
+}
