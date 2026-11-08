@@ -126,8 +126,9 @@
         if(page.length<1000)break;
       }
       if(account!==context().userId)return;
+      const firstCloudLoad=!cloudReady;
       leadCache=rows.map(fromRow);cloudReady=true;loadError="";lastFetch=Date.now();
-      syncNav();if(!editing)render();
+      syncNav();if(!editing||firstCloudLoad)render();
       maybeNotify();
     }catch(error){if(account===context().userId){loadError=error.message||String(error);if(!editing)render()}}
     finally{loading=false}
