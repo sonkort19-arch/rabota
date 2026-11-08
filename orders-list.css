@@ -160,3 +160,7 @@ body.rd #orders .rd-list-details .control-label{font-size:11px}
   body.rd #orders .rd-list-chevron,
   body.rd #appScreen.rd-view-orders #orders>.order-card.rd-list-row{transition:none}
 }
+
+/* Не выводить пустую метку оплаты до завершения заказа. */
+body.rd #orders .rd-list-pay:empty{display:none!important}
+body.rd #orders .rd-list-paid:has(.rd-list-pay:empty){visibility:hidden}
