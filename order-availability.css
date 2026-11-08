@@ -295,3 +295,39 @@
 @media(prefers-reduced-motion:reduce){
   #orderForm .oa-toggle-chevron { transition:none; }
 }
+
+/* Compact phone booking summary — selected date remains the only expandable area. */
+#orderForm .oa-calendar { margin-top:8px; border-radius:12px; }
+#orderForm .oa-toggle { min-height:55px; padding:9px 12px; gap:9px; }
+#orderForm .oa-toggle .oa-date-label { gap:1px; }
+#orderForm .oa-toggle .oa-date-label strong { font-size:14px; line-height:1.25; }
+#orderForm .oa-load { padding:5px 8px; font-size:10px; max-width:none; }
+#orderForm .oa-day-summary { padding:7px 11px 11px; }
+#orderForm .oa-day-summary .oa-message { margin:0 0 5px; padding:7px 9px; font-size:11px; }
+#orderForm .oa-day-summary .oa-message-free,
+#orderForm .oa-day-summary .oa-message-partial { display:none; }
+#orderForm .oa-existing { display:flex; align-items:baseline; flex-wrap:wrap; gap:3px 9px; margin:0 0 4px; }
+#orderForm .oa-existing .oa-subtitle { margin:0; font-size:12px; color:#657590; }
+#orderForm .oa-booking-row { gap:4px 8px; padding:0; min-width:0; font-size:12px; }
+#orderForm .oa-booking-row strong { font-size:12px; }
+#orderForm .oa-slots { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:6px; margin-top:6px; }
+#orderForm .oa-slots .oa-subtitle { grid-column:1/-1; margin:0 0 1px; font-size:12px; }
+#orderForm .oa-slot { flex:none; width:100%; min-width:0; min-height:55px; gap:2px; padding:7px 2px; touch-action:manipulation; }
+#orderForm .oa-slot strong { font-size:15px; }
+#orderForm .oa-slot small { font-size:10px; }
+#orderForm .oa-slot.is-selected { outline:2px solid #5365f1; outline-offset:-2px; background:#e8f9ee; }
+#orderForm .oa-slot-note,
+#orderForm .oa-no-slots { grid-column:1/-1; margin:3px 0 0; font-size:10px; line-height:1.3; }
+#orderForm .order-time-field { display:grid; grid-template-columns:90px minmax(0,1fr); align-items:center; gap:5px 10px; margin-top:10px; }
+#orderForm .order-time-field label { margin:0; font-size:12px; }
+#orderForm .order-time-field input[type="time"] { width:100%; min-height:44px; }
+#orderForm .order-time-field .oa-time-hint { grid-column:1/-1; margin:0; font-size:10px; }
+#orderForm .order-advanced { margin-top:11px; }
+@media (max-width:380px) {
+  #orderForm .oa-day-summary { padding-inline:9px; }
+  #orderForm .oa-toggle { padding:8px 9px; gap:7px; }
+  #orderForm .oa-toggle .oa-date-label strong { font-size:13px; }
+  #orderForm .oa-load { max-width:110px; padding:5px 6px; font-size:10px; white-space:normal; }
+  #orderForm .oa-slot strong { font-size:14px; }
+  #orderForm .order-time-field { grid-template-columns:78px minmax(0,1fr); gap:6px; }
+}
