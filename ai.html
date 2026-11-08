@@ -135,7 +135,7 @@ aside{width:266px;flex:0 0 266px;background:#171717;border-right:1px solid #2929
 const SUPABASE_URL="https://yedzfmibceboncrytbqz.supabase.co";
 const SUPABASE_KEY="sb_publishable_tSqbw3aeAgxYuzHhQurCuw_yDze4ZNn";
 const AUTH_KEY="rabota-auth-session-v1";
-let session=null,refreshPromise=null,activeChat=null,chats=[],messages=[],busy=false,pendingDraft=null,pendingImageData=null;
+let session=null,refreshPromise=null,activeChat=null,chats=[],messages=[],busy=false,pendingDraft=null,pendingImageData=null,photoProcessing=false,photoSequence=0;
 const $=id=>document.getElementById(id);
 try{session=JSON.parse(localStorage.getItem(AUTH_KEY)||"null")}catch(_){}
 function gate(message){$("layout").hidden=true;$("gate").hidden=false;$("gateText").textContent=message}
@@ -255,13 +255,16 @@ async function deleteChat(id){
 
 /* Photo is sent to the AI once, not stored with message history. */
 function clearAttachedPhoto(){
- pendingImageData=null;$("photoFile").value="";
+ photoSequence++;photoProcessing=false;pendingImageData=null;$("photoFile").value="";
  $("photoPreview").hidden=true;$("photoThumbnail").removeAttribute("src");
+ if(!busy)$("send").disabled=false;
 }
 $("attachPhoto").addEventListener("click",()=>{if(!busy)$("photoFile").click()});
 $("removePhoto").addEventListener("click",clearAttachedPhoto);
 $("photoFile").addEventListener("change",async()=>{
  const file=$("photoFile").files?.[0];if(!file)return;
+ const sequence=++photoSequence;
+ photoProcessing=true;$("send").disabled=true;
  if(file.size>12000000){clearAttachedPhoto();failure(new Error("Выберите фотографию до 12 МБ."));return}
  $("notice").textContent="Подготавливаю фото...";
  try{
@@ -290,10 +293,12 @@ $("photoFile").addEventListener("change",async()=>{
   let encoded=resize(1800,.84);
   if(encoded.length>2700000)encoded=resize(1350,.77);
   if(encoded.length>2700000)throw new Error("Слишком большое фото, попробуйте обрезать.");
+  if(sequence!==photoSequence)return;
   pendingImageData=encoded;$("photoThumbnail").src=encoded;
   $("photoPreview").hidden=false;$("photoLabel").textContent="Фото: "+file.name;
   $("notice").textContent="Фото готово. Напиши «Добавь заказ» и отправь.";
- }catch(error){clearAttachedPhoto();failure(error)}
+ }catch(error){if(sequence===photoSequence){clearAttachedPhoto();failure(error)}}
+ finally{if(sequence===photoSequence){photoProcessing=false;if(!busy)$("send").disabled=false}}
 });
 /* Только ввод русской речи в текст, без аудиосообщений и озвучки ответов. */
 const SpeechRecognizer=window.SpeechRecognition||window.webkitSpeechRecognition;
@@ -443,11 +448,11 @@ $("confirmOrder").addEventListener("click",async()=>{
 
 function setBusy(value){
  $("confirmOrder").disabled=value;$("cancelOrder").disabled=value;
- busy=value;$("send").disabled=value;$("mic").disabled=value;$("attachPhoto").disabled=value;$("photoFile").disabled=value;$("newChat").disabled=value;$("input").disabled=value
+ busy=value;$("send").disabled=value||photoProcessing;$("mic").disabled=value;$("attachPhoto").disabled=value;$("photoFile").disabled=value;$("newChat").disabled=value;$("input").disabled=value
 }
 async function send(event){
  event.preventDefault();
- if(busy)return;
+ if(busy||photoProcessing)return;
  setPendingDraft(null);
  if(speechActive)stopDictation(true);
  const text=$("input").value.trim()||(pendingImageData?"Добавь заказ по фотографии":"");if(!text)return;
@@ -487,7 +492,7 @@ async function send(event){
   await db("rabota_ai_chats?id=eq."+encodeURIComponent(activeChat),"PATCH",{updated_at:new Date().toISOString()});
   await loadChats();clearAttachedPhoto()
  }catch(error){failure(error)}
- finally{setBusy(false);renderMessages();$("input").focus()}
+ finally{setBusy(false);renderMessages();if(pendingDraft||window.innerWidth<=760)$("input").blur();else $("input").focus()}
 }
 $("composer").addEventListener("submit",send);
 $("input").addEventListener("keydown",event=>{
