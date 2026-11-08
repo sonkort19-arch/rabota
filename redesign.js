@@ -119,6 +119,7 @@ function build(){
  const top=makeNode("div","rd-top");
  const search=makeNode("input","rd-top-search");search.id="rdTopSearch";search.type="search";search.placeholder="Поиск заказов, клиентов, адресов...";search.setAttribute("aria-label","Поиск по заказам, клиентам и адресам");
  search.addEventListener("input",()=>{
+ if(activePage==="leads"){window.__rdLeadsSearch?.(search.value);return}
  rdSearchTerm=search.value.toLocaleLowerCase("ru").trim();
  if(activePage==="clients"){selectedClientKey=null;drawClients();return}
  if(rdSearchTerm&&activePage!=="orders")navigate("orders");
