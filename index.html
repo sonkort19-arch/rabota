@@ -346,38 +346,48 @@
         <button type="button" class="close" id="closeOrderBtn" aria-label="Закрыть">×</button>
       </div>
       <form id="orderForm">
-        <label for="clientName">Имя клиента *</label>
-        <input id="clientName" name="name" type="text" maxlength="100" autocomplete="name" required>
-        <label for="clientPhone">Номер телефона *</label>
-        <input id="clientPhone" name="phone" type="tel" inputmode="tel" autocomplete="tel" maxlength="30" required>
-        <label for="clientAddress">Адрес</label>
-        <input id="clientAddress" name="address" type="text" maxlength="240">
-        <div class="form-title">Система отопления</div>
-        <div class="form-grid">
-          <div class="field"><label for="radiatorType">Тип радиаторов</label>
-            <select id="radiatorType" name="radiatorType">
-              <option value="">Не указано</option>
-              <option>Алюминиевые</option><option>Чугунные</option><option>Биметаллические</option><option>Другие</option>
-            </select>
+        <div class="order-form-scroll" id="orderFormScroll" tabindex="0" role="region" aria-label="Поля заказа">
+          <label for="clientName">Имя клиента *</label>
+          <input id="clientName" name="name" type="text" maxlength="100" autocomplete="name" required>
+          <label for="clientPhone">Номер телефона *</label>
+          <input id="clientPhone" name="phone" type="tel" inputmode="tel" autocomplete="tel" maxlength="30" required>
+          <label for="clientAddress">Адрес</label>
+          <input id="clientAddress" name="address" type="text" maxlength="240">
+          <div class="form-title">Система отопления</div>
+          <div class="form-grid order-core-grid">
+            <div class="field"><label for="radiators">Радиаторы (шт.)</label><input id="radiators" name="radiators" type="number" min="0" step="1"></div>
+            <div class="field"><label for="floorLoops">Тёплый пол (контуры)</label><input id="floorLoops" name="floorLoops" type="number" min="0" step="1"></div>
+            <div class="field"><label for="master">Мастер</label><input id="master" name="master" type="text" maxlength="100" list="masterNames"></div>
+            <div class="field"><label for="price">Стоимость (₽)</label><input id="price" name="price" type="number" min="0" step="1"></div>
           </div>
-          <div class="field"><label for="radiators">Радиаторы (шт.)</label><input id="radiators" name="radiators" type="number" min="0" step="1"></div>
-          <div class="field"><label for="floorLoops">Тёплый пол (контуры)</label><input id="floorLoops" name="floorLoops" type="number" min="0" step="1"></div>
-          <div class="field"><label for="master">Мастер</label><input id="master" name="master" type="text" maxlength="100" list="masterNames"></div>
-        </div>
-        <datalist id="masterNames"></datalist>
-        <div class="form-title">Запись</div>
-        <div class="form-grid">
-          <div class="field"><label for="orderDate">Дата *</label><input id="orderDate" name="orderDate" type="date" required></div>
-          <div class="field"><label for="orderTime">Время *</label><input id="orderTime" name="orderTime" type="time" required></div>
-          <div class="field"><label for="price">Стоимость (₽)</label><input id="price" name="price" type="number" min="0" step="1"></div>
-          <div class="field"><label for="orderStatus">Статус</label>
-            <select id="orderStatus" name="orderStatus">
-              <option>Новый</option><option>Записан</option><option>В работе</option><option>Выполнен</option><option>Отменён</option>
-            </select>
+          <datalist id="masterNames"></datalist>
+          <div class="form-title">Запись</div>
+          <div class="form-grid order-schedule-grid">
+            <div class="field"><label for="orderDate">Дата *</label><input id="orderDate" name="orderDate" type="date" required></div>
+            <div class="field"><label for="orderTime">Время *</label><input id="orderTime" name="orderTime" type="time" required></div>
           </div>
+          <details class="order-advanced" id="orderAdvanced">
+            <summary>Дополнительные параметры <span>Тип радиаторов, статус, оплата, комментарий</span></summary>
+            <div class="order-advanced-body">
+              <div class="form-grid order-advanced-grid">
+                <div class="field"><label for="radiatorType">Тип радиаторов</label>
+                  <select id="radiatorType" name="radiatorType">
+                    <option value="">Не указано</option>
+                    <option>Алюминиевые</option><option>Чугунные</option><option>Биметаллические</option><option>Другие</option>
+                  </select>
+                </div>
+                <div class="field"><label for="orderStatus">Статус</label>
+                  <select id="orderStatus" name="orderStatus">
+                    <option>Новый</option><option>Записан</option><option>В работе</option><option>Выполнен</option><option>Отменён</option>
+                  </select>
+                </div>
+              </div>
+              <div class="inline"><input id="paid" name="paid" type="checkbox"><label for="paid">Оплачено</label></div>
+              <label for="orderDetails">Комментарий</label>
+              <textarea id="orderDetails" name="details" maxlength="1000"></textarea>
+            </div>
+          </details>
         </div>
-        <div class="inline"><input id="paid" name="paid" type="checkbox"><label for="paid">Оплачено</label></div>
-        <label for="orderDetails">Комментарий</label><textarea id="orderDetails" name="details" maxlength="1000"></textarea>
         <div class="order-submit-bar">
           <button class="primary save" type="submit">Сохранить заказ</button>
           <div class="error" id="formStatus" role="status" aria-live="polite"></div>
@@ -1022,9 +1032,11 @@
       const raulCreating=raulCanCreateOrder();
       if(!canCreateOrder() || (currentRole==="master" && (id!==undefined || !raulCreating)))return;
       previousFocus=document.activeElement;form.reset();delete form.dataset.leadPreview;delete form.dataset.leadId;formStatus.textContent="";formStatus.classList.remove("is-saving");
+      const advanced=document.getElementById("orderAdvanced");advanced.open=false;
       editingId=id===undefined?null:String(id);
       updateMasters();
       const existing=editingId===null?null:getOrders().find(x=>String(x.id)===editingId);
+      advanced.open=Boolean(existing);
       document.getElementById("formTitle").textContent=existing?"Редактировать заказ":"Новый заказ";
       if(existing) {
         controls.name.value=existing.name||"";
@@ -1057,7 +1069,7 @@
       controls.status.closest(".field").style.display=raulCreating?"none":"";
       controls.paid.parentElement.style.display=raulCreating?"none":"";
       overlay.hidden=false;document.body.style.overflow="hidden";
-      overlay.querySelector(".sheet").scrollTop=0;
+      document.getElementById("orderFormScroll").scrollTop=0;
       // На iPhone автоматический фокус открывал клавиатуру и сдвигал форму.
       if(!window.matchMedia || !window.matchMedia("(pointer: coarse)").matches)controls.name.focus();
     }
