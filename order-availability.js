@@ -81,7 +81,12 @@
   function selectDate(date){
     const stats=availability(date,masterInput.value);
     // Do not allow new bookings to be placed on a day filled by other orders.
-    if(stats&&!stats.canBook)return;
+    if(stats&&!stats.canBook){
+      render();
+      message.className="oa-message oa-message-full";
+      message.textContent=dateText(date)+": у мастера уже 2 заказа. Выберите другой день.";
+      return;
+    }
     if(dayInput.value!==date){
       dayInput.value=date;
       timeInput.value=""; // A time from a different date must never carry over.
