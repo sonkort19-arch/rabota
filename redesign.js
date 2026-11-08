@@ -217,6 +217,11 @@ function navigate(key){
  if(key==="ai"){window.location.assign("/ai.html");return}
  if(!ready)return;
  if(key==="finance"&&currentRole!=="owner")return;
+ const globalSearch=$("rdTopSearch");
+ if(globalSearch){
+  globalSearch.placeholder=key==="leads"?"Поиск лидов по имени и телефону...":"Поиск заказов, клиентов, адресов...";
+  if(activePage==="leads"&&key!=="leads"){globalSearch.value="";rdSearchTerm="";}
+ }
  // Keep the visible screen, active navigation and legacy tab state in sync.
  // Update visibility before legacy rendering: a render error must not leave
  // the previous screen selected with the next screen's internal tab state.
