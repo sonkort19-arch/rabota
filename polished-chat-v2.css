@@ -118,3 +118,129 @@ html,body{background:#fff;color:var(--ai-ink);-webkit-font-smoothing:antialiased
 }
 @media (pointer:coarse) { #input { font-size:16px; } }
 @media (prefers-reduced-motion:reduce) { #layout aside { transition:none; } }
+
+
+/* AI chat: compact mobile CRM assistant and accessible light photo controls. */
+#attachPhoto {
+  box-sizing:border-box;
+  display:grid;
+  place-items:center;
+  width:42px;
+  height:42px;
+  flex:0 0 42px;
+  align-self:center;
+  padding:0;
+  color:#4d62dc;
+  background:#eef2ff;
+  border:1px solid #dbe4ff;
+  border-radius:12px;
+  font-size:26px;
+  font-weight:500;
+}
+#attachPhoto:hover,#attachPhoto:focus-visible{background:#e2eaff;color:#344cd1}
+#attachPhoto:disabled{opacity:.45}
+#photoPreview {
+  background:#f5f8ff;
+  border:1px solid #dfe7fb;
+  color:#354b73;
+  box-shadow:0 2px 10px #1b31720c;
+  font-size:12px;
+  border-radius:12px;
+  padding:8px;
+}
+#photoThumbnail{border:1px solid #e1e8f5}
+#removePhoto{
+  color:#4a5d7f;
+  background:#e8eefb;
+  border:1px solid #dae3f7;
+  border-radius:9px;
+  font-size:21px;
+  cursor:pointer;
+}
+#removePhoto:focus-visible{outline:3px solid #7289ff}
+.tight-consent {
+  background:#fff9eb;
+  color:#7d531b;
+  border:1px solid #efd39d;
+  border-radius:12px;
+  padding:12px;
+  line-height:1.5;
+}
+.tight-consent input{accent-color:#bd7a21}
+#proposalDetails{
+  white-space:pre-wrap;
+  overflow-wrap:anywhere;
+  padding:11px 12px;
+  max-height:min(34dvh,260px);
+  overflow-y:auto;
+}
+#proposalCard{min-width:0}
+#proposalActions button{min-height:43px}
+#composer textarea:focus{outline:none}
+@media(max-width:760px){
+  #messages{padding:12px 12px 18px}
+  .messages-inner{gap:12px}
+  .empty-state{
+    min-height:0!important;
+    align-content:start;
+    justify-items:stretch;
+    padding:17px 2px 7px;
+    gap:9px;
+    max-width:420px;
+    width:100%;
+    margin:0 auto;
+  }
+  .rd-ai-emblem{
+    height:51px;width:51px;
+    margin:0 auto 2px;
+    border-radius:16px;
+    font-size:33px;
+  }
+  .empty-state h2{font-size:23px;letter-spacing:-.6px;line-height:1.2;text-align:center}
+  .empty-state p{max-width:290px;padding:0 5px;font-size:12px;line-height:1.4;text-align:center;margin:0 auto}
+  .quick-questions{
+    grid-template-columns:repeat(2,minmax(0,1fr));
+    gap:9px;
+    max-width:420px;
+    width:100%;
+    margin:12px auto 0;
+  }
+  .quick-question{
+    min-width:0;
+    min-height:68px;
+    padding:9px;
+    border-radius:13px;
+    gap:8px;
+    font-size:12px;
+    line-height:1.25;
+    font-weight:690;
+    box-shadow:0 2px 10px #1d376006;
+    touch-action:manipulation;
+  }
+  .rd-quick-icon{
+    height:34px;width:34px;flex:0 0 34px;
+    border-radius:11px;font-size:21px;
+  }
+  .rd-quick-label{min-width:0;overflow-wrap:break-word}
+  .rd-quick-arrow{display:none}
+  .top{gap:9px}
+  .top h1{font-size:17px}
+  #composer{gap:7px;min-height:55px}
+  #attachPhoto{width:39px;height:39px;flex-basis:39px;font-size:24px}
+  #proposalCard{padding:12px;border-radius:15px}
+  #proposalDetails{max-height:29dvh;font-size:13px}
+  #photoPreview{margin-bottom:6px}
+  .composer-wrap{padding-top:4px}
+  .hint{font-size:10px;line-height:1.35;padding:4px 6px 0}
+}
+@media(max-width:360px){
+  .quick-questions{gap:7px}
+  .quick-question{gap:6px;padding:8px 6px;font-size:11px}
+  .rd-quick-icon{height:30px;width:30px;flex-basis:30px;font-size:19px}
+  .top h1{font-size:16px}
+}
+@media(max-height:690px) and (max-width:760px){
+  .empty-state{padding-top:8px}
+  .rd-ai-emblem{height:44px;width:44px;font-size:29px}
+  .quick-questions{margin-top:7px}
+}
