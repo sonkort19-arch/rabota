@@ -1059,8 +1059,17 @@
     document.getElementById("rdOrdersToday").addEventListener("click",()=>{selectedDate=localDate(new Date());currentTab="calendar";render();});
     document.querySelectorAll("[data-tab]").forEach(btn=>btn.addEventListener("click",()=>{
       if(currentTab===btn.dataset.tab)return;
-      // The tab element remains mounted; its position no longer depends on a large calendar.
+      const tabs=document.querySelector("#ordersArea > .tabs");
+      const tabTop=tabs?.getBoundingClientRect().top;
       currentTab=btn.dataset.tab;render();
+      // Preserve the visible position of the tab strip after Safari adjusts page height.
+      if(window.__rdCurrentPage==="orders"&&Number.isFinite(tabTop)&&tabs){
+        requestAnimationFrame(()=>{
+          if(window.__rdCurrentPage!=="orders"||!tabs.isConnected)return;
+          const delta=tabs.getBoundingClientRect().top-tabTop;
+          if(Math.abs(delta)>1)window.scrollBy(0,delta);
+        });
+      }
     }));
 
     // В Safari встроенная проверка required может отменить submit без понятной ошибки.
