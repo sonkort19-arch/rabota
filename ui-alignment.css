@@ -307,3 +307,41 @@ body.rd .rd-more-sheet { max-height:calc(100dvh - 100px - env(safe-area-inset-to
   body.rd #rdCalendarBoard .rd-day-chip { padding:6px 0; font-size:9px; }
   body.rd #rdCalendarBoard .rd-day-chip strong { font-size:16px; }
 }
+
+/* Keep the native iOS date picker within the calendar navigation border.
+   Grid placement rules from older calendar styles could create an oversized row. */
+@media (max-width:790px) {
+  body.rd #rdCalendarNavigation {
+    display:flex;
+    flex-wrap:wrap;
+    align-items:stretch;
+    gap:8px;
+    box-sizing:border-box;
+    min-width:0;
+    max-width:100%;
+  }
+  body.rd #rdCalendarNavigation > .rd-cal-step {
+    flex:0 0 44px;
+    min-width:44px;
+    max-width:44px;
+    width:44px;
+  }
+  body.rd #rdCalendarNavigation > .rd-cal-today {
+    flex:1 1 0;
+    width:auto;
+    min-width:0;
+    max-width:100%;
+  }
+  body.rd #rdCalendarNavigation > #rdCalendarDate,
+  body.rd #rdCalendarNavigation > #rdCalendarMaster,
+  body.rd #rdCalendarNavigation > #rdCalendarStatus {
+    display:block;
+    flex:0 0 100%;
+    width:100%;
+    min-width:0;
+    max-width:100%;
+    box-sizing:border-box;
+    grid-column:auto;
+    margin:0;
+  }
+}
