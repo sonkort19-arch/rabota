@@ -245,7 +245,7 @@
     const paid=cell("paid",text("span",paymentLabel,
       "rd-list-pay "+(order.paid?"is-paid":"is-unpaid")));
     if(!paymentLabel)paid.setAttribute("aria-hidden","true");
-    const arrow=cell("arrow",text("span","⌄","rd-list-chevron"));
+    const arrow=cell("arrow",text("span","›","rd-list-chevron"));
     const toggle=text("button","","rd-list-toggle");
     toggle.type="button";
     toggle.setAttribute("aria-haspopup","dialog");
