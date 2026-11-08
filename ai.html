@@ -485,7 +485,7 @@ async function send(event){
   await db("rabota_ai_messages","POST",{chat_id:activeChat,role:"assistant",content:data.reply.slice(0,12000)});
   messages=await db("rabota_ai_messages?select=id,role,content,created_at&chat_id=eq."+encodeURIComponent(activeChat)+"&order=created_at.asc&limit=200");
   await db("rabota_ai_chats?id=eq."+encodeURIComponent(activeChat),"PATCH",{updated_at:new Date().toISOString()});
-  await loadChats()
+  await loadChats();clearAttachedPhoto()
  }catch(error){failure(error)}
  finally{setBusy(false);renderMessages();$("input").focus()}
 }
