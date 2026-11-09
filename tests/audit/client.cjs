@@ -57,3 +57,25 @@ test('all executable JavaScript parses',()=>{
  for(const file of fs.readdirSync('.').filter(f=>f.endsWith('.js')))new vm.Script(fs.readFileSync(file,'utf8'),{filename:file});
  new vm.Script(fs.readFileSync('api/ai-chat.js','utf8'));
 });
+
+test('AI cash excludes unallocated money held by master and excludes voided expenses',async()=>{
+ const source=fs.readFileSync('api/ai-chat.js','utf8');
+ const c={process:{env:{}},Date,Intl};
+ vm.createContext(c);vm.runInContext(source.slice(0,source.indexOf('module.exports')),c);
+ const rows={
+ rabota_orders:[
+  {id:'held',paid:true,status:'Выполнен',price:20000,payment_amount:20000,payment_received_by:'master',master:'Рауль',assigned_user_id:'master'},
+  {id:'direct',paid:true,status:'Выполнен',price:10000,payment_amount:10000,payment_received_by:'company'},
+  {id:'collected',paid:true,status:'Выполнен',price:12000,payment_received_by:'master'}],
+ rabota_members:[{user_id:'master',role:'master',active:true,master_name:'Рауль'}],
+ rabota_cash_collections:[{order_id:'collected',confirmed_at:'2026-01-01',company_amount:4500}],
+ rabota_finance_operations:[{kind:'expense',amount:500},{kind:'expense',amount:999,voided_at:'2026-01-01'}]};
+ c.readRows=async(table)=>rows[table];
+ const s=await c.businessSnapshot({},'финансы');
+ assert.equal(s.accounting_rub.direct_receipts,10000);
+ assert.equal(s.accounting_rub.master_unallocated_receipts,20000);
+ assert.equal(s.accounting_rub.recorded_cash_in,14500);
+ assert.equal(s.accounting_rub.recorded_cash_balance,14000);
+ assert.equal(s.accounting_rub.raul_accrued,10000);
+ assert.equal(s.accounting_rub.timur_accrued,1500);
+});

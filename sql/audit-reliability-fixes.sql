@@ -434,8 +434,8 @@ grant execute on function public.rabota_finance_record_v2(uuid,text,numeric,uuid
 
 -- Authoritative versions for conditional REST updates; never trust a client clock.
 create or replace function private.rabota_orders_touch_updated_at()
-returns trigger language plpgsql set search_path='' as $
-begin new.updated_at:=clock_timestamp(); return new; end $;
+returns trigger language plpgsql set search_path='' as $$
+begin new.updated_at:=clock_timestamp(); return new; end $$;
 drop trigger if exists rabota_orders_updated_at on public.rabota_orders;
 create trigger rabota_orders_updated_at before update on public.rabota_orders
 for each row execute function private.rabota_orders_touch_updated_at();

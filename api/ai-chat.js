@@ -76,7 +76,7 @@ function shortOrder(row) {
 }
 async function businessSnapshot(tokenHeaders, question) {
  const [orders,operations,collections,members]=await Promise.all([
-  readRows("rabota_orders","id,name,phone,appointment_date,appointment_time,master,assigned_user_id,status,paid,price,created_at,completed_at,updated_at",tokenHeaders,"created_at.desc"),
+  readRows("rabota_orders","id,name,phone,appointment_date,appointment_time,master,assigned_user_id,status,paid,price,payment_received_by,payment_amount,paid_at,created_at,completed_at,updated_at",tokenHeaders,"created_at.desc"),
   readRows("rabota_finance_operations","kind,amount,master_user_id,order_id,voided_at,created_at",tokenHeaders),
   readRows("rabota_cash_collections","order_id,master_user_id,gross,raul_amount,timur_amount,company_amount,created_at,submitted_at,confirmed_at",tokenHeaders),
   readRows("rabota_members","user_id,role,active,master_name",tokenHeaders,"created_at.asc")
@@ -91,7 +91,8 @@ async function businessSnapshot(tokenHeaders, question) {
  const activeOps=operations.filter(o=>!o.voided_at);
  const paidNonCancelled=orders.filter(o=>o.paid&&o.status!=="Отменён");
  const collectionOrderIds=new Set(collections.map(c=>c.order_id));
- const directReceipts=sum(paidNonCancelled.filter(o=>!collectionOrderIds.has(o.id)),o=>o.price);
+ const directReceipts=sum(paidNonCancelled.filter(o=>!collectionOrderIds.has(o.id)&&o.payment_received_by!=="master"),o=>o.payment_amount??o.price);
+ const masterUnallocated=sum(paidNonCancelled.filter(o=>!collectionOrderIds.has(o.id)&&o.payment_received_by==="master"),o=>o.payment_amount??o.price);
  const confirmedCompanyDeposits=sum(confirmed,c=>c.company_amount);
  const allPayouts=sum(activeOps.filter(o=>["raul_payout","timur_payout"].includes(o.kind)&&!o.order_id),o=>o.amount);
  const expenses=sum(activeOps.filter(o=>o.kind==="expense"),o=>o.amount);
@@ -150,7 +151,7 @@ async function businessSnapshot(tokenHeaders, question) {
     appointments:"Заказы по дате записи (appointment_date), не дата создания и не дата получения оплаты. Отменённые исключены из сравнений.",
     newly_created:"Заказы по created_at, время Москвы. Отменённые исключены из сравнений.",
     unique_clients:"Уникальные номера телефона, а при отсутствии телефона — нормализованные имена; оценка, не гарантированное число реальных людей.",
-    money:"Суммы в рублях; оплачено означает флаг paid. Дата фактической оплаты не хранится, поэтому оплаты по календарным периодам НЕ являются поступлениями за этот период.",
+    money:"Суммы в рублях; оплачено означает флаг paid. paid_at есть у новых оплат, но отсутствует у части старых; оплаты по периодам записи НЕ являются поступлениями за этот период.",
     accounting:"Касса — расчётный показатель приложения, не фактический банковский баланс; начальный остаток принят за ноль. Доля компании по подтверждённым сборам, прямые оплаченные заказы и ручные выплаты учитываются по логике раздела «Финансы». Прибыль неизвестна без полного учёта затрат."
   },
   all_time:{orders:orders.length,unique_clients:new Set(orders.map(clientKey)).size,status_counts:statusCounts,
@@ -167,7 +168,7 @@ async function businessSnapshot(tokenHeaders, question) {
   },
   weekly_history:weeks,monthly_history:monthly,
   accounting_rub:{
-    direct_receipts:directReceipts,confirmed_company_deposits:confirmedCompanyDeposits,
+    direct_receipts:directReceipts,master_unallocated_receipts:masterUnallocated,confirmed_company_deposits:confirmedCompanyDeposits,
     unconfirmed_company_deposits:sum(pending,c=>c.company_amount),
     recorded_cash_in:cashIn,payouts_recorded:allPayouts,expenses_recorded:expenses,
     recorded_cash_balance:cashBalance,raul_due:raul?raulDue:null,timur_due:raul?timurDue:null,

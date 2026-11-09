@@ -1,7 +1,7 @@
 -- Schema-only subset read from production on 2026-11-09; NO business data.
 -- For a disposable LOCAL PostgreSQL only.
-do $ begin if not exists(select 1 from pg_roles where rolname='authenticated') then create role authenticated nologin; end if; end $;
-do $ begin if not exists(select 1 from pg_roles where rolname='anon') then create role anon nologin; end if; end $;
+do $$ begin if not exists(select 1 from pg_roles where rolname='authenticated') then create role authenticated nologin; end if; end $$;
+do $$ begin if not exists(select 1 from pg_roles where rolname='anon') then create role anon nologin; end if; end $$;
 create schema auth;
 create schema private;
 create table auth.users(id uuid primary key);
