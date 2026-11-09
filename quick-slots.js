@@ -192,6 +192,27 @@
     const success=window.__rdQuickSlotFill?.(slot);
     if(!success)window.alert("Не удалось открыть запись. Обновите страницу CRM.");
   }
+  // The dashboard is a read-only suggestion, never a reservation.
+  // Re-fetch before pre-filling the existing unsaved order form.
+  async function book(slot){
+    if(!slot||visible||busy||!window.__rdQuickSlotsRead)return false;
+    const data=await window.__rdQuickSlotsRead();
+    const members=namesFrom(data);
+    if(!members.includes(slot.master)||
+      window.__rdOrderAvailability?.checkTime(slot.time,slot.date,slot.master)!=="available"){
+      open();
+      return false;
+    }
+    const selected=candidateSlots({
+      masters:[slot.master],now:new Date(),limit:50,
+      checkTime:(time,date,master)=>window.__rdOrderAvailability?.checkTime(time,date,master)
+    });
+    if(!selected.some(x=>x.date===slot.date&&x.time===slot.time&&x.master===slot.master)){
+      open();
+      return false;
+    }
+    return Boolean(window.__rdQuickSlotFill?.(slot));
+  }
   function open() {
     if(visible||!window.__rdQuickSlotsRead||!window.__rdQuickSlotFill)return;
     if(!document.getElementById("appScreen")||document.getElementById("appScreen").hidden)return;
@@ -226,5 +247,5 @@
   });
   select.addEventListener("change",()=>{choice=select.value;paint()});
   refresh.addEventListener("click",()=>readFresh());
-  window.__rdQuickSlots={open,close,core};
+  window.__rdQuickSlots={open,close,book,core};
 })();
