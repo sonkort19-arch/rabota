@@ -1327,3 +1327,14 @@ body.rd #rdCalendarNavigation>.rd-cal-filter-toggle{display:none}
   }
   body.rd #appScreen.rd-view-calendar #rdCalendarBoard .rd-day-chip{min-height:58px}
 }
+
+
+/* iOS Safari: prevent automatic viewport zoom when the global search gains focus. */
+@media (max-width:790px) {
+  body.rd .rd-top input.rd-top-search,
+  body.rd .rd-top input#rdTopSearch {
+    font-size:16px;
+    min-width:0;
+    max-width:100%;
+  }
+}
