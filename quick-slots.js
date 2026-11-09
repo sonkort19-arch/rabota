@@ -74,15 +74,22 @@
   select.id="qsMaster";
   select.setAttribute("aria-label","Выбрать мастера для поиска свободных окон");
   selectLabel.append(select);
+  const radiatorsLabel=make("label","qs-filter-label","Батарей в новом заказе");
+  const radiators=make("input","qs-select");
+  radiators.type="number";radiators.min="1";radiators.max="300";radiators.step="1";
+  radiators.inputMode="numeric";radiators.placeholder="Например, 4";
+  radiators.id="qsRadiators";
+  radiators.setAttribute("aria-label","Число радиаторов в новом заказе, для проверки третьего выезда");
+  radiatorsLabel.append(radiators);
   const refresh=make("button","qs-refresh","Обновить");
   refresh.type="button";
-  actions.append(selectLabel,refresh);
+  actions.append(selectLabel,radiatorsLabel,refresh);
   const status=make("p","qs-status");
   status.setAttribute("role","status");
   status.setAttribute("aria-live","polite");
   const list=make("div","qs-list");
   const foot=make("p","qs-footnote",
-    "Типовые начала: 10:00, 15:00, 18:00. Работа около 3 часов + 20 минут дорога. Максимум 2 заказа на мастера в день. Время предварительное, повторно проверяется перед записью.");
+    "До двух заказов в день без ограничения количества батарей. Третий — только если во всех трёх по 1–5 батарей. Близкие записи требуют проверки длительности работ и дороги; окончательное решение — при сохранении.");
   dialog.append(heading,actions,status,list,foot);
   host.append(dialog);
   document.body.append(host);
@@ -99,6 +106,11 @@
     return [...new Map(values.map(s=>String(s||"").trim()).filter(Boolean)
       .map(s=>[s.toLocaleLowerCase("ru"),s])).values()];
   }
+  const requestedRadiators=()=>{
+    if(radiators.value==="")return null;
+    const count=Number(radiators.value);
+    return Number.isInteger(count)&&count>=1&&count<=300?count:null;
+  };
   function showMasters(data) {
     const names=namesFrom(data);
     const previous=choice;
@@ -120,14 +132,14 @@
     const api=window.__rdOrderAvailability;
     const slots=candidateSlots({
       masters:names,now:new Date(),
-      checkTime:(time,date,master)=>api?.checkTime(time,date,master)
+      checkTime:(time,date,master)=>api?.checkTime(time,date,master,requestedRadiators())
     });
     list.replaceChildren();
     if(!names.length) {
       status.textContent="Нет известных мастеров. Проверьте сотрудников и заказы.";
       return;
     }
-    status.textContent=message||"Ближайшие доступные варианты по обновлённому расписанию";
+    status.textContent=message||"Доступные окна по расписанию"+(requestedRadiators()!==null?" · "+requestedRadiators()+" батарей":" · укажите батареи для возможного третьего выезда");
     if(!slots.length) {
       list.append(make("p","qs-empty","Свободных типовых окон в ближайшие 14 дней не найдено. Выберите другого мастера или уточните нестандартное время в календаре."));
       return;
@@ -180,16 +192,17 @@
     if(busy||!visible)return;
     const data=await readFresh();
     if(!data||!visible)return;
+    const candidateCount=requestedRadiators();
     const candidates=candidateSlots({
       masters:namesFrom(data),now:new Date(),limit:1000,
-      checkTime:(time,date,master)=>window.__rdOrderAvailability?.checkTime(time,date,master)
+      checkTime:(time,date,master)=>window.__rdOrderAvailability?.checkTime(time,date,master,candidateCount)
     });
     if(!candidates.some(s=>s.date===slot.date&&s.time===slot.time&&s.master===slot.master)){
       paint("Это время уже занято или стало недоступно. Выберите другой вариант.");
       return;
     }
     close();
-    const success=window.__rdQuickSlotFill?.(slot);
+    const success=window.__rdQuickSlotFill?.({...slot,radiators:candidateCount});
     if(!success)window.alert("Не удалось открыть запись. Обновите страницу CRM.");
   }
   // The dashboard is a read-only suggestion, never a reservation.
@@ -199,13 +212,13 @@
     const data=await window.__rdQuickSlotsRead();
     const members=namesFrom(data);
     if(!members.includes(slot.master)||
-      window.__rdOrderAvailability?.checkTime(slot.time,slot.date,slot.master)!=="available"){
+      window.__rdOrderAvailability?.checkTime(slot.time,slot.date,slot.master,slot.radiators??null)!=="available"){
       open();
       return false;
     }
     const selected=candidateSlots({
       masters:[slot.master],now:new Date(),limit:50,
-      checkTime:(time,date,master)=>window.__rdOrderAvailability?.checkTime(time,date,master)
+      checkTime:(time,date,master)=>window.__rdOrderAvailability?.checkTime(time,date,master,slot.radiators??null)
     });
     if(!selected.some(x=>x.date===slot.date&&x.time===slot.time&&x.master===slot.master)){
       open();
@@ -246,6 +259,8 @@
     }
   });
   select.addEventListener("change",()=>{choice=select.value;paint()});
+  radiators.addEventListener("input",()=>{if(!busy)paint()});
+  radiators.addEventListener("change",()=>{if(!busy)paint()});
   refresh.addEventListener("click",()=>readFresh());
   window.__rdQuickSlots={open,close,book,core};
 })();
