@@ -454,7 +454,7 @@
               <div class="oa-legend">
                 <span><i class="oa-dot oa-free"></i>0 записей</span>
                 <span><i class="oa-dot oa-partial"></i>1 из 2</span>
-                <span><i class="oa-dot oa-full"></i>2 из 2</span>
+                <span><i class="oa-dot oa-full"></i>Лимит 2 или 3</span>
               </div>
             </div>
             <div class="oa-day-summary">
@@ -753,11 +753,8 @@
         order.status !== "Отменён" && order.date === date && order.time === time &&
         String(order.master||"").trim().toLocaleLowerCase("ru") === selectedMaster);
     }
-    function masterDayCount(date, master, excludeId) {
-      const selectedMaster=String(master||"").trim().toLocaleLowerCase("ru");
-      return getOrders().filter(order => String(order.id)!==String(excludeId) &&
-        order.status!=="Отменён" && order.date===date &&
-        String(order.master||"").trim().toLocaleLowerCase("ru")===selectedMaster).length;
+    function masterDayCapacity(date,master,radiators,excludeId) {
+      return window.__rdBookingCapacity?.day(getOrders(),date,master,radiators,excludeId);
     }
     // Типовая работа 3 часа и 20 минут дороги. Исключения разрешает диспетчер.
     function findTightBookings(date,time,master,excludeId) {
@@ -1303,9 +1300,18 @@
         controls.phone.focus();return;
       }
       const assignedMaster=raulCreating?currentMasterName.trim():controls.master.value.trim();
-      if(status!=="Отменён"&&masterDayCount(date,assignedMaster,editingId)>=2){
-        formStatus.textContent="У мастера "+(assignedMaster||"без назначения")+
-          " на эту дату уже два заказа. Выберите другой день.";return;
+      if(status!=="Отменён"&&assignedMaster){
+        const capacity=masterDayCapacity(date,assignedMaster,controls.radiators.value,editingId);
+        if(!capacity||!capacity.canBook){
+          formStatus.textContent=capacity?.reason==="max3"
+            ?"У мастера уже 3 заказа на эту дату — четвёртый запрещён."
+            :capacity?.reason==="largeExisting"
+              ?"Третий заказ возможен только когда ВСЕ три заказа — до 5 батарей каждый. В этот день есть заказ более 5 батарей или с неизвестным количеством."
+              :capacity?.reason==="radiators"
+                ?"Чтобы записать третьего клиента, укажите от 1 до 5 батарей в новом заказе."
+                :"У мастера нет свободных мест на этот день.";
+          return;
+        }
       }
       if(status!=="Отменён"&&hasConflict(date,time,assignedMaster,editingId)) {
         formStatus.textContent="У этого мастера уже есть заказ на выбранное время.";controls.time.focus();return;
@@ -1809,16 +1815,17 @@
       }
       return window.__rdQuickSlotsSnapshot();
     };
-    window.__rdQuickSlotFill=({date,time,master})=>{
+    window.__rdQuickSlotFill=({date,time,master,radiators=null})=>{
       if(!["owner","manager"].includes(currentRole)||
         !/^\d{4}-\d{2}-\d{2}$/.test(date)||
         !/^([01]\d|2[0-3]):[0-5]\d$/.test(time)||
         !String(master||"").trim())return false;
-      if(window.__rdOrderAvailability?.checkTime(time,date,master)!=="available")return false;
+      if(window.__rdOrderAvailability?.checkTime(time,date,master,radiators)!=="available")return false;
       openForm();
       controls.date.value=date;
       controls.time.value=time;
       controls.master.value=master;
+      if(window.__rdBookingCapacity?.small(radiators))controls.radiators.value=String(radiators);
       window.__rdOrderAvailability?.refresh(getOrders());
       controls.master.dispatchEvent(new Event("change",{bubbles:true}));
       controls.time.dispatchEvent(new Event("change",{bubbles:true}));
@@ -1965,6 +1972,7 @@
 
   </script>
   <script src="/order-payment.js"></script>
+  <script src="/booking-capacity.js"></script>
   <script src="/order-availability.js"></script>
   <script src="/quick-slots.js"></script>
   <script src="/redesign.js"></script>
