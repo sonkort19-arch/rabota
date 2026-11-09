@@ -71,12 +71,13 @@
     if(!stats.canBook)return "full";
     const start=mins(time);
     if(start===null)return "unknown";
-    for(const order of stats.others){
-      const booked=mins(order.time);
-      if(booked===null)return "unknown";
-      if(start===booked)return "busy";
-      if(Math.abs(start-booked)<ESTIMATED_GAP_MINUTES)return "tight";
-    }
+    // Check ALL existing starts before warning about near-time bookings:
+    // otherwise the earlier 10:00 booking can hide an exact 13:00 collision.
+    const bookedTimes=stats.others.map(order=>mins(order.time));
+    if(bookedTimes.some(booked=>booked===start))return "busy";
+    if(bookedTimes.some(booked=>booked===null))return "unknown";
+    if(bookedTimes.some(booked=>Math.abs(start-booked)<ESTIMATED_GAP_MINUTES))
+      return "tight";
     return "available";
   }
   function el(tag,cls,value){
