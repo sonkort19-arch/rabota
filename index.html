@@ -1790,7 +1790,7 @@
     // windows but does not create any records in the real database.
     window.__rdLeadContext=()=>({
       role:currentRole,userId:currentUser?.id||null,
-      orders:getOrders().map(o=>({date:o.date,time:o.time,master:o.master,status:o.status}))
+      orders:getOrders().map(o=>({date:o.date,time:o.time,master:o.master,status:o.status,radiators:o.radiators}))
     });
     // Phone-call booking: reuse the live calendar checks and the original order editor.
     // Selection only pre-fills an unsaved order. No direct database write.
