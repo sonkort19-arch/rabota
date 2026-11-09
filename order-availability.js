@@ -45,6 +45,9 @@
       order.date===date&&order.status!=="Отменён"&&masterKey(order.master)===key
     ).sort((a,b)=>String(a.time||"").localeCompare(String(b.time||"")));
   }
+  function awaitingRadiators(stats){
+    return Boolean(stats?.potentialThird&&(radiatorInput?.value===""||radiatorInput?.value==null));
+  }
   function availability(date,master,radiators=radiatorInput?.value){
     const all=bookingsFor(date,master);
     if(!all)return null;
@@ -62,7 +65,7 @@
   function updateHeader(){
     const stats=availability(dayInput.value,masterInput.value);
     const count=stats?stats.displayCount:null;
-    const state=count===null?"unknown":(!stats.canBook&&!stats.potentialThird)?"full":count===0?"free":"partial";
+    const state=count===null?"unknown":(!stats.canBook&&!awaitingRadiators(stats))?"full":count===0?"free":"partial";
     dayLoad.className="oa-load oa-load-"+state;
     dayLoad.textContent=count===null?"Выберите мастера":count+" из "+stats.max+" заказов";
     toggle.setAttribute("aria-label","Дата: "+dateText(dayInput.value)+". "+
@@ -101,7 +104,7 @@
   function selectDate(date){
     const stats=availability(date,masterInput.value);
     // Do not allow new bookings to be placed on a day filled by other orders.
-    if(stats&&!stats.canBook&&!stats.potentialThird){
+    if(stats&&!stats.canBook&&!awaitingRadiators(stats)){
       render();
       message.className="oa-message oa-message-full";
       message.textContent=stats.reason==="largeExisting"
@@ -135,8 +138,8 @@
     for(let day=1;day<=days;day++){
       const date=iso(viewYear,viewMonth+1,day);
       const stats=availability(date,masterInput.value);
-      const severity=stats?(!stats.canBook&&!stats.potentialThird?"full":stats.count?"partial":"free"):"unknown";
-      const fullForThisOrder=stats&&!stats.canBook&&!stats.potentialThird;
+      const severity=stats?(!stats.canBook&&!awaitingRadiators(stats)?"full":stats.count?"partial":"free"):"unknown";
+      const fullForThisOrder=stats&&!stats.canBook&&!awaitingRadiators(stats);
       const button=el("button","oa-day oa-"+severity+(date===chosen?" is-selected":"")+(date===today?" is-today":""));
       button.type="button";
       button.dataset.date=date;
