@@ -1584,6 +1584,48 @@
       window.scrollTo(0,0);
       try{await loadFinance();}catch(error){financeLoadError=friendlyError(error);renderFinance();}
     });
+    // Payroll payouts use one awaited operation, not a hidden form submission.
+    // The backend validates the owner, the available balance and prevents overpayment.
+    let payrollPayoutInFlight=false;
+    window.__rdRecordPayrollPayout=async ({kind,amount,note})=>{
+      if(currentRole!=="owner")throw new Error("Только владелец может проводить выплаты.");
+      if(!["raul_payout","timur_payout"].includes(kind))throw new Error("Недопустимый тип выплаты.");
+      if(payrollPayoutInFlight)throw new Error("Предыдущая выплата ещё выполняется.");
+      const cents=Math.round(Number(amount)*100);
+      const memo=String(note||"").trim();
+      if(!Number.isSafeInteger(cents)||cents<=0||cents>1000000000||
+         Math.abs(cents/100-Number(amount))>0.00001)throw new Error("Неверная сумма выплаты.");
+      if(!memo||memo.length>240)throw new Error("Укажите комментарий до 240 символов.");
+      if(!financeMasterId)throw new Error("Рауль не найден среди активных мастеров.");
+      payrollPayoutInFlight=true;
+      let operationId;
+      try{
+        operationId=await dbRequest("rpc/rabota_finance_record","POST",{
+          p_kind:kind,p_amount:cents/100,p_master_user_id:financeMasterId,p_note:memo
+        });
+      }finally{
+        payrollPayoutInFlight=false;
+      }
+      // RPC has succeeded. A failed refresh must never be treated as a failed payout:
+      // repeating the request would risk paying twice.
+      let refreshError="";
+      try{
+        await reloadOrders();
+        if(financeLoadError)refreshError=financeLoadError;
+      }catch(error){refreshError=friendlyError(error);}
+      let updatedDue=null;
+      if(!refreshError&&financeMasterId){
+        const eligible=getOrders().filter(o=>o.assignedUserId===financeMasterId&&
+          o.status==="Выполнен"&&o.paid&&Number.isFinite(o.price)&&o.price>=0);
+        const paid=financeOperations.filter(o=>!o.voided_at&&o.master_user_id===financeMasterId&&o.kind===kind)
+          .reduce((total,o)=>total+Number(o.amount||0),0);
+        const accrued=kind==="raul_payout"
+          ?eligible.reduce((total,o)=>total+financeSplit(o.price).raul,0)
+          :eligible.length*FINANCE_TIMUR_FEE;
+        updatedDue=roundMoney(accrued-paid);
+      }
+      return {operationId,updatedDue,refreshError};
+    };
     document.getElementById("financeForm").addEventListener("submit",async event=>{
       event.preventDefault();
       if(currentRole!=="owner")return;
