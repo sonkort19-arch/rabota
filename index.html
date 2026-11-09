@@ -737,6 +737,13 @@
       if(currentRole==="master"){try{await refreshRabotaNotifications();}catch(error){console.warn("Notification reload",error);}}
     }
     function getOrders() {return cloudOrders;}
+    function orderHasFinancialHistory(order){
+      if(!order)return false;
+      return Boolean(order.paid||order.paymentMethod||order.paymentAmount!=null||
+        order.paymentReceivedBy||order.paidAt||order.paidBy||
+        financeOperations.some(row=>String(row.order_id)===String(order.id))||
+        financeCollections.some(row=>String(row.order_id)===String(order.id)));
+    }
     async function persistOrder(order) {
       const existing = cloudOrders.some(o => String(o.id) === String(order.id));
       const data = serializeOrder(order);
@@ -1176,9 +1183,9 @@
       const existing=editingId===null?null:getOrders().find(x=>String(x.id)===editingId);
       advanced.open=Boolean(existing);
       deleteOrderBtn.hidden=currentRole!=="owner"||!existing;
-      deleteOrderBtn.disabled=Boolean(existing&&(existing.paid||existing.paymentAmount!=null||existing.paidAt));
+      deleteOrderBtn.disabled=orderHasFinancialHistory(existing);
       deleteOrderBtn.textContent=deleteOrderBtn.disabled
-        ?"Оплаченный заказ нельзя удалить":"Удалить заказ";
+        ?"Есть оплата или финансы — удалить нельзя":"Удалить заказ";
       document.getElementById("formTitle").textContent=existing?"Редактировать заказ":"Новый заказ";
       if(existing) {
         controls.name.value=existing.name||"";
@@ -1227,8 +1234,8 @@
       const id=editingId;
       const order=getOrders().find(o=>String(o.id)===String(id));
       if(!order){formStatus.textContent="Заказ больше не найден. Обновите список.";return;}
-      if(order.paid||order.paymentAmount!=null||order.paidAt){
-        formStatus.textContent="Оплаченный заказ нельзя удалить. Сохраните финансовую историю.";return;
+      if(orderHasFinancialHistory(order)){
+        formStatus.textContent="Заказ с оплатой или финансовыми операциями удалить нельзя.";return;
       }
       const label=(order.name||"Клиент")+" — "+(order.date||"без даты")+
         (order.time?" в "+order.time:"");
