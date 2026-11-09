@@ -34,3 +34,9 @@ body.rd .rd-cal-slots{min-height:40px;padding:8px 12px;border:1px solid #bfcee9;
  .qs-dialog{width:100%;max-height:calc(100dvh - env(safe-area-inset-top) - 10px);border-radius:20px 20px 0 0;padding:18px 16px calc(14px + env(safe-area-inset-bottom))}
  .qs-slot{min-height:57px}
 }
+
+/* Secondary entry points on the order list and calendar. */
+body.rd .rd-orders-quick-slots{display:inline-flex;align-items:center;justify-content:center;min-height:40px;margin:8px 0 4px;padding:8px 13px;border:1px solid #bfcee9;border-radius:11px;background:#f3f7ff;color:#294e86;font-size:13px;font-weight:700;cursor:pointer}
+body.rd .rd-calendar-titlebar{display:flex;align-items:center;flex-wrap:wrap;gap:8px}
+body.rd .rd-calendar-titlebar .rd-cal-slots{margin-left:auto}
+@media(max-width:420px){body.rd .rd-calendar-titlebar .rd-cal-slots{margin-left:0}}
