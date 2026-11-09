@@ -9,7 +9,10 @@ const fixed=process.env.AUDIT_FIXED==='1';
 const sql=s=>execFileSync('psql',['-X','-qAt','-v','ON_ERROR_STOP=1'],{input:s,encoding:'utf8',stdio:['pipe','pipe','pipe']}).trim();
 sql('drop schema if exists public cascade; drop schema if exists auth cascade; drop schema if exists private cascade; create schema public;');
 sql(fs.readFileSync('tests/audit/baseline.sql','utf8'));
-if(fixed)sql(fs.readFileSync('sql/audit-reliability-fixes.sql','utf8'));
+if(fixed){
+ sql(fs.readFileSync('sql/001-c1-emergency.sql','utf8'));
+ sql(fs.readFileSync('sql/002-reliability.sql','utf8'));
+}
 const owner='10000000-0000-4000-8000-000000000001',master='10000000-0000-4000-8000-000000000002',
  stranger='10000000-0000-4000-8000-000000000003',other='10000000-0000-4000-8000-000000000004';
 const seed=`

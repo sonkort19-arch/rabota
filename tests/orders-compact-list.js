@@ -12,7 +12,7 @@ const script=fs.readFileSync(path.join(__dirname,"../orders-list.js"),"utf8");
 class Element {
  constructor(tag="div"){
   this.tagName=tag.toUpperCase();this.className="";this.children=[];this.events={};
-  this.hidden=false;this.attributes={};this.parentNode=null;this.id="";this._text="";
+  this.hidden=false;this.dataset={};this.attributes={};this.parentNode=null;this.id="";this._text="";
   const e=this;
   this.classList={
    contains(x){return e.className.split(" ").includes(x)},
@@ -79,17 +79,13 @@ for(const role of ["owner","manager"]){
   const x=fixture(role);
   assert.equal(x.legacy,0);
   assert.ok(x.card.classList.contains("rd-list-row"));
-  const [button,details]=x.card.children;
+  const [button]=x.card.children;
   assert.equal(button.tagName,"BUTTON");
-  assert.equal(button.getAttribute("aria-expanded"),"false");
-  assert.equal(details.hidden,true);
-  button.click();
-  assert.equal(details.hidden,false);
-  assert.equal(button.getAttribute("aria-expanded"),"true");
-  assert.ok(details.children.some(n=>n.classList.contains("actions")));
+  assert.equal(button.getAttribute("aria-haspopup"),"dialog");
+  assert.equal(x.card.__rdActions.actions.children[0],x.edit);
+  assert.equal(x.card.__rdActions.controls.children[0],x.payment);
   x.edit.click();x.payment.click();
   assert.equal(x.edits,1);assert.equal(x.payments,1);
-  button.click();assert.equal(details.hidden,true);
   assert.equal(x.root.querySelectorAll(".rd-list-columns").length,1);
   assert.equal(x.refreshes,2);
  });

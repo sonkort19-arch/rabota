@@ -46,7 +46,7 @@ async function scan(page,label){
   return {label,width:innerWidth,overflow:document.documentElement.scrollWidth-viewport,issues:issues.slice(0,16)};
  },label);
 }
-(async()=>{const browser=await chromium.launch({executablePath:process.env.CHROMIUM_PATH||'/usr/bin/chromium',args:['--no-sandbox']});try{
+(async()=>{const browser=await chromium.launch({executablePath:process.env.CHROMIUM_PATH||undefined,args:['--no-sandbox']});try{
  const {page,context,writes,errors}=await setup(browser);
  await page.goto('https://crm.test/');await page.locator('.rd-shell').waitFor();
  const results=[];

@@ -9,7 +9,7 @@ jobs:
     timeout-minutes: 15
     services:
       postgres:
-        image: postgres:17
+        image: postgres:17.6-bookworm@sha256:f3bd19c606e442c3d7bdfa8002e03fe260a1023351e0ea4598032022b68dd6e3
         env:
           POSTGRES_PASSWORD: local-audit-only
           POSTGRES_DB: rabota_audit
@@ -29,6 +29,13 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
+      - name: PostgreSQL 17 client tools for archive restore
+        run: |
+          if [ ! -x /usr/lib/postgresql/17/bin/pg_dump ]; then
+            sudo apt-get update
+            sudo apt-get install --yes postgresql-client-17
+          fi
+          echo /usr/lib/postgresql/17/bin >> "$GITHUB_PATH"
       - name: Reproduce audited baseline in disposable PostgreSQL
         run: node --test tests/audit/database.cjs
       - name: Verify SQL fixes in disposable PostgreSQL
@@ -37,12 +44,14 @@ jobs:
         run: node --test tests/audit/database.cjs
       - name: Unit regressions
         run: node --test tests/audit/client.cjs
+      - name: Production contract, standalone C1, cutover, archive restore and safe rollback
+        run: node --test tests/audit/deployment.cjs
       - name: Existing unit tests
-        run: node --test tests/*.test.js tests/finance-payroll-preview.js tests/mobile-order-form.js tests/order-calendar-collapse.js
+        run: node --test tests/finance-payroll-preview.js tests/lead-assistant-preview.js tests/master-notifications.js tests/mobile-order-form.js tests/order-calendar-collapse.js tests/orders-compact-list.js tests/ui-icon-layout.test.js
       - name: Install pinned browser test tooling
         run: |
           npm install --prefix "$RUNNER_TEMP/rabota-tools" --ignore-scripts playwright@1.56.1
-          "$RUNNER_TEMP/rabota-tools/node_modules/.bin/playwright" install --with-deps webkit
+          "$RUNNER_TEMP/rabota-tools/node_modules/.bin/playwright" install --with-deps webkit chromium
       - name: Read public production login page (GET only)
         run: |
           node -e 'fetch("https://rabota-rust.vercel.app/").then(async r => { const html=await r.text(); console.log(JSON.stringify({status:r.status,loginForm:html.includes("loginForm"),contentType:r.headers.get("content-type")})); if(!r.ok || !html.includes("loginForm")) process.exitCode=1; })'
@@ -50,3 +59,7 @@ jobs:
         env:
           NODE_PATH: ${{ runner.temp }}/rabota-tools/node_modules
         run: node tests/audit/mobile.cjs
+      - name: Existing responsive browser suite on synthetic data
+        env:
+          NODE_PATH: ${{ runner.temp }}/rabota-tools/node_modules
+        run: node tests/ui-smoke-v2.js

@@ -563,11 +563,13 @@
       }
       await refreshPromise;
     }
-    async function dbRequest(path, method, payload) {
+    async function dbRequest(path, method, payload, extraHeaders={}) {
       await ensureSession();
       const headers = {apikey:SUPABASE_KEY,Authorization:"Bearer " + session.access_token,Accept:"application/json"};
       if (payload !== undefined) headers["Content-Type"] = "application/json";
       if (method !== "GET") headers.Prefer = "return=representation";
+      if (method !== "GET") headers["X-Rabota-Client"] = "2";
+      Object.assign(headers,extraHeaders);
       const response = await fetch(SUPABASE_URL + "/rest/v1/" + path, {
         method,headers,body:payload === undefined ? undefined : JSON.stringify(payload)
       });
@@ -671,13 +673,16 @@
     function getOrders() {return cloudOrders;}
     async function persistOrder(order) {
       const existing = cloudOrders.find(o => String(o.id) === String(order.id));
+      if(existing&&order.creationIntent)
+        throw new Error("Этот заказ уже сохранён. Откройте его заново для изменения; повторная запись не выполнялась.");
       const data = serializeOrder(order);
       let rows;
       if (existing) {
         const expected=order.expectedUpdatedAt||order.updatedAt||existing.updatedAt;
         if(!expected)throw new Error("Нет версии заказа. Обновите список перед изменением.");
         rows=await dbRequest("rabota_orders?id=eq."+encodeURIComponent(order.id)+
-          "&updated_at=eq."+encodeURIComponent(expected),"PATCH",data);
+          "&updated_at=eq."+encodeURIComponent(expected),"PATCH",data,
+          {"X-Rabota-Order-Version":expected});
         if(!Array.isArray(rows)||rows.length!==1)
           throw new Error("Заказ изменился на другом устройстве. Откройте его заново.");
       } else {
@@ -1301,6 +1306,7 @@
       const order={
         id:existing?existing.id:form.dataset.createId,createdAt:existing?existing.createdAt:now,
         expectedUpdatedAt:editingVersion,
+        creationIntent:editingId===null,
         legacyId:existing?existing.legacyId:null,
         leadId:existing?existing.leadId:(status!=="Отменён"?form.dataset.leadId||null:null),
         name,phone,address:controls.address.value.trim(),
@@ -1514,7 +1520,7 @@
         const masterUnallocated=receivedOrders.filter(o=>
           o.paymentReceivedBy==="master"&&!cashCollections.has(String(o.id)));
         const directReceipts=sumBy(receivedOrders.filter(o=>
-          !cashCollections.has(String(o.id))&&o.paymentReceivedBy!=="master"),o=>o.price);
+          !cashCollections.has(String(o.id))&&o.paymentReceivedBy!=="master"),o=>o.paymentAmount??o.price);
         const confirmedDeposits=sumBy(financeCollections.filter(c=>c.confirmed_at),c=>c.company_amount);
         const cashIn=roundMoney(directReceipts+confirmedDeposits);
         const allPayouts=sumBy(payments.filter(o=>(o.kind==="raul_payout"||o.kind==="timur_payout")&&!o.order_id),o=>o.amount);
@@ -1639,6 +1645,8 @@
         const result=await dbRequest("rpc/rabota_finance_record_v2","POST",{
           p_request_id:pending.requestId,...payload
         });
+        if(typeof result!=="string"||!result.trim())
+          throw new Error("Нет подтверждения финансовой операции. Повторите проверку с прежними данными.");
         localStorage.removeItem(storageKey);
         return result;
       }catch(error){

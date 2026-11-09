@@ -128,3 +128,66 @@ test('long AI chat sends newest user message instead of first 200 messages',asyn
  assert.equal(rows.at(-1).role,'user');assert.equal(rows[0].id,31);
  assert.match(requested,/created_at.desc,id.desc/);
 });
+
+test('REST order writes carry client generation and expected version',async()=>{
+ const c={ensureSession:async()=>{},SUPABASE_KEY:'synthetic',SUPABASE_URL:'https://crm.test',
+ session:{access_token:'synthetic'},fetch:async(url,options)=>{
+  assert.equal(options.headers['X-Rabota-Client'],'2');
+  assert.equal(options.headers['X-Rabota-Order-Version'],'expected');
+  return {ok:true,json:async()=>[{id:'one'}]};
+ }};
+ vm.createContext(c);vm.runInContext(extract('async function dbRequest(','function readOrder('),c);
+ await c.dbRequest('rabota_orders?id=eq.one','PATCH',{}, {'X-Rabota-Order-Version':'expected'});
+});
+
+test('finance keeps retry key after 5xx but discards it after explicit rollback error',async()=>{
+ const saved=new Map();
+ const c={currentRole:'owner',currentUser:{id:'owner'},crypto:{randomUUID:()=> 'same-request'},
+ localStorage:{getItem:k=>saved.get(k)||null,setItem:(k,v)=>saved.set(k,v),removeItem:k=>saved.delete(k)},
+ dbRequest:async()=>{throw Object.assign(new Error('unknown result'),{status:503})}};
+ vm.createContext(c);vm.runInContext(extract('async function recordFinanceOperation(','window.__rdRecordPayrollPayout='),c);
+ const data={kind:'expense',amount:100,masterId:null,note:'Тест'};
+ await assert.rejects(c.recordFinanceOperation(data));assert.equal(saved.size,1);
+ c.dbRequest=async()=>{throw Object.assign(new Error('transaction rejected'),{status:400})};
+ await assert.rejects(c.recordFinanceOperation(data));assert.equal(saved.size,0);
+});
+
+test('UI and AI agree on direct receipts, held cash, deposits, payouts and expenses',async()=>{
+ const raw=[
+  {id:'held',paid:true,status:'Выполнен',price:20000,payment_amount:20000,payment_received_by:'master'},
+  {id:'direct',paid:true,status:'Выполнен',price:99999,payment_amount:10000,payment_received_by:'company'},
+  {id:'collected',paid:true,status:'Выполнен',price:12000,payment_received_by:'master'}];
+ const collections=[{order_id:'collected',confirmed_at:'2026-01-01',company_amount:4500}];
+ const operations=[{kind:'expense',amount:500},{kind:'expense',amount:999,voided_at:'2026-01-01'},
+  {kind:'raul_payout',amount:100,order_id:null},{kind:'raul_payout',amount:6000,order_id:'collected'}];
+ const ui={getOrders:()=>raw.map(o=>({...o,paymentAmount:o.payment_amount,paymentReceivedBy:o.payment_received_by})),
+  financeCollections:collections,payments:operations.filter(o=>!o.voided_at),raulDue:0,timurDue:0,
+  sumBy:(rows,fn)=>rows.reduce((sum,o)=>sum+Number(fn(o)||0),0),roundMoney:n=>Math.round(n*100)/100};
+ vm.createContext(ui);
+ const start=html.indexOf('const receivedOrders=getOrders().filter'),end=html.indexOf('root.append(make("h2","finance-title","Касса компании"))',start);
+ vm.runInContext(html.slice(start,end)+';globalThis.actual={directReceipts,cashIn,cashBalance};',ui);
+ const source=fs.readFileSync('api/ai-chat.js','utf8'),ai={process:{env:{}},Date,Intl};
+ vm.createContext(ai);vm.runInContext(source.slice(0,source.indexOf('module.exports')),ai);
+ ai.readRows=async table=>({rabota_orders:raw,rabota_members:[],rabota_cash_collections:collections,rabota_finance_operations:operations})[table];
+ const snapshot=await ai.businessSnapshot({},'касса');
+ assert.equal(ui.actual.directReceipts,snapshot.accounting_rub.direct_receipts);
+ assert.equal(ui.actual.cashIn,snapshot.accounting_rub.recorded_cash_in);
+ assert.equal(ui.actual.cashBalance,snapshot.accounting_rub.recorded_cash_balance);
+ assert.equal(ui.actual.cashBalance,13900);
+});
+
+test('an empty success response keeps the financial retry key',async()=>{
+ const saved=new Map();
+ const c={currentRole:'owner',currentUser:{id:'owner'},crypto:{randomUUID:()=> 'same-request'},
+ localStorage:{getItem:k=>saved.get(k)||null,setItem:(k,v)=>saved.set(k,v),removeItem:k=>saved.delete(k)},dbRequest:async()=>null};
+ vm.createContext(c);vm.runInContext(extract('async function recordFinanceOperation(','window.__rdRecordPayrollPayout='),c);
+ await assert.rejects(c.recordFinanceOperation({kind:'expense',amount:1,masterId:null,note:'Тест'}),/Нет подтверждения/);
+ assert.equal(saved.size,1);
+});
+
+test('a create retry never overwrites a saved order that appeared in background refresh',async()=>{
+ let writes=0;
+ const c=context({cloudOrders:[{id:'saved',name:'Правки другого пользователя',updatedAt:'latest'}],dbRequest:async()=>{writes++;return []}});
+ await assert.rejects(c.persistOrder({id:'saved',creationIntent:true,name:'Старая форма создания'}),/уже сохранён/);
+ assert.equal(writes,0);
+});
