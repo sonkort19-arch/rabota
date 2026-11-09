@@ -175,3 +175,34 @@ body.rd #rdLeadsMount .la-lead[hidden]{display:none!important}
   body.rd #rdLeadsMount .la-actions>*{flex:1 1 90px}
   body.rd #rdLeadsMount .la-editor .la-field-grid{grid-template-columns:1fr;gap:0}
 }
+
+
+/* 2026-11: one global search, compact lead list for iPhone. */
+body.rd #rdLeadsMount .la-compact-heading {
+  justify-content:flex-end;
+  margin-bottom:10px;
+}
+body.rd #rdLeadsMount .la-compact-heading .la-primary {
+  min-height:43px;
+  font-size:14px;
+}
+body.rd #rdLeadsMount .la-summary{
+  margin:0 0 12px;
+}
+body.rd #rdLeadsMount .la-filters {
+  margin:8px 0 12px;
+}
+body.rd #rdLeadsMount .la-empty {
+  padding:23px 14px;
+  line-height:1.5;
+}
+@media (max-width:600px) {
+  body.rd #rdLeadsMount .la-box{padding:13px}
+  body.rd #rdLeadsMount .la-compact-heading{margin-bottom:9px}
+  body.rd #rdLeadsMount .la-summary-item{padding:10px 7px}
+  body.rd #rdLeadsMount .la-summary-item span{overflow-wrap:anywhere;font-size:10px}
+  body.rd #rdLeadsMount .la-input{font-size:16px}
+  body.rd #rdLeadsMount .la-filters{gap:6px}
+  body.rd #rdLeadsMount .la-filters .la-chip{min-height:35px}
+  body.rd #rdLeadsMount .la-empty{padding:18px 10px}
+}
