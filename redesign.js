@@ -1122,6 +1122,7 @@ window.__rdAccess=()=>{
  build();
  window.__rdLeadsSyncNav?.();
 };
+window.__rdQuickSlotsRefresh=()=>{if(ready&&activePage==="home")drawHome();};
 window.__rdRefresh=()=>{
  if(!ready)return;
  if(activePage==="home")drawHome();
