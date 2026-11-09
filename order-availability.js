@@ -179,7 +179,7 @@
       button.setAttribute("aria-label",time+": "+label);
       button.setAttribute("aria-pressed",String(timeInput.value===time));
       button.dataset.baseLabel=label;
-      button.append(el("strong","",time),el("small","",timeInput.value===time&&selectable?"Выбрано":label));
+      button.append(el("strong","",time),el("small","",timeInput.value===time&&selectable?(state==="tight"?"Выбрано · плотно":"Выбрано"):label));
       if(!button.disabled){
         available++;
         button.addEventListener("click",()=>{
@@ -201,7 +201,7 @@
       button.classList.toggle("is-selected",selected);
       button.setAttribute("aria-pressed",String(selected));
       const caption=button.querySelector("small");
-      if(caption)caption.textContent=selected?"Выбрано":button.dataset.baseLabel||"";
+      if(caption)caption.textContent=selected?(button.classList.contains("oa-slot-tight")?"Выбрано · плотно":"Выбрано"):button.dataset.baseLabel||"";
     }
   }
   function render(){
