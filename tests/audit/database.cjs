@@ -64,7 +64,7 @@ test('one lead cannot create two live orders at different times',()=>{
  `+order(id,',lead_id')+`,'${lead}');
  insert into public.rabota_orders(name,phone,master,status,appointment_date,appointment_time,lead_id)
  values ('Второй заказ','79990000001','Рауль','Записан',current_date+8,'15:00','${lead}');`;
- if(fixed)rejected(body,/уже создан заказ/);else assert.ok(run(body+'select count(*) from public.rabota_orders').endsWith('2'));
+ if(fixed)rejected(body,/уже создан заказ|rabota_orders_one_active_order_per_lead/);else assert.ok(run(body+'select count(*) from public.rabota_orders').endsWith('2'));
 });
 test('AI can prepare and confirm a different master at the same time',()=>{
  const query=order(id)+`);
@@ -90,4 +90,30 @@ test('retry key returns original finance operation, mismatched payload rejected'
  const call=`select public.rabota_finance_record_v2('${request}','expense',100,null,'Тест');`;
  assert.ok(run(call+call+'select count(*) from public.rabota_finance_operations').endsWith('1'));
  rejected(call+`select public.rabota_finance_record_v2('${request}','expense',101,null,'Тест')`,/другими данными/);
+});
+
+test('RLS hides orders and finance from unrelated authenticated users',()=>{
+ const body=order(id)+`);set local role authenticated;
+ select set_config('request.jwt.claim.sub','${stranger}',true);
+ select count(*) from public.rabota_orders;`;
+ assert.ok(run(body).endsWith('0'));
+ assert.ok(run(body+'select count(*) from public.rabota_finance_operations').endsWith('0'));
+});
+test('RLS assigned master reads own orders but cannot directly change them',()=>{
+ const body=order(id)+`);set local role authenticated;
+ select set_config('request.jwt.claim.sub','${master}',true);`;
+ assert.ok(run(body+'select count(*) from public.rabota_orders').endsWith('1'));
+ assert.ok(run(body+`update public.rabota_orders set price=1 returning id;select price from public.rabota_orders`).endsWith('20000.00'));
+});
+test('two concurrent identical finance requests produce one row',async t=>{
+ if(!fixed){t.skip('v2 is added by the patch');return}
+ const {execFile}=require('node:child_process'),{promisify}=require('node:util'),exec=promisify(execFile);
+ // All these writes stay inside the disposable localhost database.
+ sql('begin;'+seed+'commit;');
+ const req='40000000-0000-4000-8000-000000000002';
+ const query=`begin;select set_config('request.jwt.claim.sub','${owner}',true);
+ select public.rabota_finance_record_v2('${req}','expense',123,null,'Параллельный тест');commit;`;
+ const results=await Promise.all([1,2].map(()=>exec('psql',['-X','-qAt','-v','ON_ERROR_STOP=1','-c',query])));
+ assert.equal(results[0].stdout.trim(),results[1].stdout.trim());
+ assert.equal(sql(`select count(*) from public.rabota_finance_operations where request_id='${req}'`),'1');
 });

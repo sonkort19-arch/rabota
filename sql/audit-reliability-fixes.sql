@@ -2,6 +2,10 @@
 -- Baseline: 2026-11-09 schema-only catalog inspection.
 -- Run in a transaction after a backup and staging tests. No business-row backfill.
 begin;
+-- Enforce conversion uniqueness on inserts AND cancelled-order reactivation.
+create unique index if not exists rabota_orders_one_active_order_per_lead
+ on public.rabota_orders(lead_id) where lead_id is not null and status<>'Отменён';
+
 CREATE OR REPLACE FUNCTION public.rabota_record_order_payment(p_order_id uuid, p_amount numeric, p_method text)
  RETURNS jsonb
  LANGUAGE plpgsql
