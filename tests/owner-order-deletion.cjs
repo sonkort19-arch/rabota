@@ -22,7 +22,8 @@ function setup({role="owner",paid=false,reply={ok:true},typed="УДАЛИТЬ",c
   const context={
     currentRole:role,editingId:"test-id",orderSaving:false,
     deleteOrderBtn:deleteBtn,formStatus,form:{querySelector:()=>saveBtn},
-    getOrders:()=>[order],confirm:()=>confirmed,prompt:()=>typed,
+    getOrders:()=>[order],orderHasFinancialHistory:o=>Boolean(o.paid||o.paymentAmount!=null||o.paidAt),
+    confirm:()=>confirmed,prompt:()=>typed,
     dbRequest:async(path,method,payload)=>{
       calls.push({path,method,payload});
       if(reply instanceof Error)throw reply;
@@ -41,7 +42,7 @@ function setup({role="owner",paid=false,reply={ok:true},typed="УДАЛИТЬ",c
 test("delete control is visible only for owner editing an existing order",()=>{
   assert.ok(html.includes('id="deleteOrderBtn" type="button" hidden'));
   assert.ok(html.includes('deleteOrderBtn.hidden=currentRole!=="owner"||!existing'));
-  assert.ok(html.includes('deleteOrderBtn.disabled=Boolean(existing&&(existing.paid'));
+  assert.ok(html.includes('deleteOrderBtn.disabled=orderHasFinancialHistory(existing)'));
   assert.ok(html.includes('dbRequest("rpc/rabota_delete_order","POST",{p_order_id:id})'));
   assert.ok(!html.includes('dbRequest("rabota_orders?id=eq." + encodeURIComponent(order.id),"DELETE"'));
 });
