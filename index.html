@@ -190,6 +190,23 @@
     .push-panel .push-status{font-size:13px;line-height:1.45;overflow-wrap:anywhere}
     .push-panel .push-notice{border-top:1px solid #e0e8f4;padding:10px 0 2px;font-size:13px}
     .push-panel .push-notice button{font-size:12px;padding:5px 8px;margin-top:6px}
+
+    /* Lightweight heating-themed startup, rendered before any external scripts. */
+    .rd-startup[hidden]{display:none!important}
+    .rd-startup{position:fixed;inset:0;z-index:9999;display:grid;place-items:center;background:#f7f9fc;color:#192335;padding:24px;min-height:100dvh}
+    .rd-startup-content{display:flex;align-items:center;flex-direction:column;width:min(100%,320px);text-align:center}
+    .rd-startup-radiator{width:210px;max-width:75vw;height:auto;filter:drop-shadow(0 12px 24px rgba(249,115,22,.1))}
+    .rd-startup-heat{clip-path:inset(0 100% 0 0);animation:rd-startup-fill 2.2s ease-in-out infinite}
+    .rd-startup-pulse{animation:rd-startup-flow 2.2s linear infinite}
+    .rd-startup h1{font-size:29px;letter-spacing:.12em;margin:4px 0 5px;font-weight:800}
+    .rd-startup p{margin:0 0 24px;font-size:14px;color:#64748b}
+    .rd-startup-track{display:block;width:146px;height:4px;border-radius:99px;overflow:hidden;background:#e2e8f0}
+    .rd-startup-track>span{display:block;height:100%;width:42%;border-radius:99px;background:#f97316;animation:rd-startup-progress 1.5s ease-in-out infinite}
+    .rd-startup-status{margin-top:13px;font-size:12px;color:#64748b}
+    @keyframes rd-startup-fill{0%,8%{clip-path:inset(0 100% 0 0)}65%,85%{clip-path:inset(0 0 0 0)}100%{clip-path:inset(0 100% 0 0)}}
+    @keyframes rd-startup-flow{0%{stroke-dashoffset:184;opacity:0}15%{opacity:1}85%{opacity:1}100%{stroke-dashoffset:0;opacity:0}}
+    @keyframes rd-startup-progress{0%{transform:translateX(-110%)}100%{transform:translateX(350%)}}
+    @media(prefers-reduced-motion:reduce){.rd-startup-heat{animation:none;clip-path:inset(0 0 0 0)}.rd-startup-pulse{animation:none;opacity:0}.rd-startup-track>span{animation:none;transform:none}}
   </style>
   <link rel="stylesheet" href="/redesign.css">
   <link rel="stylesheet" href="/light-theme.css">
@@ -206,8 +223,28 @@
   <link rel="stylesheet" href="/ui-alignment.css">
 </head>
 <body>
-  <section id="startupScreen" class="login-screen" role="status" aria-live="polite">
-    <div class="login-card" style="text-align:center"><h1>Работа</h1><p class="muted">Подключаемся…</p></div>
+  <section id="startupScreen" class="rd-startup" role="status" aria-live="polite" aria-label="Загрузка приложения Работа">
+    <div class="rd-startup-content">
+      <svg class="rd-startup-radiator" viewBox="0 0 240 170" aria-hidden="true" focusable="false">
+        <defs><linearGradient id="rd-startup-warm" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#fb923c"/><stop offset="1" stop-color="#ea580c"/></linearGradient></defs>
+        <path d="M34 45H206M34 125H206" stroke="#cbd5e1" stroke-width="8" stroke-linecap="round"/>
+        <g fill="#e2e8f0">
+          <rect x="38" y="29" width="24" height="112" rx="12"/><rect x="66" y="29" width="24" height="112" rx="12"/>
+          <rect x="94" y="29" width="24" height="112" rx="12"/><rect x="122" y="29" width="24" height="112" rx="12"/>
+          <rect x="150" y="29" width="24" height="112" rx="12"/><rect x="178" y="29" width="24" height="112" rx="12"/>
+        </g>
+        <g fill="url(#rd-startup-warm)" class="rd-startup-heat">
+          <rect x="38" y="29" width="24" height="112" rx="12"/><rect x="66" y="29" width="24" height="112" rx="12"/>
+          <rect x="94" y="29" width="24" height="112" rx="12"/><rect x="122" y="29" width="24" height="112" rx="12"/>
+          <rect x="150" y="29" width="24" height="112" rx="12"/><rect x="178" y="29" width="24" height="112" rx="12"/>
+        </g>
+        <path class="rd-startup-pulse" d="M28 85H212" stroke="#fff7ed" stroke-width="6" stroke-linecap="round" stroke-dasharray="18 166"/>
+      </svg>
+      <h1>РАБОТА</h1>
+      <p>Всё под контролем</p>
+      <span class="rd-startup-track" aria-hidden="true"><span></span></span>
+      <span class="rd-startup-status">Подключаемся…</span>
+    </div>
   </section>
 
   <section id="loginScreen" class="login-screen" hidden>
