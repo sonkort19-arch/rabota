@@ -63,7 +63,18 @@ async function scan(page,label){
     await page.getByRole('button',{name:'‹ Все клиенты',exact:true}).click();
    }
    if(section==='calendar'){
-    if(width<=1180)assert.ok((await page.locator('#rdCalendarDate').boundingBox()).width>=180,'native date text fits');
+    const dateControl=await page.locator('#rdCalendarDate').evaluate(e=>{
+     const label=e.parentElement.querySelector('.rd-cal-date-label');
+     return {transparent:getComputedStyle(e).opacity==='0',width:e.getBoundingClientRect().width,
+      label:label?.textContent?.trim(),labelWidth:label?.clientWidth,labelScroll:label?.scrollWidth,
+      nativeWidth:e.clientWidth,nativeScroll:e.scrollWidth};
+    });
+    // Mobile uses a visible localized label over an invisible native picker.
+    // Its current compact layout does not require 180px of native input text.
+    if(dateControl.transparent){
+     assert.ok(dateControl.label&&dateControl.labelWidth>0,'localized date label is visible');
+     assert.ok(dateControl.labelScroll<=dateControl.labelWidth+1,'localized date label fits');
+    }else assert.ok(dateControl.nativeScroll<=dateControl.nativeWidth+1,'native date control fits');
     for(const mode of ['day','list','week']){
      await page.locator('.rd-calendar-mode[data-mode="'+mode+'"]').click();results.push(await scan(page,'calendar-'+mode));
     }
@@ -119,9 +130,10 @@ async function scan(page,label){
     await p.locator('.master-schedule-toggle').first().click();results.push(await scan(p,profile+' master schedule'));
     await p.locator('#viewFinanceBtn').evaluate(e=>e.click());results.push(await scan(p,profile+' master finance'));
    }else{
-    await p.locator('.rd-mobilebar [data-page="more"]').click();results.push(await scan(p,profile+' '+role+' menu'));
-    await p.locator('.rd-more-sheet [data-page="clients"]').click();
-    assert.equal(await p.locator('.rd-more-sheet').isVisible(),false);
+    const clients=p.locator('.rd-mobilebar [data-page="clients"]');
+    await clients.scrollIntoViewIfNeeded();await clients.click();
+    results.push(await scan(p,profile+' '+role+' navigation'));
+    assert.equal(await p.locator('#rdClients').isVisible(),true);
     await p.locator('.rd-mobilebar [data-page="orders"]').click();await p.locator('#newOrderBtn').click();
     await p.locator('#orderOverlay .sheet').evaluate(e=>e.scrollTop=e.scrollHeight);
     assert.equal(await p.locator('.order-submit-bar .save').isVisible(),true);
