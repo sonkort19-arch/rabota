@@ -33,8 +33,9 @@
         // A caller needs time to finish the phone conversation and arrange travel.
         if(day===0&&timeMinutes(time)<=clock.minutes+20)continue;
         for(const master of names) {
-          if(checkTime(time,date,master)!=="available")continue;
-          result.push({date,time,master});
+          const state=checkTime(time,date,master);
+          if(state!=="available"&&state!=="tight")continue;
+          result.push({date,time,master,tight:state==="tight"});
           if(result.length>=limit)return result;
         }
       }
@@ -82,7 +83,7 @@
   status.setAttribute("aria-live","polite");
   const list=make("div","qs-list");
   const foot=make("p","qs-footnote",
-    "Типовые начала: 10:00, 15:00, 18:00. Работа около 3 часов + 20 минут дорога. Максимум 2 заказа на мастера в день. Время предварительное, повторно проверяется перед записью.");
+    "Количество заказов в день не ограничено. Точное совпадение времени у одного мастера запрещено. Плотные записи требуют проверки длительности работ и дороги; окончательное решение — при сохранении.");
   dialog.append(heading,actions,status,list,foot);
   host.append(dialog);
   document.body.append(host);
@@ -138,12 +139,12 @@
         current=slot.date;
         list.append(make("h3","qs-day",formatDay(current)));
       }
-      const row=make("button","qs-slot");
+      const row=make("button","qs-slot"+(slot.tight?" qs-slot-tight":""));
       row.type="button";
       row.setAttribute("aria-label","Записать: "+formatDay(slot.date)+" в "+slot.time+", мастер "+slot.master);
       const time=make("strong","",slot.time);
       const details=make("span","",slot.master);
-      const action=make("span","qs-action","Записать");
+      const action=make("span","qs-action",slot.tight?"Плотно · записать":"Записать");
       row.append(time,details,action);
       row.addEventListener("click",()=>chooseSlot(slot));
       list.append(row);
@@ -199,7 +200,7 @@
     const data=await window.__rdQuickSlotsRead();
     const members=namesFrom(data);
     if(!members.includes(slot.master)||
-      window.__rdOrderAvailability?.checkTime(slot.time,slot.date,slot.master)!=="available"){
+      !["available","tight"].includes(window.__rdOrderAvailability?.checkTime(slot.time,slot.date,slot.master))){
       open();
       return false;
     }
