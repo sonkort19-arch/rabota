@@ -499,7 +499,11 @@
     syncNav();initialized=true;
   }
   window.__rdLeadsRender=()=>{resetForAccount();render();refresh()};
-  window.__rdLeadsRefresh=()=>refresh(true);
+  window.__rdLeadsRefresh=async()=>{
+    // The linked order is already stored atomically; close the stale lead editor.
+    editing=false;openId=null;draft=blank();
+    await refresh(true);render();
+  };
   window.__rdLeadsSearch=value=>{searchTerm=String(value||"");filterVisible()};
   window.__rdLeadsSyncNav=syncNav;
   window.__rdLeadDueCount=countDue;
