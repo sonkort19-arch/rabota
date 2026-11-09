@@ -580,7 +580,7 @@
     }
     function readOrder(row) {
       return {
-        id: row.id, createdAt: row.created_at,
+        id: row.id, createdAt: row.created_at, leadId:row.lead_id||null,
         completedAt: row.completed_at, legacyId: row.legacy_id,
         name:row.name || "",phone:row.phone || "",address:row.address || "",
         radiatorType:row.radiator_type || "",radiators:row.radiators == null ? "" : row.radiators,
@@ -614,6 +614,7 @@
         obj.paid_by=order.paidBy||currentUser?.id||null;
       }
       if (order.legacyId) obj.legacy_id = order.legacyId;
+      if (order.leadId) obj.lead_id = order.leadId;
       return obj;
     }
     function friendlyError(error) {
@@ -1266,6 +1267,7 @@
       const order={
         id:existing?existing.id:null,createdAt:existing?existing.createdAt:now,
         legacyId:existing?existing.legacyId:null,
+        leadId:existing?existing.leadId:(status!=="Отменён"?form.dataset.leadId||null:null),
         name,phone,address:controls.address.value.trim(),
         radiatorType:controls.type.value,radiators:controls.radiators.value,
         floorLoops:controls.loops.value,master:raulCreating?currentMasterName.trim():controls.master.value.trim(),
@@ -1288,8 +1290,7 @@
       formStatus.textContent="Сохранение заказа…";
       try {
         await persistOrder(order);
-        const sourceLeadId=!existing&&status!=="Отменён"?form.dataset.leadId:null;
-        if(sourceLeadId)await window.__rdLeadMarkBooked?.(sourceLeadId);
+        if(order.leadId)await window.__rdLeadsRefresh?.();
         selectedDate=date;
         currentTab=raulCreating?"all":status==="Выполнен"?"history":status==="Отменён"?"all":"calendar";
         closeForm(true);render();
