@@ -1561,3 +1561,15 @@ body.rd .rd-nav-more[hidden]{display:none!important}
  body.rd #rdHome .rd-home-metrics{gap:5px}
  body.rd #rdHome .rd-home-metric{padding:7px}
 }
+
+
+/* Owner-only irreversible deletion is deliberately less prominent than Save. */
+#orderForm .order-delete-btn{
+  display:block;min-height:42px;width:100%;margin:10px 0 0;
+  border:1px solid #e7baba;border-radius:10px;background:transparent;
+  color:#a12f39;font-size:13px;font-weight:650;cursor:pointer;
+  touch-action:manipulation;
+}
+#orderForm .order-delete-btn[hidden]{display:none!important}
+#orderForm .order-delete-btn:disabled{opacity:.55;cursor:not-allowed}
+#orderForm .order-delete-btn:focus-visible{outline:2px solid #b23c45;outline-offset:2px}
