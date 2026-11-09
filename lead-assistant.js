@@ -318,12 +318,13 @@
   }
   function previewSlots(){
     const wrap=node("section","la-box la-slots"),head=node("strong","","Возможные окна мастера");
-    wrap.append(head,node("p","la-muted","Сверка с текущими заказами, интервал между записями ≥ 3 ч 20 мин. Перед записью расписание проверяется ещё раз."));
+    wrap.append(head,node("p","la-muted","До двух выездов на мастера без ограничения. Третий возможен, если у всех трёх по 1–5 батарей. Для близких записей учитывайте время на работу и дорогу."));
     const orders=Array.isArray(context().orders)?context().orders:[];
     const master="Рауль",out=node("div","la-slot-list");
     for(let day=0;day<3;day++){
       const date=shifted(today(),day);
-      if(orders.filter(o=>o.date===date&&o.status!=="Отменён"&&text(o.master).toLocaleLowerCase("ru")===master.toLocaleLowerCase("ru")).length>=2)continue;
+      const allowance=window.__rdBookingCapacity?.day(orders,date,master,draft.radiators);
+       if(!allowance?.canBook)continue;
       for(const time of ["10:00","15:00","18:00"]){
         const nowTime=new Intl.DateTimeFormat("en-GB",{timeZone:"Europe/Moscow",hour:"2-digit",minute:"2-digit",hourCycle:"h23"}).format(new Date());
         if(date===today()&&time<=nowTime)continue;
