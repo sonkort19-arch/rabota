@@ -97,3 +97,19 @@ test("Exact start time still blocked with four existing bookings, even for small
   assert.equal(api.checkTime("18:00",date,"Рауль"),"tight");
   assert.equal(api.checkTime("23:00",date,"Рауль"),"available");
 });
+
+test("Exact occupied time wins even if another booking is within 200 minutes",()=>{
+  const date="2026-11-11";
+  const api=availability([
+    {date,time:"10:00",master:"Рауль",status:"Записан"},
+    {date,time:"13:00",master:"Рауль",status:"Записан"},
+    {date,time:"15:00",master:"Рауль",status:"Записан"}
+  ]);
+  assert.equal(api.checkTime("13:00",date,"Рауль"),"busy");
+  assert.equal(api.checkTime("15:00",date,"Рауль"),"busy");
+  assert.equal(api.checkTime("18:00",date,"Рауль"),"tight");
+  const found=slotTest(api,["Рауль"],"2026-11-11T05:00:00Z");
+  assert.ok(!found.some(item=>item.date===date&&item.time==="15:00"),
+    "must not offer occupied exact start even if there is a nearby booking");
+  assert.ok(found.some(item=>item.date===date&&item.time==="18:00"&&item.tight));
+});
