@@ -14,7 +14,8 @@
   const nowClock=()=>new Intl.DateTimeFormat("en-GB",{timeZone:"Europe/Moscow",hour:"2-digit",minute:"2-digit",hourCycle:"h23"}).format(new Date());
   const humanDate=iso=>iso?new Date(iso+"T12:00:00Z").toLocaleDateString("ru-RU",{day:"numeric",month:"long",year:"numeric",timeZone:"UTC"}):"не назначена";
   const number=x=>x===null||x===undefined||x===""?null:Number(x);
-  const calc=(r,c)=>{const a=number(r),b=number(c);return Number.isInteger(a)&&Number.isInteger(b)&&a>=0&&b>=0&&a+b>0?Math.max(10000,a*2000+b*1000):null};
+  const calc=(r,c)=>{const a=number(r),b=number(c);return (a===null||Number.isInteger(a)&&a>=0)&&(b===null||Number.isInteger(b)&&b>=0)&&((a??0)+(b??0)>0)?Math.max(10000,(a??0)*2000+(b??0)*1000):null};
+  const priceLabel=(r,c)=>{const amount=calc(r,c);return amount===null?null:(r===""||r==null||c===""||c==null?"от ":"")+money(amount)};
   const statuses={new:"Новый",hot:"Горячий",waiting:"Думает / ждём",callback:"Перезвонить",ready:"Согласился",booked:"Записан",lost:"Отказался"};
   const reasons={none:"Не выбрано",salary:"После зарплаты",price:"Дорого",time:"Нет времени",family:"Посоветуется",other:"Другая причина"};
   const blank=()=>({id:null,name:"",phone:"",address:"",radiators:"",material:"",loops:"",notes:"",status:"new",reason:"none",followUpDate:"",followUpTime:"18:00",dateApprox:false,clientWillCall:false,consent:false,priceAgreed:false,updatedAt:"",history:[]});
@@ -99,7 +100,7 @@
       history:(lead.history||[]).slice(-30)};
   }
   const isOpen=lead=>!["ready","booked","lost"].includes(lead.status);
-  const needsCall=(lead,day=today(),clock=nowClock())=>isOpen(lead)&&!!lead.followUpDate&&
+  const needsCall=(lead,day=today(),clock=nowClock())=>isOpen(lead)&&lead.consent===true&&!lead.clientWillCall&&!!lead.followUpDate&&
     (lead.followUpDate<day||(lead.followUpDate===day&&clock>=(lead.followUpTime||"18:00")));
   window.__rdLeadLogic={today,shifted,nextMonth,weekday,dueFromText,parseNotes,calc,phoneKey,needsCall};
   const countDue=()=>load().filter(l=>needsCall(l)).length;
@@ -145,6 +146,9 @@
     if(!text(clean.name)||!phoneKey(clean.phone)){notice="Укажите имя и правильный телефон (10–11 цифр).";render();return}
     if(["callback","waiting"].includes(clean.status)&&!clean.followUpDate){
       notice="Укажите дату повторного контакта, чтобы не потерять клиента.";render();return
+    }
+    if(clean.status==="callback"&&!clean.consent){
+      notice="Перед перезвоном нужно согласие клиента. Отметьте галочку или выберите «Думает / ждём».";render();return;
     }
     if(clean.followUpDate&&!/^\d{4}-\d{2}-\d{2}$/.test(clean.followUpDate)){
       notice="Проверьте дату повторного контакта.";render();return
@@ -210,22 +214,13 @@
       ". Исходные записи оставлены на устройстве как резервная копия.";
     render();syncNav();
   }
-  async function markBooked(id){
-    const lead=load().find(l=>l.id===id);if(!lead)return;
-    try{
-      const updated={...lead,status:"booked",followUpDate:"",dateApprox:false};
-      updated.history=[...(lead.history||[]),{at:new Date().toISOString(),event:"Заказ оформлен",status:"booked"}].slice(-30);
-      const rows=await dbRequest("rabota_leads?id=eq."+encodeURIComponent(id)+
-        "&updated_at=eq."+encodeURIComponent(lead.updatedAt),"PATCH",toRow(updated));
-      if(Array.isArray(rows)&&rows.length===1){leadCache=leadCache.map(l=>l.id===id?fromRow(rows[0]):l);syncNav()}
-    }catch(error){console.warn("Lead linked order",error)}
-  }
-  window.__rdLeadMarkBooked=markBooked;
+  // Conversion is atomic in the database trigger on rabota_orders.
+  // No separate client write to change the lead status.
   async function enableReminders(){
     if(!("Notification" in window)){notice="Системные уведомления недоступны в этом браузере. Внутренние напоминания работают.";render();return}
     try{
       const granted=await Notification.requestPermission();
-      if(granted==="granted"){localStorage.setItem(notificationKey(),"1");notice="Уведомления разрешены, пока приложение запущено.";maybeNotify()}
+      if(granted==="granted"){localStorage.setItem(notificationKey(),"1");notice="Напоминания работают при открытом приложении. Фоновые push пока не подключены.";maybeNotify()}
       else notice="Браузер не разрешил системные уведомления. Внутренние напоминания работают.";
     }catch(error){notice="Не удалось включить уведомления: "+(error.message||String(error))}
     render();
@@ -272,7 +267,7 @@
     const container=$("laAdvisor");if(container)fillAdvisor(container);
     const preview=$("laPrice");if(preview){
       const amount=calc(draft.radiators,draft.loops);
-      preview.textContent=draft.material==="Чугунные"?"Нужна консультация мастера":amount===null?"Укажите радиаторы или контуры":money(amount);
+      preview.textContent=draft.material==="Чугунные"?"Нужна консультация мастера":amount===null?"Укажите радиаторы или контуры":priceLabel(draft.radiators,draft.loops);
     }
   }
   function missing(){
@@ -389,8 +384,8 @@
     const amount=group("la-price",
       node("span","","Предварительная стоимость · минимум 10 000 ₽"),
       node("strong","",draft.material==="Чугунные"?"Нужна консультация мастера":
-        calc(draft.radiators,draft.loops)===null?"Укажите радиаторы или контуры":money(calc(draft.radiators,draft.loops))),
-      node("small","","Радиатор — 2 000 ₽, контур — 1 000 ₽. Котёл и трубы включены. Для чугуна и нестандартных систем требуется проверка."));
+        calc(draft.radiators,draft.loops)===null?"Укажите радиаторы или контуры":priceLabel(draft.radiators,draft.loops)),
+      node("small","","Предварительный расчёт: минимум 10 000 ₽, радиатор — 2 000 ₽, контур — 1 000 ₽. При неизвестном количестве показана нижняя оценка. Окончательную цену согласуйте с клиентом."));
     amount.querySelector("strong").id="laPrice";
     extraBody.append(amount,tick("Клиент сам обещал позвонить","clientWillCall"),
       tick("Стоимость согласована","priceAgreed"));
@@ -425,7 +420,7 @@
     if(lead.radiators!==""&&lead.radiators!=null)brief.push(lead.radiators+" радиаторов");
     if(lead.loops!==""&&lead.loops!=null&&Number(lead.loops)>0)brief.push(lead.loops+" контур(ов)");
     const price=calc(lead.radiators,lead.loops);
-    if(price!==null&&lead.material!=="Чугунные")brief.push(money(price));
+    if(price!==null&&lead.material!=="Чугунные")brief.push(priceLabel(lead.radiators,lead.loops));
     if(brief.length)card.append(node("p","la-lead-meta",brief.join(" · ")));
     if(lead.followUpDate)card.append(node("p","la-follow"+(overdue?" la-alert":""),
       (overdue?"Связаться: ":"Контроль: ")+humanDate(lead.followUpDate)+", "+(lead.followUpTime||"18:00")));
@@ -455,7 +450,7 @@
   }
   function leadsList(){
     const wrap=node("section","la-box la-list");
-    const heading=group("la-title",node("h2","","Лиды"),
+    const heading=group("la-title la-compact-heading",
       btn("+ Новый лид","la-primary",()=>selectLead(null)));
     wrap.append(heading);
     if(notice){const message=node("p","la-message",notice);message.setAttribute("role","status");wrap.append(message)}
@@ -463,15 +458,12 @@
     if(!cloudReady)wrap.append(node("p","la-muted","Загружаем лиды из общей CRM…"));
     const all=load(),due=all.filter(l=>needsCall(l));
     const summary=node("div","la-summary");
-    for(const [num,label] of [[all.filter(l=>isOpen(l)).length,"Активные"],
-      [due.length,"Перезвонить"],[all.filter(l=>l.status==="ready").length,"Согласились"]])
+    for(const [num,label] of [[due.length,"Перезвонить"],
+      [all.filter(l=>["waiting","callback"].includes(l.status)).length,"Ожидают"],
+      [all.filter(l=>l.status==="ready").length,"Согласились"]])
       summary.append(group("la-summary-item",node("strong","",num),node("span","",label)));
     wrap.append(summary);
-    const toolbar=node("div","la-toolbar");
-    const input=node("input","la-input");input.type="search";input.placeholder="Имя или телефон";input.value=searchTerm;
-    input.setAttribute("aria-label","Поиск среди лидов");
-    input.addEventListener("input",()=>{searchTerm=input.value;filterVisible()});
-    toolbar.append(input,btn("Обновить","la-neutral",()=>refresh(true)));wrap.append(toolbar);
+    // Global search above filters is the only lead search.
     const tabs=node("div","la-filters");
     for(const [key,label] of [["all","Все"],["due","Перезвонить"],["waiting","Ожидают"],["ready","Согласились"]]){
       const b=btn(label,"la-chip"+(activeFilter===key?" is-active":""),()=>{activeFilter=key;render()});
@@ -486,7 +478,7 @@
       String(b.updatedAt||"").localeCompare(String(a.updatedAt||"")));
     const list=node("div","la-lead-list");list.id="laLeadList";
     if(!items.length&&cloudReady)list.append(node("div","la-empty",activeFilter==="all"?
-      "Пока нет лидов. Добавьте первого клиента.":"Здесь пока нет клиентов."));
+      "Пока нет лидов. Нажмите «+ Новый лид», чтобы сохранить клиента, который ещё не записался.":"В этой категории пока нет клиентов."));
     for(const lead of items.slice(0,100)){
       const card=leadCard(lead);card.dataset.leadSearch=(lead.name+" "+lead.phone+" "+lead.address).toLocaleLowerCase("ru");
       list.append(card);
@@ -507,7 +499,7 @@
     syncNav();initialized=true;
   }
   window.__rdLeadsRender=()=>{resetForAccount();render();refresh()};
-  window.__rdLeadsSearch=value=>{searchTerm=String(value||"");const field=$("laLeadList")?.parentElement?.querySelector("input[type=search]");if(field)field.value=searchTerm;filterVisible()};
+  window.__rdLeadsSearch=value=>{searchTerm=String(value||"");filterVisible()};
   window.__rdLeadsSyncNav=syncNav;
   window.__rdLeadDueCount=countDue;
   window.setInterval?.(()=>{
