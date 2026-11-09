@@ -466,6 +466,7 @@
     let orderListDateFilter = "";
     let orderHistoryDateFilter = "";
     let editingId = null;
+    let editingVersion = null;
     let previousFocus = null;
     let orderSaving = false;
     let selectedDate = localDate(new Date());
@@ -562,11 +563,13 @@
       }
       await refreshPromise;
     }
-    async function dbRequest(path, method, payload) {
+    async function dbRequest(path, method, payload, extraHeaders={}) {
       await ensureSession();
       const headers = {apikey:SUPABASE_KEY,Authorization:"Bearer " + session.access_token,Accept:"application/json"};
       if (payload !== undefined) headers["Content-Type"] = "application/json";
       if (method !== "GET") headers.Prefer = "return=representation";
+      if (method !== "GET") headers["X-Rabota-Client"] = "2";
+      Object.assign(headers,extraHeaders);
       const response = await fetch(SUPABASE_URL + "/rest/v1/" + path, {
         method,headers,body:payload === undefined ? undefined : JSON.stringify(payload)
       });
@@ -574,13 +577,14 @@
       if (!response.ok) {
         const err = new Error(value && (value.message || value.error) || "Ошибка базы данных (" + response.status + ")");
         err.code = value && value.code;
+        err.status = response.status;
         throw err;
       }
       return value;
     }
     function readOrder(row) {
       return {
-        id: row.id, createdAt: row.created_at, leadId:row.lead_id||null,
+        id: row.id, createdAt: row.created_at, updatedAt:row.updated_at, leadId:row.lead_id||null,
         completedAt: row.completed_at, legacyId: row.legacy_id,
         name:row.name || "",phone:row.phone || "",address:row.address || "",
         radiatorType:row.radiator_type || "",radiators:row.radiators == null ? "" : row.radiators,
@@ -668,16 +672,39 @@
     }
     function getOrders() {return cloudOrders;}
     async function persistOrder(order) {
-      const existing = cloudOrders.some(o => String(o.id) === String(order.id));
+      const existing = cloudOrders.find(o => String(o.id) === String(order.id));
+      if(existing&&order.creationIntent)
+        throw new Error("Этот заказ уже сохранён. Откройте его заново для изменения; повторная запись не выполнялась.");
       const data = serializeOrder(order);
+      let rows;
       if (existing) {
-        const result = await dbRequest("rabota_orders?id=eq." + encodeURIComponent(order.id),"PATCH",data);
-        if (!Array.isArray(result) || !result.length) throw new Error("Заказ не обновлён.");
+        const expected=order.expectedUpdatedAt||order.updatedAt||existing.updatedAt;
+        if(!expected)throw new Error("Нет версии заказа. Обновите список перед изменением.");
+        rows=await dbRequest("rabota_orders?id=eq."+encodeURIComponent(order.id)+
+          "&updated_at=eq."+encodeURIComponent(expected),"PATCH",data,
+          {"X-Rabota-Order-Version":expected});
+        if(!Array.isArray(rows)||rows.length!==1)
+          throw new Error("Заказ изменился на другом устройстве. Откройте его заново.");
       } else {
-        const result = await dbRequest("rabota_orders","POST",data);
-        if (!Array.isArray(result) || !result.length) throw new Error("Заказ не сохранён.");
+        // Keep this ID across retries, including an ambiguous network result.
+        order.id=order.id||crypto.randomUUID();
+        data.id=order.id;
+        try {
+          rows=await dbRequest("rabota_orders","POST",data);
+          if(!Array.isArray(rows)||rows.length!==1)throw new Error("Заказ не сохранён.");
+        } catch(error) {
+          // A committed INSERT may have lost its HTTP response. Never INSERT a new ID.
+          const found=await dbRequest("rabota_orders?select=*&id=eq."+encodeURIComponent(order.id),"GET")
+            .catch(()=>null);
+          if(!Array.isArray(found)||found.length!==1)throw error;
+          rows=found;
+        }
       }
-      await reloadOrders();
+      const saved=readOrder(rows[0]);
+      cloudOrders=[saved,...cloudOrders.filter(o=>String(o.id)!==String(saved.id))];
+      try {await reloadOrders();}
+      catch(error){reportSync(error);render();}
+      return saved;
     }
     function hasConflict(date, time, master, excludeId) {
       const selectedMaster=String(master||"").trim().toLocaleLowerCase("ru");
@@ -1108,8 +1135,10 @@
       formPaymentChoice=null;
       const advanced=document.getElementById("orderAdvanced");advanced.open=false;
       editingId=id===undefined?null:String(id);
+      form.dataset.createId=crypto.randomUUID();
       updateMasters();
       const existing=editingId===null?null:getOrders().find(x=>String(x.id)===editingId);
+      editingVersion=existing?.updatedAt||null;
       advanced.open=Boolean(existing);
       document.getElementById("formTitle").textContent=existing?"Редактировать заказ":"Новый заказ";
       if(existing) {
@@ -1143,11 +1172,21 @@
       controls.status.closest(".field").style.display=raulCreating?"none":"";
       controls.paid.parentElement.style.display="none";
       overlay.hidden=false;document.body.style.overflow="hidden";
+      syncOrderViewport();
       window.__rdOrderAvailability?.open(getOrders(),editingId);
       document.getElementById("orderFormScroll").scrollTop=0;
       // На iPhone автоматический фокус открывал клавиатуру и сдвигал форму.
       if(!window.matchMedia || !window.matchMedia("(pointer: coarse)").matches)controls.name.focus();
     }
+    function syncOrderViewport() {
+      if(overlay.hidden)return;
+      const viewport=window.visualViewport;
+      overlay.style.top=(viewport?.offsetTop||0)+"px";
+      overlay.style.height=(viewport?.height||window.innerHeight)+"px";
+      overlay.style.bottom="auto";
+    }
+    window.visualViewport?.addEventListener("resize",syncOrderViewport);
+    window.visualViewport?.addEventListener("scroll",syncOrderViewport);
     function closeForm(force) {
       // Запретить закрытие до завершения сохранения: результат запроса ещё неизвестен.
       if(orderSaving && force!==true)return;
@@ -1155,7 +1194,7 @@
       if(previousFocus&&typeof previousFocus.focus==="function")previousFocus.focus();
     }
     document.getElementById("newOrderBtn").addEventListener("click",()=>openForm());
-    document.getElementById("closeOrderBtn").addEventListener("click",closeForm);
+    document.getElementById("closeOrderBtn").addEventListener("click",()=>closeForm());
     overlay.addEventListener("click",e=>{if(e.target===overlay)closeForm();});
     document.addEventListener("keydown",e=>{if(e.key==="Escape"&&!overlay.hidden)closeForm();});
     document.getElementById("prevWeek").addEventListener("click",()=>{selectedDate=addDays(selectedDate,-7);currentTab="calendar";render();});
@@ -1265,7 +1304,9 @@
       if(editingId!==null&&!existing){formStatus.textContent="Заказ не найден.";return;}
       const now=new Date().toISOString();
       const order={
-        id:existing?existing.id:null,createdAt:existing?existing.createdAt:now,
+        id:existing?existing.id:form.dataset.createId,createdAt:existing?existing.createdAt:now,
+        expectedUpdatedAt:editingVersion,
+        creationIntent:editingId===null,
         legacyId:existing?existing.legacyId:null,
         leadId:existing?existing.leadId:(status!=="Отменён"?form.dataset.leadId||null:null),
         name,phone,address:controls.address.value.trim(),
@@ -1290,7 +1331,7 @@
       formStatus.textContent="Сохранение заказа…";
       try {
         await persistOrder(order);
-        if(order.leadId)await window.__rdLeadsRefresh?.();
+        if(order.leadId)await window.__rdLeadsRefresh?.().catch(()=>{});
         selectedDate=date;
         currentTab=raulCreating?"all":status==="Выполнен"?"history":status==="Отменён"?"all":"calendar";
         closeForm(true);render();
@@ -1479,7 +1520,7 @@
         const masterUnallocated=receivedOrders.filter(o=>
           o.paymentReceivedBy==="master"&&!cashCollections.has(String(o.id)));
         const directReceipts=sumBy(receivedOrders.filter(o=>
-          !cashCollections.has(String(o.id))&&o.paymentReceivedBy!=="master"),o=>o.price);
+          !cashCollections.has(String(o.id))&&o.paymentReceivedBy!=="master"),o=>o.paymentAmount??o.price);
         const confirmedDeposits=sumBy(financeCollections.filter(c=>c.confirmed_at),c=>c.company_amount);
         const cashIn=roundMoney(directReceipts+confirmedDeposits);
         const allPayouts=sumBy(payments.filter(o=>(o.kind==="raul_payout"||o.kind==="timur_payout")&&!o.order_id),o=>o.amount);
@@ -1587,6 +1628,33 @@
     // Payroll payouts use one awaited operation, not a hidden form submission.
     // The backend validates the owner, the available balance and prevents overpayment.
     let payrollPayoutInFlight=false;
+    async function recordFinanceOperation({kind,amount,masterId,note}) {
+      if(currentRole!=="owner"||!currentUser?.id)throw new Error("Доступ запрещён.");
+      const storageKey="rabota-finance-pending-v1:"+currentUser.id;
+      const payload={p_kind:kind,p_amount:amount,p_master_user_id:masterId,p_note:note};
+      const fingerprint=JSON.stringify(payload);
+      let pending=JSON.parse(localStorage.getItem(storageKey)||"null");
+      if(pending&&pending.fingerprint!==fingerprint)
+        throw new Error("Результат предыдущей операции неизвестен. Повторите её с прежними суммой и комментарием для безопасной проверки.");
+      if(!pending){
+        pending={requestId:crypto.randomUUID(),fingerprint};
+        // Fail before sending if the browser cannot retain the retry key.
+        localStorage.setItem(storageKey,JSON.stringify(pending));
+      }
+      try{
+        const result=await dbRequest("rpc/rabota_finance_record_v2","POST",{
+          p_request_id:pending.requestId,...payload
+        });
+        if(typeof result!=="string"||!result.trim())
+          throw new Error("Нет подтверждения финансовой операции. Повторите проверку с прежними данными.");
+        localStorage.removeItem(storageKey);
+        return result;
+      }catch(error){
+        // Validation/auth errors roll back. Network errors and 5xx are ambiguous.
+        if(error.status>=400&&error.status<500)localStorage.removeItem(storageKey);
+        throw error;
+      }
+    }
     window.__rdRecordPayrollPayout=async ({kind,amount,note})=>{
       if(currentRole!=="owner")throw new Error("Только владелец может проводить выплаты.");
       if(!["raul_payout","timur_payout"].includes(kind))throw new Error("Недопустимый тип выплаты.");
@@ -1600,9 +1668,7 @@
       payrollPayoutInFlight=true;
       let operationId;
       try{
-        operationId=await dbRequest("rpc/rabota_finance_record","POST",{
-          p_kind:kind,p_amount:cents/100,p_master_user_id:financeMasterId,p_note:memo
-        });
+        operationId=await recordFinanceOperation({kind,amount:cents/100,masterId:financeMasterId,note:memo});
       }finally{
         payrollPayoutInFlight=false;
       }
@@ -1638,11 +1704,10 @@
       const button=document.getElementById("financeSaveBtn");
       button.disabled=true;message.textContent="";
       try{
-        await dbRequest("rpc/rabota_finance_record","POST",{
-          p_kind:kind,p_amount:amount,p_master_user_id:kind==="expense"?null:financeMasterId,p_note:note
-        });
+        await recordFinanceOperation({kind,amount,masterId:kind==="expense"?null:financeMasterId,note});
         document.getElementById("financeForm").reset();
-        await reloadOrders();
+        try{await reloadOrders();}
+        catch(error){reportSync(error);message.textContent="Операция сохранена. Обновить баланс не удалось; не проводите её повторно.";}
       }catch(error){message.textContent=friendlyError(error);}
       finally{button.disabled=false;}
     });

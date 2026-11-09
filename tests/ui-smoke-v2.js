@@ -199,6 +199,8 @@ if(typeof module!=="undefined" && module.exports){
   if(require.main===module){
     const fs=require("node:fs"),path=require("node:path");
     const src=fs.readFileSync(path.join(__dirname,"..","redesign.js"),"utf8");
-    console.log(JSON.stringify(runSmoke(src),null,2));
+    // The historic mock DOM above describes an older dashboard. The CLI now uses
+    // the current browser suite; all API traffic is intercepted with synthetic rows.
+    require("node:child_process").execFileSync(process.execPath,[path.join(__dirname,"responsive-layout.cjs")],{stdio:"inherit"});
   }
 }

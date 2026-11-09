@@ -12,7 +12,7 @@ class Element {
  constructor(tag){
   this.tagName=tag.toUpperCase();this.className="";this.children=[];this.events={};
   this.parent=null;this.attrs={};this.hidden=false;this.value="";this.disabled=false;this.id="";
-  this._text="";
+  this._text="";this.style={};
  }
  set textContent(value){this._text=String(value);this.children=[]}
  get textContent(){return this._text+this.children.map(e=>e.textContent).join("")}
@@ -38,7 +38,7 @@ const mk=(tag,cls,txt)=>{const e=new Element(tag);e.className=cls||"";if(txt!==u
 const select=(root,cls)=>{
  const result=[];function visit(e){if(e.className.split(" ").includes(cls))result.push(e);e.children.forEach(visit)}visit(root);return result
 };
-function fixture(){
+function fixture(hostname="rabota-test123456-sonkort19-6069s-projects.vercel.app"){
  const body=mk("body"),panel=mk("section"),heading=mk("h2","finance-title","История");
  const root=mk("div"),history=mk("div"),entry=mk("div"),legacy=mk("div","","Оригинальные финансовые расчёты");
  root.append(legacy);panel.append(root,entry,heading,history);
@@ -46,7 +46,7 @@ function fixture(){
  const document={body,createElement:t=>mk(t),getElementById:id=>lookup[id]||null,
   addEventListener(){},removeEventListener(){}};
  let confirmed=0;
- const window={location:{hostname:"rabota-test123456-sonkort19-6069s-projects.vercel.app"},
+ const window={innerHeight:844,location:{hostname},
   confirm(){confirmed++;return true},alert(){}};
  vm.runInNewContext(code,{document,window,Intl,Date,Number,String,Array});
  const model={isOwner:true,raulAccrued:22750,raulPaid:15500,raulDue:7250,
@@ -134,4 +134,11 @@ test("cash and operations retain old report and operation controls",()=>{
  assert.equal(f.history.hidden,false);
  assert.equal(f.entry.hidden,false);
  assert.equal(f.heading.hidden,false);
+});
+
+test("production operation screen does not claim that real writes are disabled",()=>{
+ const f=fixture("rabota-rust.vercel.app");
+ select(f.root,"fp-tab")[2].click();
+ assert.ok(f.root.textContent.includes("реальные финансовые операции"));
+ assert.ok(!f.root.textContent.includes("Реальные данные не изменяются"));
 });

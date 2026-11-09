@@ -15,8 +15,8 @@ class Element {
   replaceChildren(...elements){this.children=[];this.append(...elements)}
   setAttribute(k,v){this.attrs[k]=String(v)}
   addEventListener(k,fn){(this.events[k]??=[]).push(fn)}
-  fire(k){for(const fn of this.events[k]||[])fn({target:this,preventDefault(){}})}
-  click(){this.fire("click")}
+  fire(k){return Promise.all((this.events[k]||[]).map(fn=>fn({target:this,preventDefault(){}})))}
+  click(){return this.fire("click")}
   querySelectorAll(selector){
     const result=[];
     function visit(n){for(const c of n.children){if(selector.startsWith(".")?c.className.split(" ").includes(selector.slice(1)):c.tagName===selector.toUpperCase())result.push(c);visit(c)}}
@@ -34,10 +34,19 @@ function setup(){
   const localStorage={getItem:key=>storage.get(key)||null,setItem:(key,value)=>{storage.set(key,value)},removeItem:key=>storage.delete(key)};
   const window={addEventListener(){},setInterval(){},confirm(){return true},
     __rdLeadContext:()=>({role:"manager",userId,orders:[]})};
-  vm.runInNewContext(source,{document,window,localStorage,Intl,Date,Number,String,Array,Math});
+  const rows=[],calls=[];
+  const dbRequest=async(query,method,payload)=>{
+    calls.push({query,method});
+    if(method==="GET")return rows.slice();
+    if(method==="POST"){
+      const row={...payload,id:"lead-"+(rows.length+1),updated_at:new Date().toISOString()};rows.push(row);return [row];
+    }
+    throw Error("Unexpected mocked method "+method);
+  };
+  vm.runInNewContext(source,{document,window,localStorage,dbRequest,Intl,Date,Number,String,Array,Math});
   const button=label=>root.querySelectorAll("button").find(x=>x.textContent===label);
   const type=(t,v)=>{const field=root.querySelectorAll("input").find(x=>x.type===t);assert.ok(field,"missing "+t);field.value=v;field.fire("input")};
-  return {window,root,storage,button,type,getUser:()=>userId,setUser:s=>{userId=s},read:()=>JSON.parse(storage.get("rabota-preview-leads-v1:"+userId)||"[]")};
+  return {window,root,storage,button,type,getUser:()=>userId,setUser:s=>{userId=s},read:()=>rows,readLocal:()=>JSON.parse(storage.get("rabota-preview-leads-v1:"+userId)||"[]"),calls,ready:()=>window.__rdLeadsRefresh()};
 }
 const logic=setup().window.__rdLeadLogic;
 test("salary follow-up in 20 days",()=>{
@@ -55,7 +64,7 @@ test("next Monday is computed in Moscow calendar; tomorrow/after tomorrow work",
 test("pricing uses 2000 per radiator and 1000 per circuit",()=>{
   assert.equal(logic.calc("5","1"),11000);
   assert.equal(logic.calc("6","4"),16000);
-  assert.equal(logic.calc("","4"),null);
+  assert.equal(logic.calc("","4"),10000);
   assert.equal(logic.calc("-1","4"),null);
 });
 test("compact Russian notes extract numbers, salary reason, callback and contact promise",()=>{
@@ -70,56 +79,44 @@ test("abbreviations and no-floor notes are understood",()=>{
   assert.equal(logic.parseNotes("5 батарей без теплого пола","2026-10-28").loops,"0");
 });
 test("never alert before agreed callback time, or after conversion/rejection",()=>{
-  const lead={status:"waiting",followUpDate:"2026-11-17",followUpTime:"18:00",consent:false};
+  const lead={status:"waiting",followUpDate:"2026-11-17",followUpTime:"18:00",consent:true};
   assert.equal(logic.needsCall(lead,"2026-11-17","17:59"),false);
   assert.equal(logic.needsCall(lead,"2026-11-17","18:00"),true);
   assert.equal(logic.needsCall(lead,"2026-11-18","09:00"),true);
   assert.equal(logic.needsCall({...lead,status:"ready"},"2026-11-18","09:00"),false);
   assert.equal(logic.needsCall({...lead,status:"lost"},"2026-11-18","09:00"),false);
 });
-test("browser preview renders and saves a complete lead without network",()=>{
-  const f=setup();f.window.__rdLeadsRender();
+test("shared lead renders and saves through mocked Supabase without network",async()=>{
+  const f=setup();await f.ready();await f.button("+ Новый лид").click();
   const notes=f.root.querySelector("textarea");
   notes.value="Андрей 5 батарей алюминевые 1 тп после зарплаты сам наберу через 20 дней";
-  notes.fire("input");f.button("Разобрать заметки").click();
-  f.type("tel","89280000000");
-  f.button("Сохранить потенциального клиента").click();
-  const rows=f.read();
-  assert.equal(rows.length,1);assert.equal(rows[0].name,"Андрей");
-  assert.equal(rows[0].radiators,"5");assert.equal(rows[0].loops,"1");
-  assert.equal(rows[0].followUpDate,logic.dueFromText("через 20 дней").date);
-  assert.equal(rows[0].status,"waiting");assert.equal(rows[0].consent,false);
-  assert.ok(f.root.textContent.includes("Лид сохранён в браузере"));
+  await notes.fire("input");await f.button("Разобрать заметку").click();f.type("tel","89280000000");
+  await f.button("Сохранить лид").click();
+  assert.equal(f.read().length,1);assert.equal(f.read()[0].name,"Андрей");
+  assert.equal(f.read()[0].radiators,5);assert.equal(f.read()[0].loops,1);
+  assert.equal(f.read()[0].follow_up_date,logic.dueFromText("через 20 дней").date);
+  assert.equal(f.read()[0].status,"waiting");assert.equal(f.read()[0].consent,false);
+  assert.ok(f.root.textContent.includes("Лид сохранён в общей базе"));
 });
-test("same phone is not saved as a duplicate",()=>{
-  const f=setup();f.window.__rdLeadsRender();
-  const notes=f.root.querySelector("textarea");notes.value="Андрей 5 батарей";notes.fire("input");
-  f.button("Разобрать заметки").click();f.type("tel","89280000000");
-  f.button("Сохранить потенциального клиента").click();
-  f.button("Очистить").click();
-  const input=f.root.querySelectorAll("input").find(x=>x.type==="text");input.value="Другой";input.fire("input");
-  f.type("tel","+79280000000");f.button("Сохранить потенциального клиента").click();
-  assert.equal(f.read().length,1);
-  assert.ok(f.root.textContent.includes("уже есть"));
+test("same phone is not saved as a duplicate",async()=>{
+  const f=setup();await f.ready();await f.button("+ Новый лид").click();
+  const notes=f.root.querySelector("textarea");notes.value="Андрей 5 батарей";await notes.fire("input");
+  await f.button("Разобрать заметку").click();f.type("tel","89280000000");await f.button("Сохранить лид").click();
+  await f.button("+ Новый лид").click();
+  const input=f.root.querySelectorAll("input").find(x=>x.type==="text");input.value="Другой";await input.fire("input");
+  f.type("tel","+79280000000");await f.button("Сохранить лид").click();
+  assert.equal(f.read().length,1);assert.ok(f.root.textContent.includes("уже принадлежит лиду"));
 });
-test("storage is isolated by the authenticated account id",()=>{
-  const f=setup();f.window.__rdLeadsRender();
-  const notes=f.root.querySelector("textarea");notes.value="Андрей";notes.fire("input");
-  f.button("Разобрать заметки").click();f.type("tel","+79280000000");f.button("Сохранить потенциального клиента").click();
-  assert.equal(f.read().length,1);
-  f.setUser("other-manager");
-  assert.equal(f.read().length,0);
+test("legacy local import remains isolated by authenticated account",()=>{
+ const f=setup();f.storage.set("rabota-preview-leads-v1:manager-a",JSON.stringify([{name:"Локальный"}]));
+ assert.equal(f.readLocal().length,1);f.setUser("other-manager");assert.equal(f.readLocal().length,0);
 });
-test("reminder count reads only current user records",()=>{
-  const f=setup();
-  f.storage.set("rabota-preview-leads-v1:manager-a",JSON.stringify([
-    {id:"one",status:"waiting",followUpDate:"2020-01-01",followUpTime:"18:00",consent:false},
-    {id:"two",status:"ready",followUpDate:"2020-01-01",followUpTime:"18:00",consent:true}
-  ]));
-  assert.equal(f.window.__rdLeadDueCount(),1);
-  f.setUser("other-manager");
-  assert.equal(f.window.__rdLeadDueCount(),0);
+test("reminders use shared authorized rows and account switch clears the cache",async()=>{
+ const f=setup();f.read().push({id:"one",status:"waiting",follow_up_date:"2020-01-01",follow_up_time:"18:00",consent:true});
+ await f.ready();assert.equal(f.window.__rdLeadDueCount(),1);
+ f.setUser("other-manager");f.window.__rdLeadsSyncNav();assert.equal(f.window.__rdLeadDueCount(),0);
 });
-test("preview does not use Supabase, fetch or remote storage for leads",()=>{
-  assert.doesNotMatch(source,/\bfetch\s*\(|\bdbRequest\s*\(|\bpersistOrder\s*\(/);
+test("lead module uses mocked dbRequest rather than uncontrolled fetch",async()=>{
+ const f=setup();await f.ready();assert.doesNotMatch(source,/\bfetch\s*\(/);
+ assert.ok(f.calls.length>0);assert.ok(f.calls.every(c=>c.query.startsWith("rabota_leads")));
 });

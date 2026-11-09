@@ -239,6 +239,12 @@ async function loadChats(){
  const rows=await db("rabota_ai_chats?select=id,title,updated_at&order=updated_at.desc&limit=100");
  chats=Array.isArray(rows)?rows:[];renderChats()
 }
+async function loadRecentMessages(chatId){
+ const rows=await db("rabota_ai_messages?select=id,role,content,created_at&chat_id=eq."+
+  encodeURIComponent(chatId)+"&order=created_at.desc,id.desc&limit=200");
+ if(!Array.isArray(rows))throw new Error("Не удалось загрузить последние сообщения.");
+ return rows.slice().reverse();
+}
 async function openChat(id){
  if(busy)return;
  setPendingDraft(null);
@@ -246,7 +252,7 @@ async function openChat(id){
  clearAttachedPhoto();
  $("notice").textContent="";activeChat=id;sessionStorage.setItem("rabota-ai-active-chat",id);closeMenu();
  try{
-  const rows=await db("rabota_ai_messages?select=id,role,content,created_at&chat_id=eq."+encodeURIComponent(id)+"&order=created_at.asc&limit=200");
+  const rows=await loadRecentMessages(id);
   messages=Array.isArray(rows)?rows:[];renderChats();renderMessages()
  }catch(error){failure(error)}
 }
@@ -450,7 +456,7 @@ $("confirmOrder").addEventListener("click",async()=>{
    ": "+actual.name+" — "+actual.appointment_date+" в "+String(actual.appointment_time).slice(0,5)+
    ", мастер "+actual.master+". Данные проверены в «Работе».";
   await db("rabota_ai_messages","POST",{chat_id:activeChat,role:"assistant",content:message});
-  messages=await db("rabota_ai_messages?select=id,role,content,created_at&chat_id=eq."+encodeURIComponent(activeChat)+"&order=created_at.asc&limit=200");
+  messages=await loadRecentMessages(activeChat);
   await loadChats();$("notice").textContent="Изменение подтверждено.";
  }catch(error){
    if(saved?.ok){
@@ -482,7 +488,7 @@ async function send(event){
   }
   await db("rabota_ai_messages","POST",{chat_id:activeChat,role:"user",content:(text+(image?" [Фото заметки]":"")).slice(0,12000)});
   $("input").value="";$("input").style.height="auto";
-  messages=await db("rabota_ai_messages?select=id,role,content,created_at&chat_id=eq."+encodeURIComponent(activeChat)+"&order=created_at.asc&limit=200");
+  messages=await loadRecentMessages(activeChat);
   const context=messages.slice(-30).map(m=>({role:m.role,content:m.content}));
   renderMessages();
   await ensureSession();
@@ -503,7 +509,7 @@ async function send(event){
     setPendingDraft(draft);
   }
   await db("rabota_ai_messages","POST",{chat_id:activeChat,role:"assistant",content:data.reply.slice(0,12000)});
-  messages=await db("rabota_ai_messages?select=id,role,content,created_at&chat_id=eq."+encodeURIComponent(activeChat)+"&order=created_at.asc&limit=200");
+  messages=await loadRecentMessages(activeChat);
   await db("rabota_ai_chats?id=eq."+encodeURIComponent(activeChat),"PATCH",{updated_at:new Date().toISOString()});
   await loadChats();clearAttachedPhoto()
  }catch(error){failure(error)}
