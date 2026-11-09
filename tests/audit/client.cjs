@@ -112,3 +112,19 @@ test('AI endpoint validates image format and prepares proposal without writing o
  assert.ok(f.calls.filter(c=>new URL(c.url).hostname.includes('supabase')).every(c=>c.method==='GET'));
  assert.equal(f.calls.filter(c=>c.url.includes('/rpc/')).length,0,'proposal cannot execute an order');
 });
+
+test('long AI chat sends newest user message instead of first 200 messages',async()=>{
+ const source=fs.readFileSync('ai.html','utf8');
+ const start=source.indexOf('async function loadRecentMessages('),end=source.indexOf('async function openChat(',start);
+ const all=Array.from({length:231},(_,i)=>({id:i,role:i%2?'assistant':'user',content:'Сообщение '+i}));
+ let requested;
+ const c={db:async query=>{
+  requested=query;
+  return query.includes('order=created_at.desc')?all.slice().reverse().slice(0,200):all.slice(0,200);
+ }};
+ vm.createContext(c);vm.runInContext(source.slice(start,end),c);
+ const rows=await c.loadRecentMessages('test-chat');
+ assert.equal(rows.length,200);assert.equal(rows.at(-1).content,'Сообщение 230');
+ assert.equal(rows.at(-1).role,'user');assert.equal(rows[0].id,31);
+ assert.match(requested,/created_at.desc,id.desc/);
+});
