@@ -262,3 +262,18 @@ html,body{background:#fff;color:var(--ai-ink);-webkit-font-smoothing:antialiased
 #messages:not(.is-empty) .messages-inner{
   padding-top:0;
 }
+
+
+/* Prevent accidental double-tap zoom in assistant; retain pinch zoom. */
+@media (pointer:coarse) {
+  html,
+  body,
+  #layout,
+  #layout button,
+  #layout a,
+  #layout input,
+  #layout select,
+  #layout textarea {
+    touch-action: manipulation;
+  }
+}
