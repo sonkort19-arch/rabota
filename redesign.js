@@ -675,19 +675,28 @@ function drawHome(){
   boxText("strong",cash(paidTotal),"rd-home-paid-total"),
   boxText("small","По дате визита · не остаток кассы и не прибыль","rd-home-paid-hint")
  );
- root.append(paidSummary);
+ let attention=null;
  if(unpaid.length||noMaster.length){
-  const attention=panel("Требуют внимания");
+  attention=panel("Требуют внимания");
   attention.classList.add("rd-home-attention","rd-home-primary-panel");
   if(unpaid.length)rowEntry(attention,"Завершены без оплаты","Нужно получить или проверить оплату",String(unpaid.length),
    ()=>openDashboardOrders({filter:"unpaid"}));
-  if(noMaster.length)rowEntry(attention,"Не назначен мастер","Нужно назначить исполнителя",String(noMaster.length),
-   ()=>openDashboardOrders({filter:"unassigned"}));
-  root.append(attention);
+  if(noMaster.length){
+   const first=[...noMaster].sort((a,b)=>
+    String(a.date||"9999-12-31").localeCompare(String(b.date||"9999-12-31"))||
+    String(a.time||"").localeCompare(String(b.time||"")))[0];
+   const when=(first.date?dateLong(first.date):"Без даты")+
+    (first.time?" · "+first.time:"")+
+    (first.name?" · "+first.name:"");
+   rowEntry(attention,"Не назначен мастер",when,
+    "Назначить"+(noMaster.length>1?" · "+noMaster.length:""),()=>{
+     navigate("orders");
+     if(!window.__rdOpenAssignOrder?.(first.id))openDashboardOrders({filter:"unassigned"});
+    });
+  }
  }else{
-  const clear=makeNode("div","rd-home-all-clear");
-  clear.append(uiIcon("check"),boxText("span","Нет срочных задач по оплате и назначению мастеров"));
-  root.append(clear);
+  attention=makeNode("div","rd-home-all-clear");
+  attention.append(uiIcon("check"),boxText("span","Нет срочных задач по оплате и назначению мастеров"));
  }
  const nowMoscow=new Date().toLocaleTimeString("ru-RU",{hour:"2-digit",minute:"2-digit",hour12:false,timeZone:"Europe/Moscow"});
  const future=orders.filter(o=>o.status!=="Выполнен"&&o.date&&
@@ -702,6 +711,7 @@ function drawHome(){
    ()=>openDashboardOrders({orderId:next.id}));
  }else upcoming.append(boxText("div","Ближайших записей нет","rd-empty"));
  root.append(upcoming);
+ if(attention)root.append(attention);
  const actions=makeNode("div","rd-home-actions");
  if(currentRole==="owner"||currentRole==="manager")
   actions.append(dashboardAction("plus","Новый заказ",()=>{navigate("orders");$("newOrderBtn").click()}));
@@ -709,6 +719,7 @@ function drawHome(){
  if(currentRole==="owner")actions.append(dashboardAction("ai","ИИ-чат",()=>openAiChat()));
  else actions.append(dashboardAction("orders","Заказы",()=>navigate("orders")));
  root.append(actions);
+ root.append(paidSummary);
  const details=document.createElement("details");
  details.className="rd-home-analytics";
  details.open=homeAnalyticsOpen;
