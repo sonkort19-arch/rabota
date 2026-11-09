@@ -1782,13 +1782,26 @@
     });
     // Phone-call booking: reuse the live calendar checks and the original order editor.
     // Selection only pre-fills an unsaved order. No direct database write.
+    window.__rdQuickSlotsSnapshot=()=>{
+      if(!["owner","manager"].includes(currentRole))return {masters:[]};
+      const fromOrders=getOrders().map(o=>String(o.master||"").trim()).filter(Boolean);
+      const masters=currentRole==="owner"&&Array.isArray(activeMasterNames)
+        ?activeMasterNames:fromOrders;
+      return {masters:[...new Map(masters.map(name=>[name.toLocaleLowerCase("ru"),name])).values()]};
+    };
     window.__rdQuickSlotsRead=async()=>{
       if(!["owner","manager"].includes(currentRole))throw new Error("Доступ только для менеджера и владельца");
       if(!session||document.getElementById("appScreen").hidden)throw new Error("Войдите в CRM");
       await reloadOrders();
-      const fromOrders=getOrders().map(o=>String(o.master||"").trim()).filter(Boolean);
-      const masters=activeMasterNames===null||!activeMasterNames.length?fromOrders:activeMasterNames;
-      return {masters:[...new Map(masters.map(name=>[name.toLocaleLowerCase("ru"),name])).values()]};
+      // Owners can read active staff with current RLS. Managers cannot: do not
+      // bypass their permissions, infer active staff from visible booking names.
+      if(currentRole==="owner"){
+        const staff=await dbRequest("rabota_members?select=master_name&role=eq.master&active=eq.true&order=master_name.asc","GET");
+        if(!Array.isArray(staff))throw new Error("Не удалось загрузить действующих мастеров");
+        activeMasterNames=staff.map(row=>String(row.master_name||"").trim()).filter(Boolean);
+        window.__rdRefresh?.();
+      }
+      return window.__rdQuickSlotsSnapshot();
     };
     window.__rdQuickSlotFill=({date,time,master})=>{
       if(!["owner","manager"].includes(currentRole)||
@@ -1803,6 +1816,13 @@
       window.__rdOrderAvailability?.refresh(getOrders());
       controls.master.dispatchEvent(new Event("change",{bubbles:true}));
       controls.time.dispatchEvent(new Event("change",{bubbles:true}));
+      return true;
+    };
+    window.__rdOpenAssignOrder=id=>{
+      if(!["owner","manager"].includes(currentRole))return false;
+      const order=getOrders().find(o=>String(o.id)===String(id));
+      if(!order||order.status==="Отменён"||order.status==="Выполнен")return false;
+      openForm(order.id);
       return true;
     };
     const leadDemoHost=()=>/^rabota-[a-z0-9]{7,}-sonkort19-6069s-projects\.vercel\.app$/i.test(window.location.hostname);
