@@ -1338,3 +1338,18 @@ body.rd #rdCalendarNavigation>.rd-cal-filter-toggle{display:none}
     max-width:100%;
   }
 }
+
+
+/* Prevent accidental double-tap zoom across CRM; retain pinch-to-zoom and scrolling. */
+@media (pointer:coarse) {
+  html,
+  body.rd,
+  body.rd button,
+  body.rd a,
+  body.rd input,
+  body.rd select,
+  body.rd textarea,
+  body.rd [role="button"] {
+    touch-action: manipulation;
+  }
+}
