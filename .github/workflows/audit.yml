@@ -1,0 +1,51 @@
+name: CRM reliability audit
+on:
+  push:
+    branches: ['codex/technical-audit-20261109']
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  isolated-audit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: local-audit-only
+          POSTGRES_DB: rabota_audit
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      PGHOST: 127.0.0.1
+      PGUSER: postgres
+      PGPASSWORD: local-audit-only
+      PGDATABASE: rabota_audit
+      RABOTA_DISPOSABLE_DB: YES
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Reproduce audited baseline in disposable PostgreSQL
+        run: node --test tests/audit/database.cjs
+      - name: Verify SQL fixes in disposable PostgreSQL
+        env:
+          AUDIT_FIXED: '1'
+        run: node --test tests/audit/database.cjs
+      - name: Unit regressions
+        run: node --test tests/audit/client.cjs
+      - name: Existing unit tests
+        run: node --test tests/*.test.js tests/finance-payroll-preview.js tests/mobile-order-form.js tests/order-calendar-collapse.js
+      - name: Install pinned browser test tooling
+        run: |
+          npm install --prefix "$RUNNER_TEMP/rabota-tools" --ignore-scripts playwright@1.56.1
+          "$RUNNER_TEMP/rabota-tools/node_modules/.bin/playwright" install --with-deps webkit
+      - name: WebKit mobile tests with all API calls intercepted
+        env:
+          NODE_PATH: ${{ runner.temp }}/rabota-tools/node_modules
+        run: node tests/audit/mobile.cjs

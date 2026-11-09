@@ -245,3 +245,6 @@
   #orderForm .order-submit-bar { padding-inline: 12px; }
   #orderForm .order-core-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
+
+/* visualViewport tracks the iOS keyboard; dvh alone tracks browser chrome. */
+#orderOverlay .sheet { max-height: 100%; }
