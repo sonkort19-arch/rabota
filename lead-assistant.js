@@ -318,18 +318,18 @@
   }
   function previewSlots(){
     const wrap=node("section","la-box la-slots"),head=node("strong","","Возможные окна мастера");
-    wrap.append(head,node("p","la-muted","Сверка с текущими заказами, интервал между записями ≥ 3 ч 20 мин. Перед записью расписание проверяется ещё раз."));
+    wrap.append(head,node("p","la-muted","Число заказов в день не ограничено. Совпадение времени у мастера запрещено. Близкие записи требуют проверки длительности работы и дороги."));
     const orders=Array.isArray(context().orders)?context().orders:[];
     const master="Рауль",out=node("div","la-slot-list");
     for(let day=0;day<3;day++){
       const date=shifted(today(),day);
-      if(orders.filter(o=>o.date===date&&o.status!=="Отменён"&&text(o.master).toLocaleLowerCase("ru")===master.toLocaleLowerCase("ru")).length>=2)continue;
+      
       for(const time of ["10:00","15:00","18:00"]){
         const nowTime=new Intl.DateTimeFormat("en-GB",{timeZone:"Europe/Moscow",hour:"2-digit",minute:"2-digit",hourCycle:"h23"}).format(new Date());
         if(date===today()&&time<=nowTime)continue;
-        const candidate=Number(time.slice(0,2))*60+Number(time.slice(3));
-        const busy=orders.some(o=>o.date===date&&o.status!=="Отменён"&&(!text(o.master)||text(o.master).toLocaleLowerCase("ru")===master.toLocaleLowerCase("ru"))&&
-          Math.abs(candidate-(Number(String(o.time||"00:00").slice(0,2))*60+Number(String(o.time||"00:00").slice(3,5))))<200);
+        const busy=orders.some(o=>o.date===date&&o.status!=="Отменён"&&
+          text(o.master).toLocaleLowerCase("ru")===master.toLocaleLowerCase("ru")&&
+          String(o.time||"")===time);
         if(!busy)out.append(btn((day===0?"Сегодня":day===1?"Завтра":"Послезавтра")+" · "+time,"la-slot",()=>{
           notice="Возможный вариант: "+humanDate(date)+" в "+time+". Спросите согласие клиента. Окончательная проверка — в форме заказа.";
           draft.notes=cap(draft.notes+"\nЖелаемый визит: "+date+" "+time+"; мастер: "+master,4000);render();

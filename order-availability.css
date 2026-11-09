@@ -331,3 +331,6 @@
   #orderForm .oa-slot strong { font-size:14px; }
   #orderForm .order-time-field { grid-template-columns:78px minmax(0,1fr); gap:6px; }
 }
+
+/* A selected tight slot must not look like a guaranteed free green slot. */
+#orderForm .oa-slot.oa-slot-tight.is-selected{background:#fff2d7;border-color:#d6a656;color:#895717;outline:2px solid #ce9a3f;outline-offset:-2px}

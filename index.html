@@ -453,8 +453,8 @@
               <div id="oaMonthGrid" class="oa-month-grid" role="group" aria-label="Доступность дней"></div>
               <div class="oa-legend">
                 <span><i class="oa-dot oa-free"></i>0 записей</span>
-                <span><i class="oa-dot oa-partial"></i>1 из 2</span>
-                <span><i class="oa-dot oa-full"></i>2 из 2</span>
+                <span><i class="oa-dot oa-partial"></i>Есть записи</span>
+                <span><i class="oa-dot oa-full"></i>Выбранное время занято</span>
               </div>
             </div>
             <div class="oa-day-summary">
@@ -752,12 +752,6 @@
       return getOrders().some(order => String(order.id) !== String(excludeId) &&
         order.status !== "Отменён" && order.date === date && order.time === time &&
         String(order.master||"").trim().toLocaleLowerCase("ru") === selectedMaster);
-    }
-    function masterDayCount(date, master, excludeId) {
-      const selectedMaster=String(master||"").trim().toLocaleLowerCase("ru");
-      return getOrders().filter(order => String(order.id)!==String(excludeId) &&
-        order.status!=="Отменён" && order.date===date &&
-        String(order.master||"").trim().toLocaleLowerCase("ru")===selectedMaster).length;
     }
     // Типовая работа 3 часа и 20 минут дороги. Исключения разрешает диспетчер.
     function findTightBookings(date,time,master,excludeId) {
@@ -1303,10 +1297,6 @@
         controls.phone.focus();return;
       }
       const assignedMaster=raulCreating?currentMasterName.trim():controls.master.value.trim();
-      if(status!=="Отменён"&&masterDayCount(date,assignedMaster,editingId)>=2){
-        formStatus.textContent="У мастера "+(assignedMaster||"без назначения")+
-          " на эту дату уже два заказа. Выберите другой день.";return;
-      }
       if(status!=="Отменён"&&hasConflict(date,time,assignedMaster,editingId)) {
         formStatus.textContent="У этого мастера уже есть заказ на выбранное время.";controls.time.focus();return;
       }
@@ -1814,7 +1804,7 @@
         !/^\d{4}-\d{2}-\d{2}$/.test(date)||
         !/^([01]\d|2[0-3]):[0-5]\d$/.test(time)||
         !String(master||"").trim())return false;
-      if(window.__rdOrderAvailability?.checkTime(time,date,master)!=="available")return false;
+      if(!["available","tight"].includes(window.__rdOrderAvailability?.checkTime(time,date,master)))return false;
       openForm();
       controls.date.value=date;
       controls.time.value=time;

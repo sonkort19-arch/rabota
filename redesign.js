@@ -627,7 +627,7 @@ function homeSlotPicker(){
      const button=makeNode("button","rd-home-slot-choice");
      button.type="button";
      button.setAttribute("aria-label",dateLong(spot.date)+" "+spot.time+", мастер "+spot.master+". Открыть запись");
-     button.append(boxText("strong",spot.time),boxText("span",dateLong(spot.date)));
+     button.append(boxText("strong",spot.time),boxText("span",dateLong(spot.date)+(spot.tight?" · плотно":"")));
      button.addEventListener("click",async()=>{
        button.disabled=true;note.textContent="Проверяем время в CRM…";
        try{

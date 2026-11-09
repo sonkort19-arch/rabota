@@ -8,7 +8,6 @@
   const toggle=$("oaToggle"), calendarBody=$("oaCalendarBody"), dayLoad=$("oaDayLoad");
   if(!grid||!dayInput||!timeInput||!masterInput||!message||!toggle||!calendarBody||!dayLoad)return;
 
-  const MAX_JOBS=2;
   const ESTIMATED_GAP_MINUTES=200; // 3 hours of work + 20 minutes for travel.
   const suggestedTimes=["10:00","15:00","18:00"];
   let orders=[],editingId=null,visible=false,viewYear=null,viewMonth=null;
@@ -48,7 +47,7 @@
     const all=bookingsFor(date,master);
     if(!all)return null;
     const others=all.filter(order=>!isOwn(order));
-    return {all,others,count:all.length,canBook:others.length<MAX_JOBS};
+    return {all,others,count:all.length,canBook:true};
   }
   function setExpanded(expanded){
     calendarBody.hidden=!expanded;
@@ -58,26 +57,26 @@
   }
   function updateHeader(){
     const stats=availability(dayInput.value,masterInput.value);
-    const count=stats?Math.min(stats.count,MAX_JOBS):null;
-    const state=count===null?"unknown":count>=MAX_JOBS?"full":count===1?"partial":"free";
+    const count=stats?stats.count:null;
+    const state=count===null?"unknown":count>0?"partial":"free";
     dayLoad.className="oa-load oa-load-"+state;
-    dayLoad.textContent=count===null?"Выберите мастера":(count===0?"0 заказов":count===1?"1 заказ":"2 заказа")+" из "+MAX_JOBS;
+    dayLoad.textContent=count===null?"Выберите мастера":count+" "+(count===1?"заказ":count>=2&&count<=4?"заказа":"заказов");
     toggle.setAttribute("aria-label","Дата: "+dateText(dayInput.value)+". "+
-      (stats?stats.count+" из "+MAX_JOBS+" записей":"Мастер не выбран")+
+      (stats?stats.count+" записей":"Мастер не выбран")+
       (calendarBody.hidden?". Открыть календарь":". Свернуть календарь"));
   }
   function timeState(time,date,master){
     const stats=availability(date,master);
     if(!stats)return "unknown";
-    if(!stats.canBook)return "full";
     const start=mins(time);
     if(start===null)return "unknown";
-    for(const order of stats.others){
-      const booked=mins(order.time);
-      if(booked===null)return "unknown";
-      if(start===booked)return "busy";
-      if(Math.abs(start-booked)<ESTIMATED_GAP_MINUTES)return "tight";
-    }
+    // Check ALL existing starts before warning about near-time bookings:
+    // otherwise the earlier 10:00 booking can hide an exact 13:00 collision.
+    const bookedTimes=stats.others.map(order=>mins(order.time));
+    if(bookedTimes.some(booked=>booked===start))return "busy";
+    if(bookedTimes.some(booked=>booked===null))return "unknown";
+    if(bookedTimes.some(booked=>Math.abs(start-booked)<ESTIMATED_GAP_MINUTES))
+      return "tight";
     return "available";
   }
   function el(tag,cls,value){
@@ -96,14 +95,6 @@
     render();
   }
   function selectDate(date){
-    const stats=availability(date,masterInput.value);
-    // Do not allow new bookings to be placed on a day filled by other orders.
-    if(stats&&!stats.canBook){
-      render();
-      message.className="oa-message oa-message-full";
-      message.textContent=dateText(date)+": у мастера уже 2 заказа. Выберите другой день.";
-      return;
-    }
     if(dayInput.value!==date){
       dayInput.value=date;
       timeInput.value=""; // A time from a different date must never carry over.
@@ -128,16 +119,14 @@
     for(let day=1;day<=days;day++){
       const date=iso(viewYear,viewMonth+1,day);
       const stats=availability(date,masterInput.value);
-      const severity=stats?(stats.count>=MAX_JOBS?"full":stats.count===1?"partial":"free"):"unknown";
-      const fullForThisOrder=stats&&!stats.canBook;
+      const severity=stats?(stats.count>0?"partial":"free"):"unknown";
       const button=el("button","oa-day oa-"+severity+(date===chosen?" is-selected":"")+(date===today?" is-today":""));
       button.type="button";
       button.dataset.date=date;
       button.setAttribute("aria-pressed",String(date===chosen));
-      button.setAttribute("aria-label",dateText(date)+(stats?": "+stats.count+" из 2 записей":" — выберите мастера"));
-      button.disabled=Boolean(fullForThisOrder&&date!==chosen);
+      button.setAttribute("aria-label",dateText(date)+(stats?": "+stats.count+" записей":" — выберите мастера"));
       button.append(el("span","oa-day-number",day));
-      button.append(el("span","oa-day-count",stats?stats.count+" / 2":"—"));
+      button.append(el("span","oa-day-count",stats?String(stats.count):"—"));
       button.addEventListener("click",()=>selectDate(date));
       frag.append(button);
     }
@@ -159,15 +148,9 @@
       return;
     }
     if(!stats)return;
-    if(!stats.canBook){
-      message.classList.add("oa-message-full");
-      message.textContent="День заполнен: у мастера уже 2 заказа. Выберите другую дату.";
-    }else if(stats.count===1){
+    if(stats.count>0){
       message.classList.add("oa-message-partial");
-      message.textContent="1 заказ из 2. Учитывайте 3 часа работы и 20 минут на дорогу.";
-    }else if(stats.count>=MAX_JOBS){
-      message.classList.add("oa-message-full");
-      message.textContent="На день запланировано 2 заказа. Для нового заказа выберите другую дату.";
+      message.textContent="На день уже назначено "+stats.count+" заказ(ов). Дополнительная запись допускается, но проверьте время работы и дорогу.";
     }else{
       message.classList.add("oa-message-free");
       message.textContent="Записей пока нет. Выберите удобное время.";
@@ -186,15 +169,16 @@
     let available=0;
     for(const time of suggestedTimes){
       const state=timeState(time,date,master);
-      const label=state==="busy"?"Занято":state==="tight"?"Мало времени":
-        state==="full"?"День занят":state==="unknown"?"Уточнить":"Свободно";
-      const button=el("button","oa-slot oa-slot-"+state+(timeInput.value===time?" is-selected":""));
+      const label=state==="busy"?"Занято":state==="tight"?"Плотная запись":
+        state==="unknown"?"Уточнить":"Свободно";
+      const selectable=state==="available"||state==="tight";
+      const button=el("button","oa-slot oa-slot-"+state+(selectable&&timeInput.value===time?" is-selected":""));
       button.type="button";
-      button.disabled=state!=="available";
+      button.disabled=!selectable;
       button.setAttribute("aria-label",time+": "+label);
       button.setAttribute("aria-pressed",String(timeInput.value===time));
       button.dataset.baseLabel=label;
-      button.append(el("strong","",time),el("small","",timeInput.value===time&&state==="available"?"Выбрано":label));
+      button.append(el("strong","",time),el("small","",timeInput.value===time&&selectable?(state==="tight"?"Выбрано · плотно":"Выбрано"):label));
       if(!button.disabled){
         available++;
         button.addEventListener("click",()=>{
@@ -205,10 +189,10 @@
       }
       slots.append(button);
     }
-    if(!available&&stats.canBook)
-      slots.append(el("p","oa-no-slots","Нет подходящих типовых интервалов. Выберите другой день или уточните время вручную."));
+    if(!available)
+      slots.append(el("p","oa-no-slots","На стандартных часах есть совпадения или неизвестная занятость. Уточните время вручную."));
     slots.append(el("p","oa-slot-note",
-      "Свободно по текущим заказам. Проверка повторится при сохранении."));
+      "Точное совпадение времени запрещено. Плотная запись допускается после подтверждения; проверка повторится при сохранении."));
   }
   function renderSlots(){
     for(const button of $("oaSlotSuggestions").querySelectorAll(".oa-slot")){
@@ -216,7 +200,7 @@
       button.classList.toggle("is-selected",selected);
       button.setAttribute("aria-pressed",String(selected));
       const caption=button.querySelector("small");
-      if(caption)caption.textContent=selected?"Выбрано":button.dataset.baseLabel||"";
+      if(caption)caption.textContent=selected?(button.classList.contains("oa-slot-tight")?"Выбрано · плотно":"Выбрано"):button.dataset.baseLabel||"";
     }
   }
   function render(){

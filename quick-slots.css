@@ -40,3 +40,7 @@ body.rd .rd-orders-quick-slots{display:inline-flex;align-items:center;justify-co
 body.rd .rd-calendar-titlebar{display:flex;align-items:center;flex-wrap:wrap;gap:8px}
 body.rd .rd-calendar-titlebar .rd-cal-slots{margin-left:auto}
 @media(max-width:420px){body.rd .rd-calendar-titlebar .rd-cal-slots{margin-left:0}}
+
+/* Near-time suggestions remain selectable but visibly caution about travel. */
+.qs-slot-tight{background:#fff9ed;border-color:#efd8a4}
+.qs-slot-tight .qs-action{color:#94601c}
