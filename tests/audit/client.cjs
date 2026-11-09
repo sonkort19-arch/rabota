@@ -79,3 +79,36 @@ test('AI cash excludes unallocated money held by master and excludes voided expe
  assert.equal(s.accounting_rub.raul_accrued,10000);
  assert.equal(s.accounting_rub.timur_accrued,1500);
 });
+
+function aiFixture(member=true){
+ const calls=[],c={module:{exports:{}},process:{env:{OPENAI_API_KEY:'synthetic-test-key'}},AbortSignal,Date,Intl};
+ c.fetch=async(url,options={})=>{
+  calls.push({url,method:options.method||'GET'});
+  const pathname=new URL(url).pathname;
+  let value=[];
+  if(pathname==='/auth/v1/user')value={id:'owner'};
+  else if(pathname.endsWith('/rabota_members'))value=member?[{user_id:'owner',role:'owner',active:true}]:[];
+  else if(url==='https://api.openai.com/v1/responses')value={output:[{type:'function_call',name:'prepare_order_action',
+   arguments:JSON.stringify({action:'create',client_name:'Фото клиент',date:'2026-12-01',time:'10:00',master:'Рауль',phone:'79990000001'})}]};
+  return {ok:true,status:200,json:async()=>value};
+ };
+ vm.createContext(c);vm.runInContext(fs.readFileSync('api/ai-chat.js','utf8'),c);
+ return {c,calls};
+}
+async function apiCall(f,body,authorization='Bearer synthetic'){
+ let status,result;const res={setHeader(){},status(n){status=n;return this},json(v){result=v;return this}};
+ await f.c.module.exports({method:'POST',headers:{authorization},body},res);
+ return {status,result};
+}
+test('AI endpoint requires authentication and active owner',async()=>{
+ assert.equal((await apiCall(aiFixture(),{},'')).status,401);
+ assert.equal((await apiCall(aiFixture(false),{messages:[{role:'user',content:'Привет'}]})).status,403);
+});
+test('AI endpoint validates image format and prepares proposal without writing orders',async()=>{
+ const f=aiFixture();
+ assert.equal((await apiCall(f,{messages:[{role:'user',content:'Заказ по фото'}],image:'data:text/html;base64,AAAA'})).status,413);
+ const result=await apiCall(f,{messages:[{role:'user',content:'Добавь заказ по фото'}],image:'data:image/jpeg;base64,AAAA'});
+ assert.equal(result.status,200);assert.equal(result.result.proposal.client_name,'Фото клиент');
+ assert.ok(f.calls.filter(c=>new URL(c.url).hostname.includes('supabase')).every(c=>c.method==='GET'));
+ assert.equal(f.calls.filter(c=>c.url.includes('/rpc/')).length,0,'proposal cannot execute an order');
+});

@@ -117,3 +117,33 @@ test('two concurrent identical finance requests produce one row',async t=>{
  assert.equal(results[0].stdout.trim(),results[1].stdout.trim());
  assert.equal(sql(`select count(*) from public.rabota_finance_operations where request_id='${req}'`),'1');
 });
+
+test('AI confirmation is idempotent and rejects unauthorized callers',()=>{
+ const query=`
+ do $$ declare draft uuid; begin
+ draft:=(public.rabota_ai_prepare_order_v2('create','ИИ клиент',(current_date+9)::text,'15:00','Рауль','79990000009')->>'draft_id')::uuid;
+ perform public.rabota_ai_confirm_order_v2(draft);
+ perform public.rabota_ai_confirm_order_v2(draft);
+ end $$;
+ select count(*) from public.rabota_orders;`;
+ assert.ok(run(query).endsWith('1'));
+ rejected(`select set_config('request.jwt.claim.sub','${stranger}',true);
+ select public.rabota_ai_prepare_order_v2('create','ИИ клиент',(current_date+9)::text,'15:00','Рауль','79990000009')`,/только владельцу/);
+});
+test('finance rejects excess balance and invalid amounts without inserting rows',()=>{
+ rejected(`select public.rabota_finance_record('raul_payout',1,'${master}','Тест')`,/доступного баланса/);
+ for(const amount of ['0','-1','10000001','0.001']){
+  rejected(`select public.rabota_finance_record('expense',${amount},null,'Тест')`,/корректную сумму/);
+ }
+});
+test('cancelled lead order can be replaced but cannot be reactivated alongside replacement',()=>{
+ if(!fixed)return;
+ const lead='30000000-0000-4000-8000-000000000009';
+ rejected(`insert into public.rabota_leads(id,name,phone,phone_normalized)
+ values ('${lead}','Лид','79990000001','79990000001');
+ `+order(id,',lead_id')+`,'${lead}');
+ update public.rabota_orders set status='Отменён' where id='${id}';
+ insert into public.rabota_orders(name,phone,master,status,appointment_date,appointment_time,lead_id)
+ values ('Замена','79990000001','Рауль','Записан',current_date+8,'15:00','${lead}');
+ update public.rabota_orders set status='Записан' where id='${id}'`,/rabota_orders_one_active_order_per_lead/);
+});
