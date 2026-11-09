@@ -492,6 +492,7 @@
         </div>
         <div class="order-submit-bar">
           <button class="primary save" type="submit">Сохранить заказ</button>
+          <button class="order-delete-btn" id="deleteOrderBtn" type="button" hidden>Удалить заказ</button>
           <div class="error" id="formStatus" role="status" aria-live="polite"></div>
         </div>
       </form>
@@ -511,6 +512,7 @@
     const overlay = document.getElementById("orderOverlay");
     const form = document.getElementById("orderForm");
     const formStatus = document.getElementById("formStatus");
+    const deleteOrderBtn = document.getElementById("deleteOrderBtn");
     const ordersNode = document.getElementById("orders");
     const calendarDate = document.getElementById("calendarDate");
     const weekDays = document.getElementById("weekDays");
@@ -735,6 +737,13 @@
       if(currentRole==="master"){try{await refreshRabotaNotifications();}catch(error){console.warn("Notification reload",error);}}
     }
     function getOrders() {return cloudOrders;}
+    function orderHasFinancialHistory(order){
+      if(!order)return false;
+      return Boolean(order.paid||order.paymentMethod||order.paymentAmount!=null||
+        order.paymentReceivedBy||order.paidAt||order.paidBy||
+        financeOperations.some(row=>String(row.order_id)===String(order.id))||
+        financeCollections.some(row=>String(row.order_id)===String(order.id)));
+    }
     async function persistOrder(order) {
       const existing = cloudOrders.some(o => String(o.id) === String(order.id));
       const data = serializeOrder(order);
@@ -1173,6 +1182,10 @@
       updateMasters();
       const existing=editingId===null?null:getOrders().find(x=>String(x.id)===editingId);
       advanced.open=Boolean(existing);
+      deleteOrderBtn.hidden=currentRole!=="owner"||!existing;
+      deleteOrderBtn.disabled=orderHasFinancialHistory(existing);
+      deleteOrderBtn.textContent=deleteOrderBtn.disabled
+        ?"Есть оплата или финансы — удалить нельзя":"Удалить заказ";
       document.getElementById("formTitle").textContent=existing?"Редактировать заказ":"Новый заказ";
       if(existing) {
         controls.name.value=existing.name||"";
@@ -1216,6 +1229,43 @@
       overlay.hidden=true;window.__rdOrderAvailability?.close();document.body.style.overflow="";form.reset();delete form.dataset.leadPreview;delete form.dataset.leadId;editingId=null;
       if(previousFocus&&typeof previousFocus.focus==="function")previousFocus.focus();
     }
+    deleteOrderBtn.addEventListener("click",async()=>{
+      if(currentRole!=="owner"||editingId===null||orderSaving||deleteOrderBtn.disabled||deleteOrderBtn.hidden)return;
+      const id=editingId;
+      const order=getOrders().find(o=>String(o.id)===String(id));
+      if(!order){formStatus.textContent="Заказ больше не найден. Обновите список.";return;}
+      if(orderHasFinancialHistory(order)){
+        formStatus.textContent="Заказ с оплатой или финансовыми операциями удалить нельзя.";return;
+      }
+      const label=(order.name||"Клиент")+" — "+(order.date||"без даты")+
+        (order.time?" в "+order.time:"");
+      if(!confirm("Удалить заказ «"+label+"» навсегда?\n\n"+
+        "У клиента исчезнет запись в расписании. Оплаченные и финансовые заказы база удалить не позволит. Это действие нельзя отменить."))return;
+      const typed=prompt("Для окончательного подтверждения напишите УДАЛИТЬ:");
+      if(typed===null)return;
+      if(typed.trim()!=="УДАЛИТЬ"){
+        formStatus.textContent="Удаление отменено: слово подтверждения не совпало.";return;
+      }
+      const saveBtn=form.querySelector('button[type="submit"]');
+      orderSaving=true;deleteOrderBtn.disabled=true;saveBtn.disabled=true;
+      formStatus.classList.add("is-saving");
+      formStatus.textContent="Удаляем заказ…";
+      try{
+        const result=await dbRequest("rpc/rabota_delete_order","POST",{p_order_id:id});
+        if(!result||result.ok!==true)throw new Error("База не подтвердила удаление. Проверьте заказ.");
+        let syncError=null;
+        try{await reloadOrders();}catch(error){syncError=error;}
+        closeForm(true);
+        try{await window.__rdLeadsRefresh?.();}catch(error){console.warn("Leads refresh after deletion",error);}
+        alert(syncError?"Заказ удалён, но обновить список не удалось. Перезагрузите страницу.":
+          "Заказ удалён.");
+      }catch(error){
+        formStatus.textContent=friendlyError(error);
+      }finally{
+        orderSaving=false;saveBtn.disabled=false;deleteOrderBtn.disabled=false;
+        formStatus.classList.remove("is-saving");
+      }
+    });
     document.getElementById("newOrderBtn").addEventListener("click",()=>openForm());
     document.getElementById("closeOrderBtn").addEventListener("click",closeForm);
     overlay.addEventListener("click",e=>{if(e.target===overlay)closeForm();});
