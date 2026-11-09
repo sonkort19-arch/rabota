@@ -12,7 +12,7 @@
 .qs-select{box-sizing:border-box;min-height:42px;width:100%;min-width:0;padding:7px 12px;border:1px solid #d9e1ee;border-radius:11px;background:#fff;color:#1b2b42;font:inherit;font-size:15px}
 .qs-refresh{height:42px;padding:7px 13px;border:1px solid #dce4f0;border-radius:11px;background:#f5f7fc;color:#32506f;font-size:13px;font-weight:650;cursor:pointer}
 .qs-status{margin:0;min-height:19px;color:#61728c;font-size:12px;line-height:1.45}
-.qs-list{min-height:55px;overflow-y:auto;overscroll-behavior:contain;padding-right:2px}
+.qs-list{min-height:0;flex:1;overflow-y:auto;overscroll-behavior:contain;padding-right:2px}
 .qs-day{margin:14px 0 7px;padding-top:8px;border-top:1px solid #edf0f6;font-size:12px;color:#536987;font-weight:700;text-transform:capitalize}
 .qs-day:first-child{margin-top:0;border-top:0;padding-top:0}
 .qs-slot{display:flex;align-items:center;gap:11px;width:100%;min-height:54px;margin:6px 0;padding:9px 12px;border:1px solid #dce6f3;border-radius:12px;background:#f8faff;color:#203149;cursor:pointer;text-align:left;font:inherit}
