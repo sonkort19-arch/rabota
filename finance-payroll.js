@@ -16,42 +16,127 @@
  function payout(m,p){
    if(!Number.isFinite(p.due)||p.due<=0){window.alert("Положительного остатка к выплате нет.");return}
    const backdrop=el("div","fp-backdrop"),modal=el("section","fp-modal");
-   modal.setAttribute("role","dialog");modal.setAttribute("aria-modal","true");modal.setAttribute("aria-labelledby","fp-modal-title");
-   const title=el("h2","","Выплата — "+p.name);title.id="fp-modal-title";
-   const close=()=>{document.removeEventListener("keydown",onEscape);backdrop.remove()};
-   const onEscape=e=>{if(e.key==="Escape")close()};
+   modal.setAttribute("role","dialog");modal.setAttribute("aria-modal","true");
+   modal.setAttribute("aria-labelledby","fp-modal-title");modal.tabIndex=-1;
+   let submitting=false,closed=false;
+   const viewport=window.visualViewport;
+   const syncViewport=()=>{
+     if(closed)return;
+     backdrop.style.top=(viewport?.offsetTop||0)+"px";
+     backdrop.style.height=(viewport?.height||window.innerHeight)+"px";
+     backdrop.style.bottom="auto";
+   };
+   const close=()=>{
+     if(submitting||closed)return;
+     closed=true;
+     if(modal.contains(document.activeElement))document.activeElement.blur?.();
+     document.removeEventListener("keydown",onEscape);
+     viewport?.removeEventListener("resize",syncViewport);
+     viewport?.removeEventListener("scroll",syncViewport);
+     backdrop.remove();
+   };
+   const onEscape=event=>{if(event.key==="Escape")close()};
    document.addEventListener("keydown",onEscape);
-   backdrop.addEventListener("click",e=>{if(e.target===backdrop)close()});
+   viewport?.addEventListener("resize",syncViewport);
+   viewport?.addEventListener("scroll",syncViewport);
+   backdrop.addEventListener("click",event=>{if(event.target===backdrop)close()});
+   const title=el("h2","","Выплата — "+p.name);title.id="fp-modal-title";
    modal.append(div("fp-modal-heading",title,button("×","fp-close",close)));
    modal.append(div("fp-modal-balance",el("span","","Текущий баланс"),el("strong","",money(p.due))));
-   const sumLabel=el("label","fp-label","Сумма выплаты, ₽"),sum=el("input","fp-input");
-   sum.type="number";sum.step="0.01";sum.min="0.01";sum.max=String(p.due);sum.value=Number(p.due).toFixed(2);sumLabel.append(sum);
-   const noteLabel=el("label","fp-label","Комментарий"),note=el("textarea","fp-input");
-   note.rows=2;note.maxLength=240;note.placeholder="Например: зарплата за неделю";noteLabel.append(note);
-   const remainder=el("strong",""),error=el("p","fp-error");error.setAttribute("role","alert");
+   const sumLabel=el("label","fp-label","Сумма выплаты, ₽");
+   const sum=el("input","fp-input");
+   sum.type="text";sum.inputMode="decimal";sum.autocomplete="off";
+   sum.setAttribute("aria-label","Сумма выплаты в рублях");
+   sum.value=Number(p.due).toFixed(2).replace(".",",");
+   sumLabel.append(sum);
+   const noteLabel=el("label","fp-label","Комментарий");
+   const note=el("textarea","fp-input");
+   note.rows=2;note.maxLength=240;
+   note.value="Выплата зарплаты "+(p.key==="raul"?"Раулю":"Тимуру");
+   note.placeholder="Например: зарплата за неделю";noteLabel.append(note);
+   const doneEditing=button("Готово","fp-done",()=>{
+     document.activeElement?.blur?.();
+     modal.scrollTo?.({top:modal.scrollHeight,behavior:"smooth"});
+   });
+   const remainder=el("strong",""),error=el("p","fp-error");
+   error.setAttribute("role","alert");
    const confirmButton=button(isPreview()?"Проверить расчёт":"Подтвердить выплату","fp-primary",()=>{});
+   const cancelButton=button("Отмена","fp-secondary",close);
+   const centsFromInput=()=>{
+     const raw=sum.value.trim().replace(/[\s\u00a0\u202f]/g,"").replace(",",".");
+     if(!/^\d+(?:\.\d{1,2})?$/.test(raw))return null;
+     const cents=Math.round(Number(raw)*100);
+     return Number.isSafeInteger(cents)?cents:null;
+   };
    const valid=()=>{
-     const raw=sum.value.trim(),cents=Math.round(Number(raw)*100),limit=Math.round(Number(p.due)*100);
-     const allowed=!!raw&&Number.isSafeInteger(cents)&&cents>0&&cents<=limit&&!!note.value.trim();
-     remainder.textContent=allowed?money((limit-cents)/100):"—";
-     error.textContent=!raw?"Укажите сумму":!Number.isSafeInteger(cents)||cents<=0?"Некорректная сумма":cents>limit?"Сумма больше остатка":!note.value.trim()?"Добавьте комментарий":"";
-     confirmButton.disabled=!allowed;return allowed
+     const cents=centsFromInput(),limit=Math.round(Number(p.due)*100);
+     const validAmount=cents!==null&&cents>0&&cents<=limit;
+     remainder.textContent=validAmount?money((limit-cents)/100):"—";
+     const message=!sum.value.trim()?"Укажите сумму":
+       cents===null||cents<=0?"Некорректная сумма":
+       cents>limit?"Сумма больше остатка":
+       !note.value.trim()?"Добавьте комментарий":"";
+     error.textContent=message;
+     confirmButton.disabled=submitting||!!message;
+     return !message;
    };
    sum.addEventListener("input",valid);note.addEventListener("input",valid);
-   confirmButton.addEventListener("click",()=>{
-     if(!valid())return;
+   confirmButton.addEventListener("click",async()=>{
+     if(submitting||!valid())return;
      if(isPreview()){error.textContent="Предпросмотр: выплата не записана в Supabase.";return}
-     const value=(Math.round(Number(sum.value)*100)/100);
+     const cents=centsFromInput(),value=cents/100;
      if(!window.confirm("Провести РЕАЛЬНУЮ выплату "+p.name+" на "+money(value)+"?"))return;
-     const form=$("financeForm"),kind=$("financeType"),amount=$("financeAmount"),memo=$("financeNote");
-     if(!form||!kind||!amount||!memo){error.textContent="Форма финансов недоступна";return}
-     kind.value=p.kind;amount.value=value.toFixed(2);memo.value=note.value.trim();
-     close();form.requestSubmit();
+     if(typeof window.__rdRecordPayrollPayout!=="function"){
+       error.textContent="Связь с финансовым модулем недоступна. Обновите страницу.";
+       return;
+     }
+     submitting=true;confirmButton.disabled=true;cancelButton.disabled=true;
+     sum.disabled=true;note.disabled=true;doneEditing.disabled=true;
+     document.activeElement?.blur?.();
+     error.classList.add("fp-progress");
+     error.textContent="Сохраняю выплату в финансовой истории...";
+     try{
+       const result=await window.__rdRecordPayrollPayout({
+         kind:p.kind,amount:value,note:note.value.trim()
+       });
+       // The RPC has returned success. Show a receipt, never submit twice.
+       submitting=false;
+       const updated=Number.isFinite(result.updatedDue)?result.updatedDue:
+         Math.max(0,Math.round((p.due-value)*100)/100);
+       const receiptTitle=el("h2","","Выплата проведена");receiptTitle.id="fp-modal-title";
+       const header=div("fp-modal-heading",receiptTitle,button("×","fp-close",close));
+       const receipt=div("fp-success",
+         el("strong","fp-success-amount",money(value)),
+         el("span","","Выплата — "+p.name),
+         el("p","","Запись подтверждена финансовой базой."));
+       const balance=div("fp-modal-balance",
+         el("span","",result.refreshError?"Расчётный остаток":"Осталось выплатить"),
+         el("strong","",money(updated)));
+       const actions=div("fp-actions",button("Закрыть","fp-primary",close));
+       modal.replaceChildren(header,receipt,balance);
+       if(result.refreshError)modal.append(el("p","fp-hint",
+         "Выплата сохранена, но обновить финансовый экран не удалось. Откройте финансы повторно; не проводите эту выплату ещё раз."));
+       modal.append(actions);
+       modal.scrollTop=0;
+     }catch(failure){
+       // An interrupted network response may be ambiguous: block repeat submission.
+       submitting=false;error.classList.remove("fp-progress");
+       error.textContent="Не удалось подтвердить запись: "+(failure?.message||"ошибка связи")+
+         ". Проверьте финансовую историю перед новой попыткой, чтобы исключить двойную выплату.";
+       cancelButton.disabled=false;doneEditing.disabled=false;
+       confirmButton.disabled=true;sum.disabled=true;note.disabled=true;
+     }
    });
-   modal.append(sumLabel,noteLabel,div("fp-after",el("span","","Останется выплатить"),remainder),error);
-   if(isPreview())modal.append(el("p","fp-hint","Тестовая версия: кнопка показывает результат, но реальные деньги не списывает."));
-   modal.append(div("fp-actions",button("Отмена","fp-secondary",close),confirmButton));
-   backdrop.append(modal);document.body.append(backdrop);sum.focus();valid();
+   modal.append(sumLabel,noteLabel,div("fp-keyboard-actions",doneEditing),
+     div("fp-after",el("span","","Останется выплатить"),remainder),error);
+   if(isPreview())modal.append(el("p","fp-hint",
+     "Тестовая версия: кнопка показывает результат, но реальные деньги не списывает."));
+   modal.append(div("fp-actions",cancelButton,confirmButton));
+   backdrop.append(modal);document.body.append(backdrop);
+   syncViewport();
+   // Focus the dialog, not the amount field: do not force the iPhone keyboard open.
+   modal.focus({preventScroll:true});
+   valid();
  }
  function employeeList(m,redraw){
    const section=el("section","fp-section");
