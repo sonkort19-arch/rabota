@@ -1784,6 +1784,7 @@
 
     const loginMessage=document.getElementById("authMessage");
     const accessMessage=document.getElementById("accessMessage");
+    const rdStartupStartedAt=performance.now();
     async function checkAccess() {
       const user=await authRequest("user","GET",null,true);
       if(!user||!user.id) throw new Error("Не удалось проверить аккаунт.");
@@ -1814,6 +1815,10 @@
       appScreen.style.pointerEvents="none";
       appScreen.setAttribute("inert","");
       appScreen.setAttribute("aria-busy","true");
+      // Keep the startup animation visible briefly on fast connections.
+      // This never delays data requests or authentication; only the screen transition.
+      const rdStartupRemaining=900-(performance.now()-rdStartupStartedAt);
+      if(rdStartupRemaining>0)await new Promise(resolve=>setTimeout(resolve,rdStartupRemaining));
       showScreen("appScreen");
       const syncNode=document.getElementById("syncStatus");
       if(syncNode)syncNode.textContent="Загружаем заявки…";
