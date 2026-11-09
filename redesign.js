@@ -235,7 +235,21 @@ function build(){
  const mobile=makeNode("nav","rd-mobilebar");mobile.id="rdMobileNav";
  mobile.setAttribute("aria-label","Разделы приложения, пролистываются вправо и влево");
  for(const key of permittedSections())mobile.append(navButton(key));
- app.prepend(top,side,profile.menu,mobile);
+ const navMore=makeNode("button","rd-nav-more","Ещё ›");
+ navMore.type="button";navMore.hidden=true;
+ navMore.setAttribute("aria-label","Показать следующие разделы нижнего меню");
+ const updateNavMore=()=>{
+   navMore.hidden=!mobile.clientWidth||
+     mobile.scrollWidth<=mobile.clientWidth+5||
+     mobile.scrollLeft+mobile.clientWidth>=mobile.scrollWidth-8;
+ };
+ navMore.addEventListener("click",()=>{
+   mobile.scrollBy({left:Math.max(120,Math.round(mobile.clientWidth*.65)),behavior:"smooth"});
+ });
+ mobile.addEventListener("scroll",updateNavMore,{passive:true});
+ window.addEventListener("resize",updateNavMore);
+ app.prepend(top,side,profile.menu,mobile,navMore);
+ window.requestAnimationFrame(updateNavMore);
  const home=sectionView("rdHome","Главная","Краткая сводка заказов и расписания");
  const homeTitlebar=makeNode("div","rd-home-titlebar");
  const homeSync=makeNode("span","rd-home-synced",$("syncStatus")?.textContent||"");
