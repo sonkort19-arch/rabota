@@ -35,14 +35,14 @@ test("Moscow clock not device timezone; excludes already-started and imminent sl
   assert.ok(!result.some(s=>s.date==="2026-11-09"&&s.time==="10:00"));
   assert.equal(core.addDay("2026-12-31",1),"2027-01-01");
 });
-test("Existing 2 orders/day rule blocks entire day",()=>{
+test("Two or more orders in a day do not block distinct times",()=>{
   const api=availability([
     {date:"2026-11-10",time:"10:00",master:"Рауль",status:"Записан"},
     {date:"2026-11-10",time:"15:00",master:"Рауль",status:"В работе"}
   ]);
   const found=slotTest(api,["Рауль"],"2026-11-10T05:00:00Z");
-  assert.ok(!found.some(x=>x.date==="2026-11-10"));
-  assert.equal(api.checkTime("18:00","2026-11-10","Рауль"),"full");
+  assert.ok(found.some(x=>x.date==="2026-11-10"&&x.time==="18:00"&&x.tight));
+  assert.equal(api.checkTime("18:00","2026-11-10","Рауль"),"tight");
 });
 test("200-minute gap, exact collision, unknown time and canceled orders",()=>{
   const api=availability([
@@ -57,7 +57,7 @@ test("200-minute gap, exact collision, unknown time and canceled orders",()=>{
   assert.equal(api.checkTime("10:00","2026-11-12","Рауль"),"available");
   const found=slotTest(api,["Рауль"],"2026-11-10T05:00:00Z");
   assert.ok(found.some(s=>s.date==="2026-11-10"&&s.time==="10:00"));
-  assert.ok(!found.some(s=>s.date==="2026-11-10"&&s.time==="18:00"));
+  assert.ok(found.some(s=>s.date==="2026-11-10"&&s.time==="18:00"&&s.tight));
   assert.ok(!found.some(s=>s.date==="2026-11-11"));
 });
 test("Two different masters can book the same time; names deduplicate case-insensitively",()=>{
@@ -79,7 +79,21 @@ test("Quick selection fills unsaved order and refreshes before display/selection
   assert.ok(html.includes("window.__rdOrderAvailability?.checkTime(time,date,master)"));
   assert.ok(html.includes("openForm();"));
   assert.ok(html.includes('src="/quick-slots.js"'));
-  assert.ok(redesign.includes("rd-quick-slot-hero"));
+  assert.ok(redesign.includes("function homeSlotPicker()"));
   assert.ok(redesign.includes("rd-cal-slots"));
   assert.ok(redesign.includes("rd-orders-quick-slots"));
+});
+
+test("Exact start time still blocked with four existing bookings, even for small orders",()=>{
+  const date="2026-11-10";
+  const rows=[
+    {date,time:"07:00",master:"Рауль",status:"Записан"},
+    {date,time:"09:00",master:"Рауль",status:"В работе"},
+    {date,time:"13:00",master:"Рауль",status:"Записан"},
+    {date,time:"16:00",master:"Рауль",status:"Записан"}
+  ];
+  const api=availability(rows);
+  assert.equal(api.checkTime("13:00",date,"Рауль"),"busy");
+  assert.equal(api.checkTime("18:00",date,"Рауль"),"tight");
+  assert.equal(api.checkTime("23:00",date,"Рауль"),"available");
 });
