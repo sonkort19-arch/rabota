@@ -294,3 +294,83 @@ body.rd #financePanel .fp-person-detail .fp-subtabs{
 @media(max-width:350px){
   body.rd #financePanel .fp-person-summary{grid-template-columns:1fr}
 }
+
+
+/* iPhone payroll payout: visual viewport, decimal keyboard and confirmed receipt. */
+body.rd .fp-backdrop{
+  box-sizing:border-box;
+  overflow:hidden;
+  padding:10px;
+}
+body.rd .fp-modal{
+  box-sizing:border-box;
+  max-height:calc(100% - 16px);
+  min-height:0;
+  min-width:0;
+  overflow-x:hidden;
+  overflow-y:auto;
+  -webkit-overflow-scrolling:touch;
+  overscroll-behavior:contain;
+  outline:none;
+}
+body.rd .fp-keyboard-actions{
+  display:flex;
+  justify-content:flex-end;
+  margin-top:8px;
+}
+body.rd .fp-done{
+  background:#f1f5ff;
+  border:1px solid #dbe5fa;
+  color:#355bd5;
+  border-radius:10px;
+  min-width:78px;
+  min-height:39px;
+  padding:6px 13px;
+  font-size:14px;
+  font-weight:750;
+  cursor:pointer;
+  touch-action:manipulation;
+}
+body.rd .fp-done:focus-visible{
+  outline:2px solid #97aeff;
+  outline-offset:2px;
+}
+body.rd .fp-success{
+  display:flex;
+  flex-direction:column;
+  gap:8px;
+  align-items:center;
+  text-align:center;
+  background:#effaf4;
+  border:1px solid #d3ebdc;
+  color:#157b54;
+  padding:20px 12px;
+  margin-top:20px;
+  border-radius:14px;
+}
+body.rd .fp-success-amount{
+  font-size:29px;
+  font-weight:850;
+  font-variant-numeric:tabular-nums;
+}
+body.rd .fp-success p{font-size:13px;line-height:1.45;margin:0}
+body.rd .fp-error.fp-progress{color:#435fd0}
+@media(max-width:790px){
+  body.rd .fp-backdrop{padding:8px max(10px,env(safe-area-inset-right)) 8px max(10px,env(safe-area-inset-left))}
+  body.rd .fp-modal{
+    width:min(100%,470px);
+    max-height:calc(100% - 12px);
+    padding:17px;
+    border-radius:16px;
+  }
+  body.rd .fp-modal-balance{margin:15px 0;padding:12px}
+  body.rd .fp-modal-balance strong{font-size:21px}
+  body.rd .fp-actions{margin-top:12px}
+  body.rd .fp-actions button{min-height:46px}
+  body.rd .fp-input{font-size:16px}
+}
+@media(max-height:540px){
+  body.rd .fp-modal{max-height:calc(100% - 8px);padding-top:12px;padding-bottom:12px}
+  body.rd .fp-modal-balance{margin:9px 0}
+  body.rd .fp-label{margin-top:8px}
+}
