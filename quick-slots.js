@@ -152,7 +152,6 @@
   }
   function setBusy(value) {
     busy=value;
-    closeButton.disabled=value;
     refresh.disabled=value;
     select.disabled=value;
     for(const btn of list.querySelectorAll("button"))btn.disabled=value;
@@ -206,8 +205,8 @@
     readFresh(true);
   }
   function close() {
-    if(!visible||busy)return;
-    visible=false;runId++;
+    if(!visible)return;
+    visible=false;runId++;busy=false;
     host.hidden=true;list.replaceChildren();latest=null;
     document.body.style.overflow=previousOverflow;
     if(previousFocus?.isConnected)previousFocus.focus?.({preventScroll:true});
