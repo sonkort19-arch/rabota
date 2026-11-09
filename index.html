@@ -1771,14 +1771,22 @@
       if (currentRole==="master") currentTab="all";
       financeActive=false;
       financeVisible();
-      // Role has been verified server-side. Show the shell before loading orders/finance.
+      // Role has been verified server-side. Render the shell but block actions until
+      // the initial orders/finance request completes, avoiding stale/empty-state writes.
+      const appScreen=document.getElementById("appScreen");
+      appScreen.style.pointerEvents="none";
+      appScreen.setAttribute("inert","");
+      appScreen.setAttribute("aria-busy","true");
       showScreen("appScreen");
       const syncNode=document.getElementById("syncStatus");
       if(syncNode)syncNode.textContent="Загружаем заявки…";
-      // Keep the UI responsive; errors remain visible rather than returning to login.
       void reloadOrders().catch(error=>{
         console.error("Initial orders load failed",error);
         reportSync(error);
+      }).finally(()=>{
+        appScreen.style.pointerEvents="";
+        appScreen.removeAttribute("inert");
+        appScreen.removeAttribute("aria-busy");
       });
       if(currentRole==="master")window.__rdInitMasterPush?.();
       window.__rdAccess?.();
