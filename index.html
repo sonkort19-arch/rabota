@@ -221,6 +221,7 @@
   <link rel="stylesheet" href="/orders-polish.css">
   <link rel="stylesheet" href="/mobile-order-form.css">
   <link rel="stylesheet" href="/order-availability.css">
+  <link rel="stylesheet" href="/quick-slots.css">
   <link rel="stylesheet" href="/order-payment.css">
   <link rel="stylesheet" href="/master-notifications.css">
   <link rel="stylesheet" href="/orders-list.css">
@@ -538,6 +539,7 @@
     let currentUser = null;
     let currentRole = null;
     let currentMasterName = "";
+    let activeMasterNames = null;
     // Raul may register new bookings for himself, but may not edit existing jobs.
     function raulCanCreateOrder() {
       return currentRole==="master" && String(currentMasterName||"").trim().toLocaleLowerCase("ru")==="рауль";
@@ -1745,6 +1747,7 @@
         wrap.append(name,btn);requests.append(wrap);
       });
       const workers=rows.filter(m=>m.active&&m.role==="master");
+      activeMasterNames=workers.map(m=>String(m.master_name||"").trim()).filter(Boolean);
       active.append(make("div","team-title","Подключённые мастера: "+workers.length));
       workers.forEach(member=>{
         const wrap=make("div","team-item");
@@ -1777,6 +1780,31 @@
       role:currentRole,userId:currentUser?.id||null,
       orders:getOrders().map(o=>({date:o.date,time:o.time,master:o.master,status:o.status}))
     });
+    // Phone-call booking: reuse the live calendar checks and the original order editor.
+    // Selection only pre-fills an unsaved order. No direct database write.
+    window.__rdQuickSlotsRead=async()=>{
+      if(!["owner","manager"].includes(currentRole))throw new Error("Доступ только для менеджера и владельца");
+      if(!session||document.getElementById("appScreen").hidden)throw new Error("Войдите в CRM");
+      await reloadOrders();
+      const fromOrders=getOrders().map(o=>String(o.master||"").trim()).filter(Boolean);
+      const masters=activeMasterNames===null||!activeMasterNames.length?fromOrders:activeMasterNames;
+      return {masters:[...new Map(masters.map(name=>[name.toLocaleLowerCase("ru"),name])).values()]};
+    };
+    window.__rdQuickSlotFill=({date,time,master})=>{
+      if(!["owner","manager"].includes(currentRole)||
+        !/^\d{4}-\d{2}-\d{2}$/.test(date)||
+        !/^([01]\d|2[0-3]):[0-5]\d$/.test(time)||
+        !String(master||"").trim())return false;
+      if(window.__rdOrderAvailability?.checkTime(time,date,master)!=="available")return false;
+      openForm();
+      controls.date.value=date;
+      controls.time.value=time;
+      controls.master.value=master;
+      window.__rdOrderAvailability?.refresh(getOrders());
+      controls.master.dispatchEvent(new Event("change",{bubbles:true}));
+      controls.time.dispatchEvent(new Event("change",{bubbles:true}));
+      return true;
+    };
     const leadDemoHost=()=>/^rabota-[a-z0-9]{7,}-sonkort19-6069s-projects\.vercel\.app$/i.test(window.location.hostname);
     form.addEventListener("submit",event=>{
       if(form.dataset.leadPreview!=="1")return;
@@ -1912,6 +1940,7 @@
   </script>
   <script src="/order-payment.js"></script>
   <script src="/order-availability.js"></script>
+  <script src="/quick-slots.js"></script>
   <script src="/redesign.js"></script>
   <script src="/master-notifications.js"></script>
   <script src="/orders-list.js"></script>
