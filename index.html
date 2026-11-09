@@ -1747,7 +1747,10 @@
         wrap.append(name,btn);requests.append(wrap);
       });
       const workers=rows.filter(m=>m.active&&m.role==="master");
-      activeMasterNames=workers.map(m=>String(m.master_name||"").trim()).filter(Boolean);
+      const newMasterNames=workers.map(m=>String(m.master_name||"").trim()).filter(Boolean);
+      const mastersChanged=JSON.stringify(activeMasterNames)!==JSON.stringify(newMasterNames);
+      activeMasterNames=newMasterNames;
+      if(mastersChanged)window.__rdRefresh?.();
       active.append(make("div","team-title","Подключённые мастера: "+workers.length));
       workers.forEach(member=>{
         const wrap=make("div","team-item");
