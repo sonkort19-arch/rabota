@@ -29,13 +29,21 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
-      - name: PostgreSQL 17 client tools for archive restore
+      - name: PostgreSQL client tools from the matching disposable container
+        env:
+          DB_CONTAINER: ${{ job.services.postgres.id }}
         run: |
-          if [ ! -x /usr/lib/postgresql/17/bin/pg_dump ]; then
-            sudo apt-get update
-            sudo apt-get install --yes postgresql-client-17
-          fi
-          echo /usr/lib/postgresql/17/bin >> "$GITHUB_PATH"
+          python3 - <<'PYTOOLS'
+          import os
+          from pathlib import Path
+          target=Path(os.environ['RUNNER_TEMP'])/'rabota-pg-tools'
+          target.mkdir()
+          for tool in ['psql','pg_dump','pg_restore','pg_dumpall','createdb','dropdb']:
+              file=target/tool
+              file.write_text('#!/bin/bash\nexec docker exec -i -e PGDATABASE="${PGDATABASE:-rabota_audit}" -e PGUSER=postgres '+os.environ['DB_CONTAINER']+' '+tool+' "$@"\n')
+              file.chmod(0o755)
+          with open(os.environ['GITHUB_PATH'],'a') as output: output.write(str(target)+'\n')
+          PYTOOLS
       - name: Reproduce audited baseline in disposable PostgreSQL
         run: node --test tests/audit/database.cjs
       - name: Verify SQL fixes in disposable PostgreSQL
