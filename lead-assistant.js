@@ -488,7 +488,7 @@
     const count=node("small","la-muted");count.id="laListCount";wrap.append(count);
     const old=localPreviews().filter(x=>phoneKey(x.phone)&&!all.some(y=>phoneKey(x.phone)===phoneKey(y.phone)));
     if(old.length)wrap.append(btn("Перенести старые лиды с этого устройства ("+old.length+")","la-neutral la-import",importLocal));
-    wrap.append(btn("Включить напоминания на устройстве","la-notify",enableReminders));
+    wrap.append(btn("Напоминания при открытой CRM","la-notify",enableReminders));
     return wrap;
   }
   function render(){
@@ -499,6 +499,7 @@
     syncNav();initialized=true;
   }
   window.__rdLeadsRender=()=>{resetForAccount();render();refresh()};
+  window.__rdLeadsRefresh=()=>refresh(true);
   window.__rdLeadsSearch=value=>{searchTerm=String(value||"");filterVisible()};
   window.__rdLeadsSyncNav=syncNav;
   window.__rdLeadDueCount=countDue;
