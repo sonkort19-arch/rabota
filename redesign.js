@@ -602,21 +602,56 @@ function dashboardAction(icon,label,action){
  btn.addEventListener("click",action);
  return btn;
 }
+function homeSlotPicker(){
+ const section=makeNode("section","rd-home-slot-picker");
+ const header=makeNode("div","rd-home-slot-heading");
+ const heading=makeNode("div");
+ heading.append(boxText("h2","Свободные окна"),boxText("p","Ближайшее время для записи клиента"));
+ const all=makeNode("button","rd-home-slots-all","Все окна ›");
+ all.type="button";all.addEventListener("click",()=>window.__rdQuickSlots?.open());
+ header.append(heading,all);section.append(header);
+ const data=window.__rdQuickSlotsSnapshot?.()||{masters:[]};
+ const masters=Array.isArray(data.masters)?data.masters:[];
+ const primary=masters.find(name=>smText(name).toLocaleLowerCase("ru")==="рауль")||masters[0];
+ const api=window.__rdOrderAvailability,core=window.__rdQuickSlots?.core;
+ const spots=primary&&core&&api?core.candidateSlots({
+   masters:[primary],now:new Date(),horizon:14,limit:3,
+   checkTime:(time,date,master)=>api.checkTime(time,date,master)
+ }):[];
+ const note=makeNode("p","rd-home-slots-note",
+   primary?"Мастер: "+primary+" · время предварительное":"Уточните исполнителя, чтобы подобрать время");
+ section.append(note);
+ if(spots.length){
+   const grid=makeNode("div","rd-home-slot-grid");
+   for(const spot of spots){
+     const button=makeNode("button","rd-home-slot-choice");
+     button.type="button";
+     button.setAttribute("aria-label",dateLong(spot.date)+" "+spot.time+", мастер "+spot.master+". Открыть запись");
+     button.append(boxText("strong",spot.time),boxText("span",dateLong(spot.date)));
+     button.addEventListener("click",async()=>{
+       button.disabled=true;note.textContent="Проверяем время в CRM…";
+       try{
+         const applied=await window.__rdQuickSlots?.book(spot);
+         if(!applied)note.textContent="Расписание изменилось. Выберите актуальное время.";
+       }catch(error){note.textContent="Не удалось проверить время: "+(error?.message||"ошибка сети");}
+       finally{button.disabled=false;}
+     });
+     grid.append(button);
+   }
+   section.append(grid);
+ }else{
+   section.append(makeNode("p","rd-home-slots-empty",
+     primary?"Подходящих типовых окон не найдено. Откройте календарь для уточнения.":"Список мастеров пока недоступен."));
+ }
+ section.append(boxText("small","По текущим заказам · перед записью перепроверим","rd-home-slots-disclaimer"));
+ return section;
+}
 function drawHome(){
  if(!ready||activePage!=="home")return;
  const root=$("rdHome");
  while(root.children.length>3)root.lastElementChild.remove();
  const orders=activeOrders(),today=todayMoscow(),month=today.slice(0,7);
-  if(currentRole==="owner"||currentRole==="manager"){
-    const quick=makeNode("button","rd-quick-slot-hero");
-    quick.type="button";
-    const copy=makeNode("span");
-    copy.append(boxText("strong","Свободные окна"),
-      boxText("small","Подобрать время клиенту за несколько секунд"));
-    quick.append(copy,uiIcon("calendar"));
-    quick.addEventListener("click",()=>window.__rdQuickSlots?.open());
-    root.append(quick);
-  }
+ if(currentRole==="owner"||currentRole==="manager")root.append(homeSlotPicker());
  const thisMonth=orders.filter(o=>o.date?.startsWith(month));
  const customers=new Set(thisMonth.map(o=>normalizePhone(o.phone)||String(o.name||"").toLocaleLowerCase("ru")).filter(Boolean));
  const completed=thisMonth.filter(o=>o.status==="Выполнен");
