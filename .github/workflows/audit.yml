@@ -1,7 +1,5 @@
 name: CRM reliability audit
 on:
-  push:
-    branches: ['codex/technical-audit-20261109']
   pull_request:
 permissions:
   contents: read
@@ -45,6 +43,9 @@ jobs:
         run: |
           npm install --prefix "$RUNNER_TEMP/rabota-tools" --ignore-scripts playwright@1.56.1
           "$RUNNER_TEMP/rabota-tools/node_modules/.bin/playwright" install --with-deps webkit
+      - name: Read public production login page (GET only)
+        run: |
+          node -e 'fetch("https://rabota-rust.vercel.app/").then(async r => { const html=await r.text(); console.log(JSON.stringify({status:r.status,loginForm:html.includes("loginForm"),contentType:r.headers.get("content-type")})); if(!r.ok || !html.includes("loginForm")) process.exitCode=1; })'
       - name: WebKit mobile tests with all API calls intercepted
         env:
           NODE_PATH: ${{ runner.temp }}/rabota-tools/node_modules

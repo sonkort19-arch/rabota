@@ -269,7 +269,9 @@
      if(historyTitle)historyTitle.hidden=ui.tab!=="operations";
      if(ui.tab==="salary")panel.append(overview(m,redraw));
      else if(ui.tab==="cash")panel.append(cash(m));
-     else panel.append(el("p","fp-hint","Здесь сохранены прежние формы ручных операций, история и возможность отмены записей. В этой тестовой версии запись и отмена финансовых операций отключены. Реальные данные не изменяются."));
+     else panel.append(el("p","fp-hint",isPreview()?
+       "Тестовая версия: запись и отмена финансовых операций отключены.":
+       "Здесь доступны реальные финансовые операции и их история. Перед проведением проверьте сумму и комментарий."));
    };
    for(const [value,label] of [["salary","Зарплата"],["cash","Касса компании"],["operations","Операции"]]){
      const b=button(label,"fp-tab",()=>{
