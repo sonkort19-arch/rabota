@@ -3,7 +3,6 @@
   "use strict";
   const TIMES=["10:00","15:00","18:00"];
   const MOSCOW="Europe/Moscow";
-  const DAY_MS=86400000;
 
   function moscowClock(now) {
     const parts=Object.fromEntries(new Intl.DateTimeFormat("en-GB",{
@@ -110,7 +109,7 @@
       option.value=name;
       select.append(option);
     });
-    if(names.some(n=>n===previous))choice=previous;
+    if(previous==="*"||names.some(n=>n===previous))choice=previous;
     else choice=names.find(n=>n.toLocaleLowerCase("ru")==="рауль")||names[0]||"*";
     select.value=choice;
   }
