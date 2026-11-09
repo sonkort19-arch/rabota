@@ -71,6 +71,7 @@ async function scan(page,label){
    if(screenshots&&[320,800,1440].includes(width))await page.screenshot({path:path.join(screenshots,section+'-'+width+'.png')});
    if(section==='orders'){
     await page.locator('.rd-list-toggle').first().click();results.push(await scan(page,'order-details'));
+    await page.locator('.rd-order-close').click();
     await page.locator('#newOrderBtn').click();results.push(await scan(page,'order-form'));
     await page.locator('#orderOverlay .close').click();
     // The existing app hides this panel. Inspect its layout without changing source visibility.
