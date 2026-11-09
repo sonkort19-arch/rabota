@@ -718,6 +718,9 @@
         render();
         window.__rdOrderAvailability?.refresh(incoming);
         updateImportButton();
+      }else{
+        // Keep relative slot times current even when the orders table is unchanged.
+        window.__rdQuickSlotsRefresh?.();
       }
       let syncError=null;
       if(currentRole==="owner"||currentRole==="master") {
