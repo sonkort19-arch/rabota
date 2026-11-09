@@ -68,7 +68,6 @@
   function timeState(time,date,master){
     const stats=availability(date,master);
     if(!stats)return "unknown";
-    if(!stats.canBook)return "full";
     const start=mins(time);
     if(start===null)return "unknown";
     // Check ALL existing starts before warning about near-time bookings:
@@ -96,7 +95,6 @@
     render();
   }
   function selectDate(date){
-    const stats=availability(date,masterInput.value);
     if(dayInput.value!==date){
       dayInput.value=date;
       timeInput.value=""; // A time from a different date must never carry over.
