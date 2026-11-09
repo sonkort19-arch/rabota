@@ -206,6 +206,9 @@
   <link rel="stylesheet" href="/ui-alignment.css">
 </head>
 <body>
+  <section id="startupScreen" class="login-screen" role="status" aria-live="polite">
+    <div class="login-card" style="text-align:center"><h1>Работа</h1><p class="muted">Подключаемся…</p></div>
+  </section>
 
   <section id="loginScreen" class="login-screen" hidden>
     <div class="login-card">
@@ -524,7 +527,7 @@
       return number.length >= 10 && number.length <= 15 ? number : "";
     }
     function showScreen(which) {
-      ["loginScreen","accessScreen","appScreen"].forEach(id => {
+      ["startupScreen","loginScreen","accessScreen","appScreen"].forEach(id => {
         document.getElementById(id).hidden = (id !== which);
       });
     }
@@ -1768,8 +1771,15 @@
       if (currentRole==="master") currentTab="all";
       financeActive=false;
       financeVisible();
-      await reloadOrders();
+      // Role has been verified server-side. Show the shell before loading orders/finance.
       showScreen("appScreen");
+      const syncNode=document.getElementById("syncStatus");
+      if(syncNode)syncNode.textContent="Загружаем заявки…";
+      // Keep the UI responsive; errors remain visible rather than returning to login.
+      void reloadOrders().catch(error=>{
+        console.error("Initial orders load failed",error);
+        reportSync(error);
+      });
       if(currentRole==="master")window.__rdInitMasterPush?.();
       window.__rdAccess?.();
       if(currentRole==="owner") {
