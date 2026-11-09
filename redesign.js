@@ -257,6 +257,10 @@ function build(){
  const calendarSync=makeNode("span","rd-calendar-synced",$("syncStatus")?.textContent||"");
  calendarSync.id="rdCalendarSynced";calendarSync.setAttribute("role","status");
  calendarTitlebar.append(calendar.querySelector(".rd-view-title"),calendarSync);
+ const quickCalendar=makeNode("button","rd-cal-slots","Свободные окна");
+ quickCalendar.type="button";
+ quickCalendar.addEventListener("click",()=>window.__rdQuickSlots?.open());
+ calendarTitlebar.append(quickCalendar);
  calendar.insertBefore(calendarTitlebar,calendar.querySelector(".rd-view-subtitle"));
  const calendarNav=makeNode("div","rd-toolbar");calendarNav.id="rdCalendarNavigation";
  const previous=makeNode("button","secondary rd-cal-step","‹");
@@ -309,6 +313,10 @@ function build(){
  board.append(boardHeading,weekGrid,weekStrip,makeNode("div","rd-calendar-divider"),dayDetail);
  boardHeading.append(doneLabel);
  const ordersTitle=sectionView("rdOrdersIntro","Заказы","Все заявки, статусы, поиск и быстрые действия");
+ const ordersQuick=makeNode("button","rd-orders-quick-slots","Свободные окна");
+ ordersQuick.type="button";
+ ordersQuick.addEventListener("click",()=>window.__rdQuickSlots?.open());
+ ordersTitle.append(ordersQuick);
  const titleBar=makeNode("div","rd-orders-titlebar");
  const synced=makeNode("span","rd-orders-synced",$("syncStatus")?.textContent||"");
  synced.id="rdOrdersSynced";synced.setAttribute("role","status");
@@ -585,6 +593,16 @@ function drawHome(){
  const root=$("rdHome");
  while(root.children.length>3)root.lastElementChild.remove();
  const orders=activeOrders(),today=todayMoscow(),month=today.slice(0,7);
+  if(currentRole==="owner"||currentRole==="manager"){
+    const quick=makeNode("button","rd-quick-slot-hero");
+    quick.type="button";
+    const copy=makeNode("span");
+    copy.append(boxText("strong","Свободные окна"),
+      boxText("small","Подобрать время клиенту за несколько секунд"));
+    quick.append(copy,uiIcon("calendar"));
+    quick.addEventListener("click",()=>window.__rdQuickSlots?.open());
+    root.append(quick);
+  }
  const thisMonth=orders.filter(o=>o.date?.startsWith(month));
  const customers=new Set(thisMonth.map(o=>normalizePhone(o.phone)||String(o.name||"").toLocaleLowerCase("ru")).filter(Boolean));
  const completed=thisMonth.filter(o=>o.status==="Выполнен");
