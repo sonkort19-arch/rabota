@@ -4,11 +4,12 @@
   "use strict";
   const $=id=>document.getElementById(id);
   const grid=$("oaMonthGrid"), dayInput=$("orderDate"), timeInput=$("orderTime");
-  const masterInput=$("master"), message=$("oaAvailabilityMessage");
+  const masterInput=$("master"), radiatorInput=$("radiators"), message=$("oaAvailabilityMessage");
   const toggle=$("oaToggle"), calendarBody=$("oaCalendarBody"), dayLoad=$("oaDayLoad");
   if(!grid||!dayInput||!timeInput||!masterInput||!message||!toggle||!calendarBody||!dayLoad)return;
 
-  const MAX_JOBS=2;
+  const DEFAULT_JOBS=2;
+  const MAX_JOBS=3;
   const ESTIMATED_GAP_MINUTES=200; // 3 hours of work + 20 minutes for travel.
   const suggestedTimes=["10:00","15:00","18:00"];
   let orders=[],editingId=null,visible=false,viewYear=null,viewMonth=null;
@@ -44,11 +45,13 @@
       order.date===date&&order.status!=="Отменён"&&masterKey(order.master)===key
     ).sort((a,b)=>String(a.time||"").localeCompare(String(b.time||"")));
   }
-  function availability(date,master){
+  function availability(date,master,radiators=radiatorInput?.value){
     const all=bookingsFor(date,master);
     if(!all)return null;
     const others=all.filter(order=>!isOwn(order));
-    return {all,others,count:all.length,canBook:others.length<MAX_JOBS};
+    const rule=window.__rdBookingCapacity?.day(orders,date,master,radiators,editingId);
+    if(!rule)return {all,others,count:all.length,max:DEFAULT_JOBS,canBook:false,potentialThird:false,reason:"master"};
+    return {...rule,all,others,displayCount:all.length};
   }
   function setExpanded(expanded){
     calendarBody.hidden=!expanded;
@@ -58,16 +61,16 @@
   }
   function updateHeader(){
     const stats=availability(dayInput.value,masterInput.value);
-    const count=stats?Math.min(stats.count,MAX_JOBS):null;
-    const state=count===null?"unknown":count>=MAX_JOBS?"full":count===1?"partial":"free";
+    const count=stats?stats.displayCount:null;
+    const state=count===null?"unknown":(!stats.canBook&&!stats.potentialThird)?"full":count===0?"free":"partial";
     dayLoad.className="oa-load oa-load-"+state;
-    dayLoad.textContent=count===null?"Выберите мастера":(count===0?"0 заказов":count===1?"1 заказ":"2 заказа")+" из "+MAX_JOBS;
+    dayLoad.textContent=count===null?"Выберите мастера":count+" из "+stats.max+" заказов";
     toggle.setAttribute("aria-label","Дата: "+dateText(dayInput.value)+". "+
-      (stats?stats.count+" из "+MAX_JOBS+" записей":"Мастер не выбран")+
+      (stats?count+" из "+stats.max+" записей":"Мастер не выбран")+
       (calendarBody.hidden?". Открыть календарь":". Свернуть календарь"));
   }
-  function timeState(time,date,master){
-    const stats=availability(date,master);
+  function timeState(time,date,master,radiators=null){
+    const stats=availability(date,master,radiators);
     if(!stats)return "unknown";
     if(!stats.canBook)return "full";
     const start=mins(time);
@@ -98,10 +101,14 @@
   function selectDate(date){
     const stats=availability(date,masterInput.value);
     // Do not allow new bookings to be placed on a day filled by other orders.
-    if(stats&&!stats.canBook){
+    if(stats&&!stats.canBook&&!stats.potentialThird){
       render();
       message.className="oa-message oa-message-full";
-      message.textContent=dateText(date)+": у мастера уже 2 заказа. Выберите другой день.";
+      message.textContent=stats.reason==="largeExisting"
+        ?dateText(date)+": третий заказ разрешён только если все три — до 5 батарей."
+        :stats.reason==="radiators"
+          ?"Укажите от 1 до 5 батарей, чтобы выбрать третье окно."
+          :dateText(date)+": лимит заказов на день достигнут.";
       return;
     }
     if(dayInput.value!==date){
@@ -128,16 +135,16 @@
     for(let day=1;day<=days;day++){
       const date=iso(viewYear,viewMonth+1,day);
       const stats=availability(date,masterInput.value);
-      const severity=stats?(stats.count>=MAX_JOBS?"full":stats.count===1?"partial":"free"):"unknown";
-      const fullForThisOrder=stats&&!stats.canBook;
+      const severity=stats?(!stats.canBook&&!stats.potentialThird?"full":stats.count?"partial":"free"):"unknown";
+      const fullForThisOrder=stats&&!stats.canBook&&!stats.potentialThird;
       const button=el("button","oa-day oa-"+severity+(date===chosen?" is-selected":"")+(date===today?" is-today":""));
       button.type="button";
       button.dataset.date=date;
       button.setAttribute("aria-pressed",String(date===chosen));
-      button.setAttribute("aria-label",dateText(date)+(stats?": "+stats.count+" из 2 записей":" — выберите мастера"));
+      button.setAttribute("aria-label",dateText(date)+(stats?": "+stats.displayCount+" из "+stats.max+" записей":" — выберите мастера"));
       button.disabled=Boolean(fullForThisOrder&&date!==chosen);
       button.append(el("span","oa-day-number",day));
-      button.append(el("span","oa-day-count",stats?stats.count+" / 2":"—"));
+      button.append(el("span","oa-day-count",stats?stats.displayCount+" / "+stats.max:"—"));
       button.addEventListener("click",()=>selectDate(date));
       frag.append(button);
     }
@@ -161,13 +168,17 @@
     if(!stats)return;
     if(!stats.canBook){
       message.classList.add("oa-message-full");
-      message.textContent="День заполнен: у мастера уже 2 заказа. Выберите другую дату.";
-    }else if(stats.count===1){
+      message.textContent=stats.reason==="max3"
+        ?"На этот день уже записаны 3 заказа. Четвёртый запрещён."
+        :stats.reason==="largeExisting"
+          ?"На этот день есть большой заказ или заказ без числа батарей. Третий выезд невозможен."
+          :"Третий заказ возможен: укажите от 1 до 5 батарей в форме.";
+    }else if(stats.others.length===2){
       message.classList.add("oa-message-partial");
-      message.textContent="1 заказ из 2. Учитывайте 3 часа работы и 20 минут на дорогу.";
-    }else if(stats.count>=MAX_JOBS){
-      message.classList.add("oa-message-full");
-      message.textContent="На день запланировано 2 заказа. Для нового заказа выберите другую дату.";
+      message.textContent="Можно добавить третий небольшой заказ: все три должны быть не более 5 батарей.";
+    }else if(stats.others.length===1){
+      message.classList.add("oa-message-partial");
+      message.textContent="Один заказ. До двух выездов без ограничения размера, третий — только если все небольшие.";
     }else{
       message.classList.add("oa-message-free");
       message.textContent="Записей пока нет. Выберите удобное время.";
@@ -185,10 +196,10 @@
     slots.append(el("div","oa-subtitle","Выберите время"));
     let available=0;
     for(const time of suggestedTimes){
-      const state=timeState(time,date,master);
+      const state=timeState(time,date,master,radiatorInput?.value);
       const label=state==="busy"?"Занято":state==="tight"?"Мало времени":
         state==="full"?"День занят":state==="unknown"?"Уточнить":"Свободно";
-      const button=el("button","oa-slot oa-slot-"+state+(timeInput.value===time?" is-selected":""));
+      const button=el("button","oa-slot oa-slot-"+state+(state==="available"&&timeInput.value===time?" is-selected":""));
       button.type="button";
       button.disabled=state!=="available";
       button.setAttribute("aria-label",time+": "+label);
@@ -206,7 +217,7 @@
       slots.append(button);
     }
     if(!available&&stats.canBook)
-      slots.append(el("p","oa-no-slots","Нет подходящих типовых интервалов. Выберите другой день или уточните время вручную."));
+      slots.append(el("p","oa-no-slots","Нет гарантированно свободных типовых интервалов. Уточните время и дорогу."));
     slots.append(el("p","oa-slot-note",
       "Свободно по текущим заказам. Проверка повторится при сохранении."));
   }
@@ -239,6 +250,8 @@
     setMonthFromDate(today);
     selectDate(today);
   });
+  radiatorInput?.addEventListener("input",render);
+  radiatorInput?.addEventListener("change",render);
   masterInput.addEventListener("input",render);
   masterInput.addEventListener("change",render);
   timeInput.addEventListener("input",renderSlots);
@@ -263,7 +276,7 @@
       editingId=null;
       setExpanded(false);
     },
-    inspect(date,master){return availability(date,master)},
-    checkTime(time,date,master){return timeState(time,date,master)}
+    inspect(date,master,radiators=null){return availability(date,master,radiators)},
+    checkTime(time,date,master,radiators=null){return timeState(time,date,master,radiators)}
   };
 })();
