@@ -22,27 +22,38 @@
     const match=/^([01]\d|2[0-3]):([0-5]\d)$/.exec(value);
     return match?Number(match[1])*60+Number(match[2]):NaN;
   }
+  // A suggested slot is an estimate, never a confirmed reservation.
+  // Keep the real chronology within each class, but show non-tight slots first.
   function candidateSlots({masters,now=new Date(),checkTime,horizon=14,limit=14}) {
     if(typeof checkTime!=="function")return [];
-    const clock=moscowClock(now),result=[];
+    const clock=moscowClock(now),free=[],tight=[];
     const names=[...new Map((masters||[]).map(name=>String(name||"").trim()).filter(Boolean)
       .map(name=>[name.toLocaleLowerCase("ru"),name])).values()];
-    for(let day=0;day<horizon;day++) {
+    for(let day=0;day<horizon;day++){
       const date=addDay(clock.today,day);
-      for(const time of TIMES) {
-        // A caller needs time to finish the phone conversation and arrange travel.
+      for(const time of TIMES){
         if(day===0&&timeMinutes(time)<=clock.minutes+20)continue;
-        for(const master of names) {
+        for(const master of names){
           const state=checkTime(time,date,master);
           if(state!=="available"&&state!=="tight")continue;
-          result.push({date,time,master,tight:state==="tight"});
-          if(result.length>=limit)return result;
+          (state==="available"?free:tight).push({date,time,master,tight:state==="tight"});
         }
       }
     }
-    return result;
+    return free.concat(tight).slice(0,Math.max(0,limit));
   }
-  const core={candidateSlots,moscowClock,addDay,TIMES};
+  // An explicitly selected day also displays blocked and uncertain hours.
+  function inspectDay({date,masters,now=new Date(),checkTime}){
+    if(typeof checkTime!=="function"||!/^\d{4}-\d{2}-\d{2}$/.test(date||""))return [];
+    const clock=moscowClock(now);
+    return TIMES.flatMap(time=>(masters||[]).map(master=>{
+      const state=date<clock.today||(date===clock.today&&timeMinutes(time)<=clock.minutes+20)
+        ?"past":checkTime(time,date,master);
+      return {date,time,master,state,
+        tight:state==="tight",selectable:state==="available"||state==="tight"};
+    }));
+  }
+  const core={candidateSlots,inspectDay,moscowClock,addDay,TIMES};
   if(typeof module!=="undefined"&&module.exports)module.exports=core;
   if(typeof document==="undefined")return;
 
@@ -78,17 +89,39 @@
   const refresh=make("button","qs-refresh","Обновить");
   refresh.type="button";
   actions.append(selectLabel,refresh);
+  const dates=make("div","qs-date-controls");
+  const nearest=make("button","qs-date-chip is-active","Ближайшие");
+  const today=make("button","qs-date-chip","Сегодня");
+  const tomorrow=make("button","qs-date-chip","Завтра");
+  for(const button of [nearest,today,tomorrow])button.type="button";
+  const dateLabel=make("label","qs-date-label","Другой день");
+  const dateInput=make("input","qs-date-input");
+  dateInput.type="date";dateInput.id="qsDate";
+  dateInput.setAttribute("aria-label","Выбрать конкретную дату");
+  dateLabel.append(dateInput);
+  dates.append(nearest,today,tomorrow,dateLabel);
   const status=make("p","qs-status");
   status.setAttribute("role","status");
   status.setAttribute("aria-live","polite");
   const list=make("div","qs-list");
   const foot=make("p","qs-footnote",
-    "Количество заказов в день не ограничено. Точное совпадение времени у одного мастера запрещено. Плотные записи требуют проверки длительности работ и дороги; окончательное решение — при сохранении.");
-  dialog.append(heading,actions,status,list,foot);
+    "Оценка: 3 часа работы + 20 минут дороги. Реальная длительность и маршрут не известны. Перед записью перепроверяйте.");
+  dialog.append(heading,actions,dates,status,list,foot);
   host.append(dialog);
   document.body.append(host);
 
   let visible=false,busy=false,previousFocus=null,previousOverflow="",latest=null,choice="",runId=0;
+  function updateDateControls(){
+    const clock=moscowClock(new Date());
+    dateInput.min=clock.today;
+    nearest.classList.toggle("is-active",!dateInput.value);
+    today.classList.toggle("is-active",dateInput.value===clock.today);
+    tomorrow.classList.toggle("is-active",dateInput.value===addDay(clock.today,1));
+  }
+  nearest.addEventListener("click",()=>{dateInput.value="";updateDateControls();paint()});
+  today.addEventListener("click",()=>{dateInput.value=moscowClock(new Date()).today;updateDateControls();paint()});
+  tomorrow.addEventListener("click",()=>{dateInput.value=addDay(moscowClock(new Date()).today,1);updateDateControls();paint()});
+  dateInput.addEventListener("change",()=>{updateDateControls();paint()});
   const formatDay=date=>{
     const d=new Date(date+"T12:00:00Z");
     return new Intl.DateTimeFormat("ru-RU",{
@@ -114,46 +147,87 @@
     else choice=names.find(n=>n.toLocaleLowerCase("ru")==="рауль")||names[0]||"*";
     select.value=choice;
   }
-  function paint(message="") {
+  function slotRow(slot){
+    const state=slot.state||(slot.tight?"tight":"available");
+    const text={
+      available:"Свободно · записать",
+      tight:"Плотно · проверить",
+      busy:"Занято",
+      unknown:"Уточнить",
+      past:"Время прошло"
+    };
+    const row=make("button","qs-slot qs-slot-"+state);
+    row.type="button";
+    row.disabled=!["available","tight"].includes(state);
+    row.setAttribute("aria-label",formatDay(slot.date)+" "+slot.time+", "+slot.master+
+      ". "+text[state]);
+    row.append(make("strong","",slot.time),
+      make("span","qs-slot-meta",slot.master+" · "+formatDay(slot.date)),
+      make("span","qs-action",text[state]));
+    if(!row.disabled)row.addEventListener("click",()=>chooseSlot(slot));
+    return row;
+  }
+  function paint(message=""){
     if(!visible||!latest)return;
     const all=namesFrom(latest);
     const names=choice==="*"?all:all.filter(name=>name===choice);
     const api=window.__rdOrderAvailability;
+    list.replaceChildren();
+    list.scrollTop=0;
+    updateDateControls();
+    if(!names.length){
+      status.textContent="Нет доступных мастеров. Проверьте сотрудников и заказы.";
+      return;
+    }
+    if(dateInput.value){
+      const slots=inspectDay({
+        date:dateInput.value,masters:names,now:new Date(),
+        checkTime:(time,date,master)=>api?.checkTime(time,date,master)
+      });
+      status.textContent=message||"Доступность на "+formatDay(dateInput.value)+" · предварительно";
+      if(!slots.length){
+        list.append(make("p","qs-empty","Для выбранной даты вариантов нет."));
+        return;
+      }
+      for(const slot of slots)list.append(slotRow(slot));
+      return;
+    }
     const slots=candidateSlots({
-      masters:names,now:new Date(),
+      masters:names,now:new Date(),limit:1000,
       checkTime:(time,date,master)=>api?.checkTime(time,date,master)
     });
-    list.replaceChildren();
-    if(!names.length) {
-      status.textContent="Нет известных мастеров. Проверьте сотрудников и заказы.";
+    const free=slots.filter(slot=>!slot.tight);
+    const tight=slots.filter(slot=>slot.tight);
+    status.textContent=message||"Сначала варианты без близких записей · ближайшие 14 дней";
+    if(!slots.length){
+      list.append(make("p","qs-empty","В ближайшие 14 дней нет стандартных вариантов. Выберите дату или уточните другое время в календаре."));
       return;
     }
-    status.textContent=message||"Ближайшие доступные варианты по обновлённому расписанию";
-    if(!slots.length) {
-      list.append(make("p","qs-empty","Свободных типовых окон в ближайшие 14 дней не найдено. Выберите другого мастера или уточните нестандартное время в календаре."));
-      return;
+    if(free.length){
+      list.append(make("h3","qs-group-title","Свободно по типовой оценке · "+free.length));
+      for(const slot of free.slice(0,7))list.append(slotRow(slot));
+      if(free.length>7)
+        list.append(make("p","qs-more-note","Показаны первые 7 вариантов. Для другого дня выберите дату выше."));
+    }else{
+      list.append(make("p","qs-empty","Без плотных соседних записей вариантов нет. Ниже можно проверить плотные окна."));
     }
-    let current="";
-    for(const slot of slots) {
-      if(current!==slot.date) {
-        current=slot.date;
-        list.append(make("h3","qs-day",formatDay(current)));
-      }
-      const row=make("button","qs-slot"+(slot.tight?" qs-slot-tight":""));
-      row.type="button";
-      row.setAttribute("aria-label","Записать: "+formatDay(slot.date)+" в "+slot.time+", мастер "+slot.master);
-      const time=make("strong","",slot.time);
-      const details=make("span","",slot.master);
-      const action=make("span","qs-action",slot.tight?"Плотно · записать":"Записать");
-      row.append(time,details,action);
-      row.addEventListener("click",()=>chooseSlot(slot));
-      list.append(row);
+    if(tight.length){
+      const details=make("details","qs-tight-group");
+      const summary=make("summary","","Плотные записи · "+tight.length+" (требуют проверки)");
+      details.append(summary);
+      const contents=make("div","qs-tight-rows");
+      for(const slot of tight.slice(0,6))contents.append(slotRow(slot));
+      if(tight.length>6)contents.append(make("p","qs-more-note","Другие варианты доступны через выбор даты."));
+      details.append(contents);
+      list.append(details);
     }
   }
   function setBusy(value) {
     busy=value;
     refresh.disabled=value;
     select.disabled=value;
+    dateInput.disabled=value;
+    for(const button of [nearest,today,tomorrow])button.disabled=value;
     for(const btn of list.querySelectorAll("button"))btn.disabled=value;
   }
   async function readFresh(overrideChoice=false) {
@@ -161,6 +235,7 @@
     setBusy(true);
     status.textContent="Обновляем заказы из CRM…";
     list.replaceChildren();
+    latest=null;
     try {
       const data=await window.__rdQuickSlotsRead?.();
       if(!visible||token!==runId)return null;
@@ -179,14 +254,18 @@
   }
   async function chooseSlot(slot) {
     if(busy||!visible)return;
+    const expected=slot.tight?"tight":"available";
     const data=await readFresh();
     if(!data||!visible)return;
-    const candidates=candidateSlots({
-      masters:namesFrom(data),now:new Date(),limit:1000,
-      checkTime:(time,date,master)=>window.__rdOrderAvailability?.checkTime(time,date,master)
-    });
-    if(!candidates.some(s=>s.date===slot.date&&s.time===slot.time&&s.master===slot.master)){
-      paint("Это время уже занято или стало недоступно. Выберите другой вариант.");
+    if(!namesFrom(data).includes(slot.master)){
+      paint("Мастер больше недоступен. Выберите другой вариант.");
+      return;
+    }
+    const state=window.__rdOrderAvailability?.checkTime(slot.time,slot.date,slot.master);
+    const clock=moscowClock(new Date());
+    if(slot.date<clock.today||(slot.date===clock.today&&timeMinutes(slot.time)<=clock.minutes+20)
+      ||state!==expected){
+      paint("Расписание изменилось. Время перепроверено — выберите актуальный вариант.");
       return;
     }
     close();
@@ -200,12 +279,12 @@
     const data=await window.__rdQuickSlotsRead();
     const members=namesFrom(data);
     if(!members.includes(slot.master)||
-      !["available","tight"].includes(window.__rdOrderAvailability?.checkTime(slot.time,slot.date,slot.master))){
+      window.__rdOrderAvailability?.checkTime(slot.time,slot.date,slot.master)!==(slot.tight?"tight":"available")){
       open();
       return false;
     }
     const selected=candidateSlots({
-      masters:[slot.master],now:new Date(),limit:50,
+      masters:[slot.master],now:new Date(),limit:1000,
       checkTime:(time,date,master)=>window.__rdOrderAvailability?.checkTime(time,date,master)
     });
     if(!selected.some(x=>x.date===slot.date&&x.time===slot.time&&x.master===slot.master)){
@@ -218,6 +297,8 @@
     if(visible||!window.__rdQuickSlotsRead||!window.__rdQuickSlotFill)return;
     if(!document.getElementById("appScreen")||document.getElementById("appScreen").hidden)return;
     visible=true;
+    dateInput.value="";
+    updateDateControls();
     previousFocus=document.activeElement;
     previousOverflow=document.body.style.overflow;
     document.body.style.overflow="hidden";
