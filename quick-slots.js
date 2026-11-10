@@ -24,7 +24,7 @@
   }
   // A suggested slot is an estimate, never a confirmed reservation.
   // Keep the real chronology within each class, but show non-tight slots first.
-  function candidateSlots({masters,now=new Date(),checkTime,horizon=14,limit=14}) {
+  function candidateSlots({masters,now=new Date(),checkTime,horizon=14,limit=14,sort="free-first"}) {
     if(typeof checkTime!=="function")return [];
     const clock=moscowClock(now),free=[],tight=[];
     const names=[...new Map((masters||[]).map(name=>String(name||"").trim()).filter(Boolean)
@@ -40,7 +40,10 @@
         }
       }
     }
-    return free.concat(tight).slice(0,Math.max(0,limit));
+    const chronological=(a,b)=>a.date.localeCompare(b.date)||
+      timeMinutes(a.time)-timeMinutes(b.time)||a.master.localeCompare(b.master,"ru");
+    return (sort==="earliest"?free.concat(tight).sort(chronological):free.concat(tight))
+      .slice(0,Math.max(0,limit));
   }
   // An explicitly selected day also displays blocked and uncertain hours.
   function inspectDay({date,masters,now=new Date(),checkTime}){
@@ -73,7 +76,7 @@
   dialog.tabIndex=-1;
   const heading=make("div","qs-heading");
   const label=make("div","qs-heading-copy");
-  const title=make("h2","","Свободные окна");
+  const title=make("h2","","Подбор времени");
   title.id="qsTitle";
   label.append(title,make("p","","Подберите время клиенту прямо во время звонка"));
   const closeButton=make("button","qs-close","×");
@@ -90,16 +93,23 @@
   refresh.type="button";
   actions.append(selectLabel,refresh);
   const dates=make("div","qs-date-controls");
-  const nearest=make("button","qs-date-chip is-active","Ближайшие");
+  const modeControls=make("div","qs-mode-controls");
+  const nearest=make("button","qs-date-chip is-active","Ближайшие свободные");
+  const earliest=make("button","qs-date-chip","Самое раннее");
+  for(const button of [nearest,earliest])button.type="button";
+  modeControls.append(nearest,earliest);
+  const dayControls=make("div","qs-day-controls");
   const today=make("button","qs-date-chip","Сегодня");
   const tomorrow=make("button","qs-date-chip","Завтра");
-  for(const button of [nearest,today,tomorrow])button.type="button";
-  const dateLabel=make("label","qs-date-label","Другой день");
+  const custom=make("button","qs-date-chip qs-custom-day","Выбрать дату");
+  for(const button of [today,tomorrow,custom])button.type="button";
+  dayControls.append(today,tomorrow,custom);
+  const dateLabel=make("label","qs-date-label","Дата");
   const dateInput=make("input","qs-date-input");
-  dateInput.type="date";dateInput.id="qsDate";
+  dateInput.type="date";dateInput.id="qsDate";dateLabel.hidden=true;
   dateInput.setAttribute("aria-label","Выбрать конкретную дату");
   dateLabel.append(dateInput);
-  dates.append(nearest,today,tomorrow,dateLabel);
+  dates.append(modeControls,dayControls,dateLabel);
   const status=make("p","qs-status");
   status.setAttribute("role","status");
   status.setAttribute("aria-live","polite");
@@ -111,17 +121,40 @@
   document.body.append(host);
 
   let visible=false,busy=false,previousFocus=null,previousOverflow="",latest=null,choice="",runId=0;
+  let mode="free",selectedDay="",customDateOpen=false;
   function updateDateControls(){
     const clock=moscowClock(new Date());
     dateInput.min=clock.today;
-    nearest.classList.toggle("is-active",!dateInput.value);
-    today.classList.toggle("is-active",dateInput.value===clock.today);
-    tomorrow.classList.toggle("is-active",dateInput.value===addDay(clock.today,1));
+    dateLabel.hidden=!customDateOpen;
+    nearest.classList.toggle("is-active",mode==="free");
+    earliest.classList.toggle("is-active",mode==="earliest");
+    today.classList.toggle("is-active",mode==="day"&&selectedDay===clock.today);
+    tomorrow.classList.toggle("is-active",mode==="day"&&selectedDay===addDay(clock.today,1));
+    custom.classList.toggle("is-active",customDateOpen||
+      mode==="day"&&selectedDay!==clock.today&&selectedDay!==addDay(clock.today,1));
   }
-  nearest.addEventListener("click",()=>{dateInput.value="";updateDateControls();paint()});
-  today.addEventListener("click",()=>{dateInput.value=moscowClock(new Date()).today;updateDateControls();paint()});
-  tomorrow.addEventListener("click",()=>{dateInput.value=addDay(moscowClock(new Date()).today,1);updateDateControls();paint()});
-  dateInput.addEventListener("change",()=>{updateDateControls();paint()});
+  function selectMode(next){
+    mode=next;selectedDay="";customDateOpen=false;updateDateControls();paint();
+  }
+  function selectDay(date){
+    mode="day";selectedDay=date;customDateOpen=false;updateDateControls();paint();
+  }
+  nearest.addEventListener("click",()=>selectMode("free"));
+  earliest.addEventListener("click",()=>selectMode("earliest"));
+  today.addEventListener("click",()=>selectDay(moscowClock(new Date()).today));
+  tomorrow.addEventListener("click",()=>selectDay(addDay(moscowClock(new Date()).today,1)));
+  custom.addEventListener("click",()=>{
+    customDateOpen=!customDateOpen;
+    if(customDateOpen){
+      dateInput.value=selectedDay||moscowClock(new Date()).today;
+      dateLabel.hidden=false;dateInput.focus();
+    }
+    updateDateControls();
+  });
+  dateInput.addEventListener("change",()=>{
+    if(!dateInput.value)return;
+    mode="day";selectedDay=dateInput.value;customDateOpen=true;updateDateControls();paint();
+  });
   const formatDay=date=>{
     const d=new Date(date+"T12:00:00Z");
     return new Intl.DateTimeFormat("ru-RU",{
@@ -179,12 +212,12 @@
       status.textContent="Нет доступных мастеров. Проверьте сотрудников и заказы.";
       return;
     }
-    if(dateInput.value){
+    if(mode==="day"&&selectedDay){
       const slots=inspectDay({
-        date:dateInput.value,masters:names,now:new Date(),
+        date:selectedDay,masters:names,now:new Date(),
         checkTime:(time,date,master)=>api?.checkTime(time,date,master)
       });
-      status.textContent=message||"Доступность на "+formatDay(dateInput.value)+" · предварительно";
+      status.textContent=message||"Доступность на "+formatDay(selectedDay)+" · предварительно";
       if(!slots.length){
         list.append(make("p","qs-empty","Для выбранной даты вариантов нет."));
         return;
@@ -194,8 +227,21 @@
     }
     const slots=candidateSlots({
       masters:names,now:new Date(),limit:1000,
+      sort:mode==="earliest"?"earliest":"free-first",
       checkTime:(time,date,master)=>api?.checkTime(time,date,master)
     });
+    if(mode==="earliest"){
+      status.textContent=message||"Самое раннее время, включая плотные записи · 14 дней";
+      if(!slots.length){
+        list.append(make("p","qs-empty","Типовых вариантов в ближайшие 14 дней не найдено."));
+        return;
+      }
+      list.append(make("p","qs-early-note",
+        "Оранжевое время требует проверки дороги и длительности заказа."));
+      for(const slot of slots.slice(0,7))list.append(slotRow(slot));
+      if(slots.length>7)list.append(make("p","qs-more-note","Первые 7 вариантов по времени."));
+      return;
+    }
     const free=slots.filter(slot=>!slot.tight);
     const tight=slots.filter(slot=>slot.tight);
     status.textContent=message||"Сначала варианты без близких записей · ближайшие 14 дней";
@@ -227,7 +273,7 @@
     refresh.disabled=value;
     select.disabled=value;
     dateInput.disabled=value;
-    for(const button of [nearest,today,tomorrow])button.disabled=value;
+    for(const button of [nearest,earliest,today,tomorrow,custom])button.disabled=value;
     for(const btn of list.querySelectorAll("button"))btn.disabled=value;
   }
   async function readFresh(overrideChoice=false) {
@@ -297,7 +343,7 @@
     if(visible||!window.__rdQuickSlotsRead||!window.__rdQuickSlotFill)return;
     if(!document.getElementById("appScreen")||document.getElementById("appScreen").hidden)return;
     visible=true;
-    dateInput.value="";
+    mode="free";selectedDay="";customDateOpen=false;dateInput.value="";
     updateDateControls();
     previousFocus=document.activeElement;
     previousOverflow=document.body.style.overflow;
@@ -319,7 +365,8 @@
     if(!visible)return;
     if(event.key==="Escape"){event.preventDefault();close()}
     if(event.key==="Tab") {
-      const focusables=[closeButton,select,refresh,...list.querySelectorAll("button")]
+      const focusables=[closeButton,select,refresh,nearest,earliest,today,tomorrow,custom,
+        ...(!dateLabel.hidden?[dateInput]:[]),...list.querySelectorAll("button")]
         .filter(node=>!node.disabled);
       if(!focusables.length)return;
       const first=focusables[0],last=focusables[focusables.length-1];
