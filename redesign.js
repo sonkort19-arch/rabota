@@ -290,7 +290,7 @@ function build(){
  const calendarSync=makeNode("span","rd-calendar-synced",$("syncStatus")?.textContent||"");
  calendarSync.id="rdCalendarSynced";calendarSync.setAttribute("role","status");
  calendarTitlebar.append(calendar.querySelector(".rd-view-title"),calendarSync);
- const quickCalendar=makeNode("button","rd-cal-slots","Свободные окна");
+ const quickCalendar=makeNode("button","rd-cal-slots","Подбор времени");
  quickCalendar.type="button";
  quickCalendar.addEventListener("click",()=>window.__rdQuickSlots?.open());
  calendarTitlebar.append(quickCalendar);
@@ -346,7 +346,7 @@ function build(){
  board.append(boardHeading,weekGrid,weekStrip,makeNode("div","rd-calendar-divider"),dayDetail);
  boardHeading.append(doneLabel);
  const ordersTitle=sectionView("rdOrdersIntro","Заказы","Все заявки, статусы, поиск и быстрые действия");
- const ordersQuick=makeNode("button","rd-orders-quick-slots","Свободные окна");
+ const ordersQuick=makeNode("button","rd-orders-quick-slots","Подбор времени");
  ordersQuick.type="button";
  ordersQuick.addEventListener("click",()=>window.__rdQuickSlots?.open());
  ordersTitle.append(ordersQuick);
@@ -627,8 +627,8 @@ function homeSlotPicker(){
  const section=makeNode("section","rd-home-slot-picker");
  const header=makeNode("div","rd-home-slot-heading");
  const heading=makeNode("div");
- heading.append(boxText("h2","Свободные окна"),boxText("p","Ближайшее время для записи клиента"));
- const all=makeNode("button","rd-home-slots-all","Все окна ›");
+ heading.append(boxText("h2","Подбор времени"),boxText("p","Предварительные варианты для клиента"));
+ const all=makeNode("button","rd-home-slots-all","Все варианты ›");
  all.type="button";all.addEventListener("click",()=>window.__rdQuickSlots?.open());
  header.append(heading,all);section.append(header);
  const data=window.__rdQuickSlotsSnapshot?.()||{masters:[]};
