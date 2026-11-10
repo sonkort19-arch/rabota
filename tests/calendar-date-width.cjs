@@ -73,8 +73,7 @@ async function checkCalendar(browser,label,device,width){
   const before=await page.evaluate(()=>document.documentElement.scrollWidth-window.innerWidth);
   assert.ok(before<=2,label+": no horizontal overflow before selecting date: "+before);
   const prevRect=await prev.boundingBox(),nextRect=await next.boundingBox();
-  console.log("RECT",label,JSON.stringify({prevRect,rect,nextRect,nav:await page.locator("#rdCalendarNavigation").evaluate(e=>({rect:e.getBoundingClientRect().toJSON(),grid:getComputedStyle(e).gridTemplateColumns})),field:await field.evaluate(e=>({gridColumn:getComputedStyle(e).gridColumn,gridRow:getComputedStyle(e).gridRow}))}));
-  assert.ok(prevRect.right<=rect.x+2,label+": left arrow does not overlap date");
+  assert.ok(prevRect.x+prevRect.width<=rect.x+2,label+": left arrow does not overlap date");
   assert.ok(rect.x+rect.width<=nextRect.x+2,label+": right arrow does not overlap date");
   if(width<=520){
    const todayRect=await todayButton.boundingBox(),filterRect=await filterButton.boundingBox();
