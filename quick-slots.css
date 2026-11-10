@@ -186,3 +186,9 @@ body.rd .rd-calendar-titlebar .rd-cal-slots{margin-left:auto}
   .qs-slot>span:nth-child(2){font-size:11px}
   .qs-action{font-size:10px}
 }
+
+/* Keep dashboard suggestion tiles consistent with the booking picker. */
+body.rd #rdHome .rd-home-slot-choice.is-free{background:#f0faf4;border-color:#b9e2c7;color:#235c3c}
+body.rd #rdHome .rd-home-slot-choice.is-free span{color:#47765c}
+body.rd #rdHome .rd-home-slot-choice.is-tight{background:#fff9ed;border-color:#efd8a4;color:#704a22}
+body.rd #rdHome .rd-home-slot-choice.is-tight span{color:#926a37}
