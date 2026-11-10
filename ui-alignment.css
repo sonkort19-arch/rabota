@@ -1573,3 +1573,69 @@ body.rd .rd-nav-more[hidden]{display:none!important}
 #orderForm .order-delete-btn[hidden]{display:none!important}
 #orderForm .order-delete-btn:disabled{opacity:.55;cursor:not-allowed}
 #orderForm .order-delete-btn:focus-visible{outline:2px solid #b23c45;outline-offset:2px}
+
+
+/* 2026-11-10: five equal mobile tabs, no horizontal scrolling or overlay arrow. */
+@media(max-width:790px){
+ body.rd .rd-mobilebar{
+  display:grid;
+  grid-template-columns:repeat(5,minmax(0,1fr));
+  align-items:stretch;
+  justify-content:stretch;
+  gap:2px;
+  overflow:visible;
+  touch-action:manipulation;
+  padding:7px max(6px,env(safe-area-inset-right))
+    max(8px,env(safe-area-inset-bottom))
+    max(6px,env(safe-area-inset-left));
+ }
+ body.rd .rd-mobilebar .rd-nav-btn{
+  box-sizing:border-box;
+  display:flex;
+  flex:none;
+  width:100%;
+  min-width:0;
+  max-width:none;
+  min-height:56px;
+  margin:0;
+  gap:4px;
+  padding:5px 1px;
+  font-size:clamp(9px,2.35vw,11px);
+  line-height:1.2;
+  border-radius:12px;
+  text-align:center;
+  white-space:normal;
+  overflow-wrap:normal;
+  scroll-snap-align:none;
+  touch-action:manipulation;
+ }
+ body.rd .rd-mobilebar .rd-nav-btn .rd-icon{
+  width:23px;height:23px;min-width:23px;flex:0 0 23px;
+ }
+ body.rd .rd-mobilebar .rd-mobile-more-trigger[aria-current="page"]{
+  background:#eff1ff;color:#4057ef;
+ }
+ body.rd .rd-mobilebar .rd-mobile-more-trigger[aria-current="page"] .rd-icon{
+  color:#4057ef;
+ }
+ body.rd .rd-more-sheet:not([hidden]){
+  display:grid;
+  gap:7px;
+  bottom:calc(78px + env(safe-area-inset-bottom));
+  padding:15px;
+  max-height:calc(100dvh - 110px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+ }
+ body.rd .rd-more-sheet .rd-nav-btn{
+  display:flex;
+  align-items:center;
+  gap:12px;
+  min-height:48px;
+  width:100%;
+  font-size:15px;
+  padding:11px 13px;
+ }
+ body.rd .rd-more-sheet .rd-nav-btn .rd-icon{
+  display:inline-flex;align-items:center;justify-content:center;
+  width:23px;height:23px;min-width:23px;
+ }
+}
