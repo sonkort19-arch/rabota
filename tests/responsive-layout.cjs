@@ -70,7 +70,35 @@ async function scan(page,label){
    }
    if(screenshots&&[320,800,1440].includes(width))await page.screenshot({path:path.join(screenshots,section+'-'+width+'.png')});
    if(section==='orders'){
+    if(width<=790){
+     const toggle=page.locator('#rdOrdersFilterToggle');
+     const count=page.locator('#orderCount');
+     const initialCount=await count.innerText();
+     const listBefore=await page.locator('#orders').boundingBox();
+     await toggle.click();
+     const dialog=page.locator('#rdOrdersFilterDialog');
+     assert.equal(await dialog.evaluate(el=>el.open),true,'mobile filters use a modal dialog');
+     const listAfter=await page.locator('#orders').boundingBox();
+     assert.ok(Math.abs(listBefore.y-listAfter.y)<2,'opening filters must not shift the orders list');
+     await page.locator('#rdStatusFilter').selectOption('Выполнен');
+     assert.equal(await count.innerText(),initialCount,'draft filters do not apply before confirmation');
+     await page.locator('.rd-orders-filter-close').click();
+     assert.equal(await dialog.evaluate(el=>el.open),false,'close dismisses the filter dialog');
+     assert.equal(await page.locator('#rdStatusFilter').inputValue(),'','cancel restores saved selection');
+     await toggle.click();
+     await page.locator('#rdStatusFilter').selectOption('Выполнен');
+     await page.locator('.rd-orders-filter-apply').click();
+     assert.notEqual(await count.innerText(),initialCount,'Apply filters visible orders');
+     assert.match(await toggle.innerText(),/Фильтры \(1\)/,'active filter count visible');
+     await toggle.click();
+     await dialog.getByRole('button',{name:'Сбросить'}).click();
+     assert.notEqual(await count.innerText(),initialCount,'Reset stays draft until Apply');
+     await page.locator('.rd-orders-filter-apply').click();
+     assert.equal(await count.innerText(),initialCount,'reset and apply restores the full list');
+     results.push(await scan(page,'orders-filter-sheet'));
+    }
     await page.locator('.rd-list-toggle').first().click();results.push(await scan(page,'order-details'));
+    await page.locator('.rd-order-close').click(); // Modal must be closed before testing another action.
     await page.locator('#newOrderBtn').click();results.push(await scan(page,'order-form'));
     await page.locator('#orderOverlay .close').click();
     // The existing app hides this panel. Inspect its layout without changing source visibility.

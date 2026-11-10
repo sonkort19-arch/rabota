@@ -361,12 +361,17 @@ function build(){
  filterToggle.setAttribute("aria-controls","rdOrderToolbar");
  filterToggle.setAttribute("aria-expanded","false");
  filterToggle.addEventListener("click",()=>{
+  if(window.matchMedia("(max-width: 790px)").matches){
+   openMobileOrderFilters();
+   return;
+  }
   orderFiltersOpen=!orderFiltersOpen;
   $("rdOrderToolbar").classList.toggle("is-open",orderFiltersOpen);
   syncOrderFiltersButton();
  });
  const orderTools=makeNode("div","rd-toolbar");orderTools.id="rdOrderToolbar";
  const orderDate=makeNode("input");orderDate.type="date";orderDate.id="rdOrderDate";orderDate.setAttribute("aria-label","Фильтр по дате");orderDate.addEventListener("change",()=>{
+  if(filterDialog.open)return; // Mobile sheet applies changes only on confirmation.
   if(activePage==="orders"&&currentTab==="calendar"){
     clearQuickFilter();
     if(orderDate.value){selectedDate=orderDate.value;render()}
@@ -377,11 +382,15 @@ function build(){
   clearQuickFilter();filterCards();
 });
  const dateWrap=makeNode("label","rd-date-filter");dateWrap.append(boxText("span","Дата"),orderDate);
- const masterSelect=makeNode("select");masterSelect.id="rdMasterFilter";masterSelect.setAttribute("aria-label","Фильтр по мастеру");masterSelect.addEventListener("change",()=>{clearQuickFilter();filterCards()});
+ const masterSelect=makeNode("select");masterSelect.id="rdMasterFilter";masterSelect.setAttribute("aria-label","Фильтр по мастеру");masterSelect.addEventListener("change",()=>{if(filterDialog.open)return;clearQuickFilter();filterCards()});
  const statusSelect=makeNode("select");statusSelect.id="rdStatusFilter";statusSelect.setAttribute("aria-label","Фильтр по статусу");
  [["","Все статусы"],["Новый","Новый"],["Записан","Записан"],["В работе","В работе"],["Выполнен","Выполнен"],["Отменён","Отменён"],["unpaid","Ожидают оплаты"]].forEach(([value,label])=>{const opt=makeNode("option","",label);opt.value=value;statusSelect.append(opt)});
- statusSelect.addEventListener("change",()=>{clearQuickFilter();filterCards()});
- const clear=makeNode("button","secondary","Сбросить");clear.addEventListener("click",()=>{
+ statusSelect.addEventListener("change",()=>{if(filterDialog.open)return;clearQuickFilter();filterCards()});
+ const clear=makeNode("button","secondary","Сбросить");clear.type="button";clear.addEventListener("click",()=>{
+  if(filterDialog.open){
+   orderDate.value="";masterSelect.value="";statusSelect.value="";
+   return; // Clearing draft values does not change the list until Apply.
+  }
   if(currentTab==="history")orderHistoryDateFilter="";
   else if(currentTab==="all")orderListDateFilter="";
   orderDate.value=currentTab==="calendar"?selectedDate:"";
@@ -390,11 +399,87 @@ function build(){
   clearQuickFilter();render();
  });
  orderTools.append(dateWrap,masterSelect,statusSelect,clear);
+ const orderToolbarHome=document.createComment("desktop orders toolbar position");
+ // Native dialog is in the browser's top layer, so it cannot shift the orders list.
+ const filterDialog=makeNode("dialog","rd-orders-filters-dialog");
+ filterDialog.id="rdOrdersFilterDialog";
+ filterDialog.setAttribute("aria-labelledby","rdOrdersFilterTitle");
+ filterDialog.setAttribute("aria-modal","true");
+ const sheetHeading=makeNode("div","rd-orders-filter-heading");
+ const sheetTitle=makeNode("h2","rd-orders-filter-title","Фильтры заказов");
+ sheetTitle.id="rdOrdersFilterTitle";
+ const sheetClose=makeNode("button","rd-orders-filter-close","Закрыть");
+ sheetClose.type="button";sheetClose.setAttribute("aria-label","Закрыть фильтры без применения");
+ sheetHeading.append(sheetTitle,sheetClose);
+ const sheetActions=makeNode("div","rd-orders-filter-actions");
+ const sheetApply=makeNode("button","rd-orders-filter-apply","Применить");
+ sheetApply.type="button";
+ sheetActions.append(sheetApply);
+ filterDialog.append(sheetHeading,sheetActions);
+ body.append(filterDialog);
+ let filterDraft=null;
+ function closeMobileOrderFilters(apply=false){
+  if(!filterDialog.open)return;
+  filterDialog.close(apply?"apply":"cancel");
+  finishMobileOrderFilters(); // Restore draft synchronously; 'close' event is queued.
+ }
+ function openMobileOrderFilters(){
+  if(filterDialog.open)return;
+  filterDraft={
+   date:orderDate.value,master:masterSelect.value,status:statusSelect.value,
+   tab:currentTab
+  };
+  filterDialog.insertBefore(orderTools,sheetActions);
+  sheetActions.prepend(clear);
+  filterDialog.returnValue="cancel";
+  orderFiltersOpen=true;
+  syncOrderFiltersButton();
+  filterDialog.showModal();
+  sheetClose.focus({preventScroll:true});
+ }
+ sheetClose.addEventListener("click",()=>closeMobileOrderFilters());
+ sheetApply.addEventListener("click",()=>closeMobileOrderFilters(true));
+ filterDialog.addEventListener("cancel",event=>{
+  event.preventDefault();closeMobileOrderFilters();
+ });
+ filterDialog.addEventListener("click",event=>{
+  if(event.target===filterDialog)closeMobileOrderFilters();
+ });
+ function finishMobileOrderFilters(){
+  if(!filterDraft)return;
+  const applied=filterDialog.returnValue==="apply"&&filterDraft.tab===currentTab;
+  if(!applied&&filterDraft){
+   orderDate.value=filterDraft.date;
+   masterSelect.value=filterDraft.master;
+   statusSelect.value=filterDraft.status;
+  }
+  if(orderToolbarHome.parentNode)
+   orderToolbarHome.parentNode.insertBefore(orderTools,orderToolbarHome);
+  orderTools.append(clear);
+  orderFiltersOpen=false;
+  orderTools.classList.remove("is-open");
+  if(applied){
+   if(currentTab==="history")orderHistoryDateFilter=orderDate.value;
+   else if(currentTab==="all")orderListDateFilter=orderDate.value;
+   clearQuickFilter();
+   filterCards();
+  }
+  syncOrderFiltersButton();
+  filterDraft=null;
+  if(activePage==="orders")filterToggle.focus({preventScroll:true});
+ }
+ filterDialog.addEventListener("close",()=>{
+  if(!filterDialog.open)finishMobileOrderFilters();
+ });
+ window.__rdCloseOrderFilters=closeMobileOrderFilters;
+ window.addEventListener("resize",()=>{
+  if(filterDialog.open&&window.innerWidth>790)closeMobileOrderFilters();
+ });
  const financeTitle=sectionView("rdFinanceIntro","Финансы","Начисления, касса и история операций");
  app.insertBefore(home,$("ordersArea"));
  app.insertBefore(clients,$("ordersArea"));
  app.insertBefore(leads,$("ordersArea"));
- $("ordersArea").prepend(ordersTitle,orderStats,orderTools,calendar,calendarNav,board);
+ $("ordersArea").prepend(ordersTitle,orderStats,orderTools,orderToolbarHome,calendar,calendarNav,board);
  const listHead=$("ordersArea").querySelector(".list-head");
  const listActions=makeNode("div","rd-orders-list-actions");
  listActions.append($("orderCount"),filterToggle);
@@ -411,6 +496,8 @@ function build(){
 }
 function navigate(key){
  closeMobileMore();
+ if(key!=="orders"&&$("rdOrdersFilterDialog")?.open)
+  window.__rdCloseOrderFilters?.();
  if(key==="ai"){openAiChat();return}
  if(!ready)return;
  if(key==="finance"&&currentRole!=="owner")return;
