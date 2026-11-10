@@ -1,0 +1,30 @@
+name: Mobile calendar date width
+on:
+  push:
+    branches:
+      - fix/mobile-calendar-date-width-20261111
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  calendar-mobile:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 18
+    steps:
+      - name: Checkout selected commit
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Install Playwright Chromium
+        run: |
+          npm install --no-save --ignore-scripts playwright@1.56.1
+          npx playwright install --with-deps chromium
+          CHROME="$(node -p "require('playwright').chromium.executablePath()")"
+          test -x "$CHROME"
+          echo "CHROMIUM_PATH=$CHROME" >> "$GITHUB_ENV"
+      - name: Verify calendar date field and mobile navigation with fake data
+        run: node tests/calendar-date-width.cjs
+      - name: Verify order filters remain functional
+        run: node tests/order-filters-mobile.cjs
