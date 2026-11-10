@@ -49,8 +49,10 @@ async function setup(browser,device){
   return route.fulfill({contentType:"application/json",body:JSON.stringify(value)});
  });
  await page.goto("https://crm.test/");
- await page.locator(".rd-shell").waitFor();
- await page.evaluate(()=>document.querySelector('.rd-shell [data-page="orders"]').click());
+ await page.locator("#appScreen").waitFor({state:"visible"});
+ const mobileOrders=page.locator('.rd-mobilebar [data-page="orders"]');
+ if(await mobileOrders.isVisible())await mobileOrders.click();
+ else await page.locator('.rd-shell [data-page="orders"]').click();
  await page.locator("#rdOrdersFilterToggle").waitFor({state:"visible"});
  return {page,context,writes,errors};
 }
