@@ -26,6 +26,7 @@ const iconPaths={
  clients:'<circle cx="12" cy="8" r="4"/><path d="M4 21v-2a8 8 0 0 1 16 0v2"/>',
  finance:'<path d="M4 20V10h4v10M10 20V4h4v16M16 20v-8h4v8M2 21h20"/>',
  ai:'<path d="m12 2 1.9 6.1L20 10l-6.1 1.9L12 18l-1.9-6.1L4 10l6.1-1.9L12 2ZM19 16l.8 2.2L22 19l-2.2.8L19 22l-.8-2.2L16 19l2.2-.8L19 16Z"/>',
+ more:'<circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/>',
  search:'<circle cx="10.8" cy="10.8" r="6.8"/><path d="m16 16 5 5"/>',
  clock:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
  check:'<circle cx="12" cy="12" r="9"/><path d="m8 12 3 3 5-6"/>',
@@ -190,20 +191,7 @@ function makeProfileMenu(){
  });
  return {toggle,menu,close};
 }
-function revealMobileTab(key){
- const bar=$("rdMobileNav");
- const button=bar?.querySelector('.rd-nav-btn[data-page="'+key+'"]');
- if(!bar||!button||!bar.clientWidth)return;
- const barRect=bar.getBoundingClientRect(),tabRect=button.getBoundingClientRect();
- if(!tabRect.width)return;
- const inset=8;
- if(tabRect.left>=barRect.left+inset&&tabRect.right<=barRect.right-inset)return;
- const center=(tabRect.left+tabRect.right)/2-(barRect.left+barRect.right)/2;
- const reduced=window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
- const left=Math.max(0,bar.scrollLeft+center);
- if(typeof bar.scrollTo==="function")bar.scrollTo({left,behavior:reduced?"instant":"smooth"});
- else bar.scrollLeft=left;
-}
+let closeMobileMore=()=>{};
 function build(){
  if(ready)return;
  const side=makeNode("aside","rd-shell");side.setAttribute("aria-label","Главное меню");
@@ -233,23 +221,47 @@ function build(){
  top.append(search,boxText("span","Данные из Supabase","rd-top-title"));
  const profile=makeProfileMenu();top.append(profile.toggle);
  const mobile=makeNode("nav","rd-mobilebar");mobile.id="rdMobileNav";
- mobile.setAttribute("aria-label","Разделы приложения, пролистываются вправо и влево");
- for(const key of permittedSections())mobile.append(navButton(key));
- const navMore=makeNode("button","rd-nav-more","Ещё ›");
- navMore.type="button";navMore.hidden=true;
- navMore.setAttribute("aria-label","Показать следующие разделы нижнего меню");
- const updateNavMore=()=>{
-   navMore.hidden=!mobile.clientWidth||
-     mobile.scrollWidth<=mobile.clientWidth+5||
-     mobile.scrollLeft+mobile.clientWidth>=mobile.scrollWidth-8;
+ mobile.setAttribute("aria-label","Основные разделы приложения");
+ const primaryMobileSections=["home","leads","orders","calendar"];
+ for(const key of primaryMobileSections)mobile.append(navButton(key));
+ const navMore=makeNode("button","rd-nav-btn rd-mobile-more-trigger");
+ navMore.type="button";navMore.id="rdMobileMoreBtn";
+ navMore.setAttribute("aria-label","Ещё: другие разделы");
+ navMore.setAttribute("aria-haspopup","true");
+ navMore.setAttribute("aria-expanded","false");
+ navMore.setAttribute("aria-controls","rdMobileMoreSheet");
+ const moreIcon=makeNode("span","rd-icon");moreIcon.append(uiIcon("more"));
+ navMore.append(moreIcon,boxText("span","Ещё"));
+ mobile.append(navMore);
+ const veil=makeNode("button","rd-more-veil");veil.type="button";
+ veil.setAttribute("aria-label","Закрыть дополнительные разделы");
+ veil.hidden=true;
+ const moreSheet=makeNode("nav","rd-more-sheet");
+ moreSheet.id="rdMobileMoreSheet";moreSheet.hidden=true;
+ moreSheet.setAttribute("aria-label","Дополнительные разделы");
+ moreSheet.append(boxText("h2","Другие разделы"));
+ for(const key of permittedSections().filter(section=>!primaryMobileSections.includes(section))){
+  moreSheet.append(navButton(key));
+ }
+ const closeMore=()=>{
+  moreSheet.hidden=true;veil.hidden=true;
+  navMore.setAttribute("aria-expanded","false");
  };
+ closeMobileMore=closeMore;
  navMore.addEventListener("click",()=>{
-   mobile.scrollBy({left:Math.max(120,Math.round(mobile.clientWidth*.65)),behavior:"smooth"});
+  const opening=moreSheet.hidden;
+  moreSheet.hidden=!opening;veil.hidden=!opening;
+  navMore.setAttribute("aria-expanded",String(opening));
+  if(opening)moreSheet.querySelector(".rd-nav-btn")?.focus();
  });
- mobile.addEventListener("scroll",updateNavMore,{passive:true});
- window.addEventListener("resize",updateNavMore);
- app.prepend(top,side,profile.menu,mobile,navMore);
- window.requestAnimationFrame(updateNavMore);
+ veil.addEventListener("click",()=>{closeMore();navMore.focus()});
+ document.addEventListener("keydown",event=>{
+  if(event.key==="Escape"&&!moreSheet.hidden){closeMore();navMore.focus()}
+ });
+ window.addEventListener("resize",()=>{
+  if(window.innerWidth>790&&!moreSheet.hidden)closeMore();
+ });
+ app.prepend(top,side,profile.menu,mobile,veil,moreSheet);
  const home=sectionView("rdHome","Главная","Краткая сводка заказов и расписания");
  const homeTitlebar=makeNode("div","rd-home-titlebar");
  const homeSync=makeNode("span","rd-home-synced",$("syncStatus")?.textContent||"");
@@ -391,6 +403,7 @@ function build(){
  navigate(initial);
 }
 function navigate(key){
+ closeMobileMore();
  if(key==="ai"){openAiChat();return}
  if(!ready)return;
  if(key==="finance"&&currentRole!=="owner")return;
@@ -431,7 +444,8 @@ function navigate(key){
  app.className=app.className.replace(/\brd-view-\S+/g,"").trim()+" rd-view-"+key;
  document.querySelectorAll(".rd-nav-btn[data-page]").forEach(btn=>
   btn.setAttribute("aria-current",btn.dataset.page===key?"page":"false"));
- revealMobileTab(key);
+ const moreButton=$("rdMobileMoreBtn");
+ if(moreButton)moreButton.setAttribute("aria-current",["clients","finance"].includes(key)?"page":"false");
  if(isOrders||isCalendar){
   currentTab=isCalendar?"calendar":"all";
   if(isOrders)restoreOrderFilters(currentTab);
