@@ -98,6 +98,7 @@ async function scan(page,label){
      results.push(await scan(page,'orders-filter-sheet'));
     }
     await page.locator('.rd-list-toggle').first().click();results.push(await scan(page,'order-details'));
+    await page.locator('.rd-order-close').click(); // Modal must be closed before testing another action.
     await page.locator('#newOrderBtn').click();results.push(await scan(page,'order-form'));
     await page.locator('#orderOverlay .close').click();
     // The existing app hides this panel. Inspect its layout without changing source visibility.
