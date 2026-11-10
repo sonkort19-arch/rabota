@@ -239,7 +239,13 @@ function build(){
  const moreSheet=makeNode("nav","rd-more-sheet");
  moreSheet.id="rdMobileMoreSheet";moreSheet.hidden=true;
  moreSheet.setAttribute("aria-label","Дополнительные разделы");
- moreSheet.append(boxText("h2","Другие разделы"));
+ const moreHeader=makeNode("div","rd-more-header");
+ moreHeader.append(boxText("h2","Другие разделы"));
+ const moreClose=makeNode("button","rd-more-close","×");
+ moreClose.type="button";
+ moreClose.setAttribute("aria-label","Закрыть меню дополнительных разделов");
+ moreHeader.append(moreClose);
+ moreSheet.append(moreHeader);
  for(const key of permittedSections().filter(section=>!primaryMobileSections.includes(section))){
   moreSheet.append(navButton(key));
  }
@@ -248,6 +254,7 @@ function build(){
   navMore.setAttribute("aria-expanded","false");
  };
  closeMobileMore=closeMore;
+ moreClose.addEventListener("click",()=>{closeMore();navMore.focus()});
  navMore.addEventListener("click",()=>{
   const opening=moreSheet.hidden;
   moreSheet.hidden=!opening;veil.hidden=!opening;
