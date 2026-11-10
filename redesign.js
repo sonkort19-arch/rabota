@@ -419,7 +419,9 @@ function build(){
  body.append(filterDialog);
  let filterDraft=null;
  function closeMobileOrderFilters(apply=false){
-  if(filterDialog.open)filterDialog.close(apply?"apply":"cancel");
+  if(!filterDialog.open)return;
+  filterDialog.close(apply?"apply":"cancel");
+  finishMobileOrderFilters(); // Restore draft synchronously; 'close' event is queued.
  }
  function openMobileOrderFilters(){
   if(filterDialog.open)return;
@@ -443,8 +445,9 @@ function build(){
  filterDialog.addEventListener("click",event=>{
   if(event.target===filterDialog)closeMobileOrderFilters();
  });
- filterDialog.addEventListener("close",()=>{
-  const applied=filterDialog.returnValue==="apply"&&filterDraft?.tab===currentTab;
+ function finishMobileOrderFilters(){
+  if(!filterDraft)return;
+  const applied=filterDialog.returnValue==="apply"&&filterDraft.tab===currentTab;
   if(!applied&&filterDraft){
    orderDate.value=filterDraft.date;
    masterSelect.value=filterDraft.master;
@@ -464,7 +467,11 @@ function build(){
   syncOrderFiltersButton();
   filterDraft=null;
   if(activePage==="orders")filterToggle.focus({preventScroll:true});
+ }
+ filterDialog.addEventListener("close",()=>{
+  if(!filterDialog.open)finishMobileOrderFilters();
  });
+ window.__rdCloseOrderFilters=closeMobileOrderFilters;
  window.addEventListener("resize",()=>{
   if(filterDialog.open&&window.innerWidth>790)closeMobileOrderFilters();
  });
@@ -490,7 +497,7 @@ function build(){
 function navigate(key){
  closeMobileMore();
  if(key!=="orders"&&$("rdOrdersFilterDialog")?.open)
-  $("rdOrdersFilterDialog").close("cancel");
+  window.__rdCloseOrderFilters?.();
  if(key==="ai"){openAiChat();return}
  if(!ready)return;
  if(key==="finance"&&currentRole!=="owner")return;
