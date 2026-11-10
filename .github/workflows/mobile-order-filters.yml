@@ -21,8 +21,8 @@ jobs:
           npm --version
           npm install --no-save --ignore-scripts playwright@1.56.1
           npx playwright install --with-deps chromium
-          CHROME="$(find "$HOME/.cache/ms-playwright" -type f -path '*/chrome-linux64/chrome' -print -quit)"
-          test -n "$CHROME"
+          CHROME="$(node -p "require('playwright').chromium.executablePath()")"
+          test -x "$CHROME"
           echo "CHROMIUM_PATH=$CHROME" >> "$GITHUB_ENV"
       - name: Check order filter layout and other responsive views (synthetic data, no production writes)
         run: node tests/responsive-layout.cjs
