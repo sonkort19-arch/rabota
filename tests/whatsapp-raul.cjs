@@ -38,7 +38,7 @@ test("unassigned real-case order filters internal comments but preserves working
   {...seed,id:"older2",date:"2026-11-11",time:"13:00",assignedUserId:"raul-id"}
  ];
  const warnings=wa.reviewWarnings(russlan,[russlan,...others]);
- assert.ok(warnings.some(x=>/Не подтверждена привязка/.test(x)),"not assigned");
+ assert.ok(warnings.some(x=>/привязка мастера в базе не подтверждена/.test(x)),"not assigned");
  assert.ok(warnings.some(x=>/Рядом по времени/.test(x)),"owner gets nearby booking warning");
  const msg=wa.singleDraft(russlan,{preliminary:true});
  for(const must of ["На согласование","Руслан","18:00 МСК","10 000 ₽","Промывка 4 радиаторов"])
