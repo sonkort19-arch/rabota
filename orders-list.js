@@ -107,11 +107,12 @@
       actions.append(payload.actions);
     }
     inside.append(actions);
-    if(order.details){
+    const visibleNote=window.__rdOrderNotes?.display(order.details,currentRole)||"";
+    if(visibleNote){
       const comments=document.createElement("details");
       comments.className="rd-order-comment";
       const summary=text("summary","Комментарий к заказу","rd-order-comment-toggle");
-      const note=text("p",order.details,"rd-order-comment-text");
+      const note=text("p",visibleNote,"rd-order-comment-text");
       comments.append(summary,note);
       inside.append(comments);
     }
