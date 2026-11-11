@@ -1,0 +1,38 @@
+name: Raul WhatsApp compact review (safe branch)
+on:
+  push:
+    branches:
+      - fix/raul-whatsapp-compact-review-20261111
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Syntax-check modified modules
+        run: |
+          node --check whatsapp-order.js
+          node --check tests/whatsapp-raul.cjs
+          node --check tests/whatsapp-raul-browser.cjs
+      - name: Test booking review and draft format (no real messages)
+        run: node --test tests/whatsapp-raul.cjs
+      - name: Install local Playwright Chromium
+        run: |
+          npm install --no-save --ignore-scripts playwright@1.56.1
+          npx playwright install --with-deps chromium
+          CHROME="$(node -p "require('playwright').chromium.executablePath()")"
+          test -x "$CHROME"
+          echo "CHROMIUM_PATH=$CHROME" >> "$GITHUB_ENV"
+      - name: Test iPhone and desktop WhatsApp drafts with synthetic data
+        run: node tests/whatsapp-raul-browser.cjs
+      - name: Verify order filters
+        run: node tests/order-filters-mobile.cjs
+      - name: Verify calendar date width
+        run: node tests/calendar-date-width.cjs
