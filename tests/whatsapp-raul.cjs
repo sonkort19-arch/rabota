@@ -97,3 +97,30 @@ test("WhatsApp URL only pre-fills text; no automatic send API",()=>{
  assert.ok(decodeURIComponent(url).includes("Тестовая улица 15"));
  assert.throws(()=>wa.whatsappURL("invalid","text"),/номер/);
 });
+
+test("compact daily review flags a tight 15:00–18:00 interval once, not all three jobs",()=>{
+ const date="2026-11-12";
+ const jobs=[
+  {...seed,id:"as",name:"Аслан",date,time:"10:00",assignedUserId:"raul-id"},
+  {...seed,id:"za",name:"Заира",date,time:"15:00",assignedUserId:"raul-id"},
+  {...seed,id:"da",name:"Давид",date,time:"18:00",assignedUserId:"raul-id",radiators:9,floorLoops:3}
+ ];
+ const report=wa.compactReview(jobs,jobs);
+ assert.equal(report.requiresAgreement,false);
+ assert.equal(report.notes.length,1,"only the 15:00 to 18:00 gap should appear");
+ assert.match(report.notes[0],/15:00–18:00/);
+ assert.match(report.notes[0],/3 ч 00 мин/);
+ assert.equal(report.reviews.length,3);
+ const changed=jobs.map((o,i)=>i===1?{...o,assignedUserId:null}:o);
+ const missing=wa.compactReview(changed,changed);
+ assert.equal(missing.requiresAgreement,true);
+ assert.equal(missing.notes.filter(s=>s.includes("Нет привязки мастера")).length,1);
+ assert.ok(missing.notes.some(s=>s.includes("Заира")));
+ const clashing=jobs.map((o,i)=>i===2?{...o,time:"15:00"}:o);
+ assert.equal(wa.compactReview(clashing,clashing).requiresAgreement,true);
+ assert.ok(wa.compactReview(clashing,clashing).notes.some(s=>s.includes("Совпадение времени")));
+});
+test("WhatsApp recipient is explicitly displayed as a readable Russian number",()=>{
+ assert.equal(wa.recipientLabel("89188200595"),"+7 918 820-05-95");
+ assert.equal(wa.recipientLabel("not a phone"),"номер не указан");
+});

@@ -78,6 +78,8 @@ async function check(browser,label,device){
    if(dialog.type()==="prompt"){
     prompts.push(dialog.message());
     dialog.accept("+7 918 123 45 67");
+   }else if(dialog.type()==="confirm" && dialog.message().includes("Получатель: Рауль")){
+     dialog.accept();
    }else {alerts.push(dialog.message());dialog.dismiss();}
   });
   const tomorrowButton=page.locator("#rdShareRaulTomorrow");
@@ -85,6 +87,7 @@ async function check(browser,label,device){
   assert.equal(await tomorrowButton.isVisible(),true,label+": schedule button visible");
   assert.equal(await numberButton.isVisible(),true,label+": recipient button visible");
   await tomorrowButton.click();
+  await page.waitForFunction(()=>window.__whatsappUrls?.length===1);
   assert.equal(prompts.length,1,label+": asks Raul number once");
   const first=await page.evaluate(()=>window.__whatsappUrls[0]||"");
   assert.ok(first.startsWith("https://wa.me/79181234567?text="),label+": opens Raul's saved WhatsApp number");
@@ -93,6 +96,7 @@ async function check(browser,label,device){
   assert.ok(text1.indexOf("Тестовый клиент 1")<text1.indexOf("Тестовый клиент 0"),label+": ordered by time");
   assert.doesNotMatch(text1,/Тестовый клиент [234]/,label+": excludes other master, cancelled and completed");
   await tomorrowButton.click();
+  await page.waitForFunction(()=>window.__whatsappUrls?.length===2);
   assert.equal(prompts.length,1,label+": second share reuses saved number");
   // Orders screen card actions remain owner/manager-only.
   await page.locator('[data-tab="all"]').click();
@@ -100,6 +104,7 @@ async function check(browser,label,device){
   await row.click();
   const shareOne=page.locator(".rd-order-content .rd-share-raul-wa");
   await shareOne.click();
+  await page.waitForFunction(()=>window.__whatsappUrls?.length===3);
   const last=await page.evaluate(()=>window.__whatsappUrls.at(-1)||"");
   const jobText=new URL(last).searchParams.get("text")||"";
   assert.match(jobText.split("\n")[0],/^Дата и время: \d{2}\.\d{2}\.\d{4} · 15:00 МСК$/,
@@ -126,7 +131,7 @@ async function check(browser,label,device){
   assert.equal(refused,false,label+": user may cancel when no assigned master");
   assert.equal(await page.evaluate(()=>window.__whatsappUrls.length),countBefore,
     label+": no WhatsApp draft opened without confirmation");
-  assert.match((await page.evaluate(()=>window.__confirmDialogCalls.join("\n"))),/привязка мастера в базе не подтверждена/,
+  assert.match((await page.evaluate(()=>window.__confirmDialogCalls.join("\n"))),/Нет привязки мастера в базе/,
     label+": descriptive warning");
   await page.evaluate(()=>{window.confirm=()=>true;});
   const accepted=await page.evaluate(()=>

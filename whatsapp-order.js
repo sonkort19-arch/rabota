@@ -125,6 +125,48 @@
     return {warnings,requiresAgreement};
   }
   function reviewWarnings(order,allOrders=[]){return reviewOrder(order,allOrders).warnings;}
+  // A short, deduplicated risk report for the iPhone confirmation sheet.
+  // Scheduling gaps are estimates, not a guarantee of completion time.
+  function compactReview(selected,allOrders=[]){
+    const items=Array.isArray(selected)?selected:[];
+    const all=Array.isArray(allOrders)?allOrders:[];
+    const reviews=items.map(order=>({order,...reviewOrder(order,all)}));
+    const notes=[];
+    const list=orders=>{
+      const labels=orders.slice(0,3).map(o=>(clean(o.name)||"Клиент")+" "+displayTime(o.time));
+      return labels.join(", ")+(orders.length>3?" и ещё "+(orders.length-3):"");
+    };
+    const unassigned=items.filter(o=>isActive(o)&&!clean(o.assignedUserId));
+    if(unassigned.length)notes.push("Нет привязки мастера в базе: "+list(unassigned)+".");
+    const noTime=items.filter(o=>isActive(o)&&(!clean(o.date)||timeMinutes(o.time)===null));
+    if(noTime.length)notes.push("Дата/время не указаны: "+list(noTime)+".");
+    const included=new Set(items.map(o=>String(o.id)));
+    const relevant=[...new Map([...items,...all].filter(o=>isRaul(o)&&isActive(o))
+      .map(o=>[String(o.id),o])).values()];
+    const sameDay=relevant.filter(o=>items.some(chosen=>clean(chosen.date)===clean(o.date)));
+    const pairs=[];
+    for(let i=0;i<sameDay.length;i++)for(let j=i+1;j<sameDay.length;j++){
+      const a=sameDay[i],b=sameDay[j];
+      if(clean(a.date)!==clean(b.date)||!included.has(String(a.id))&&!included.has(String(b.id)))continue;
+      const aTime=timeMinutes(a.time),bTime=timeMinutes(b.time);
+      if(aTime===null||bTime===null)continue;
+      const gap=Math.abs(aTime-bTime);
+      if(gap<200)pairs.push({first:aTime<=bTime?a:b,last:aTime<=bTime?b:a,gap});
+    }
+    pairs.sort((a,b)=>a.gap-b.gap||timeMinutes(a.first.time)-timeMinutes(b.first.time));
+    if(pairs.length){
+      for(const pair of pairs.slice(0,2)){
+        const interval=displayTime(pair.first.time)+"–"+displayTime(pair.last.time);
+        notes.push(pair.gap===0?
+          "Совпадение времени "+interval+": "+(clean(pair.first.name)||"клиент")+" и "+(clean(pair.last.name)||"клиент")+"."
+          :"Плотно "+interval+": "+Math.floor(pair.gap/60)+" ч "+String(pair.gap%60).padStart(2,"0")+
+          " мин между началом работ (ориентир 3 ч 20 мин).");
+      }
+      if(pairs.length>2)notes.push("Другие близкие записи: ещё "+(pairs.length-2)+".");
+    }
+    const requiresAgreement=reviews.some(r=>r.requiresAgreement);
+    return {notes,reviews,requiresAgreement};
+  }
   function singleDraft(order,{preliminary=false}={}){
     if(!isRaul(order))throw new Error("Отправить можно только заказ, отмеченный за Раулем.");
     const title=clean(order.status)==="Отменён"?"Отмена заказа":
@@ -186,10 +228,14 @@
     catch(_){root.alert?.("Не удалось сохранить номер. Его потребуется вводить снова.");}
     return phone;
   }
-  function openDraft(text){
+  function recipientLabel(value){
+    const phone=normalizePhone(value);
+    if(!phone)return "номер не указан";
+    return "+7 "+phone.slice(1,4)+" "+phone.slice(4,7)+"-"+phone.slice(7,9)+"-"+phone.slice(9);
+  }
+  function openDraft(text,phone){
     if(!text){root.alert?.("На завтра у Рауля нет предстоящих заказов.");return false;}
-    const phone=savedPhone()||configurePhone();
-    if(!phone)return false;
+    if(!normalizePhone(phone))return false;
     const url=whatsappURL(phone,text);
     // The action is user-initiated. WhatsApp fills a draft, but the user sends manually.
     const opened=root.open?.(url,"_blank");
@@ -199,38 +245,33 @@
     }
     return true;
   }
-  function confirmWarnings(warnings,{requiresAgreement=false}={}){
-    if(!warnings.length)return true;
-    const conclusion=requiresAgreement?
-      "Открыть WhatsApp с пометкой «На согласование»? Это не назначает мастера и не подтверждает время.":
-      "Подтвердить проверку расписания и открыть WhatsApp с пометкой «Новый заказ»?";
-    return !!root.confirm?.("Проверь перед отправкой Раулю:\n\n"+
-      warnings.join("\n")+"\n\n"+conclusion);
+  function confirmShare(phone,items,report,{date,scope}={}){
+    const heading="Получатель: Рауль · "+recipientLabel(phone)+
+      "\n"+(scope||"Заказ")+" · "+displayDate(date||items[0]?.date);
+    const assignment=report.requiresAgreement?
+      "\nВнимание: есть заявки на согласование.": "\nНазначения: критичных конфликтов не найдено.";
+    const risks=report.notes.length?"\n"+report.notes.slice(0,4).map(note=>"• "+note).join("\n"):"";
+    const notice="\n\nПроверь, что это номер РАУЛЯ. Открыть черновик в WhatsApp? Сообщение отправляется вручную.";
+    return !!root.confirm?.(heading+assignment+risks+notice);
   }
   function shareOne(order,orders=[]){
     if(!isRaul(order)){root.alert?.("Этот заказ не отмечен за Раулем.");return false;}
-    const review=reviewOrder(order,orders);
-    if(!confirmWarnings(review.warnings,{requiresAgreement:review.requiresAgreement}))return false;
-    return openDraft(singleDraft(order,{preliminary:review.requiresAgreement}));
+    const phone=savedPhone()||configurePhone();
+    if(!phone)return false;
+    const report=compactReview([order],orders);
+    if(!confirmShare(phone,[order],report,{date:order.date,scope:"1 заказ"}))return false;
+    return openDraft(singleDraft(order,{preliminary:report.requiresAgreement}),phone);
   }
   function shareTomorrow(orders){
     const items=tomorrowOrders(orders);
     if(!items.length){root.alert?.("На завтра у Рауля нет предстоящих заказов.");return false;}
-    const reviews=items.map(order=>({order,...reviewOrder(order,orders)}));
-    const flagged=reviews.filter(r=>r.requiresAgreement);
-    const warnings=reviews.filter(r=>r.warnings.length);
-    if(warnings.length){
-      const summary=warnings.slice(0,6).map(r=>
-        "• "+(clean(r.order.name)||"Клиент")+" ("+displayTime(r.order.time)+"): "+r.warnings.join(" ")
-      );
-      if(!confirmWarnings([
-        "Проверь "+warnings.length+" из "+items.length+" заказов:",
-        ...summary,
-        ...(warnings.length>6?["И ещё "+(warnings.length-6)+" заказов."]:[])
-      ],{requiresAgreement:flagged.length>0}))return false;
-    }
-    return openDraft(dailyDraft(orders,new Date(),{preliminaryIds:flagged.map(r=>r.order.id)}));
+    const phone=savedPhone()||configurePhone();
+    if(!phone)return false;
+    const report=compactReview(items,orders);
+    if(!confirmShare(phone,items,report,{date:tomorrowMoscow(),scope:items.length+" заказ(ов)"}))return false;
+    const flagged=report.reviews.filter(r=>r.requiresAgreement).map(r=>r.order.id);
+    return openDraft(dailyDraft(orders,new Date(),{preliminaryIds:flagged}),phone);
   }
   return {normalizePhone,isRaul,tomorrowMoscow,tomorrowOrders,displayDate,singleDraft,
-    dailyDraft,reviewOrder,reviewWarnings,notesForMaster,whatsappURL,shareOne,shareTomorrow,configurePhone,savedPhone};
+    dailyDraft,reviewOrder,reviewWarnings,compactReview,recipientLabel,notesForMaster,whatsappURL,shareOne,shareTomorrow,configurePhone,savedPhone};
 });
