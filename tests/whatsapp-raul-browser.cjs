@@ -102,10 +102,11 @@ async function check(browser,label,device){
   await shareOne.click();
   const last=await page.evaluate(()=>window.__whatsappUrls.at(-1)||"");
   const jobText=new URL(last).searchParams.get("text")||"";
-  assert.match(jobText,/Заказ на промывку отопления/,label+": individual compact draft title");
+  assert.match(jobText.split("\n")[0],/^Дата и время: \d{2}\.\d{2}\.\d{4} · 15:00 МСК$/,
+    label+": date/time must be the first line");
+  assert.equal(jobText.split("\n")[1],"Новый заказ",label+": normal booked order title");
   assert.doesNotMatch(jobText,/Статус:|Заказ №|Контуры тёплого пола:|не указаны/,label+": no service fields");
   assert.match(jobText,/Тестовая улица 0/,label+": individual draft includes address");
-  assert.match(jobText,/Время: 15:00 МСК/,label+": individual draft includes Moscow time");
   // Test unsafe scheduling: no link without explicit owner confirmation.
   await page.evaluate(()=>{
    window.__confirmDialogCalls=[];
@@ -133,7 +134,25 @@ async function check(browser,label,device){
   );
   assert.equal(accepted,true,label+": explicit approval opens preliminary draft");
   const preliminary=await page.evaluate(()=>new URL(window.__whatsappUrls.at(-1)).searchParams.get("text"));
-  assert.match(preliminary,/На согласование/,label+": draft not presented as confirmed");
+  assert.equal(preliminary.split("\n")[1],"На согласование",label+": unassigned remains preliminary");
+  // Three bookings on the same day don't automatically require agreement.
+  await page.evaluate(()=>{
+    const date="2026-11-11";
+    window.__testLevan=[
+      {id:"levan",master:"Рауль",assignedUserId:"raul-id",name:"Леван",date,time:"10:00",status:"Записан",radiators:4,price:10000},
+      {id:"bella",master:"Рауль",assignedUserId:"raul-id",name:"Белла",date,time:"13:00",status:"Записан",radiators:6,price:11000},
+      {id:"ruslan",master:"Рауль",assignedUserId:"raul-id",name:"Руслан",date,time:"18:00",status:"Записан",radiators:4,price:10000}
+    ];
+    window.__ownerWarnings=[];
+    window.confirm=message=>{window.__ownerWarnings.push(message);return true;};
+    window.__rdWhatsApp.shareOne(window.__testLevan[0],window.__testLevan);
+  });
+  const scheduledDraft=await page.evaluate(()=>new URL(window.__whatsappUrls.at(-1)).searchParams.get("text"));
+  assert.equal(scheduledDraft.split("\n")[0],"Дата и время: 11.11.2026 · 10:00 МСК",label+": Levan date/time first");
+  assert.equal(scheduledDraft.split("\n")[1],"Новый заказ",label+": Levan not marked preliminary");
+  assert.match((await page.evaluate(()=>window.__ownerWarnings.join("\n"))),/13:00/,
+    label+": nearby booking warning is shown to owner before sharing");
+
   assert.doesNotMatch(preliminary,/ВНИМАНИЕ|система запрещает|№unassigned|Статус:/,
     label+": no internal warnings forwarded");
 
