@@ -944,7 +944,11 @@
         const sendRaul=make("button","action rd-share-raul-wa","Раулю в WhatsApp");
         sendRaul.type="button";
         sendRaul.title="Открыть готовый текст заказа в WhatsApp Рауля. Отправка только вручную.";
-        sendRaul.addEventListener("click",()=>window.__rdWhatsApp.shareOne(order));
+        sendRaul.addEventListener("click",()=>{
+          const current=getOrders().find(item=>String(item.id)===String(order.id));
+          if(!current){alert("Заказ не найден. Обновите список перед отправкой.");return;}
+          window.__rdWhatsApp.shareOne(current,getOrders());
+        });
         actions.append(sendRaul);
       }
       if (currentRole !== "master") {

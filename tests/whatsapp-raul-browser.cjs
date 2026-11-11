@@ -102,9 +102,41 @@ async function check(browser,label,device){
   await shareOne.click();
   const last=await page.evaluate(()=>window.__whatsappUrls.at(-1)||"");
   const jobText=new URL(last).searchParams.get("text")||"";
-  assert.match(jobText,/Актуальный заказ для Рауля/,label+": individual draft title");
+  assert.match(jobText,/Заказ на промывку отопления/,label+": individual compact draft title");
+  assert.doesNotMatch(jobText,/Статус:|Заказ №|Контуры тёплого пола:|не указаны/,label+": no service fields");
   assert.match(jobText,/Тестовая улица 0/,label+": individual draft includes address");
   assert.match(jobText,/Время: 15:00 МСК/,label+": individual draft includes Moscow time");
+  // Test unsafe scheduling: no link without explicit owner confirmation.
+  await page.evaluate(()=>{
+   window.__confirmDialogCalls=[];
+   window.__rdWhatsAppSaved=window.confirm;
+   window.confirm=msg=>{window.__confirmDialogCalls.push(msg);return false;};
+   window.__unsafeTestOrder={
+     id:"unassigned-test",master:"Рауль",assignedUserId:null,
+     name:"Проверка",date:"2026-11-12",time:"18:00",phone:"79181110000",
+     address:"Тест",radiators:4,price:10000,status:"Записан",
+     details:"ВНИМАНИЕ: система запрещает третью запись."
+   };
+  });
+  const countBefore=await page.evaluate(()=>window.__whatsappUrls.length);
+  const refused=await page.evaluate(()=>
+   window.__rdWhatsApp.shareOne(window.__unsafeTestOrder,[window.__unsafeTestOrder])
+  );
+  assert.equal(refused,false,label+": user may cancel when no assigned master");
+  assert.equal(await page.evaluate(()=>window.__whatsappUrls.length),countBefore,
+    label+": no WhatsApp draft opened without confirmation");
+  assert.match((await page.evaluate(()=>window.__confirmDialogCalls.join("\n"))),/Не подтверждена привязка/,
+    label+": descriptive warning");
+  await page.evaluate(()=>{window.confirm=()=>true;});
+  const accepted=await page.evaluate(()=>
+   window.__rdWhatsApp.shareOne(window.__unsafeTestOrder,[window.__unsafeTestOrder])
+  );
+  assert.equal(accepted,true,label+": explicit approval opens preliminary draft");
+  const preliminary=await page.evaluate(()=>new URL(window.__whatsappUrls.at(-1)).searchParams.get("text"));
+  assert.match(preliminary,/На согласование/,label+": draft not presented as confirmed");
+  assert.doesNotMatch(preliminary,/ВНИМАНИЕ|система запрещает|№unassigned|Статус:/,
+    label+": no internal warnings forwarded");
+
   assert.equal(await page.evaluate(()=>localStorage.getItem("rd-raul-whatsapp-phone-v1")),"79181234567");
   assert.deepEqual(writes,[],label+": no orders modified");
   assert.deepEqual(errors,[],label+": no page errors");
