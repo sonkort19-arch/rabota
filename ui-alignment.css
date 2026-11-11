@@ -1855,3 +1855,29 @@ body.rd > #rdMobileNav[hidden] { display:none !important; }
     z-index:28;
   }
 }
+
+/* WhatsApp manual sharing for Raul's heating appointments. */
+body.rd #rdOrdersIntro .rd-raul-share-tools {
+  display:flex;flex-wrap:wrap;gap:9px;align-items:stretch;
+  width:100%;margin:8px 0 4px;
+}
+body.rd #rdOrdersIntro .rd-raul-share-tools button {
+  min-height:43px;min-width:0;
+  border-radius:12px;padding:10px 12px;
+  font-size:13px;font-weight:750;
+}
+body.rd #rdOrdersIntro .rd-raul-share-tomorrow {
+  flex:1 1 220px;
+  background:#eaf8ef;border:1px solid #bee6cd;color:#137646;
+}
+body.rd #rdOrdersIntro .rd-raul-share-settings {
+  flex:0 1 auto;
+  background:#f2f5fc;border:1px solid #dde5f4;color:#415a82;
+}
+body.rd .actions .action.rd-share-raul-wa {
+  border:1px solid #bde5cd;background:#eaf8ef;color:#147849;
+  min-height:42px;padding:9px 11px;font-weight:750;
+}
+@media (max-width:390px){
+ body.rd #rdOrdersIntro .rd-raul-share-settings {flex:1 1 auto;}
+}

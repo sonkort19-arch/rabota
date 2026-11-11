@@ -737,6 +737,12 @@
       if(currentRole==="master"){try{await refreshRabotaNotifications();}catch(error){console.warn("Notification reload",error);}}
     }
     function getOrders() {return cloudOrders;}
+    // Owners/managers can open WhatsApp drafts from the current locally loaded
+    // orders. This never modifies a booking or sends a message automatically.
+    window.__rdShareTomorrowRaul=()=>{
+      if(!["owner","manager"].includes(currentRole))return false;
+      return window.__rdWhatsApp?.shareTomorrow(getOrders())||false;
+    };
     function orderHasFinancialHistory(order){
       if(!order)return false;
       return Boolean(order.paid||order.paymentMethod||order.paymentAmount!=null||
@@ -921,7 +927,7 @@
         actions.append(tel);
       }
       if (normalized) {
-        const wa = make("a","action wa","WhatsApp");
+        const wa = make("a","action wa","WhatsApp клиенту");
         wa.href = "https://wa.me/" + normalized;
         wa.target = "_blank";
         wa.rel = "noopener noreferrer";
@@ -933,6 +939,13 @@
         map.target = "_blank";
         map.rel = "noopener noreferrer";
         actions.append(map);
+      }
+      if (currentRole !== "master" && window.__rdWhatsApp?.isRaul(order)) {
+        const sendRaul=make("button","action rd-share-raul-wa","Раулю в WhatsApp");
+        sendRaul.type="button";
+        sendRaul.title="Открыть готовый текст заказа в WhatsApp Рауля. Отправка только вручную.";
+        sendRaul.addEventListener("click",()=>window.__rdWhatsApp.shareOne(order));
+        actions.append(sendRaul);
       }
       if (currentRole !== "master") {
         const edit = make("button","action edit","Изменить");
@@ -2007,6 +2020,7 @@
   <script src="/order-payment.js"></script>
   <script src="/order-availability.js"></script>
   <script src="/quick-slots.js"></script>
+  <script src="/whatsapp-order.js"></script>
   <script src="/redesign.js"></script>
   <script src="/master-notifications.js"></script>
   <script src="/orders-list.js"></script>

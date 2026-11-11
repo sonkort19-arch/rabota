@@ -359,6 +359,20 @@ function build(){
  ordersQuick.type="button";
  ordersQuick.addEventListener("click",()=>window.__rdQuickSlots?.open());
  ordersTitle.append(ordersQuick);
+ // Two optional manual WhatsApp actions for the owner/manager.
+ const raulShareTools=makeNode("div","rd-raul-share-tools");
+ const raulTomorrow=makeNode("button","rd-raul-share-tomorrow","Расписание Рауля на завтра · WhatsApp");
+ raulTomorrow.type="button";
+ raulTomorrow.id="rdShareRaulTomorrow";
+ raulTomorrow.title="Открыть готовое расписание Рауля на завтра в WhatsApp";
+ raulTomorrow.addEventListener("click",()=>window.__rdShareTomorrowRaul?.());
+ const raulPhone=makeNode("button","rd-raul-share-settings","Номер Рауля");
+ raulPhone.id="rdRaulWhatsAppSettings";
+ raulPhone.type="button";
+ raulPhone.title="Установить или изменить номер WhatsApp Рауля на этом устройстве";
+ raulPhone.addEventListener("click",()=>window.__rdWhatsApp?.configurePhone());
+ raulShareTools.append(raulTomorrow,raulPhone);
+ ordersTitle.append(raulShareTools);
  const titleBar=makeNode("div","rd-orders-titlebar");
  const synced=makeNode("span","rd-orders-synced",$("syncStatus")?.textContent||"");
  synced.id="rdOrdersSynced";synced.setAttribute("role","status");
