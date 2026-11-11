@@ -118,8 +118,9 @@
     if(!phone)return false;
     const url=whatsappURL(phone,text);
     // The action is user-initiated. WhatsApp fills a draft, but the user sends manually.
-    const opened=root.open?.(url,"_blank","noopener,noreferrer");
-    if(!opened){ // Some iOS standalone/PWA configurations suppress a second window.
+    const opened=root.open?.(url,"_blank");
+    if(opened){opened.opener=null;}
+    else { // Some iOS standalone/PWA configurations suppress a second window.
       root.location.assign(url);
     }
     return true;
