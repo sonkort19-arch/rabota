@@ -42,7 +42,7 @@
   function displayPrice(value){
     if(value===null||value===undefined||value==="")return "не указана";
     const n=Number(value);
-    return Number.isFinite(n)?n.toLocaleString("ru-RU")+" ₽":"не указана";
+    return Number.isFinite(n)?n.toLocaleString("ru-RU").replace(/[\u00a0\u202f]/g," ")+" ₽":"не указана";
   }
   function jobId(order){return clean(order.id)?String(order.id).slice(0,8):"не указан";}
   function describe(order){
