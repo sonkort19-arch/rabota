@@ -13,7 +13,7 @@ test("startup screen contains the logo only, without captions or progress bar", 
   assert.ok(splash.includes('<svg class="rd-startup-radiator"'));
   assert.ok(splash.includes('class="rd-startup-droplet"'));
   assert.ok(splash.includes('class="rd-startup-flow"'));
-  for (const tag of ["<h1", "<h2", "<p", "<span", "<button", "<img"]) {
+  for (const tag of ["<h1", "<h2", "<p>", "<p ", "<span", "<button", "<img"]) {
     assert.ok(!splash.includes(tag), "unexpected text/control element: " + tag);
   }
   assert.equal(splash.replace(/<[^>]*>/g, "").trim(), "");
