@@ -63,13 +63,14 @@
       parts.push(f+" контуров тёплого пола");
     return parts.length?"Промывка "+parts.join(" + "):"Промывка отопления (объём уточнить)";
   }
-  function conciseDetails(order,withDate=true){
+  function appointmentHeading(order){
+    return "Дата и время: "+displayDate(order.date)+" · "+displayTime(order.time)+(order.time?" МСК":"");
+  }
+  function conciseDetails(order){
     const lines=[
       "Клиент: "+(clean(order.name)||"не указан"),
       ...(clean(order.phone)?["Телефон: "+clean(order.phone)]:[]),
       ...(clean(order.address)?["Адрес: "+clean(order.address)]:[]),
-      ...(withDate?["Дата: "+displayDate(order.date)]:[]),
-      "Время: "+displayTime(order.time)+(order.time?" МСК":""),
       "Работа: "+workDescription(order),
       ...(order.price!=null&&order.price!==""?["Стоимость: "+displayPrice(order.price)]:[])
     ];
@@ -84,39 +85,52 @@
     const h=Number(m[1]),minutes=Number(m[2]);
     return h<24&&minutes<60?h*60+minutes:null;
   }
-  // Warnings are based on the live list, not on possibly stale free-text comments.
-  // 3h 20m is a planning guideline, never a claim that the database forbids 3 jobs.
-  function reviewWarnings(order,allOrders=[]){
-    if(!isRaul(order))return ["Заказ не отмечен за Раулем"];
-    if(!isActive(order))return []; // A completed or cancelled card can be shared as a status update.
+  // Only confirmed assignment gaps and exact-time collisions require agreement.
+  // Nearby appointments are shown to the owner, but a 3h20m guideline must not
+  // mislabel an already assigned job as "awaiting agreement".
+  function reviewOrder(order,allOrders=[]){
+    if(!isRaul(order))return {warnings:["Этот заказ не указан за Раулем."],requiresAgreement:true};
+    if(!isActive(order))return {warnings:[],requiresAgreement:false};
     const warnings=[];
-    if(!clean(order.assignedUserId))
-      warnings.push("Не подтверждена привязка исполнителя Рауля к заказу в системе.");
+    let requiresAgreement=false;
+    if(!clean(order.assignedUserId)){
+      warnings.push("Исполнитель указан как Рауль, но привязка мастера в базе не подтверждена.");
+      requiresAgreement=true;
+    }
+    if(!clean(order.date)||timeMinutes(order.time)===null){
+      warnings.push("Дата или время заявки не указаны. Проверь расписание.");
+      requiresAgreement=true;
+    }
     const sameDate=(Array.isArray(allOrders)?allOrders:[]).filter(other=>
       isRaul(other)&&isActive(other)&&clean(other.date)===clean(order.date)&&
       String(other.id)!==String(order.id)
     );
     const time=timeMinutes(order.time);
     if(time!==null){
-      const close=sameDate.filter(other=>{
+      const matching=sameDate.filter(other=>timeMinutes(other.time)===time);
+      if(matching.length){
+        warnings.push("У Рауля уже есть другая заявка ровно на "+displayTime(order.time)+".");
+        requiresAgreement=true;
+      }
+      const nearby=sameDate.filter(other=>{
         const otherTime=timeMinutes(other.time);
-        return otherTime!==null&&Math.abs(otherTime-time)<200;
+        return otherTime!==null&&otherTime!==time&&Math.abs(otherTime-time)<200;
       });
-      if(close.length){
-        warnings.push("Рядом по времени другие заявки Рауля: "+
-          close.map(o=>displayTime(o.time)).join(", ")+". Проверь отсутствие пересечений.");
+      if(nearby.length){
+        warnings.push("Рядом по времени записи Рауля: "+
+          nearby.map(o=>displayTime(o.time)).join(", ")+
+          ". Средняя работа около 3 часов и дорога, проверь, что он успевает.");
       }
     }
-    if(sameDate.length>=2)
-      warnings.push("У Рауля уже "+sameDate.length+" других заявок на эту дату. Уточни загрузку.");
-    return warnings;
+    return {warnings,requiresAgreement};
   }
+  function reviewWarnings(order,allOrders=[]){return reviewOrder(order,allOrders).warnings;}
   function singleDraft(order,{preliminary=false}={}){
     if(!isRaul(order))throw new Error("Отправить можно только заказ, отмеченный за Раулем.");
     const title=clean(order.status)==="Отменён"?"Отмена заказа":
-      clean(order.status)==="Выполнен"?"Информация о выполненном заказе":
-      preliminary?"На согласование · заказ для Рауля":"Заказ на промывку отопления";
-    return title+"\n\n"+conciseDetails(order);
+      clean(order.status)==="Выполнен"?"Выполненный заказ":
+      preliminary?"На согласование":"Новый заказ";
+    return appointmentHeading(order)+"\n"+title+"\n\n"+conciseDetails(order);
   }
   function tomorrowOrders(orders,now=new Date()){
     const date=tomorrowMoscow(now);
@@ -185,38 +199,38 @@
     }
     return true;
   }
-  function confirmWarnings(warnings){
+  function confirmWarnings(warnings,{requiresAgreement=false}={}){
     if(!warnings.length)return true;
-    return !!root.confirm?.(
-      "Перед отправкой проверь заказ:\n\n"+
-      warnings.join("\n")+
-      "\n\nОткрыть WhatsApp как ПРЕДВАРИТЕЛЬНУЮ заявку на согласование?"+
-      "\nЭто не назначает мастера и не подтверждает время."
-    );
+    const conclusion=requiresAgreement?
+      "Открыть WhatsApp с пометкой «На согласование»? Это не назначает мастера и не подтверждает время.":
+      "Подтвердить проверку расписания и открыть WhatsApp с пометкой «Новый заказ»?";
+    return !!root.confirm?.("Проверь перед отправкой Раулю:\n\n"+
+      warnings.join("\n")+"\n\n"+conclusion);
   }
   function shareOne(order,orders=[]){
     if(!isRaul(order)){root.alert?.("Этот заказ не отмечен за Раулем.");return false;}
-    const warnings=reviewWarnings(order,orders);
-    if(!confirmWarnings(warnings))return false;
-    return openDraft(singleDraft(order,{preliminary:warnings.length>0}));
+    const review=reviewOrder(order,orders);
+    if(!confirmWarnings(review.warnings,{requiresAgreement:review.requiresAgreement}))return false;
+    return openDraft(singleDraft(order,{preliminary:review.requiresAgreement}));
   }
   function shareTomorrow(orders){
     const items=tomorrowOrders(orders);
     if(!items.length){root.alert?.("На завтра у Рауля нет предстоящих заказов.");return false;}
-    const flagged=items.filter(o=>reviewWarnings(o,orders).length);
-    if(flagged.length){
-      const summary=flagged.slice(0,6).map(o=>{
-        const messages=reviewWarnings(o,orders);
-        return "• "+(clean(o.name)||"Клиент")+" ("+displayTime(o.time)+"): "+messages.join(" ");
-      });
+    const reviews=items.map(order=>({order,...reviewOrder(order,orders)}));
+    const flagged=reviews.filter(r=>r.requiresAgreement);
+    const warnings=reviews.filter(r=>r.warnings.length);
+    if(warnings.length){
+      const summary=warnings.slice(0,6).map(r=>
+        "• "+(clean(r.order.name)||"Клиент")+" ("+displayTime(r.order.time)+"): "+r.warnings.join(" ")
+      );
       if(!confirmWarnings([
-        "Требуют согласования "+flagged.length+" из "+items.length+" заказов:",
+        "Проверь "+warnings.length+" из "+items.length+" заказов:",
         ...summary,
-        ...(flagged.length>6?["И ещё "+(flagged.length-6)+" заказов."]:[])
-      ]))return false;
+        ...(warnings.length>6?["И ещё "+(warnings.length-6)+" заказов."]:[])
+      ],{requiresAgreement:flagged.length>0}))return false;
     }
-    return openDraft(dailyDraft(orders,new Date(),{preliminaryIds:flagged.map(x=>x.id)}));
+    return openDraft(dailyDraft(orders,new Date(),{preliminaryIds:flagged.map(r=>r.order.id)}));
   }
   return {normalizePhone,isRaul,tomorrowMoscow,tomorrowOrders,displayDate,singleDraft,
-    dailyDraft,reviewWarnings,notesForMaster,whatsappURL,shareOne,shareTomorrow,configurePhone,savedPhone};
+    dailyDraft,reviewOrder,reviewWarnings,notesForMaster,whatsappURL,shareOne,shareTomorrow,configurePhone,savedPhone};
 });
