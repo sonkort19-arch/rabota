@@ -1,0 +1,34 @@
+name: Raul WhatsApp sharing checks
+on:
+  push:
+    branches:
+      - feat/whatsapp-raul-sharing-20261111
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 16
+    steps:
+      - name: Checkout test branch
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Verify WhatsApp message formatting, dates and numbers
+        run: node --test tests/whatsapp-raul.cjs
+      - name: Install browser
+        run: |
+          npm install --no-save --ignore-scripts playwright@1.56.1
+          npx playwright install --with-deps chromium
+          CHROME="$(node -p "require('playwright').chromium.executablePath()")"
+          test -x "$CHROME"
+          echo "CHROMIUM_PATH=$CHROME" >> "$GITHUB_ENV"
+      - name: Verify iPhone order and schedule WhatsApp buttons
+        run: node tests/whatsapp-raul-browser.cjs
+      - name: Verify existing mobile order filters still work
+        run: node tests/order-filters-mobile.cjs
+      - name: Verify existing calendar date controls still work
+        run: node tests/calendar-date-width.cjs
