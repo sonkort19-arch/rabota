@@ -73,18 +73,20 @@ async function check(browser,label,device){
    window.__whatsappUrls=[];
    window.open=url=>{window.__whatsappUrls.push(url);return {opener:null};};
   });
-  const prompts=[];
+  const prompts=[],alerts=[];
   page.on("dialog",dialog=>{
    if(dialog.type()==="prompt"){
     prompts.push(dialog.message());
     dialog.accept("+7 918 123 45 67");
-   }else dialog.dismiss();
+   }else {alerts.push(dialog.message());dialog.dismiss();}
   });
   const tomorrowButton=page.locator("#rdShareRaulTomorrow");
   const numberButton=page.locator("#rdRaulWhatsAppSettings");
   assert.equal(await tomorrowButton.isVisible(),true,label+": schedule button visible");
   assert.equal(await numberButton.isVisible(),true,label+": recipient button visible");
+  const before=await page.evaluate(()=>({api:typeof window.__rdWhatsApp,hook:typeof window.__rdShareTomorrowRaul,date:window.__rdWhatsApp?.tomorrowMoscow(),stored:localStorage.getItem("rd-raul-whatsapp-phone-v1")}));
   await tomorrowButton.click();
+  console.log("TRACE",label,JSON.stringify({before,prompts,alerts,opened:await page.evaluate(()=>window.__whatsappUrls)}));
   assert.equal(prompts.length,1,label+": asks Raul number once");
   const first=await page.evaluate(()=>window.__whatsappUrls[0]||"");
   assert.ok(first.startsWith("https://wa.me/79181234567?text="),label+": opens Raul's saved WhatsApp number");
