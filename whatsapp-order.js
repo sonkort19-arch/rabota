@@ -44,48 +44,108 @@
     const n=Number(value);
     return Number.isFinite(n)?n.toLocaleString("ru-RU").replace(/[\u00a0\u202f]/g," ")+" ₽":"не указана";
   }
-  function jobId(order){return clean(order.id)?String(order.id).slice(0,8):"не указан";}
-  function describe(order){
-    const info=[
-      "Клиент: "+(clean(order.name)||"не указан"),
-      "Телефон: "+(clean(order.phone)||"не указан"),
-      "Адрес: "+(clean(order.address)||"не указан"),
-      "Дата: "+displayDate(order.date),
-      "Время: "+displayTime(order.time)+(order.time?" МСК":""),
-      "Радиаторы: "+(order.radiators==null||order.radiators===""?"не указаны":order.radiators),
-      "Контуры тёплого пола: "+(order.floorLoops==null||order.floorLoops===""?"не указаны":order.floorLoops),
-      "Стоимость: "+displayPrice(order.price),
-      "Статус: "+(clean(order.status)||"не указан")
-    ];
-    if(clean(order.radiatorType))info.splice(6,0,"Тип радиаторов: "+clean(order.radiatorType));
-    if(clean(order.details))info.push("Комментарий: "+clean(order.details));
-    return info.join("\n");
+  const INACTIVE=new Set(["Отменён","Выполнен"]);
+  // Do not forward internal booking notes (or unsupported business rules) to the technician.
+  // Only short, practical access and preparation instructions belong in WhatsApp.
+  const INTERNAL_NOTE=/(?:внимание|исполнител|назначен|систем[аы]|запреща|треть[юяий]|две\s+запис|два\s+заказ|загру[зж]|подтверждено\s+владельц|подтвержд[её]но\s+владельц|требуется\s+назнач|согласовать|статус|оплачен|номер\s+заявки)/iu;
+  const USEFUL_NOTE=/(?:позвон|звонить|наберите|предупред|подъезд|этаж|квартир|домофон|калитк|ворот|код\s+двери|ориентир|вход\s+со|парковк|собак|ключ|перекры|доступ|не\s+работает|проход|подъехать|приедьте|связаться)/iu;
+  function notesForMaster(value){
+    return clean(value).split(/(?<=[.!?])\s+|[\n;]+/u)
+      .filter(part=>part && !INTERNAL_NOTE.test(part) && USEFUL_NOTE.test(part))
+      .slice(0,2).map(part=>part.slice(0,160)).join(" ");
   }
-  function singleDraft(order){
-    if(!isRaul(order))throw new Error("Отправить можно только заказ, назначенный Раулю.");
-    const title=clean(order.status)==="Отменён"?"ОТМЕНА заказа для Рауля":"Актуальный заказ для Рауля";
-    return title+"\nЗаказ №"+jobId(order)+"\n\n"+describe(order)+"\n\nПроверь время и адрес перед выездом.";
+  function workDescription(order){
+    const parts=[];
+    const r=Number(order.radiators),f=Number(order.floorLoops);
+    if(order.radiators!==""&&order.radiators!=null&&Number.isFinite(r)&&r>0)
+      parts.push(r+" радиаторов");
+    if(order.floorLoops!==""&&order.floorLoops!=null&&Number.isFinite(f)&&f>0)
+      parts.push(f+" контуров тёплого пола");
+    return parts.length?"Промывка "+parts.join(" + "):"Промывка отопления (объём уточнить)";
+  }
+  function conciseDetails(order,withDate=true){
+    const lines=[
+      "Клиент: "+(clean(order.name)||"не указан"),
+      ...(clean(order.phone)?["Телефон: "+clean(order.phone)]:[]),
+      ...(clean(order.address)?["Адрес: "+clean(order.address)]:[]),
+      ...(withDate?["Дата: "+displayDate(order.date)]:[]),
+      "Время: "+displayTime(order.time)+(order.time?" МСК":""),
+      "Работа: "+workDescription(order),
+      ...(order.price!=null&&order.price!==""?["Стоимость: "+displayPrice(order.price)]:[])
+    ];
+    const useful=notesForMaster(order.details);
+    if(useful)lines.push("Примечание: "+useful);
+    return lines.join("\n");
+  }
+  function isActive(order){return !INACTIVE.has(clean(order.status));}
+  function timeMinutes(time){
+    const m=/^(\d{2}):(\d{2})/.exec(clean(time));
+    if(!m)return null;
+    const h=Number(m[1]),minutes=Number(m[2]);
+    return h<24&&minutes<60?h*60+minutes:null;
+  }
+  // Warnings are based on the live list, not on possibly stale free-text comments.
+  // 3h 20m is a planning guideline, never a claim that the database forbids 3 jobs.
+  function reviewWarnings(order,allOrders=[]){
+    if(!isRaul(order))return ["Заказ не отмечен за Раулем"];
+    if(!isActive(order))return []; // A completed or cancelled card can be shared as a status update.
+    const warnings=[];
+    if(!clean(order.assignedUserId))
+      warnings.push("Не подтверждена привязка исполнителя Рауля к заказу в системе.");
+    const sameDate=(Array.isArray(allOrders)?allOrders:[]).filter(other=>
+      isRaul(other)&&isActive(other)&&clean(other.date)===clean(order.date)&&
+      String(other.id)!==String(order.id)
+    );
+    const time=timeMinutes(order.time);
+    if(time!==null){
+      const close=sameDate.filter(other=>{
+        const otherTime=timeMinutes(other.time);
+        return otherTime!==null&&Math.abs(otherTime-time)<200;
+      });
+      if(close.length){
+        warnings.push("Рядом по времени другие заявки Рауля: "+
+          close.map(o=>displayTime(o.time)).join(", ")+". Проверь отсутствие пересечений.");
+      }
+    }
+    if(sameDate.length>=2)
+      warnings.push("У Рауля уже "+sameDate.length+" других заявок на эту дату. Уточни загрузку.");
+    return warnings;
+  }
+  function singleDraft(order,{preliminary=false}={}){
+    if(!isRaul(order))throw new Error("Отправить можно только заказ, отмеченный за Раулем.");
+    const title=clean(order.status)==="Отменён"?"Отмена заказа":
+      clean(order.status)==="Выполнен"?"Информация о выполненном заказе":
+      preliminary?"На согласование · заказ для Рауля":"Заказ на промывку отопления";
+    return title+"\n\n"+conciseDetails(order);
   }
   function tomorrowOrders(orders,now=new Date()){
     const date=tomorrowMoscow(now);
     return (Array.isArray(orders)?orders:[]).filter(o=>
-      isRaul(o)&&String(o.date||"")===date &&
-      !["Отменён","Выполнен"].includes(clean(o.status))
+      isRaul(o)&&String(o.date||"")===date && isActive(o)
     ).sort((a,b)=>
       displayTime(a.time).localeCompare(displayTime(b.time))||
       clean(a.name).localeCompare(clean(b.name),"ru")
     );
   }
-  function dailyDraft(orders,now=new Date()){
-    const date=tomorrowMoscow(now),items=tomorrowOrders(orders,now);
+  function dailyDraft(orders,now=new Date(),{preliminaryIds=[]}={}){
+    const items=tomorrowOrders(orders,now);
     if(!items.length)return "";
-    return "Расписание Рауля на "+displayDate(date)+"\n"+
-      "Заказов: "+items.length+"\n\n"+
-      items.map((o,i)=>(
-        (i+1)+". "+displayTime(o.time)+" — "+(clean(o.name)||"Клиент")+
-        "\n"+describe(o)+"\n№"+jobId(o)
-      )).join("\n\n")+
-      "\n\nАктуально на момент отправки. При изменении времени или адреса пришлю новое сообщение.";
+    const flagged=new Set(preliminaryIds.map(String));
+    return "Расписание Рауля на "+displayDate(tomorrowMoscow(now))+
+      "\nЗаказов: "+items.length+"\n\n"+
+      items.map((o,i)=>{
+        const title=(i+1)+". "+displayTime(o.time)+" — "+(clean(o.name)||"Клиент")+
+          (flagged.has(String(o.id))?" (на согласование)":"");
+        const extra=[
+          ...(clean(o.phone)?["Телефон: "+clean(o.phone)]:[]),
+          ...(clean(o.address)?["Адрес: "+clean(o.address)]:[]),
+          "Работа: "+workDescription(o),
+          ...(o.price!=null&&o.price!==""?["Стоимость: "+displayPrice(o.price)]:[])
+        ];
+        const useful=notesForMaster(o.details);
+        if(useful)extra.push("Примечание: "+useful);
+        return title+"\n"+extra.join("\n");
+      }).join("\n\n");
   }
   function whatsappURL(phone,text){
     const normalized=normalizePhone(phone);
@@ -125,11 +185,38 @@
     }
     return true;
   }
-  function shareOne(order){
-    if(!isRaul(order)){root.alert?.("Этот заказ не назначен Раулю.");return false;}
-    return openDraft(singleDraft(order));
+  function confirmWarnings(warnings){
+    if(!warnings.length)return true;
+    return !!root.confirm?.(
+      "Перед отправкой проверь заказ:\n\n"+
+      warnings.join("\n")+
+      "\n\nОткрыть WhatsApp как ПРЕДВАРИТЕЛЬНУЮ заявку на согласование?"+
+      "\nЭто не назначает мастера и не подтверждает время."
+    );
   }
-  function shareTomorrow(orders){return openDraft(dailyDraft(orders));}
+  function shareOne(order,orders=[]){
+    if(!isRaul(order)){root.alert?.("Этот заказ не отмечен за Раулем.");return false;}
+    const warnings=reviewWarnings(order,orders);
+    if(!confirmWarnings(warnings))return false;
+    return openDraft(singleDraft(order,{preliminary:warnings.length>0}));
+  }
+  function shareTomorrow(orders){
+    const items=tomorrowOrders(orders);
+    if(!items.length){root.alert?.("На завтра у Рауля нет предстоящих заказов.");return false;}
+    const flagged=items.filter(o=>reviewWarnings(o,orders).length);
+    if(flagged.length){
+      const summary=flagged.slice(0,6).map(o=>{
+        const messages=reviewWarnings(o,orders);
+        return "• "+(clean(o.name)||"Клиент")+" ("+displayTime(o.time)+"): "+messages.join(" ");
+      });
+      if(!confirmWarnings([
+        "Требуют согласования "+flagged.length+" из "+items.length+" заказов:",
+        ...summary,
+        ...(flagged.length>6?["И ещё "+(flagged.length-6)+" заказов."]:[])
+      ]))return false;
+    }
+    return openDraft(dailyDraft(orders,new Date(),{preliminaryIds:flagged.map(x=>x.id)}));
+  }
   return {normalizePhone,isRaul,tomorrowMoscow,tomorrowOrders,displayDate,singleDraft,
-    dailyDraft,whatsappURL,shareOne,shareTomorrow,configurePhone,savedPhone};
+    dailyDraft,reviewWarnings,notesForMaster,whatsappURL,shareOne,shareTomorrow,configurePhone,savedPhone};
 });
