@@ -14,12 +14,42 @@ test("Raul detection exact and case insensitive",()=>{
  assert.ok(wa.isRaul(seed));assert.ok(wa.isRaul({...seed,master:" раУль "}));
  assert.equal(wa.isRaul({...seed,master:"Рауль и Тимур"}),false);
 });
-test("single-job draft contains current details and notes for master",()=>{
+test("single-job draft is concise, keeps useful notes and has no internal fields",()=>{
  const message=wa.singleDraft(seed);
- for(const fragment of ["Алан","Тестовая улица 15","14.11.2026","18:00 МСК","20 000 ₽","Алюминиевые","Контуры тёплого пола: 2","Позвонить заранее"])
+ for(const fragment of ["Алан","Тестовая улица 15","14.11.2026","18:00 МСК","20 000 ₽","Промывка 5 радиаторов + 2 контуров тёплого пола","Позвонить заранее"])
   assert.ok(message.includes(fragment),fragment);
- assert.match(wa.singleDraft({...seed,status:"Отменён"}),/^ОТМЕНА заказа/);
- assert.throws(()=>wa.singleDraft({...seed,master:"Олег"}),/Раулю/);
+ for(const forbidden of ["Заказ №","Статус:","Контуры тёплого пола:","Проверь время и адрес","не указаны","Алюминиевые"])
+  assert.ok(!message.includes(forbidden),"must omit "+forbidden);
+ assert.match(wa.singleDraft({...seed,status:"Отменён"}),/^Отмена заказа/);
+ assert.throws(()=>wa.singleDraft({...seed,master:"Олег"}),/Раулем/);
+});
+test("unassigned real-case order filters internal comments but preserves working fields",()=>{
+ const russlan={...seed,id:"9964a02d",name:"Руслан",phone:"89188210384",
+  address:"ул. Зураба Магкаева, 12Б, подъезд 5, этаж 4, кв. 65",
+  date:"2026-11-11",time:"18:00",radiators:4,floorLoops:"",
+  price:10000,assignedUserId:null,
+  details:"Время подтверждено владельцем: среда, 11.11.2026, 18:00. ВНИМАНИЕ: исполнитель пока не назначен — у Рауля на эту дату уже две записи (10:00 и 13:00), система запрещает третью запись на одного мастера. Требуется назначить другого исполнителя или отдельно согласовать загрузку Рауля."
+ };
+ const others=[
+  {...seed,id:"older1",date:"2026-11-11",time:"10:00",assignedUserId:"raul-id"},
+  {...seed,id:"older2",date:"2026-11-11",time:"13:00",assignedUserId:"raul-id"}
+ ];
+ const warnings=wa.reviewWarnings(russlan,[russlan,...others]);
+ assert.ok(warnings.some(x=>/Не подтверждена привязка/.test(x)),"not assigned");
+ assert.ok(warnings.some(x=>/2 других заявок/.test(x)),"day load");
+ const msg=wa.singleDraft(russlan,{preliminary:true});
+ for(const must of ["На согласование","Руслан","18:00 МСК","10 000 ₽","Промывка 4 радиаторов"])
+  assert.ok(msg.includes(must),must);
+ for(const forbidden of ["ВНИМАНИЕ","система запрещает","требуется назначить","Статус:","№9964a02d","не указаны"])
+  assert.ok(!msg.toLowerCase().includes(forbidden.toLowerCase()),forbidden);
+});
+test("date conflicts and unassigned IDs require a warning, distinct later bookings do not",()=>{
+ const base={...seed,id:"x",date:"2026-11-12",time:"15:00",assignedUserId:"raul-id"};
+ const nearby={...base,id:"y",time:"16:00"};
+ const distant={...base,id:"z",time:"09:00"};
+ assert.ok(wa.reviewWarnings(base,[base,nearby]).some(x=>/Рядом по времени/.test(x)));
+ assert.deepEqual(wa.reviewWarnings(base,[base,distant]),[]);
+ assert.ok(wa.reviewWarnings({...base,assignedUserId:null},[base]).length>0);
 });
 test("tomorrow is Moscow day, not the phone timezone",()=>{
  assert.equal(wa.tomorrowMoscow(new Date("2026-11-11T21:01:00Z")),"2026-11-13");
