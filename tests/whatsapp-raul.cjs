@@ -22,7 +22,7 @@ test("single-job draft contains current details and notes for master",()=>{
  assert.throws(()=>wa.singleDraft({...seed,master:"Олег"}),/Раулю/);
 });
 test("tomorrow is Moscow day, not the phone timezone",()=>{
- assert.equal(wa.tomorrowMoscow(new Date("2026-11-11T20:59:00Z")),"2026-11-13");
+ assert.equal(wa.tomorrowMoscow(new Date("2026-11-11T21:01:00Z")),"2026-11-13");
  assert.equal(wa.tomorrowMoscow(new Date("2026-11-11T19:59:00Z")),"2026-11-12");
 });
 test("tomorrow schedule includes only active Raul jobs sorted by time",()=>{
