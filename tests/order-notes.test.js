@@ -48,3 +48,13 @@ test("malformed structured notes fail closed and oversized ones are rejected",()
   assert.throws(()=>notes.pack("x".repeat(1000),""),/слишком длинные/);
   assert.equal(notes.pack("",""),"");
 });
+
+test("daily schedule also blocks unclassified notes rather than omit them",()=>{
+  const oldAlert=globalThis.alert;
+  let alertText="";
+  globalThis.alert=text=>{alertText=text;};
+  try {
+    assert.equal(wa.shareTomorrow([{...job,details:"Важный старый комментарий",date:wa.tomorrowMoscow()}]),false);
+    assert.match(alertText,/старые комментарии/);
+  }finally{globalThis.alert=oldAlert;}
+});
