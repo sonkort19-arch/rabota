@@ -1842,3 +1842,16 @@ body.rd .rd-nav-more[hidden]{display:none!important}
     grid-row:3;
   }
 }
+
+/* Keep mobile navigation anchored to the viewport on iOS (2026-11-11). */
+body.rd > #rdMobileNav[hidden] { display:none !important; }
+@media (max-width:790px) {
+  body.rd > #rdMobileNav {
+    position:fixed !important;
+    inset:auto 0 0 0;
+    width:100%;
+    margin:0;
+    transform:none;
+    z-index:28;
+  }
+}
