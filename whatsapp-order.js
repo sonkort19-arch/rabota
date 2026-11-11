@@ -51,7 +51,7 @@
       "Телефон: "+(clean(order.phone)||"не указан"),
       "Адрес: "+(clean(order.address)||"не указан"),
       "Дата: "+displayDate(order.date),
-      "Время: "+displayTime(order.time),
+      "Время: "+displayTime(order.time)+(order.time?" МСК":""),
       "Радиаторы: "+(order.radiators==null||order.radiators===""?"не указаны":order.radiators),
       "Контуры тёплого пола: "+(order.floorLoops==null||order.floorLoops===""?"не указаны":order.floorLoops),
       "Стоимость: "+displayPrice(order.price),
