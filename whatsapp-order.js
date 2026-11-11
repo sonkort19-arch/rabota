@@ -3,10 +3,10 @@
  * No database or WhatsApp API writes. Raul's number is local to this device.
  */
 (function(root,factory){
-  const api=factory();
+  const api=factory(root);
   if(typeof module==="object" && module.exports)module.exports=api;
   if(root && root.document)root.__rdWhatsApp=api;
-})(typeof window!=="undefined"?window:globalThis,function(){
+})(typeof window!=="undefined"?window:globalThis,function(root){
   "use strict";
   const PHONE_KEY="rd-raul-whatsapp-phone-v1";
   const MOSCOW="Europe/Moscow";
