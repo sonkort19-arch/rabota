@@ -86,7 +86,8 @@ async function check(browser,label,device){
   assert.equal(await numberButton.isVisible(),true,label+": recipient button visible");
   const before=await page.evaluate(()=>({api:typeof window.__rdWhatsApp,hook:typeof window.__rdShareTomorrowRaul,date:window.__rdWhatsApp?.tomorrowMoscow(),stored:localStorage.getItem("rd-raul-whatsapp-phone-v1")}));
   await tomorrowButton.click();
-  console.log("TRACE",label,JSON.stringify({before,prompts,alerts,opened:await page.evaluate(()=>window.__whatsappUrls)}));
+  const directResult=await page.evaluate(()=>window.__rdShareTomorrowRaul());
+  console.log("TRACE",label,JSON.stringify({before,directResult,prompts,alerts,errors,opened:await page.evaluate(()=>window.__whatsappUrls)}));
   assert.equal(prompts.length,1,label+": asks Raul number once");
   const first=await page.evaluate(()=>window.__whatsappUrls[0]||"");
   assert.ok(first.startsWith("https://wa.me/79181234567?text="),label+": opens Raul's saved WhatsApp number");
