@@ -737,11 +737,24 @@
       if(currentRole==="master"){try{await refreshRabotaNotifications();}catch(error){console.warn("Notification reload",error);}}
     }
     function getOrders() {return cloudOrders;}
-    // Owners/managers can open WhatsApp drafts from the current locally loaded
-    // orders. This never modifies a booking or sends a message automatically.
-    window.__rdShareTomorrowRaul=()=>{
-      if(!["owner","manager"].includes(currentRole))return false;
-      return window.__rdWhatsApp?.shareTomorrow(getOrders())||false;
+    // Recheck the authoritative order list before sharing a technician schedule.
+    // This is read-only; never share stale locally cached assignments.
+    let raulShareBusy=false;
+    async function freshOrdersForRaulWhatsApp(){
+      try {await reloadOrders();return getOrders();}
+      catch(error){
+        alert("Не удалось проверить актуальное расписание. Обновите CRM и попробуйте снова.");
+        console.warn("Raul WhatsApp refresh",error);
+        return null;
+      }
+    }
+    window.__rdShareTomorrowRaul=async()=>{
+      if(!["owner","manager"].includes(currentRole)||raulShareBusy)return false;
+      raulShareBusy=true;
+      try{
+        const orders=await freshOrdersForRaulWhatsApp();
+        return orders?Boolean(window.__rdWhatsApp?.shareTomorrow(orders)):false;
+      }finally{raulShareBusy=false;}
     };
     function orderHasFinancialHistory(order){
       if(!order)return false;
@@ -944,10 +957,17 @@
         const sendRaul=make("button","action rd-share-raul-wa","Раулю в WhatsApp");
         sendRaul.type="button";
         sendRaul.title="Открыть готовый текст заказа в WhatsApp Рауля. Отправка только вручную.";
-        sendRaul.addEventListener("click",()=>{
-          const current=getOrders().find(item=>String(item.id)===String(order.id));
-          if(!current){alert("Заказ не найден. Обновите список перед отправкой.");return;}
-          window.__rdWhatsApp.shareOne(current,getOrders());
+        sendRaul.addEventListener("click",async()=>{
+          if(raulShareBusy)return;
+          raulShareBusy=true;
+          sendRaul.disabled=true;
+          try{
+            const orders=await freshOrdersForRaulWhatsApp();
+            if(!orders)return;
+            const current=orders.find(item=>String(item.id)===String(order.id));
+            if(!current){alert("Заказ не найден. Обновите список перед отправкой.");return;}
+            window.__rdWhatsApp?.shareOne(current,orders);
+          }finally{raulShareBusy=false;sendRaul.disabled=false;}
         });
         actions.append(sendRaul);
       }
@@ -2024,7 +2044,7 @@
   <script src="/order-payment.js"></script>
   <script src="/order-availability.js"></script>
   <script src="/quick-slots.js"></script>
-  <script src="/whatsapp-order.js"></script>
+  <script src="/whatsapp-order.js?v=20261111-compact-review"></script>
   <script src="/redesign.js"></script>
   <script src="/master-notifications.js"></script>
   <script src="/orders-list.js"></script>
