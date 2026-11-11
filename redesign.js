@@ -268,7 +268,16 @@ function build(){
  window.addEventListener("resize",()=>{
   if(window.innerWidth>790&&!moreSheet.hidden)closeMore();
  });
- app.prepend(top,side,profile.menu,mobile,veil,moreSheet);
+ app.prepend(top,side,profile.menu,veil,moreSheet);
+ // Keep mobile navigation outside the main scrolling/content container.
+ // Mobile Safari can otherwise paint a fixed descendant at an incorrect
+ // vertical position after long-list scrolls or browser viewport changes.
+ body.append(mobile);
+ const syncMobileNavigationVisibility=()=>{mobile.hidden=app.hidden;};
+ new MutationObserver(syncMobileNavigationVisibility).observe(app,{
+  attributes:true,attributeFilter:["hidden"]
+ });
+ syncMobileNavigationVisibility();
  const home=sectionView("rdHome","Главная","Краткая сводка заказов и расписания");
  const homeTitlebar=makeNode("div","rd-home-titlebar");
  const homeSync=makeNode("span","rd-home-synced",$("syncStatus")?.textContent||"");
