@@ -14,13 +14,16 @@ test("Raul detection exact and case insensitive",()=>{
  assert.ok(wa.isRaul(seed));assert.ok(wa.isRaul({...seed,master:" раУль "}));
  assert.equal(wa.isRaul({...seed,master:"Рауль и Тимур"}),false);
 });
-test("single-job draft is concise, keeps useful notes and has no internal fields",()=>{
+test("single-job draft puts date/time on line 1 and new-order title on line 2",()=>{
  const message=wa.singleDraft(seed);
+ const lines=message.split("\n");
+ assert.equal(lines[0],"Дата и время: 14.11.2026 · 18:00 МСК");
+ assert.equal(lines[1],"Новый заказ");
  for(const fragment of ["Алан","Тестовая улица 15","14.11.2026","18:00 МСК","20 000 ₽","Промывка 5 радиаторов + 2 контуров тёплого пола","Позвонить заранее"])
   assert.ok(message.includes(fragment),fragment);
  for(const forbidden of ["Заказ №","Статус:","Контуры тёплого пола:","Проверь время и адрес","не указаны","Алюминиевые"])
   assert.ok(!message.includes(forbidden),"must omit "+forbidden);
- assert.match(wa.singleDraft({...seed,status:"Отменён"}),/^Отмена заказа/);
+ assert.match(wa.singleDraft({...seed,status:"Отменён"}),/^Дата и время:.*\nОтмена заказа/);
  assert.throws(()=>wa.singleDraft({...seed,master:"Олег"}),/Раулем/);
 });
 test("unassigned real-case order filters internal comments but preserves working fields",()=>{
@@ -35,21 +38,36 @@ test("unassigned real-case order filters internal comments but preserves working
   {...seed,id:"older2",date:"2026-11-11",time:"13:00",assignedUserId:"raul-id"}
  ];
  const warnings=wa.reviewWarnings(russlan,[russlan,...others]);
- assert.ok(warnings.some(x=>/Не подтверждена привязка/.test(x)),"not assigned");
- assert.ok(warnings.some(x=>/2 других заявок/.test(x)),"day load");
+ assert.ok(warnings.some(x=>/привязка мастера в базе не подтверждена/.test(x)),"not assigned");
+ assert.equal(warnings.some(x=>/Рядом по времени/.test(x)),false,"18:00 is far enough from 10:00 and 13:00");
  const msg=wa.singleDraft(russlan,{preliminary:true});
  for(const must of ["На согласование","Руслан","18:00 МСК","10 000 ₽","Промывка 4 радиаторов"])
   assert.ok(msg.includes(must),must);
  for(const forbidden of ["ВНИМАНИЕ","система запрещает","требуется назначить","Статус:","№9964a02d","не указаны"])
   assert.ok(!msg.toLowerCase().includes(forbidden.toLowerCase()),forbidden);
 });
-test("date conflicts and unassigned IDs require a warning, distinct later bookings do not",()=>{
+test("only unassigned or exact-time conflict needs agreement; nearby bookings are advisory",()=>{
  const base={...seed,id:"x",date:"2026-11-12",time:"15:00",assignedUserId:"raul-id"};
  const nearby={...base,id:"y",time:"16:00"};
- const distant={...base,id:"z",time:"09:00"};
- assert.ok(wa.reviewWarnings(base,[base,nearby]).some(x=>/Рядом по времени/.test(x)));
+ const sameTime={...base,id:"z",time:"15:00"};
+ const distant={...base,id:"d",time:"09:00"};
+ assert.ok(wa.reviewOrder(base,[base,nearby]).warnings.some(x=>/Рядом по времени/.test(x)));
+ assert.equal(wa.reviewOrder(base,[base,nearby]).requiresAgreement,false);
+ assert.equal(wa.reviewOrder(base,[base,sameTime]).requiresAgreement,true);
  assert.deepEqual(wa.reviewWarnings(base,[base,distant]),[]);
- assert.ok(wa.reviewWarnings({...base,assignedUserId:null},[base]).length>0);
+ assert.equal(wa.reviewOrder({...base,assignedUserId:null},[base]).requiresAgreement,true);
+});
+test("Levan 11 Nov assigned to Raul with 10:00, 13:00, 18:00 bookings is a new order",()=>{
+ const levan={...seed,id:"levan",name:"Леван",date:"2026-11-11",time:"10:00",assignedUserId:"raul-id"};
+ const bella={...seed,id:"bella",name:"Белла",date:"2026-11-11",time:"13:00",assignedUserId:"raul-id"};
+ const ruslan={...seed,id:"ruslan",name:"Руслан",date:"2026-11-11",time:"18:00",assignedUserId:"raul-id"};
+ const review=wa.reviewOrder(levan,[levan,bella,ruslan]);
+ assert.equal(review.requiresAgreement,false,"three appointments do not force preliminary status");
+ assert.ok(review.warnings.some(w=>w.includes("13:00")),"owner sees nearby appointment");
+ const draft=wa.singleDraft(levan,{preliminary:review.requiresAgreement});
+ assert.equal(draft.split("\n")[0],"Дата и время: 11.11.2026 · 10:00 МСК");
+ assert.equal(draft.split("\n")[1],"Новый заказ");
+ assert.ok(!draft.includes("На согласование"));
 });
 test("tomorrow is Moscow day, not the phone timezone",()=>{
  assert.equal(wa.tomorrowMoscow(new Date("2026-11-11T21:01:00Z")),"2026-11-13");
