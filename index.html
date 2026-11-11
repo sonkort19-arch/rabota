@@ -469,7 +469,7 @@
             <p class="oa-time-hint">Время можно выбрать выше или указать вручную. Ориентир: работа около 3 часов и 20 минут на дорогу.</p>
           </div>
           <details class="order-advanced" id="orderAdvanced">
-            <summary>Дополнительные параметры <span>Тип радиаторов, статус, оплата, комментарий</span></summary>
+            <summary>Дополнительные параметры <span>Тип радиаторов, статус, оплата, комментарии</span></summary>
             <div class="order-advanced-body">
               <div class="form-grid order-advanced-grid">
                 <div class="field"><label for="radiatorType">Тип радиаторов</label>
@@ -485,8 +485,13 @@
                 </div>
               </div>
               <div class="inline" hidden><input id="paid" name="paid" type="checkbox" tabindex="-1" aria-hidden="true"><label for="paid">Оплачено</label></div>
-              <label for="orderDetails">Комментарий</label>
-              <textarea id="orderDetails" name="details" maxlength="1000"></textarea>
+              <label for="orderMasterNote">Комментарий мастеру (попадёт в WhatsApp)</label>
+              <textarea id="orderMasterNote" maxlength="900" placeholder="Условия клиента, что проверить, ограничения по времени"></textarea>
+              <div id="orderInternalNoteSection">
+                <label for="orderDetails">Внутренний комментарий (не отправляется в WhatsApp)</label>
+                <textarea id="orderDetails" name="details" maxlength="900"></textarea>
+              </div>
+              <p id="legacyNoteWarning" class="muted" hidden>Это старый комментарий. Он сохранён как внутренний и НЕ попадёт в WhatsApp. Перенесите важное в поле «Комментарий мастеру» перед отправкой.</p>
             </div>
           </details>
         </div>
@@ -499,6 +504,7 @@
     </section>
   </div>
 
+  <script src="/order-notes.js?v=20261111-notes1"></script>
   <script>
 
     "use strict";
@@ -526,7 +532,8 @@
       master: document.getElementById("master"), date: document.getElementById("orderDate"),
       time: document.getElementById("orderTime"), price: document.getElementById("price"),
       status: document.getElementById("orderStatus"), paid: document.getElementById("paid"),
-      details: document.getElementById("orderDetails")
+      details: document.getElementById("orderDetails"),
+      masterNote: document.getElementById("orderMasterNote")
     };
     let currentTab = "calendar";
     let orderListDateFilter = "";
@@ -929,7 +936,7 @@
       } else {
         info(card,"Стоимость: ",order.price == null || order.price === "" ? "не указана" : Number(order.price).toLocaleString("ru-RU") + " ₽");
       }
-      info(card,"Комментарий: ",order.details);
+      info(card,"Комментарий: ",window.__rdOrderNotes.display(order.details,currentRole));
 
       const actions = make("div","actions");
       const phone = String(order.phone || "").trim();
@@ -1237,8 +1244,12 @@
         controls.price.value=existing.price??"";
         controls.status.value=STATUSES.includes(existing.status)?existing.status:"Новый";
         controls.paid.checked=Boolean(existing.paid);
-        controls.details.value=existing.details||"";
+        const noteParts=window.__rdOrderNotes.parse(existing.details);
+        controls.masterNote.value=noteParts.master;
+        controls.details.value=noteParts.internal;
+        document.getElementById("legacyNoteWarning").hidden=!noteParts.legacy;
       } else {
+        document.getElementById("legacyNoteWarning").hidden=true;
         controls.date.value=selectedDate;
         controls.status.value="Записан";
         const masters=[...new Set(getOrders().map(o=>String(o.master||"").trim()).filter(Boolean))];
@@ -1249,6 +1260,7 @@
         controls.status.value="Записан";
         controls.paid.checked=false;
       }
+      document.getElementById("orderInternalNoteSection").hidden=raulCreating;
       controls.master.readOnly=raulCreating;
       controls.status.disabled=raulCreating;
       controls.paid.disabled=raulCreating;
@@ -1408,6 +1420,15 @@
       }
       const existing=editingId===null?null:getOrders().find(o=>String(o.id)===editingId);
       if(editingId!==null&&!existing){formStatus.textContent="Заказ не найден.";return;}
+      let combinedDetails;
+      try{
+        const before=window.__rdOrderNotes.parse(original?.details);
+        const masterText=controls.masterNote.value.trim();
+        const internalText=controls.details.value.trim();
+        // Editing an unrelated field must never silently classify a legacy note.
+        combinedDetails=before.legacy&&!masterText&&internalText===before.internal.trim()
+          ?original.details:window.__rdOrderNotes.pack(masterText,internalText);
+      }catch(error){formStatus.textContent=error.message;return;}
       const now=new Date().toISOString();
       const order={
         id:existing?existing.id:null,createdAt:existing?existing.createdAt:now,
@@ -1419,7 +1440,7 @@
         date,time,price:controls.price.value===""?null:Number(controls.price.value),
         paid:raulCreating?false:(status==="Выполнен"&&formPaymentChoice?
           formPaymentChoice.kind==="paid":controls.paid.checked),
-        status:raulCreating?"Записан":status,details:controls.details.value.trim(),
+        status:raulCreating?"Записан":status,details:combinedDetails,
         paymentMethod:formPaymentChoice?.kind==="paid"?formPaymentChoice.method:(existing?.paymentMethod||""),
         paymentAmount:formPaymentChoice?.kind==="paid"?formPaymentChoice.amount:(existing?.paymentAmount??null),
         paymentReceivedBy:formPaymentChoice?.kind==="paid"?"company":(existing?.paymentReceivedBy||""),
@@ -2044,7 +2065,7 @@
   <script src="/order-payment.js"></script>
   <script src="/order-availability.js"></script>
   <script src="/quick-slots.js"></script>
-  <script src="/whatsapp-order.js?v=20261111-compact-review"></script>
+  <script src="/whatsapp-order.js?v=20261111-master-notes"></script>
   <script src="/redesign.js"></script>
   <script src="/master-notifications.js"></script>
   <script src="/orders-list.js"></script>

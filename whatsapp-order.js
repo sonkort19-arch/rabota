@@ -45,14 +45,18 @@
     return Number.isFinite(n)?n.toLocaleString("ru-RU").replace(/[\u00a0\u202f]/g," ")+" ₽":"не указана";
   }
   const INACTIVE=new Set(["Отменён","Выполнен"]);
-  // Do not forward internal booking notes (or unsupported business rules) to the technician.
-  // Only short, practical access and preparation instructions belong in WhatsApp.
-  const INTERNAL_NOTE=/(?:внимание|исполнител|назначен|систем[аы]|запреща|треть[юяий]|две\s+запис|два\s+заказ|загру[зж]|подтверждено\s+владельц|подтвержд[её]но\s+владельц|требуется\s+назнач|согласовать|статус|оплачен|номер\s+заявки)/iu;
-  const USEFUL_NOTE=/(?:позвон|звонить|наберите|предупред|подъезд|этаж|квартир|домофон|калитк|ворот|код\s+двери|ориентир|вход\s+со|парковк|собак|ключ|перекры|доступ|не\s+работает|проход|подъехать|приедьте|связаться)/iu;
+  // Only explicitly classified master instructions go to WhatsApp.
+  // Old unclassified comments are never silently leaked or discarded.
   function notesForMaster(value){
-    return clean(value).split(/(?<=[.!?])\s+|[\n;]+/u)
-      .filter(part=>part && !INTERNAL_NOTE.test(part) && USEFUL_NOTE.test(part))
-      .slice(0,2).map(part=>part.slice(0,160)).join(" ");
+    return root.__rdOrderNotes?.parse(value).master.trim()||"";
+  }
+  function hasLegacyNote(order){
+    return Boolean(root.__rdOrderNotes?.isLegacy(order?.details));
+  }
+  function notesModuleReady(){
+    if(root.__rdOrderNotes)return true;
+    root.alert?.("Модуль комментариев не загрузился. Обновите CRM и попробуйте снова.");
+    return false;
   }
   function workDescription(order){
     const parts=[];
@@ -256,6 +260,11 @@
   }
   function shareOne(order,orders=[]){
     if(!isRaul(order)){root.alert?.("Этот заказ не отмечен за Раулем.");return false;}
+    if(!notesModuleReady())return false;
+    if(hasLegacyNote(order)){
+      root.alert?.("У заказа есть старый комментарий, который пока не разделён. Откройте «Изменить», перенесите важную информацию в «Комментарий мастеру», сохраните и затем отправьте Раулю.");
+      return false;
+    }
     const phone=savedPhone()||configurePhone();
     if(!phone)return false;
     const report=compactReview([order],orders);
@@ -265,6 +274,16 @@
   function shareTomorrow(orders){
     const items=tomorrowOrders(orders);
     if(!items.length){root.alert?.("На завтра у Рауля нет предстоящих заказов.");return false;}
+    if(!notesModuleReady())return false;
+    const legacy=items.filter(hasLegacyNote);
+    if(legacy.length){
+      root.alert?.(
+        "В "+legacy.length+" заказ(ах) есть старые комментарии, которые ещё не разделены: "+
+        legacy.map(o=>clean(o.name)||"Клиент").join(", ")+
+        ".\\n\\nЧтобы не потерять важные условия, откройте каждый такой заказ через «Изменить», перенесите информацию в «Комментарий мастеру» и сохраните его. Затем отправьте расписание."
+      );
+      return false;
+    }
     const phone=savedPhone()||configurePhone();
     if(!phone)return false;
     const report=compactReview(items,orders);
