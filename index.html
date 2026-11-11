@@ -192,27 +192,22 @@
     .push-panel .push-status{font-size:13px;line-height:1.45;overflow-wrap:anywhere}
     .push-panel .push-notice{border-top:1px solid #e0e8f4;padding:10px 0 2px;font-size:13px}
     .push-panel .push-notice button{font-size:12px;padding:5px 8px;margin-top:6px}
-    /* Lightweight blue-water startup — no external images or runtime dependencies. */
+    /* Logo-only startup: self-contained SVG, no text, files, or artificial delay. */
     .rd-startup[hidden]{display:none!important}
-    .rd-startup{position:fixed;inset:0;z-index:9999;display:grid;place-items:center;min-height:100dvh;padding:24px;background:radial-gradient(circle at 50% 42%,#fff 0%,#f8faff 58%,#f1f5ff 100%);color:#192742}
-    .rd-startup-content{display:flex;align-items:center;flex-direction:column;width:min(100%,320px);text-align:center}
-    .rd-startup-radiator{width:210px;max-width:75vw;height:auto;overflow:visible;filter:drop-shadow(0 8px 13px rgba(71,107,185,.09))}
-    .rd-startup-bar{opacity:.68;animation:rd-startup-bar-glow 2.1s ease-in-out infinite}
-    .rd-startup-bar:nth-child(2){animation-delay:.13s}
-    .rd-startup-bar:nth-child(3){animation-delay:.26s}
-    .rd-startup-bar:nth-child(4){animation-delay:.39s}
-    .rd-startup-droplet{transform-origin:118px 108px;animation:rd-startup-droplet-breathe 2.1s ease-in-out infinite}
-    .rd-startup-flow{stroke-dasharray:240 240;stroke-dashoffset:240;animation:rd-startup-water-flow 2.1s ease-in-out infinite}
-    .rd-startup h1{font-size:29px;letter-spacing:.12em;margin:3px 0 5px;font-weight:800;color:#192742}
-    .rd-startup p{font-size:13px;color:#8291ad;margin:0 0 23px}
-    .rd-startup-track{display:block;width:146px;height:4px;overflow:hidden;border-radius:99px;background:#e1e9fb}
-    .rd-startup-track>span{display:block;width:42%;height:100%;border-radius:99px;background:linear-gradient(90deg,#a6d7ff,#566bf5);animation:rd-startup-progress 1.5s ease-in-out infinite}
-    .rd-startup-status{font-size:12px;color:#95a3bb;margin-top:13px}
-    @keyframes rd-startup-bar-glow{0%,100%{opacity:.68}45%,70%{opacity:1}}
-    @keyframes rd-startup-droplet-breathe{0%,100%{transform:scale(.95)}50%{transform:scale(1.04)}}
-    @keyframes rd-startup-water-flow{0%{stroke-dashoffset:240;opacity:.16}65%{stroke-dashoffset:0;opacity:1}100%{stroke-dashoffset:-240;opacity:.16}}
-    @keyframes rd-startup-progress{0%{transform:translateX(-110%)}100%{transform:translateX(350%)}}
-    @media(prefers-reduced-motion:reduce){.rd-startup-bar,.rd-startup-droplet,.rd-startup-flow,.rd-startup-track>span{animation:none!important}.rd-startup-bar{opacity:1}.rd-startup-flow{stroke-dashoffset:0}}
+    .rd-startup{position:fixed;inset:0;z-index:9999;display:grid;place-items:center;min-height:100dvh;padding:24px;background:#fbfcff;overflow:hidden}
+    .rd-startup-content{display:grid;place-items:center;width:min(100%,420px)}
+    .rd-startup-radiator{display:block;width:min(400px,86vw);height:auto;max-height:70dvh;overflow:visible;filter:drop-shadow(0 13px 22px rgba(89,130,204,.10));animation:rd-startup-float 3.8s ease-in-out infinite}
+    .rd-startup-bar{opacity:.82;animation:rd-startup-bar-glow 2.6s ease-in-out infinite}
+    .rd-startup-bar:nth-child(2){animation-delay:.16s}
+    .rd-startup-bar:nth-child(3){animation-delay:.32s}
+    .rd-startup-bar:nth-child(4){animation-delay:.48s}
+    .rd-startup-droplet{transform-box:view-box;transform-origin:118px 108px;animation:rd-startup-droplet-breathe 2.6s ease-in-out infinite}
+    .rd-startup-flow{stroke-dasharray:42 320;stroke-dashoffset:350;animation:rd-startup-water-flow 3s ease-in-out infinite}
+    @keyframes rd-startup-float{0%,100%{transform:translateY(0)}50%{transform:translateY(-5px)}}
+    @keyframes rd-startup-bar-glow{0%,100%{opacity:.74}50%{opacity:1}}
+    @keyframes rd-startup-droplet-breathe{0%,100%{transform:scale(.965)}50%{transform:scale(1.035)}}
+    @keyframes rd-startup-water-flow{0%{stroke-dashoffset:350;opacity:0}12%{opacity:1}84%{opacity:1}100%{stroke-dashoffset:-42;opacity:0}}
+    @media(prefers-reduced-motion:reduce){.rd-startup-radiator,.rd-startup-bar,.rd-startup-droplet,.rd-startup-flow{animation:none!important}.rd-startup-bar{opacity:1}.rd-startup-flow{stroke-dashoffset:35;opacity:.7}}
   </style>
   <link rel="stylesheet" href="/redesign.css">
   <link rel="stylesheet" href="/light-theme.css">
@@ -231,43 +226,39 @@
 </head>
 <body>
 
-  <section id="startupScreen" class="rd-startup" role="status" aria-live="polite" aria-label="Загрузка приложения Работа">
+  <section id="startupScreen" class="rd-startup" role="status" aria-label="Загрузка приложения Работа">
     <div class="rd-startup-content">
       <svg class="rd-startup-radiator" viewBox="0 0 240 190" aria-hidden="true" focusable="false">
         <defs>
           <linearGradient id="rd-startup-bars" x1="0" y1="0" x2="1" y2="1">
-            <stop offset="0" stop-color="#dce7ff"/><stop offset="1" stop-color="#a8c0f0"/>
+            <stop offset="0" stop-color="#e0eaff"/><stop offset="1" stop-color="#afc7f1"/>
           </linearGradient>
           <linearGradient id="rd-startup-blue-flow" x1="0" y1="0" x2="1" y2="0">
-            <stop offset="0" stop-color="#8ab6ff"/><stop offset=".6" stop-color="#398cff"/><stop offset="1" stop-color="#3c58ed"/>
+            <stop offset="0" stop-color="#9cc4ff"/><stop offset=".6" stop-color="#579bf9"/><stop offset="1" stop-color="#7ba0ff"/>
           </linearGradient>
           <linearGradient id="rd-startup-blue-drop" x1="0" y1="0" x2=".8" y2="1">
-            <stop offset="0" stop-color="#58d4ff"/><stop offset="1" stop-color="#4269ed"/>
+            <stop offset="0" stop-color="#5ed2ff"/><stop offset="1" stop-color="#4165eb"/>
           </linearGradient>
         </defs>
         <g>
-          <path d="M35 86H205" stroke="#abc1e9" stroke-width="9" stroke-linecap="round"/>
+          <path d="M35 86H205" stroke="#a9c2eb" stroke-width="9" stroke-linecap="round"/>
           <g fill="url(#rd-startup-bars)">
             <rect class="rd-startup-bar" x="40" y="43" width="36" height="104" rx="18"/>
             <rect class="rd-startup-bar" x="80" y="43" width="36" height="104" rx="18"/>
             <rect class="rd-startup-bar" x="120" y="43" width="36" height="104" rx="18"/>
             <rect class="rd-startup-bar" x="160" y="43" width="36" height="104" rx="18"/>
           </g>
-          <rect x="25" y="88" width="16" height="10" rx="4" fill="#a8bee9"/>
-          <rect x="198" y="88" width="16" height="10" rx="4" fill="#a8bee9"/>
+          <rect x="25" y="88" width="16" height="10" rx="4" fill="#abc2ec"/>
+          <rect x="198" y="88" width="16" height="10" rx="4" fill="#abc2ec"/>
         </g>
         <g class="rd-startup-droplet">
           <path d="M118 65C107 80 95 95 95 109a24 24 0 0 0 48 0c0-14-13-29-25-44Z" fill="#fff" stroke="#fff" stroke-width="9"/>
           <path d="M118 69c-10 15-20 28-20 41a20 20 0 0 0 40 0c0-13-11-27-20-41Z" fill="url(#rd-startup-blue-drop)"/>
-          <path d="M108 104c1-7 5-13 8-18" stroke="#d3f6ff" stroke-width="4" stroke-linecap="round" opacity=".85" fill="none"/>
+          <path d="M108 104c1-7 5-13 8-18" stroke="#d5f7ff" stroke-width="4" stroke-linecap="round" opacity=".9" fill="none"/>
         </g>
-        <path d="M25 163C81 157 180 133 207 98C231 66 197 45 158 44" fill="none" stroke="#e8efff" stroke-width="8" stroke-linecap="round"/>
-        <path class="rd-startup-flow" d="M25 163C81 157 180 133 207 98C231 66 197 45 158 44" fill="none" stroke="url(#rd-startup-blue-flow)" stroke-width="6" stroke-linecap="round"/>
+        <path d="M25 163C81 157 180 133 207 98C231 66 197 45 158 44" fill="none" stroke="#e4ecfe" stroke-width="9" stroke-linecap="round"/>
+        <path class="rd-startup-flow" d="M25 163C81 157 180 133 207 98C231 66 197 45 158 44" pathLength="320" fill="none" stroke="url(#rd-startup-blue-flow)" stroke-width="6" stroke-linecap="round"/>
       </svg>
-      <h1>РАБОТА</h1>
-      <p>Всё под контролем</p>
-      <span class="rd-startup-track" aria-hidden="true"><span></span></span>
-      <span class="rd-startup-status">Подключаемся…</span>
     </div>
   </section>
 
