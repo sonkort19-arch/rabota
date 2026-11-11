@@ -1065,7 +1065,8 @@ function drawCalendar(){
   if(o.radiators!==""&&o.radiators!=null)specs.push("Радиаторы: "+o.radiators+" шт.");
   if(o.floorLoops!==""&&o.floorLoops!=null)specs.push("Тёплый пол: "+o.floorLoops+" контур(ов)");
   if(specs.length)expanded.append(boxText("div",specs.join(" · "),"rd-calendar-note"));
-  if(smText(o.details))expanded.append(boxText("p",o.details,"rd-calendar-note"));
+  const visibleNote=window.__rdOrderNotes?.display(o.details,currentRole)||"";
+  if(smText(visibleNote))expanded.append(boxText("p",visibleNote,"rd-calendar-note"));
   const actions=makeNode("div","rd-calendar-actions");
   const phone=smText(o.phone),normalized=normalizePhone(phone);
   if(phone){
