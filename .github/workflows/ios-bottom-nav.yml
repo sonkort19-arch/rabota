@@ -1,0 +1,37 @@
+name: iOS bottom navigation stability
+on:
+  push:
+    branches:
+      - fix/ios-bottom-nav-anchor-20261111
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  browser:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Checkout exact branch
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Install Playwright Chromium and WebKit
+        run: |
+          npm install --no-save --ignore-scripts playwright@1.56.1
+          npx playwright install --with-deps chromium webkit
+      - name: Scroll and viewport navigation in Chromium
+        env:
+          TEST_BROWSER: chromium
+        run: node tests/mobile-nav-stability.cjs
+      - name: Scroll and viewport navigation in WebKit (Safari engine)
+        env:
+          TEST_BROWSER: webkit
+        run: node tests/mobile-nav-stability.cjs
+      - name: Ensure mobile order filter behavior unchanged
+        run: |
+          CHROMIUM_PATH="$(node -p "require('playwright').chromium.executablePath()")" node tests/order-filters-mobile.cjs
+      - name: Ensure calendar date behavior unchanged
+        run: |
+          CHROMIUM_PATH="$(node -p "require('playwright').chromium.executablePath()")" node tests/calendar-date-width.cjs
