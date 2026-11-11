@@ -276,11 +276,14 @@
     if(!items.length){root.alert?.("На завтра у Рауля нет предстоящих заказов.");return false;}
     if(!notesModuleReady())return false;
     const legacy=items.filter(hasLegacyNote);
-    if(legacy.length && !root.confirm?.(
-      "В "+legacy.length+" заказ(ах) есть старые, неразделённые комментарии: "+
-      legacy.map(o=>clean(o.name)||"Клиент").join(", ")+
-      ".\n\nЭти комментарии НЕ попадут Раулю. Сначала распределите их через «Изменить» или подтвердите отправку расписания БЕЗ них."
-    ))return false;
+    if(legacy.length){
+      root.alert?.(
+        "В "+legacy.length+" заказ(ах) есть старые комментарии, которые ещё не разделены: "+
+        legacy.map(o=>clean(o.name)||"Клиент").join(", ")+
+        ".\\n\\nЧтобы не потерять важные условия, откройте каждый такой заказ через «Изменить», перенесите информацию в «Комментарий мастеру» и сохраните его. Затем отправьте расписание."
+      );
+      return false;
+    }
     const phone=savedPhone()||configurePhone();
     if(!phone)return false;
     const report=compactReview(items,orders);
