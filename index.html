@@ -1958,7 +1958,7 @@
     // Payroll payouts use one awaited operation, not a hidden form submission.
     // The backend validates the owner, the available balance and prevents overpayment.
     let payrollPayoutInFlight=false;
-    window.__rdRecordPayrollPayout=async ({kind,amount,note})=>{
+    window.__rdRecordPayrollPayout=async ({kind,amount,method,note})=>{
       if(currentRole!=="owner")throw new Error("Только владелец может проводить выплаты.");
       if(!["raul_payout","timur_payout"].includes(kind))throw new Error("Недопустимый тип выплаты.");
       if(payrollPayoutInFlight)throw new Error("Предыдущая выплата ещё выполняется.");
@@ -1971,8 +1971,10 @@
       payrollPayoutInFlight=true;
       let operationId;
       try{
-        operationId=await dbRequest("rpc/rabota_finance_record","POST",{
-          p_kind:kind,p_amount:cents/100,p_master_user_id:financeMasterId,p_note:memo
+        if(method!=="cash"&&method!=="card")throw new Error("Выбери способ выплаты.");
+        operationId=await dbRequest("rpc/rabota_salary_payout_v2","POST",{
+          p_kind:kind,p_amount:cents/100,p_master_user_id:financeMasterId,
+          p_payment_method:method,p_note:memo,p_request_id:crypto.randomUUID()
         });
       }finally{
         payrollPayoutInFlight=false;
