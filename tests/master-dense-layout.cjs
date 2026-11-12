@@ -22,16 +22,21 @@ const fixture=[
 '<div class="list-head"><h2>Моё расписание</h2><span class="count" id="orderCount">9 шт.</span></div><div id="orders">',
 '<div class="master-day-heading"><h3>Сегодня · 12 нояб.</h3><span class="muted">1 заказ</span></div>',
 '<article class="master-schedule-card is-next"><button class="master-schedule-toggle">',
-'<span class="master-schedule-time">18:00</span><span class="master-schedule-main"><strong class="master-schedule-name">Давид</strong>',
-'<span class="master-schedule-address">Сунжа набережная 26 квартира 55</span>',
-'<span class="master-schedule-meta"><strong class="master-schedule-price">21 000 ₽</strong><span class="status-badge s-booked">Записан</span></span>',
-'<span class="master-schedule-work">Радиаторы: 9 · Тёплый пол: 3 конт.</span></span><span class="master-schedule-chevron">›</span></button></article>',
+'<span class="master-schedule-main"><span class="master-schedule-avatar">Д</span><span class="master-schedule-identity">',
+'<strong class="master-schedule-name">Давид</strong><span class="master-schedule-address">Сунжа набережная 26 квартира 55</span></span></span>',
+'<span class="master-schedule-time">18:00</span><span class="master-schedule-chevron">›</span>',
+'<span class="master-schedule-work">Радиаторы: 9 · Тёплый пол: 3 конт.</span>',
+'<span class="master-schedule-meta"><span class="status-badge s-booked">Записан</span></span>',
+'<strong class="master-schedule-price">21 000 ₽</strong></button></article>',
 '<div class="master-day-heading"><h3>Пятница, 13 ноября</h3><span class="muted">2 заказа</span></div>',
-'<article class="master-schedule-card"><button class="master-schedule-toggle"><span class="master-schedule-time">10:00</span>',
-'<span class="master-schedule-main"><strong class="master-schedule-name">Очень длинное имя клиента</strong>',
-'<span class="master-schedule-address">Очень длинный адрес с названием улицы и номером дома, занимает несколько строк</span>',
-'<span class="master-schedule-meta"><strong class="master-schedule-price">11 000 ₽</strong><span class="status-badge s-booked">Записан</span></span>',
-'<span class="master-schedule-work">Радиаторы: 5</span></span><span class="master-schedule-chevron">›</span></button></article>',
+'<article class="master-schedule-card"><button class="master-schedule-toggle">',
+'<span class="master-schedule-main"><span class="master-schedule-avatar">О</span><span class="master-schedule-identity">',
+'<strong class="master-schedule-name">Очень длинное имя клиента с фамилией</strong>',
+'<span class="master-schedule-address">Очень длинный адрес с названием улицы и номером дома, занимает несколько строк</span></span></span>',
+'<span class="master-schedule-time">10:00</span><span class="master-schedule-chevron">›</span>',
+'<span class="master-schedule-work">Радиаторы: 5</span>',
+'<span class="master-schedule-meta"><span class="status-badge s-booked">Записан</span></span>',
+'<strong class="master-schedule-price">11 000 ₽</strong></button></article>',
 '</div></div></main>'
 ].join("");
 (async()=>{
@@ -46,7 +51,7 @@ try{
     title:dim("#appScreen header h1"),newOrder:dim("#newOrderBtn"),bell:dim(".push-bell"),
     logout:dim("#logoutBtn"),tab:dim(".tabs .tab"),next:dim(".master-next-jump"),
     time:dim(".master-schedule-time"),name:dim(".master-schedule-name"),
-    summary:dim(".master-today-summary"),card:dim(".master-schedule-toggle")};
+    summary:dim(".master-today-summary"),card:dim(".master-schedule-toggle"),avatar:dim(".master-schedule-avatar")};
   });
   assert.ok(result.scroll<=result.width+1,"horizontal overflow at "+width+" "+JSON.stringify(result));
   for(const key of ["newOrder","bell","logout","tab","next"])
@@ -55,6 +60,8 @@ try{
   assert.ok(result.name.size<=15.1,"client font "+width);
   assert.ok(result.title.size<=21.1,"title font "+width);
   assert.ok(result.summary.height<=120,"today block height "+width+" "+result.summary.height);
+  assert.ok(result.card.height<=115,"master owner-size card at "+width+": "+result.card.height);
+  assert.ok(result.avatar.height>=29.5&&result.avatar.height<=32.5,"owner avatar geometry at "+width);
   await page.close();
  }
  console.log("Master dense layout: PASS (WebKit, 320/350/375/390/430/768)");
