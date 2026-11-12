@@ -119,7 +119,7 @@ body.rd .sheet label,body.rd .finance-entry label{color:#c2cce1}
 body.rd .finance-hero-primary{background:#202b47;border-color:#475a86}
 body.rd .finance-line{border-color:#303a4d}
 body.rd .finance-activity-top{color:#e6eefa}
-body.rd .master-balance-quick,body.rd .master-mode .master-cost,body.rd .cash-share,body.rd .push-panel{background:#202d43;border-color:#384a64;color:#eaf0ff}
+body.rd .master-mode .master-cost,body.rd .cash-share,body.rd .push-panel{background:#202d43;border-color:#384a64;color:#eaf0ff}
 body.rd .master-schedule-toggle:active,body.rd .master-schedule-card.is-expanded .master-schedule-toggle{background:#24344b}
 body.rd .master-schedule-card.is-expanded .master-schedule-toggle{border-color:#36455b}
 body.rd .master-schedule-details>.order-card{background:transparent}
