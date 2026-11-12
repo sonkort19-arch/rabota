@@ -218,9 +218,9 @@
   <link rel="stylesheet" href="/finance-payroll.css">
   <link rel="stylesheet" href="/lead-assistant.css">
   <link rel="stylesheet" href="/ui-alignment.css">
-  <link rel="stylesheet" href="/master-dashboard.css?v=20261112-compact">
-  <link rel="stylesheet" href="/master-dense.css?v=20261113-floating-order-v1">
-  <link rel="stylesheet" href="/money-workspace.css?v=20261113-v1">
+  <link rel="stylesheet" href="/master-dashboard.css?v=20261113-finance-clean-v2">
+  <link rel="stylesheet" href="/master-dense.css?v=20261113-finance-clean-v2">
+  <link rel="stylesheet" href="/money-workspace.css?v=20261113-finance-clean-v2">
 </head>
 <body>
 
@@ -607,6 +607,7 @@
     function clearSession() {
       session = null; currentUser = null; currentRole=null; currentMasterName=""; cloudOrders = [];
       financeOperations=[];financeCollections=[];financeMasterId=null;financeActive=false;financeLoadError="";
+      financeLoadGeneration++; // invalidate finance responses still in flight
       localStorage.removeItem(AUTH_KEY);
     }
     async function authRequest(path, method, payload, authenticated) {
@@ -2317,7 +2318,7 @@
   <script src="/master-notifications.js"></script>
   <script src="/orders-list.js"></script>
   <script src="/finance-payroll.js"></script>
-  <script src="/money-workspace.js?v=20261113-v1"></script>
+  <script src="/money-workspace.js?v=20261113-finance-clean-v2"></script>
   <script src="/lead-assistant.js"></script>
 </body>
 </html>
