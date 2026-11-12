@@ -38,7 +38,7 @@
       "Оплаты без способа: "+rub(sum(missing))+". Они не включены в суммы «Наличные» и «Карта»."));
     const tabs=el("div","mw-payment-filters");
     for(const [key,label] of [["all","Все"],["cash","Наличные"],["card","Карта"],["unknown","Не указан"]]){
-      if(key==="unknown"&&!missing.length&&!m.payouts?.some(p=>!p.payment_method))continue;
+      if(key==="unknown"&&!missing.length&&!(m.collections||[]).length&&!m.payouts?.some(p=>!p.payment_method))continue;
       const b=el("button","mw-payment-filter"+(filter===key?" is-active":""),label);
       b.type="button";b.setAttribute("aria-pressed",String(filter===key));
       b.addEventListener("click",()=>{filter=key;render(root,m)});
