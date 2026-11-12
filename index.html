@@ -577,7 +577,6 @@
     let financeCollections = [];
     let financeMasterId = null;
     let financeLoadError = "";
-    const expandedMasterOrders = new Set();
     try { session = JSON.parse(localStorage.getItem(AUTH_KEY) || "null"); }
     catch (error) { session = null; }
 
@@ -1171,8 +1170,7 @@
             .find(element=>element.dataset.orderId===String(next.id));
           if(!row)return;
           const toggle=row.querySelector(".master-schedule-toggle");
-          if(toggle&&toggle.getAttribute("aria-expanded")!=="true")toggle.click();
-          row.scrollIntoView({behavior:"smooth",block:"center"});
+          toggle?.click();
         });
         root.append(jump);
       }else{
@@ -1200,8 +1198,7 @@
                 .find(element=>element.dataset.orderId===String(order.id));
               if(!row)return;
               const toggle=row.querySelector(".master-schedule-toggle");
-              if(toggle&&toggle.getAttribute("aria-expanded")!=="true")toggle.click();
-              row.scrollIntoView({behavior:"smooth",block:"center"});
+              toggle?.click();
             });
             list.append(item);
           });
@@ -1211,13 +1208,12 @@
     }
     function makeMasterScheduleRow(order,isNext=false) {
       const id=String(order.id);
-      const expanded=expandedMasterOrders.has(id);
-      const article=make("article","master-schedule-card"+(expanded?" is-expanded":"")+(isNext?" is-next":""));
+      const article=make("article","master-schedule-card"+(isNext?" is-next":""));
       article.dataset.orderId=id;
       const toggle=make("button","master-schedule-toggle");
       toggle.type="button";
-      toggle.setAttribute("aria-expanded",String(expanded));
-      toggle.setAttribute("aria-label",(expanded?"Скрыть":"Открыть")+" заявку "+(order.name||"Без имени")+", "+(order.time||"время не указано"));
+      toggle.setAttribute("aria-haspopup","dialog");
+      toggle.setAttribute("aria-label","Открыть заказ "+(order.name||"Без имени")+", "+(order.time||"время не указано")+", статус "+(order.status||"Новый"));
       const detailId="master-details-"+id.replace(/[^a-zA-Z0-9_-]/g,"");
       toggle.setAttribute("aria-controls",detailId);
 
@@ -1254,25 +1250,8 @@
             (collection.submitted_at?"Передача ожидает подтверждения":"Нужно завершить расчёт"):"";
         if(note)toggle.append(make("span","master-money-note",note));
       }
-      const details=make("div","master-schedule-details");
-      details.id=detailId;
-      details.hidden=!expanded;
-      if(expanded) details.append(makeCard(order));
-      toggle.addEventListener("click",()=>{
-        const open=toggle.getAttribute("aria-expanded")!=="true";
-        toggle.setAttribute("aria-expanded",String(open));
-        toggle.setAttribute("aria-label",(open?"Скрыть":"Открыть")+" заявку "+(order.name||"Без имени")+", "+(order.time||"время не указано"));
-        article.classList.toggle("is-expanded",open);
-        details.hidden=!open;
-        if(open){
-          expandedMasterOrders.add(id);
-          details.replaceChildren(makeCard(order));
-        }else{
-          expandedMasterOrders.delete(id);
-          details.replaceChildren();
-        }
-      });
-      article.append(toggle,details);
+      toggle.addEventListener("click",()=>window.__rdOpenMasterDialog?.(id,toggle));
+      article.append(toggle);
       return article;
     }
     function renderMasterSchedule(rows) {
@@ -1288,7 +1267,8 @@
       grouped.forEach((items,date)=>{
         if(currentTab!=="calendar"){
           const heading=make("div","master-day-heading");
-          const label=currentTab==="history"?masterDayLabel(date):
+          const label=window.__rdMasterOrdersMode==="orders"?masterDayLabel(date):
+            currentTab==="history"?masterDayLabel(date):
             date===today?"Сегодня · "+formatDate(date):
             date&&date<today?"Проверить дату · "+masterDayLabel(date):masterDayLabel(date);
           heading.append(make("h3","",label));
@@ -1302,7 +1282,7 @@
     let masterSettlementsSignature="";
     function renderMasterSettlements() {
       const section=document.getElementById("masterPendingSettlements");
-      if(currentRole!=="master"||currentTab==="history"){
+      if(currentRole!=="master"||currentTab==="history"||window.__rdMasterOrdersMode==="orders"){
         section.hidden=true;masterSettlementsSignature="";return;
       }
       const items=masterSettlementOrders(),wasHidden=section.hidden;
@@ -1387,29 +1367,44 @@
         document.getElementById("listTitle").textContent="Выполненные заказы";
       } else if (currentTab==="all") {
         if(currentRole==="master") {
-          shown=masterWorkingOrders();
-          shown.sort((a,b)=>masterScheduleSort(a,b,masterClock().date));
+          if(window.__rdMasterOrdersMode==="day"){
+            shown=masterWorkingOrders();
+            shown.sort((a,b)=>masterScheduleSort(a,b,masterClock().date));
+          }else{
+            shown=getOrders();
+            shown.sort((a,b)=>String(b.date||"").localeCompare(String(a.date||""))||
+              String(b.time||"").localeCompare(String(a.time||"")));
+          }
         } else {
           shown=getOrders();
           shown.sort((a,b)=>String(b.date||"").localeCompare(String(a.date||"")) ||
             String(b.time||"").localeCompare(String(a.time||"")));
         }
-        document.getElementById("listTitle").textContent=currentRole==="master"?"Моё расписание":"Все заказы";
+        document.getElementById("listTitle").textContent="Все заказы";
       } else {
-        shown=getOrders().filter(o=>o.date===selectedDate &&
-          (currentRole!=="master"||(o.status!=="Выполнен"&&o.status!=="Отменён")));
+        shown=getOrders().filter(o=>o.date===selectedDate);
         shown.sort((a,b)=>String(a.time||"").localeCompare(String(b.time||"")));
         document.getElementById("listTitle").textContent="Заказы · "+formatDate(selectedDate);
       }
+      if(currentRole==="master"&&window.__rdMasterOrdersMode==="orders"){
+        shown=window.__rdMasterApplyOrderFilters?.(shown)||shown;
+      }
       document.getElementById("orderCount").textContent=shown.length+" шт.";
       ordersNode.replaceChildren();
-      renderMasterOverview(currentTab==="all"&&currentRole==="master"?shown:[]);
+      renderMasterOverview(currentRole==="master"&&currentTab==="calendar"&&selectedDate===masterClock().date?shown:[]);
       if(currentRole==="master") renderMasterSchedule(shown);
       else if(!shown.length) ordersNode.append(make("div","empty",currentTab==="history"?"Выполненных заказов нет":"Заказов нет"));
       else shown.forEach(o=>{const card=makeCard(o);window.__rdDecorateOrder?.(card,o);card.dataset.search=(o.name+' '+o.phone+' '+o.address+' '+o.master).toLocaleLowerCase('ru');card.dataset.date=o.date||'';card.dataset.master=o.master||'';card.dataset.status=o.status||'';card.dataset.unpaid=String(o.status==='Выполнен'&&!o.paid);card.dataset.pendingPayment=String(o.status==="Выполнен"&&!o.paid);ordersNode.append(card);});
       renderMasterSettlements();
       window.__rdRefresh?.();
+      window.__rdRefreshMasterDialog?.();
     }
+    window.__rdMasterDialogApi={
+      order:id=>currentRole==="master"?getOrders().find(item=>String(item.id)===String(id)):null,
+      card:order=>currentRole==="master"?makeCard(order):null,
+      collection:id=>currentRole==="master"?collectionForOrder(id):null
+    };
+    window.__rdMasterRender=()=>{if(currentRole==="master")render();};
     let formPaymentChoice=null;
     function openForm(id) {
       const raulCreating=raulCanCreateOrder();
@@ -1762,7 +1757,8 @@
       // Do not recreate the master schedule every time finance updates.
       if(currentRole==="master"&&!financeActive){
         renderMasterSettlements();
-        if(currentTab==="all")renderMasterOverview(masterWorkingOrders());
+        if(currentTab==="calendar"&&selectedDate===masterClock().date)
+          renderMasterOverview(getOrders().filter(o=>o.date===selectedDate));
       }
       if(financeActive)renderFinance();
       window.__rdMoneyUpdated?.();
