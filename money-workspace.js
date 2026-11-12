@@ -100,17 +100,29 @@
     root.append(el("h2","mw-heading","Моя зарплата"));
     if(!m.masterId){root.append(el("p","mw-notice","Данные зарплаты для этого мастера не подключены."));return;}
     if(m.error)root.append(el("p","mw-error","Финансовые данные не обновились: "+m.error));
+    const payoutDisabled=!!m.error||!m.masterId||m.due<=0;
+    const wallet=btn("","mw-wallet-action",()=>openMasterPayout(m));
+    wallet.setAttribute("aria-label","Оформить выплату зарплаты");
+    wallet.title=payoutDisabled?"Нет доступной суммы к выплате":"Оформить выплату";
+    wallet.disabled=payoutDisabled;
+    const walletIcon=el("span","mw-wallet-glyph");
+    walletIcon.setAttribute("aria-hidden","true");
+    walletIcon.innerHTML='<svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M20 7V5a2 2 0 0 0-2-2H5a3 3 0 0 0-3 3v12a3 3 0 0 0 3 3h15a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2H5a3 3 0 0 1 0-6"/><path d="M16 12h6v5h-6a2.5 2.5 0 0 1 0-5Z"/><path d="M17 14.5h.01"/></svg>';
+    wallet.append(walletIcon);
+    const payout=btn("Оформить выплату","mw-main-button mw-salary-payout",()=>openMasterPayout(m));
+    payout.disabled=payoutDisabled;
     const hero=box("mw-salary-hero",
-      el("span","mw-small","Баланс к выплате"),
-      el("strong","mw-big",m.error?"—":rub(m.due)),
+      box("mw-salary-head",
+        box("mw-salary-balance",
+          el("span","mw-small","Баланс к выплате"),
+          el("strong","mw-big",m.error?"—":rub(m.due))),
+        wallet),
       box("mw-numbers",
         box("",el("small","","Начислено"),el("strong","",rub(m.accrued))),
-        box("",el("small","","Выплачено"),el("strong","",rub(m.paid)))
-      )
-    );root.append(hero);
-    const payout=btn("Оформить выплату","mw-main-button",()=>openMasterPayout(m));
-    payout.disabled=!!m.error||!m.masterId||m.due<=0;
-    root.append(payout);
+        box("",el("small","","Выплачено"),el("strong","",rub(m.paid)))),
+      payout
+    );
+    root.append(hero);
     if(m.due<=0)root.append(el("p","mw-help","Доступной суммы к выплате нет. Проверь начисления и уже проведённые выплаты."));
     const tabs=el("div","mw-tabs");
     for(const [key,label] of [["accruals","Начисления"],["payments","Выплаты"]]){
