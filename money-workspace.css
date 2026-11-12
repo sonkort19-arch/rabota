@@ -38,8 +38,23 @@ body.rd #appScreen.rd-master.master-mode .mw-master-reports{
 .mw-chevron{color:#8a99ba;font-size:24px}
 .mw-salary-hero{
   padding:16px;border:1px solid #d5e1fa;background:linear-gradient(145deg,#f5f8ff,#e9f0ff);
-  border-radius:17px;display:flex;flex-direction:column;gap:6px;
+  border-radius:18px;display:flex;flex-direction:column;gap:9px;
+  box-shadow:0 4px 16px rgba(44,85,165,.05);
 }
+.mw-salary-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;min-width:0}
+.mw-salary-balance{display:flex;flex-direction:column;gap:6px;min-width:0;padding-top:3px}
+.mw-wallet-action{
+  appearance:none;display:grid;place-items:center;flex:0 0 50px;
+  width:50px;height:50px;margin:0;padding:0;min-width:50px;min-height:50px;
+  border:0;border-radius:14px;color:#fff;cursor:pointer;
+  background:linear-gradient(140deg,#4795ff,#3456eb);
+  box-shadow:0 5px 14px rgba(55,98,228,.19);
+  -webkit-tap-highlight-color:transparent;touch-action:manipulation;
+}
+.mw-wallet-action:focus-visible{outline:3px solid #315eca;outline-offset:3px}
+.mw-wallet-action:active:not(:disabled){transform:translateY(1px)}
+.mw-wallet-action:disabled{opacity:.78;cursor:not-allowed;box-shadow:none}
+.mw-wallet-glyph{display:grid;place-items:center;width:27px;height:27px}
 .mw-small{font-size:12px;color:#687994}
 .mw-big{font-size:27px;line-height:1.18;letter-spacing:-.6px;color:#1e4fae;font-weight:850;overflow-wrap:anywhere}
 .mw-numbers{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:12px}
@@ -51,6 +66,10 @@ body.rd #appScreen.rd-master.master-mode .mw-master-reports{
   color:white;font-weight:750;font-size:14px;padding:11px 13px;margin-top:11px
 }
 .mw-main-button:disabled{opacity:.48;cursor:not-allowed}
+.mw-salary-payout{margin-top:12px;min-height:46px;border-radius:12px;
+  background:linear-gradient(105deg,#4b86f5 0%,#7870f1 100%);
+  box-shadow:0 4px 14px rgba(64,85,211,.12)}
+.mw-salary-payout:disabled{opacity:.60;box-shadow:none}
 .mw-minor{display:flex;align-items:center;justify-content:center;min-height:44px;border:1px solid #d9e2f3;border-radius:11px;background:#fff;color:#405271;font-size:13px;padding:8px 16px}
 .mw-tabs{display:grid;grid-template-columns:1fr 1fr;gap:5px;margin:17px 0 8px;border-bottom:1px solid #dbe4f4}
 .mw-tab{border:0;border-bottom:2px solid transparent;background:transparent;color:#75849b;min-height:43px;font-size:13px;font-weight:750;padding:10px}
