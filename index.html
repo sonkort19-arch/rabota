@@ -1716,32 +1716,44 @@
       if(help) item.append(make("div","finance-hero-sub",help));
       return item;
     }
+    // Financial refreshes overlap during startup, navigation and the 30-second poll.
+    // Assemble each snapshot off-screen. Older requests must never append duplicates
+    // or replace the result of a newer request.
+    let financeLoadGeneration=0;
     async function loadFinance() {
       if(currentRole!=="owner" && currentRole!=="master") return;
+      const generation=++financeLoadGeneration;
+      let masterId=null;
       if(currentRole==="owner"){
         const masters=await dbRequest("rabota_members?select=user_id,role,active,master_name&role=eq.master&limit=100","GET");
-        financeMasterId=masters.find(m=>m.active && String(m.master_name||"").trim().toLowerCase()==="рауль")?.user_id||null;
+        masterId=masters.find(m=>m.active && String(m.master_name||"").trim().toLowerCase()==="рауль")?.user_id||null;
       }else{
-        financeMasterId=String(currentMasterName||"").trim().toLowerCase()==="рауль"?currentUser?.id:null;
+        masterId=String(currentMasterName||"").trim().toLowerCase()==="рауль"?currentUser?.id:null;
       }
-      financeOperations=[];
+      const operations=[];
       for(let offset=0;offset<100000;offset+=1000){
         const page=await dbRequest("rabota_finance_operations?select=*&order=created_at.desc&limit=1000&offset="+offset,"GET");
         if(!Array.isArray(page))throw Error("Не удалось загрузить финансовые операции");
-        financeOperations.push(...page);
+        operations.push(...page);
         if(page.length<1000)break;
       }
-      financeCollections=[];
+      const collections=[];
       for(let offset=0;offset<100000;offset+=1000){
         const page=await dbRequest("rabota_cash_collections?select=*&order=created_at.desc&limit=1000&offset="+offset,"GET");
         if(!Array.isArray(page))throw Error("Не удалось загрузить распределения");
-        financeCollections.push(...page);
+        collections.push(...page);
         if(page.length<1000)break;
       }
+      if(generation!==financeLoadGeneration)return;
+      // A stable id also protects the UI against overlapping result pages.
+      const uniqueOperations=new Map(operations.map(row=>[String(row.id),row]));
+      const uniqueCollections=new Map(collections.map(row=>[String(row.order_id),row]));
+      financeMasterId=masterId;
+      financeOperations=[...uniqueOperations.values()];
+      financeCollections=[...uniqueCollections.values()];
       financeLoadError="";
       updateMasterBalance();
-      // Финансовый опрос не должен каждые 30 сек разрушать открытые карточки
-      // и сбрасывать фокус в рабочем расписании мастера.
+      // Do not recreate the master schedule every time finance updates.
       if(currentRole==="master"&&!financeActive){
         renderMasterSettlements();
         if(currentTab==="all")renderMasterOverview(masterWorkingOrders());
