@@ -25,18 +25,17 @@ body.rd #appScreen.rd-master.master-mode .mw-master-reports{
 }
 .mw-heading{margin:9px 0 14px;font-size:19px;letter-spacing:-.3px;line-height:1.2;font-weight:820}
 .mw-back{display:inline-flex;align-items:center;min-height:42px;border:0;background:transparent;color:#3f60c7;font-weight:750;padding:4px 0;font-size:13px}
-.mw-entry,.mw-person{
+.mw-entry{
   display:flex;align-items:center;width:100%;gap:11px;min-height:68px;
   border:1px solid #dce5f7;border-radius:14px;background:white;
   text-align:left;padding:11px 14px;color:#203354;
   box-shadow:0 3px 12px rgba(21,49,105,.04)
 }
 .mw-entry-icon{display:grid;place-items:center;width:36px;height:36px;background:#edf2ff;border-radius:10px;color:#4967d6;font-size:23px}
-.mw-entry-copy,.mw-person-info{display:flex;flex-direction:column;gap:3px;min-width:0;flex:1}
-.mw-entry-copy strong,.mw-person-info strong{font-size:15px}
-.mw-entry-copy small,.mw-person-info small{font-size:11px;color:#7987a0}
+.mw-entry-copy{display:flex;flex-direction:column;gap:3px;min-width:0;flex:1}
+.mw-entry-copy strong{font-size:15px}
+.mw-entry-copy small{font-size:11px;color:#7987a0}
 .mw-chevron{color:#8a99ba;font-size:24px}
-.mw-avatar{display:grid;place-items:center;width:35px;height:35px;border-radius:11px;background:#e8efff;color:#3765c8;font-size:15px;font-weight:800}
 .mw-salary-hero{
   padding:16px;border:1px solid #d5e1fa;background:linear-gradient(145deg,#f5f8ff,#e9f0ff);
   border-radius:17px;display:flex;flex-direction:column;gap:6px;
