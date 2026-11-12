@@ -740,3 +740,55 @@ body.rd #appScreen.rd-master.master-mode .master-review-item:focus-visible{
   }
   body.rd #appScreen.rd-master.master-mode #calendarPanel .week{gap:3px}
 }
+
+
+/* Floating new-order action — master mobile only (2026-11-13).
+   Keep the existing button/id/click handler; change only its presentation.
+   The lower padding allows the final schedule card to scroll clear of the button. */
+@media (max-width:790px) {
+  body.rd #appScreen.rd-master.master-mode {
+    padding-bottom:calc(110px + env(safe-area-inset-bottom));
+  }
+  body.rd #appScreen.rd-master.master-mode #ordersArea > #newOrderBtn {
+    position:fixed;
+    z-index:28;
+    right:max(14px, calc((100vw - 670px) / 2 + 16px));
+    bottom:calc(18px + env(safe-area-inset-bottom));
+    left:auto;
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    gap:5px;
+    box-sizing:border-box;
+    width:auto;
+    max-width:calc(100vw - 28px);
+    min-height:48px;
+    margin:0;
+    padding:0 17px;
+    border:0;
+    border-radius:999px;
+    background:linear-gradient(112deg,#4468f5,#5937ef 100%);
+    color:white;
+    font-size:14px;
+    font-weight:800;
+    line-height:1.15;
+    letter-spacing:0;
+    white-space:nowrap;
+    box-shadow:0 7px 19px rgba(61,72,192,.28);
+    -webkit-tap-highlight-color:transparent;
+    touch-action:manipulation;
+  }
+  body.rd #appScreen.rd-master.master-mode #ordersArea > #newOrderBtn .plus {
+    font-size:23px;
+    line-height:1;
+    font-weight:400;
+    margin-right:1px;
+    vertical-align:middle;
+  }
+  body.rd #appScreen.rd-master.master-mode #ordersArea > #newOrderBtn:active {
+    transform:translateY(1px);
+  }
+  body.rd #appScreen.rd-master.master-mode #ordersArea > #newOrderBtn[hidden] {
+    display:none!important;
+  }
+}
