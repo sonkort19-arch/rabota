@@ -1107,10 +1107,12 @@
       const ending=n%10,group=n%100;
       return n+" "+(group>=11&&group<=14?"заказов":ending===1?"заказ":ending>=2&&ending<=4?"заказа":"заказов");
     }
+    let masterOverviewSignature="";
     function renderMasterOverview(rows) {
       const root=document.getElementById("masterTodaySummary");
-      if(currentRole!=="master"||currentTab!=="all"){root.hidden=true;return;}
-      root.hidden=false;root.replaceChildren();
+      if(currentRole!=="master"||currentTab!=="all"){
+        root.hidden=true;masterOverviewSignature="";return;
+      }
       const now=masterClock(),today=rows.filter(o=>o.date===now.date);
       const schedule=rows.filter(o=>(o.status==="Записан"||o.status==="Новый")&&
         (o.date>now.date||(o.date===now.date&&masterTimeMinutes(o.time)>=now.minutes)))
@@ -1119,6 +1121,13 @@
       const toReview=rows.filter(o=>(o.status==="Записан"||o.status==="Новый")&&
         (o.date<now.date||(o.date===now.date&&masterTimeMinutes(o.time)>=0&&
           masterTimeMinutes(o.time)<now.minutes)));
+      const signature=JSON.stringify([now.date,today.map(o=>[o.id,o.status]),
+        next?[next.id,next.date,next.time,next.name]:null,
+        toReview.map(o=>[o.id,o.status])]);
+      // Опрос финансов не должен сбрасывать фокус кнопки «Ближайший выезд».
+      if(!root.hidden&&signature===masterOverviewSignature)return;
+      masterOverviewSignature=signature;
+      root.hidden=false;root.replaceChildren();
       const top=make("div","master-today-top");
       top.append(make("strong","master-today-title","Сегодня · "+formatDate(now.date)));
       top.append(make("span","master-today-count",masterOrderCount(today.length)));
@@ -1226,13 +1235,19 @@
       });
       if(!rows.length)ordersNode.append(make("div","empty","Рабочих заказов нет"));
     }
+    let masterSettlementsSignature="";
     function renderMasterSettlements() {
       const section=document.getElementById("masterPendingSettlements");
-      if(currentRole!=="master"||currentTab==="history"){section.hidden=true;return;}
-      const items=masterSettlementOrders();
+      if(currentRole!=="master"||currentTab==="history"){
+        section.hidden=true;masterSettlementsSignature="";return;
+      }
+      const items=masterSettlementOrders(),wasHidden=section.hidden;
       section.hidden=!items.length;
       document.getElementById("masterSettlementCount").textContent=masterOrderCount(items.length);
       const root=document.getElementById("masterSettlementRows");
+      const signature=JSON.stringify(items.map(order=>[order,collectionForOrder(order.id)]));
+      if(!wasHidden&&signature===masterSettlementsSignature)return;
+      masterSettlementsSignature=signature;
       root.replaceChildren();
       items.forEach(order=>root.append(makeMasterScheduleRow(order)));
     }
