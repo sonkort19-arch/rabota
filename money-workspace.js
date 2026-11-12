@@ -25,7 +25,7 @@
     if(!/^\d{4}-(0[1-9]|1[0-2])$/.test(key))return "Без даты";
     const label=new Intl.DateTimeFormat("ru-RU",{timeZone:"UTC",month:"long",year:"numeric"})
       .format(new Date(key+"-01T12:00:00Z")).replace(/\s*г\.?$/i,"").trim();
-    return label.charAt(0).toLocaleUpperCase("ru-RU")+label.slice(1);
+    return label.charAt(0).toLocaleUpperCase("ru-RU")+label.slice(1)+" г.";
   };
   const accountName=m=>m==="cash"?"Наличные":m==="card"?"Карта":"Не указан";
   const validMethod=m=>m==="cash"||m==="card";
