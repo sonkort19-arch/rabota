@@ -32,6 +32,8 @@
   const api=()=>window.__rdMoneyUi;
   const token=()=>{if(typeof window.crypto?.randomUUID!=="function")throw Error("Браузер не поддерживает безопасный идентификатор операции");return window.crypto.randomUUID()};
   const isPreview=()=>/^rabota-[a-z0-9]{7,}-sonkort19-6069s-projects\.vercel\.app$/i.test(String(window.location?.hostname||""));
+  // Default to the single orders list even before the first async access check completes.
+  window.__rdMasterOrdersMode="orders";
   let page="orders",step="menu",salaryTab="accruals",payDialog=false,masterReady=false;
   let masterOrderStatus="all",masterOrderSearch="";
   const filters=[["all","Все"],["Новый","Новые"],["Записан","Записаны"],
