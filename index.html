@@ -1082,7 +1082,7 @@
         minutes:Number(part("hour"))*60+Number(part("minute"))};
     }
     function masterTimeMinutes(value) {
-      const match=/^([01]\\d|2[0-3]):([0-5]\\d)/.exec(String(value||""));
+      const match=/^([01]\d|2[0-3]):([0-5]\d)/.exec(String(value||""));
       return match?Number(match[1])*60+Number(match[2]):-1;
     }
     function masterWorkingOrders() {
@@ -1738,7 +1738,7 @@
         root.append(grid);
       }
       const statement=make("div","finance-hero");
-      statement.append(financeLine("Выполнено и оплачено",eligible.length+" зак. · "+money(eligibleGross)));
+      statement.append(financeLine("Выполнено и оплачено",eligible.length+" зак."+(isOwner?" · "+money(eligibleGross):"")));
       statement.append(financeLine(isOwner?"Раулю начислено":"Мне начислено",money(raulAccrued)));
       statement.append(financeLine(isOwner?"Раулю выдано":"Уже выплачено",money(raulPaid)));
       if(isOwner){
@@ -1819,7 +1819,7 @@
         item.append(make("div","finance-activity-sub",(order.date?formatDate(order.date)+" · ":"")+breakdown));
         root.append(item);
       }
-      const logs=isOwner?financeOperations:financeOperations.filter(o=>o.master_user_id===financeMasterId);
+      const logs=isOwner?financeOperations:financeOperations.filter(o=>o.master_user_id===financeMasterId&&o.kind==="raul_payout");
       if(!logs.length)history.append(make("div","empty","Операций пока нет."));
       for(const row of logs.slice(0,70)){
         const item=make("div","finance-activity");
