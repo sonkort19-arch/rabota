@@ -80,3 +80,37 @@ test("Master overrides match owner's mobile sizes and remain role-scoped",()=>{
  assert.match(masterCss,/\.master-schedule-meta \.status-badge\{[\s\S]*?min-height:22px/);
  assert.match(html,/href="\/master-dense\.css\?v=20261112-owner-card-v2"/);
 });
+
+test("Raul history reuses compact expandable cards, sorted as history",()=>{
+ const viewStart=html.indexOf("    function render() {");
+ const viewEnd=html.indexOf("    let formPaymentChoice=null;",viewStart);
+ assert.ok(viewStart>=0&&viewEnd>viewStart,"main render function exists");
+ const view=html.slice(viewStart,viewEnd);
+ assert.match(view,/if \(currentTab === "history"\) \{\s*shown = getOrders\(\).filter\(o=>o.status==="Выполнен"\)/);
+ assert.match(view,/if\(currentRole==="master"\) renderMasterSchedule\(shown\);/);
+ assert.doesNotMatch(view,/currentRole==="master" && currentTab!=="history"/);
+ const start=html.indexOf("    function renderMasterSchedule(rows) {");
+ const end=html.indexOf("    let masterSettlementsSignature=",start);
+ assert.ok(start>=0&&end>start,"master schedule renderer exists");
+ const source=html.slice(start,end);
+ assert.match(source,/currentTab==="history"\?masterDayLabel\(date\)/);
+ assert.match(source,/currentTab==="history"\?"Выполненных заказов нет":"Рабочих заказов нет"/);
+ const root=make("div","orders");
+ const fn=new Function("make","ordersNode","currentTab","masterClock","masterTimeMinutes",
+   "masterScheduleSort","masterDayLabel","formatDate","masterOrderCount","makeMasterScheduleRow",
+   source+"\nreturn renderMasterSchedule;");
+ const renderHistory=fn(make,root,"history",()=>({date:"2026-11-12",minutes:1000}),()=>0,
+   ()=>0,date=>date,date=>date,n=>n+" заказов",o=>make("article","master-schedule-card",o.name));
+ renderHistory([{id:"old-1",date:"2026-11-11",name:"Завершённый"},
+                {id:"old-2",date:"2026-11-10",name:"Оплаченный"}]);
+ assert.equal(root.children.length,4,"each history date has its heading and one compact row");
+ assert.ok(root.children.filter(n=>n.className==="master-day-heading").length===2);
+ assert.equal(root.children.filter(n=>n.className==="master-schedule-card").length,2);
+ assert.ok(!flat(root).some(n=>String(n.textContent).includes("Проверить дату")),
+   "completed jobs are not marked overdue");
+ const emptyRoot=make("div","orders");
+ const renderEmpty=fn(make,emptyRoot,"history",()=>({date:"2026-11-12",minutes:1000}),()=>0,
+   ()=>0,date=>date,date=>date,n=>n+" заказов",o=>make("article","master-schedule-card",o.name));
+ renderEmpty([]);
+ assert.equal(emptyRoot.children[0].textContent,"Выполненных заказов нет");
+});
