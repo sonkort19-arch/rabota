@@ -751,3 +751,150 @@ body.rd #appScreen.rd-master.master-mode .master-review-item:focus-visible{
     display:none!important;
   }
 }
+
+
+/* Compact account menu, light theme (2026-11-13).
+   Only the master header is visible in this layout. The original logout
+   button/id and sign-out handler remain functional inside the dropdown. */
+body.rd #appScreen.rd-master.master-mode .master-header-actions{
+  z-index:135;
+  overflow:visible;
+}
+body.rd #appScreen.rd-master.master-mode .master-header-actions .rd-profile{
+  position:relative;
+  flex:0 0 45px;
+  width:45px;
+  min-width:45px;
+}
+body.rd #appScreen.rd-master.master-mode .master-header-actions .rd-profile-trigger{
+  appearance:none;
+  display:grid;
+  place-items:center;
+  width:45px;
+  height:45px;
+  min-height:45px;
+  min-width:45px;
+  padding:0;
+  margin:0;
+  border:0;
+  border-radius:14px;
+  background:linear-gradient(140deg,#528dff,#3552ed);
+  color:#fff;
+  box-shadow:0 5px 14px rgba(56,89,212,.22);
+  -webkit-tap-highlight-color:transparent;
+  touch-action:manipulation;
+}
+body.rd #appScreen.rd-master.master-mode .master-header-actions .rd-profile-trigger:active{
+  transform:scale(.97);
+}
+body.rd #appScreen.rd-master.master-mode .master-header-actions .rd-profile-trigger:focus-visible{
+  outline:3px solid #9cb8fa;
+  outline-offset:2px;
+}
+body.rd #appScreen.rd-master.master-mode .master-header-actions .rd-profile-menu{
+  position:absolute;
+  z-index:200;
+  top:calc(100% + 11px);
+  right:0;
+  width:min(244px,calc(100vw - 24px));
+  padding:7px;
+  margin:0;
+  background:#fff;
+  border:1px solid #e1e8f6;
+  border-radius:17px;
+  box-shadow:0 14px 36px rgba(31,52,96,.19);
+  color:#202f4e;
+  text-align:left;
+}
+body.rd #appScreen.rd-master.master-mode .master-header-actions .rd-profile-menu[hidden]{
+  display:none!important;
+}
+body.rd #appScreen.rd-master.master-mode .rd-profile-menu:before{
+  content:"";
+  position:absolute;
+  top:-6px;
+  right:16px;
+  width:10px;
+  height:10px;
+  transform:rotate(45deg);
+  background:#fff;
+  border-top:1px solid #e1e8f6;
+  border-left:1px solid #e1e8f6;
+}
+body.rd #appScreen.rd-master.master-mode .rd-profile-identity{
+  position:relative;
+  display:flex;
+  align-items:center;
+  gap:11px;
+  padding:10px 10px 12px;
+  border-bottom:1px solid #e9eef7;
+}
+body.rd #appScreen.rd-master.master-mode .rd-profile-initial{
+  display:grid;
+  place-items:center;
+  flex:0 0 38px;
+  width:38px;
+  height:38px;
+  border-radius:50%;
+  background:#ffc534;
+  color:#303348;
+  font-size:17px;
+  font-weight:750;
+}
+body.rd #appScreen.rd-master.master-mode .rd-profile-text{
+  display:flex;
+  flex-direction:column;
+  gap:3px;
+  min-width:0;
+}
+body.rd #appScreen.rd-master.master-mode .rd-profile-text strong{
+  color:#202f4e;
+  font-size:15px;
+  font-weight:800;
+  line-height:1.2;
+  overflow-wrap:anywhere;
+}
+body.rd #appScreen.rd-master.master-mode .rd-profile-text small{
+  color:#7889a2;
+  font-size:11px;
+  line-height:1.3;
+}
+body.rd #appScreen.rd-master.master-mode .master-header-actions .rd-profile-menu #logoutBtn{
+  box-sizing:border-box;
+  display:flex;
+  align-items:center;
+  justify-content:flex-start;
+  gap:11px;
+  width:100%;
+  min-width:0;
+  min-height:44px;
+  margin:4px 0 0;
+  padding:10px 11px;
+  border:0;
+  border-radius:10px;
+  background:transparent;
+  color:#283c5d;
+  text-align:left;
+  font-size:14px;
+  font-weight:720;
+  box-shadow:none;
+  white-space:nowrap;
+}
+body.rd #appScreen.rd-master.master-mode .master-header-actions .rd-profile-menu #logoutBtn:before{
+  content:none;
+  display:none;
+  background:none;
+}
+body.rd #appScreen.rd-master.master-mode .master-header-actions .rd-profile-menu #logoutBtn svg{
+  flex:0 0 21px;
+  color:#4866a1;
+}
+body.rd #appScreen.rd-master.master-mode .master-header-actions .rd-profile-menu #logoutBtn:active{
+  background:#edf3ff;
+}
+@media(max-width:350px){
+  body.rd #appScreen.rd-master.master-mode .master-header-actions .rd-profile,
+  body.rd #appScreen.rd-master.master-mode .master-header-actions .rd-profile-trigger{
+    width:44px;min-width:44px;height:44px;min-height:44px;
+  }
+}
