@@ -223,6 +223,7 @@
   <link rel="stylesheet" href="/finance-payroll.css">
   <link rel="stylesheet" href="/lead-assistant.css">
   <link rel="stylesheet" href="/ui-alignment.css">
+  <link rel="stylesheet" href="/master-dashboard.css?v=20261112">
 </head>
 <body>
 
@@ -291,7 +292,7 @@
   <main id="appScreen" hidden>
     <header><div><h1 id="appTitle">Работа</h1><span class="muted" id="roleName"></span>
       <button id="masterBalanceQuick" class="master-balance-quick" type="button" hidden aria-label="Открыть мои финансы">
-        <span class="balance-label">Мой баланс</span>
+        <span class="balance-label">Осталось выплатить</span>
         <strong id="masterBalanceAmount" class="balance-amount" aria-live="polite">—</strong>
         <span class="balance-arrow" aria-hidden="true">›</span>
       </button>
@@ -368,8 +369,14 @@
       </div>
       <div id="rdOrdersWeekDays" class="rd-orders-weekdays" role="group" aria-label="Дни выбранной недели"></div>
     </section>
+    <section id="masterTodaySummary" class="master-today-summary" aria-label="Краткое расписание мастера" hidden></section>
     <div class="list-head"><h2 id="listTitle">Заказы на день</h2><span class="count" id="orderCount"></span></div>
     <div id="orders"></div>
+    <section id="masterPendingSettlements" class="master-settlements" aria-label="Расчёты и оплата" hidden>
+      <div class="master-settlements-heading"><h2>Расчёты и оплата</h2><span id="masterSettlementCount" class="count"></span></div>
+      <p class="master-settlements-hint">Завершённые заказы с незакрытой оплатой или передачей денег компании.</p>
+      <div id="masterSettlementRows"></div>
+    </section>
     </div>
     <section id="financePanel" hidden aria-label="Финансы">
       <button id="masterFinanceBack" class="secondary master-finance-back" type="button" hidden>‹ Назад к заявкам</button>
@@ -1063,10 +1070,88 @@
       const label=parseDate(day).toLocaleDateString("ru-RU",{weekday:"long",day:"numeric",month:"long"});
       return label.charAt(0).toUpperCase()+label.slice(1);
     }
-    function makeMasterScheduleRow(order) {
+
+    // Сравниваем даты и время записей по часовому поясу Владикавказа (Москва).
+    function masterClock() {
+      const parts=new Intl.DateTimeFormat("en-GB",{
+        timeZone:"Europe/Moscow",year:"numeric",month:"2-digit",day:"2-digit",
+        hour:"2-digit",minute:"2-digit",hourCycle:"h23"
+      }).formatToParts(new Date());
+      const part=type=>parts.find(item=>item.type===type)?.value||"00";
+      return {date:part("year")+"-"+part("month")+"-"+part("day"),
+        minutes:Number(part("hour"))*60+Number(part("minute"))};
+    }
+    function masterTimeMinutes(value) {
+      const match=/^([01]\\d|2[0-3]):([0-5]\\d)/.exec(String(value||""));
+      return match?Number(match[1])*60+Number(match[2]):-1;
+    }
+    function masterWorkingOrders() {
+      return getOrders().filter(o=>o.status!=="Выполнен"&&o.status!=="Отменён");
+    }
+    function masterSettlementOrders() {
+      return getOrders().filter(o=>{
+        if(o.status!=="Выполнен")return false;
+        const collection=collectionForOrder(o.id);
+        return !o.paid||Boolean(collection&&!collection.confirmed_at);
+      }).sort((a,b)=>String(b.date||"").localeCompare(String(a.date||""))||
+        String(b.time||"").localeCompare(String(a.time||"")));
+    }
+    function masterScheduleSort(a,b,today) {
+      // Сегодня и будущие заказы первыми; старые записи на проверку — внизу.
+      const orderRank=o=>!o.date?3:o.date<today?2:0;
+      return orderRank(a)-orderRank(b)||
+        String(a.date||"").localeCompare(String(b.date||""))||
+        String(a.time||"").localeCompare(String(b.time||""));
+    }
+    function masterOrderCount(n) {
+      const ending=n%10,group=n%100;
+      return n+" "+(group>=11&&group<=14?"заказов":ending===1?"заказ":ending>=2&&ending<=4?"заказа":"заказов");
+    }
+    function renderMasterOverview(rows) {
+      const root=document.getElementById("masterTodaySummary");
+      if(currentRole!=="master"||currentTab!=="all"){root.hidden=true;return;}
+      root.hidden=false;root.replaceChildren();
+      const now=masterClock(),today=rows.filter(o=>o.date===now.date);
+      const schedule=rows.filter(o=>(o.status==="Записан"||o.status==="Новый")&&
+        (o.date>now.date||(o.date===now.date&&masterTimeMinutes(o.time)>=now.minutes)))
+        .sort((a,b)=>masterScheduleSort(a,b,now.date));
+      const next=schedule[0];
+      const toReview=rows.filter(o=>(o.status==="Записан"||o.status==="Новый")&&
+        (o.date<now.date||(o.date===now.date&&masterTimeMinutes(o.time)>=0&&
+          masterTimeMinutes(o.time)<now.minutes)));
+      const top=make("div","master-today-top");
+      top.append(make("strong","master-today-title","Сегодня · "+formatDate(now.date)));
+      top.append(make("span","master-today-count",masterOrderCount(today.length)));
+      root.append(top);
+      if(next){
+        const jump=make("button","master-next-jump");
+        jump.type="button";
+        jump.append(make("span","master-next-caption","Ближайший выезд"),
+          make("strong","master-next-value",(next.date===now.date?"Сегодня":formatDate(next.date))+
+            " · "+(next.time||"Без времени")+" · "+(next.name||"Клиент")));
+        jump.addEventListener("click",()=>{
+          const row=[...document.querySelectorAll("#orders .master-schedule-card")]
+            .find(element=>element.dataset.orderId===String(next.id));
+          if(!row)return;
+          const toggle=row.querySelector(".master-schedule-toggle");
+          if(toggle&&toggle.getAttribute("aria-expanded")!=="true")toggle.click();
+          row.scrollIntoView({behavior:"smooth",block:"center"});
+        });
+        root.append(jump);
+      }else{
+        root.append(make("p","master-no-next","Ближайших новых выездов пока нет."));
+      }
+      if(toReview.length){
+        root.append(make("p","master-review-note",
+          "Проверьте статус "+masterOrderCount(toReview.length)+
+          ": время записи уже прошло. Это не означает, что заказ просрочен."));
+      }
+    }
+    function makeMasterScheduleRow(order,isNext=false) {
       const id=String(order.id);
       const expanded=expandedMasterOrders.has(id);
-      const article=make("article","master-schedule-card"+(expanded?" is-expanded":""));
+      const article=make("article","master-schedule-card"+(expanded?" is-expanded":"")+(isNext?" is-next":""));
+      article.dataset.orderId=id;
       const toggle=make("button","master-schedule-toggle");
       toggle.type="button";
       toggle.setAttribute("aria-expanded",String(expanded));
@@ -1084,6 +1169,18 @@
       const classes={"Новый":"s-new","Записан":"s-booked","В работе":"s-progress","Выполнен":"s-done","Отменён":"s-cancelled"};
       meta.append(make("span","status-badge "+classes[state],state));
       main.append(meta);
+      const work=[];
+      if(order.radiators!==""&&order.radiators!=null)work.push("Радиаторы: "+order.radiators);
+      if(order.floorLoops!==""&&order.floorLoops!=null&&Number(order.floorLoops)>0)
+        work.push("Тёплый пол: "+order.floorLoops+" конт.");
+      if(work.length)main.append(make("span","master-schedule-work",work.join(" · ")));
+      if(state==="Выполнен"){
+        const collection=collectionForOrder(order.id);
+        const note=!order.paid?"Оплата ещё не отмечена":
+          collection&&!collection.confirmed_at?
+            (collection.submitted_at?"Передача ожидает подтверждения":"Нужно завершить расчёт"):"";
+        if(note)main.append(make("span","master-money-note",note));
+      }
       toggle.append(time,main,make("span","master-schedule-chevron","›"));
       const details=make("div","master-schedule-details");
       details.id=detailId;
@@ -1107,21 +1204,37 @@
       return article;
     }
     function renderMasterSchedule(rows) {
-      const grouped=new Map();
+      const grouped=new Map(),today=masterClock().date;
       rows.forEach(order=>{
         const date=order.date||"";
         if(!grouped.has(date)) grouped.set(date,[]);
         grouped.get(date).push(order);
       });
+      const next=rows.filter(o=>(o.status==="Записан"||o.status==="Новый")&&
+        (o.date>today||(o.date===today&&masterTimeMinutes(o.time)>=masterClock().minutes)))
+        .sort((a,b)=>masterScheduleSort(a,b,today))[0];
       grouped.forEach((items,date)=>{
         if(currentTab!=="calendar"){
           const heading=make("div","master-day-heading");
-          heading.append(make("h3","",masterDayLabel(date)));
-          heading.append(make("span","muted",items.length+" "+(items.length===1?"заказ":items.length<5?"заказа":"заказов")));
+          const label=date===today?"Сегодня · "+formatDate(date):
+            date&&date<today?"Проверить дату · "+masterDayLabel(date):masterDayLabel(date);
+          heading.append(make("h3","",label));
+          heading.append(make("span","muted",masterOrderCount(items.length)));
           ordersNode.append(heading);
         }
-        items.forEach(order=>ordersNode.append(makeMasterScheduleRow(order)));
+        items.forEach(order=>ordersNode.append(makeMasterScheduleRow(order,String(order.id)===String(next?.id))));
       });
+      if(!rows.length)ordersNode.append(make("div","empty","Рабочих заказов нет"));
+    }
+    function renderMasterSettlements() {
+      const section=document.getElementById("masterPendingSettlements");
+      if(currentRole!=="master"||currentTab==="history"){section.hidden=true;return;}
+      const items=masterSettlementOrders();
+      section.hidden=!items.length;
+      document.getElementById("masterSettlementCount").textContent=masterOrderCount(items.length);
+      const root=document.getElementById("masterSettlementRows");
+      root.replaceChildren();
+      items.forEach(order=>root.append(makeMasterScheduleRow(order)));
     }
 
     function renderCalendar() {
@@ -1183,27 +1296,28 @@
           String(b.completedAt||"").localeCompare(String(a.completedAt||"")));
         document.getElementById("listTitle").textContent="Выполненные заказы";
       } else if (currentTab==="all") {
-        shown=getOrders().filter(o=>{
-          if(currentRole!=="master")return true;
-          if(o.status==="Отменён")return false;
-          // Не прячем завершённый заказ, пока нужно распределить или сдать оплату.
-          if(o.status!=="Выполнен")return true;
-          const collected=collectionForOrder(o.id);
-          return !o.paid || Boolean(collected&&!collected.confirmed_at);
-        });
-        shown.sort((a,b)=>String(b.date||"").localeCompare(String(a.date||"")) ||
-          String(b.time||"").localeCompare(String(a.time||"")));
+        if(currentRole==="master") {
+          shown=masterWorkingOrders();
+          shown.sort((a,b)=>masterScheduleSort(a,b,masterClock().date));
+        } else {
+          shown=getOrders();
+          shown.sort((a,b)=>String(b.date||"").localeCompare(String(a.date||"")) ||
+            String(b.time||"").localeCompare(String(a.time||"")));
+        }
         document.getElementById("listTitle").textContent=currentRole==="master"?"Моё расписание":"Все заказы";
       } else {
-        shown=getOrders().filter(o=>o.date===selectedDate);
+        shown=getOrders().filter(o=>o.date===selectedDate &&
+          (currentRole!=="master"||(o.status!=="Выполнен"&&o.status!=="Отменён")));
         shown.sort((a,b)=>String(a.time||"").localeCompare(String(b.time||"")));
         document.getElementById("listTitle").textContent="Заказы · "+formatDate(selectedDate);
       }
       document.getElementById("orderCount").textContent=shown.length+" шт.";
       ordersNode.replaceChildren();
-      if(!shown.length) ordersNode.append(make("div","empty",currentTab==="history"?"Выполненных заказов нет":"Заказов нет"));
-      else if(currentRole==="master" && currentTab!=="history") renderMasterSchedule(shown);
+      renderMasterOverview(currentTab==="all"&&currentRole==="master"?shown:[]);
+      if(currentRole==="master" && currentTab!=="history") renderMasterSchedule(shown);
+      else if(!shown.length) ordersNode.append(make("div","empty",currentTab==="history"?"Выполненных заказов нет":"Заказов нет"));
       else shown.forEach(o=>{const card=makeCard(o);window.__rdDecorateOrder?.(card,o);card.dataset.search=(o.name+' '+o.phone+' '+o.address+' '+o.master).toLocaleLowerCase('ru');card.dataset.date=o.date||'';card.dataset.master=o.master||'';card.dataset.status=o.status||'';card.dataset.unpaid=String(o.status==='Выполнен'&&!o.paid);card.dataset.pendingPayment=String(o.status==="Выполнен"&&!o.paid);ordersNode.append(card);});
+      renderMasterSettlements();
       window.__rdRefresh?.();
     }
     let formPaymentChoice=null;
@@ -1542,7 +1656,12 @@
       }
       financeLoadError="";
       updateMasterBalance();
-      render();
+      // Финансовый опрос не должен каждые 30 сек разрушать открытые карточки
+      // и сбрасывать фокус в рабочем расписании мастера.
+      if(currentRole==="master"&&!financeActive){
+        renderMasterSettlements();
+        if(currentTab==="all")renderMasterOverview(masterWorkingOrders());
+      }
       if(financeActive)renderFinance();
     }
     function updateMasterBalance() {
@@ -1610,18 +1729,22 @@
         document.getElementById("financeEntry").hidden=true;
         return;
       }
-      root.append(make("h2","finance-title",isOwner?"Финансы бригады Рауля":"Мой баланс"));
-      root.append(financeMetric("Раулю осталось выплатить",raulDue,"50% от выполненных и оплаченных заказов (Тимуру отдельные 1 500 ₽)",true));
-      const grid=make("div","finance-grid");
-      grid.append(financeMetric("Тимуру к выплате",timurDue,"1 500 ₽ за заказ"));
-      grid.append(financeMetric("Доля компании",companyEarned,"До прочих расходов"));
-      root.append(grid);
+      root.append(make("h2","finance-title",isOwner?"Финансы бригады Рауля":"Мои выплаты"));
+      root.append(financeMetric("Осталось выплатить",raulDue,"Моя доля: 50% от выполненных и оплаченных заказов",true));
+      if(isOwner){
+        const grid=make("div","finance-grid");
+        grid.append(financeMetric("Тимуру к выплате",timurDue,"1 500 ₽ за заказ"));
+        grid.append(financeMetric("Доля компании",companyEarned,"До прочих расходов"));
+        root.append(grid);
+      }
       const statement=make("div","finance-hero");
       statement.append(financeLine("Выполнено и оплачено",eligible.length+" зак. · "+money(eligibleGross)));
-      statement.append(financeLine("Раулю начислено",money(raulAccrued)));
-      statement.append(financeLine("Раулю выдано",money(raulPaid)));
-      statement.append(financeLine("Тимуру начислено",money(timurAccrued)));
-      statement.append(financeLine("Тимуру выдано",money(timurPaid)));
+      statement.append(financeLine(isOwner?"Раулю начислено":"Мне начислено",money(raulAccrued)));
+      statement.append(financeLine(isOwner?"Раулю выдано":"Уже выплачено",money(raulPaid)));
+      if(isOwner){
+        statement.append(financeLine("Тимуру начислено",money(timurAccrued)));
+        statement.append(financeLine("Тимуру выдано",money(timurPaid)));
+      }
       root.append(statement);
       const custody=make("div","finance-hero");
       custody.append(financeLine("Компании ещё нужно передать",money(masterHeld)));
@@ -1690,7 +1813,10 @@
         const top=make("div","finance-activity-top");
         top.append(make("span","",order.name||"Без имени"),make("span","",money(order.price)));
         item.append(top);
-        item.append(make("div","finance-activity-sub",(order.date?formatDate(order.date)+" · ":"")+"Раулю: "+money(financeSplit(order.price).raul)+" · Тимуру: 1 500 ₽ · Компании: "+money(financeSplit(order.price).company)));
+        const breakdown=isOwner?
+          "Раулю: "+money(financeSplit(order.price).raul)+" · Тимуру: 1 500 ₽ · Компании: "+money(financeSplit(order.price).company):
+          "Моя доля: "+money(financeSplit(order.price).raul);
+        item.append(make("div","finance-activity-sub",(order.date?formatDate(order.date)+" · ":"")+breakdown));
         root.append(item);
       }
       const logs=isOwner?financeOperations:financeOperations.filter(o=>o.master_user_id===financeMasterId);
