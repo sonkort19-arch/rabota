@@ -219,7 +219,7 @@
   <link rel="stylesheet" href="/lead-assistant.css">
   <link rel="stylesheet" href="/ui-alignment.css">
   <link rel="stylesheet" href="/master-dashboard.css?v=20261113-finance-clean-v3">
-  <link rel="stylesheet" href="/master-dense.css?v=20261113-finance-clean-v3">
+  <link rel="stylesheet" href="/master-dense.css?v=20261113-profile-menu-v1">
   <link rel="stylesheet" href="/money-workspace.css?v=20261113-wallet-card-v1">
 </head>
 <body>
@@ -322,7 +322,25 @@
             <button class="secondary" id="testPushBtn" type="button" hidden>Проверить уведомление на телефоне</button>
           </div>
         </section>
-      <button class="secondary" id="logoutBtn" type="button">Выйти</button>
+      <div class="rd-profile" id="rdProfile">
+        <button class="rd-profile-trigger" id="rdProfileTrigger" type="button" aria-label="Открыть меню профиля" aria-haspopup="true" aria-controls="rdProfileMenu" aria-expanded="false">
+          <svg viewBox="0 0 24 24" width="23" height="23" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <circle cx="12" cy="8" r="3.7"/><path d="M4.5 20v-1.6a7.5 7.5 0 0 1 15 0V20H4.5Z"/>
+          </svg>
+        </button>
+        <div class="rd-profile-menu" id="rdProfileMenu" hidden aria-label="Меню профиля">
+          <div class="rd-profile-identity">
+            <span class="rd-profile-initial" id="rdProfileInitial" aria-hidden="true">Р</span>
+            <span class="rd-profile-text"><strong id="rdProfileName">Рауль</strong><small id="rdProfileRole">Мастер</small></span>
+          </div>
+          <button class="rd-profile-logout" id="logoutBtn" type="button">
+            <svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M9 4H5a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h4"/><path d="m14 8 4 4-4 4M8 12h10"/>
+            </svg>
+            <span>Выйти</span>
+          </button>
+        </div>
+      </div>
     </div></header>
     <a id="aiChatLink" class="secondary ai-chat-entry" href="/ai.html" hidden>✦ Открыть ИИ-чат</a>
     <div class="sync-note" id="syncStatus" role="status">Синхронизация...</div>
@@ -2153,6 +2171,18 @@
       }
       currentRole=rows[0].role;
       currentMasterName=rows[0].master_name||"";
+      // Label the menu with this authenticated member's name.
+      const metadata=user.user_metadata||{};
+      const preferredName=[metadata.full_name,metadata.name,metadata.display_name]
+        .find(value=>typeof value==="string"&&value.trim())||"";
+      const profileName=(currentRole==="master"?currentMasterName:preferredName).trim() ||
+        (currentRole==="owner"?"Владелец":currentRole==="manager"?"Менеджер":"Мастер");
+      document.getElementById("rdProfileName").textContent=profileName;
+      document.getElementById("rdProfileInitial").textContent=profileName.charAt(0).toLocaleUpperCase("ru-RU");
+      document.getElementById("rdProfileRole").textContent=currentRole==="owner"?"Владелец":
+        currentRole==="master"?"Мастер":"Менеджер";
+      document.getElementById("rdProfileMenu").hidden=true;
+      document.getElementById("rdProfileTrigger").setAttribute("aria-expanded","false");
       document.getElementById("appTitle").textContent=currentRole==="master"?"Мои заказы":"Работа";
       document.getElementById("roleName").textContent=currentRole==="master"?currentMasterName:
          currentRole==="owner"?"Администратор":"Менеджер";
@@ -2295,7 +2325,31 @@
       const origin=allowed.has(current)?current:"home";
       event.currentTarget.href="/ai.html?"+new URLSearchParams({from:origin}).toString();
     });
-    document.getElementById("logoutBtn").addEventListener("click",logout);
+    // The original logout routine remains the single sign-out path.
+    const profileRoot=document.getElementById("rdProfile");
+    const profileTrigger=document.getElementById("rdProfileTrigger");
+    const profileMenu=document.getElementById("rdProfileMenu");
+    function closeProfileMenu(focusTrigger=false){
+      if(profileMenu.hidden)return;
+      profileMenu.hidden=true;
+      profileTrigger.setAttribute("aria-expanded","false");
+      if(focusTrigger)profileTrigger.focus({preventScroll:true});
+    }
+    profileTrigger.addEventListener("click",()=>{
+      const open=profileMenu.hidden;
+      profileMenu.hidden=!open;
+      profileTrigger.setAttribute("aria-expanded",String(open));
+    });
+    document.addEventListener("click",event=>{
+      if(!profileMenu.hidden&&!profileRoot.contains(event.target))closeProfileMenu();
+    });
+    document.addEventListener("keydown",event=>{
+      if(event.key==="Escape"&&!profileMenu.hidden)closeProfileMenu(true);
+    });
+    document.getElementById("logoutBtn").addEventListener("click",()=>{
+      closeProfileMenu();
+      logout();
+    });
     document.getElementById("accessLogout").addEventListener("click",logout);
     window.addEventListener("focus",async()=>{
       if(!session||document.getElementById("appScreen").hidden)return;
