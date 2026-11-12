@@ -221,6 +221,7 @@
   <link rel="stylesheet" href="/master-dashboard.css?v=20261113-finance-clean-v3">
   <link rel="stylesheet" href="/master-dense.css?v=20261113-sticky-header-v1">
   <link rel="stylesheet" href="/money-workspace.css?v=20261113-wallet-card-v1">
+  <link rel="stylesheet" href="/master-unified.css?v=20261113-raul-v1">
 </head>
 <body>
 
@@ -1214,9 +1215,6 @@
       toggle.type="button";
       toggle.setAttribute("aria-haspopup","dialog");
       toggle.setAttribute("aria-label","Открыть заказ "+(order.name||"Без имени")+", "+(order.time||"время не указано")+", статус "+(order.status||"Новый"));
-      const detailId="master-details-"+id.replace(/[^a-zA-Z0-9_-]/g,"");
-      toggle.setAttribute("aria-controls",detailId);
-
       // Use the owner's compact card geometry, while retaining master's own action handlers.
       const name=String(order.name||"Без имени");
       const main=make("span","master-schedule-main");
@@ -1277,12 +1275,12 @@
         }
         items.forEach(order=>ordersNode.append(makeMasterScheduleRow(order,String(order.id)===String(next?.id))));
       });
-      if(!rows.length)ordersNode.append(make("div","empty",currentTab==="history"?"Выполненных заказов нет":"Рабочих заказов нет"));
+      if(!rows.length)ordersNode.append(make("div","empty",window.__rdMasterOrdersMode==="orders"?"Заказов по выбранному фильтру нет":currentTab==="history"?"Выполненных заказов нет":"Заказов на этот день нет"));
     }
     let masterSettlementsSignature="";
     function renderMasterSettlements() {
       const section=document.getElementById("masterPendingSettlements");
-      if(currentRole!=="master"||currentTab==="history"||window.__rdMasterOrdersMode==="orders"){
+      if(currentRole!=="master"||currentTab==="history"||window.__rdMasterOrdersMode){
         section.hidden=true;masterSettlementsSignature="";return;
       }
       const items=masterSettlementOrders(),wasHidden=section.hidden;
@@ -2377,7 +2375,9 @@
   <script src="/master-notifications.js"></script>
   <script src="/orders-list.js"></script>
   <script src="/finance-payroll.js"></script>
-  <script src="/money-workspace.js?v=20261113-wallet-card-v1"></script>
+  <script src="/master-order-dialog.js?v=20261113-raul-v1"></script>
+  <script src="/master-payments.js?v=20261113-raul-v1"></script>
+  <script src="/money-workspace.js?v=20261113-raul-v1"></script>
   <script src="/lead-assistant.js"></script>
 </body>
 </html>
