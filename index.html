@@ -694,11 +694,13 @@
       if (error && error.code === "23505") return "В это время у выбранного мастера уже есть заказ либо запись дублируется.";
       return error instanceof Error ? error.message : String(error);
     }
-    function reportSync(error) {
+    function reportSync(error,source="orders") {
       const node=document.getElementById("syncStatus");
       if(!node)return;
       node.classList.toggle("sync-error",Boolean(error));
-      node.textContent=error?"Нет связи с базой: заявки и баланс могут быть устаревшими":
+      node.textContent=error?
+        (source==="finance"?"Заказы обновлены, но баланс и выплаты временно недоступны":
+          "Нет связи с базой: заявки и баланс могут быть устаревшими"):
         "Обновлено "+new Date().toLocaleTimeString("ru-RU",{hour:"2-digit",minute:"2-digit"});
       const ordersStatus=document.getElementById("rdOrdersSynced");
       if(ordersStatus){ordersStatus.textContent=node.textContent;ordersStatus.classList.toggle("sync-error",Boolean(error));}
@@ -706,6 +708,17 @@
       if(homeStatus){homeStatus.textContent=node.textContent;homeStatus.classList.toggle("sync-error",Boolean(error));}
       const calendarStatus=document.getElementById("rdCalendarSynced");
       if(calendarStatus){calendarStatus.textContent=node.textContent;calendarStatus.classList.toggle("sync-error",Boolean(error));}
+    }
+    // Preserve the keyboard/VoiceOver target when a background sync redraws the master list.
+    function renderKeepingMasterFocus() {
+      const active=document.activeElement;
+      const focusedId=currentRole==="master"&&active?.classList?.contains("master-schedule-toggle")
+        ? active.closest(".master-schedule-card")?.dataset.orderId:null;
+      render();
+      if(!focusedId)return;
+      const replacement=[...ordersNode.querySelectorAll(".master-schedule-card")]
+        .find(card=>card.dataset.orderId===focusedId);
+      replacement?.querySelector(".master-schedule-toggle")?.focus({preventScroll:true});
     }
     async function reloadOrders() {
       const items = [];
@@ -723,7 +736,7 @@
       if(changed){
         // Invalidate calendar views only when fresh order data actually differs.
         window.__rdOrdersRevision=(window.__rdOrdersRevision||0)+1;
-        render();
+        renderKeepingMasterFocus();
         window.__rdOrderAvailability?.refresh(incoming);
         updateImportButton();
       }else{
@@ -739,7 +752,7 @@
           syncError=error;
         }
       }
-      reportSync(syncError);
+      reportSync(syncError,"finance");
       if(currentRole==="master"){try{await refreshRabotaNotifications();}catch(error){console.warn("Notification reload",error);}}
     }
     function getOrders() {return cloudOrders;}
