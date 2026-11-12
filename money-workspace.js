@@ -10,6 +10,23 @@
   const rub=n=>new Intl.NumberFormat("ru-RU",{minimumFractionDigits:2,maximumFractionDigits:2}).format(Number(n)||0)+" ₽";
   const date=s=>{const d=new Date(s||0);return Number.isFinite(+d)?d.toLocaleString("ru-RU",{timeZone:"Europe/Moscow",day:"2-digit",month:"short",year:"numeric",hour:s?.includes("T")?"2-digit":undefined,minute:s?.includes("T")?"2-digit":undefined}):String(s||"—")};
   const parseSum=s=>{const v=String(s||"").trim().replace(/[\s\u00a0\u202f]/g,"").replace(",",".");if(!/^\d+(?:\.\d{1,2})?$/.test(v))return null;const c=Math.round(Number(v)*100);return Number.isSafeInteger(c)&&c>0?c/100:null};
+  // Booking dates are local YYYY-MM-DD; payroll operation timestamps are grouped in Moscow time.
+  const monthOf=(value,booking=false)=>{
+    const text=String(value||"");
+    if(booking && /^\d{4}-\d{2}-\d{2}$/.test(text))return text.slice(0,7);
+    const d=new Date(text);
+    if(!Number.isFinite(d.getTime()))return "unknown";
+    const parts=new Intl.DateTimeFormat("ru-RU",{timeZone:"Europe/Moscow",year:"numeric",month:"2-digit"}).formatToParts(d);
+    const year=parts.find(part=>part.type==="year")?.value;
+    const month=parts.find(part=>part.type==="month")?.value;
+    return year&&month?year+"-"+month:"unknown";
+  };
+  const monthTitle=key=>{
+    if(!/^\d{4}-(0[1-9]|1[0-2])$/.test(key))return "Без даты";
+    const label=new Intl.DateTimeFormat("ru-RU",{timeZone:"UTC",month:"long",year:"numeric"})
+      .format(new Date(key+"-01T12:00:00Z")).replace(/\s*г\.?$/i,"").trim();
+    return label.charAt(0).toLocaleUpperCase("ru-RU")+label.slice(1);
+  };
   const accountName=m=>m==="cash"?"Наличные":m==="card"?"Карта":"Не указан";
   const validMethod=m=>m==="cash"||m==="card";
   const api=()=>window.__rdMoneyUi;
@@ -103,15 +120,36 @@
     root.append(tabs);
     const list=el("div","mw-history");
     const items=salaryTab==="accruals"
-      ?m.orders.map(o=>({at:o.date+"T12:00:00Z",label:"Заказ · "+(o.name||"Клиент"),sub:"Начисление за выполненный и оплаченный заказ",amount:o.amount}))
-      :m.payouts.map(o=>({at:o.created_at,label:o.order_id?"Доля по заказу":"Выплата зарплаты",
-        sub:(o.note||"")+(o.payment_method?" · "+accountName(o.payment_method):" · способ не указан"),amount:-o.amount}));
-    items.sort((a,b)=>String(b.at||"").localeCompare(String(a.at||"")));
+      ?m.orders.map(o=>({at:String(o.date||"")+"T12:00:00Z",month:monthOf(o.date,true),
+        label:"Заказ · "+(o.name||"Клиент"),sub:"Начисление за выполненный и оплаченный заказ",amount:Number(o.amount)||0}))
+      :m.payouts.map(o=>({at:o.created_at,month:monthOf(o.created_at),
+        label:o.order_id?"Доля по заказу":"Выплата зарплаты",
+        sub:(o.note||"")+(o.payment_method?" · "+accountName(o.payment_method):" · способ не указан"),
+        amount:-(Number(o.amount)||0)}));
     if(!items.length)list.append(el("p","mw-notice","Записей пока нет."));
+    // Group monthly statements, newest first; add up only the entries in that month.
+    const grouped=new Map();
     for(const item of items){
-      list.append(box("mw-history-row",box("mw-history-main",
-        el("strong","",item.label),el("small","",date(item.at)),el("small","",item.sub)),
-        el("strong",item.amount<0?"mw-minus":"mw-plus",(item.amount<0?"−":"+")+rub(Math.abs(item.amount)))));
+      if(!grouped.has(item.month))grouped.set(item.month,[]);
+      grouped.get(item.month).push(item);
+    }
+    const months=[...grouped.keys()].sort((a,b)=>a==="unknown"?1:b==="unknown"?-1:b.localeCompare(a));
+    for(const month of months){
+      const entries=grouped.get(month).sort((a,b)=>String(b.at||"").localeCompare(String(a.at||"")));
+      const total=Math.round(entries.reduce((sum,item)=>sum+Math.abs(item.amount),0)*100)/100;
+      const group=el("section","mw-month-group");
+      group.setAttribute("aria-label",monthTitle(month));
+      group.append(box("mw-month-header",
+        el("h3","mw-month-title",monthTitle(month)),
+        el("strong","mw-month-total",rub(total))));
+      const rows=el("div","mw-month-rows");
+      for(const item of entries){
+        rows.append(box("mw-history-row",box("mw-history-main",
+          el("strong","",item.label),el("small","",date(item.at)),el("small","",item.sub)),
+          el("strong",item.amount<0?"mw-minus":"mw-plus",
+            (item.amount<0?"−":"+")+rub(Math.abs(item.amount)))));
+      }
+      group.append(rows);list.append(group);
     }
     root.append(list);
     root.append(el("p","mw-help","Это учёт выплат. Программа не переводит деньги между банковскими счетами."));
