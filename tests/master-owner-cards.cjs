@@ -78,7 +78,7 @@ test("Master overrides match owner's mobile sizes and remain role-scoped",()=>{
  assert.match(masterCss,/\.master-schedule-name\{\s*font-size:14px/);
  assert.match(masterCss,/\.master-schedule-address\{[\s\S]*?font-size:11px/);
  assert.match(masterCss,/\.master-schedule-meta \.status-badge\{[\s\S]*?min-height:22px/);
- assert.match(html,/href="\/master-dense\.css\?v=20261112-owner-card-v2"/);
+ assert.match(html,/href="\/master-dense\.css\?v=20261112-compact-approved-v3"/);
 });
 
 test("Raul history reuses compact expandable cards, sorted as history",()=>{

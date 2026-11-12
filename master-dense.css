@@ -578,3 +578,79 @@ body.rd #appScreen.rd-master.master-mode .master-review-item:focus-visible{
   body.rd #appScreen.rd-master.master-mode .master-header-meta{margin-top:0;gap:7px}
   body.rd #appScreen.rd-master.master-mode .master-balance-quick{max-width:calc(100% - 50px)}
 }
+
+
+/* Approved compact style: Raul only, visual changes without touching financial/order actions. */
+@media(max-width:790px){
+ body.rd #appScreen.rd-master.master-mode{position:relative;padding-left:12px;padding-right:12px;padding-bottom:calc(40px + env(safe-area-inset-bottom))}
+ body.rd #appScreen.rd-master.master-mode .master-brand{margin:0 0 12px;gap:9px}
+ body.rd #appScreen.rd-master.master-mode .master-brand-icon{width:34px;height:34px;flex-basis:34px}
+ body.rd #appScreen.rd-master.master-mode .master-brand-text strong{font-size:19px}
+ body.rd #appScreen.rd-master.master-mode .master-brand-text span{font-size:11px}
+ body.rd #appScreen.rd-master.master-mode > header{row-gap:3px;margin-bottom:7px}
+ body.rd #appScreen.rd-master.master-mode > header h1{font-size:20px;line-height:1.15}
+ body.rd #appScreen.rd-master.master-mode .master-header-meta{gap:9px}
+ body.rd #appScreen.rd-master.master-mode .master-balance-quick{min-height:42px;padding:7px 9px;border-radius:11px}
+ body.rd #appScreen.rd-master.master-mode #ordersArea>#newOrderBtn{min-height:44px;padding:9px 12px;margin-bottom:7px;font-size:15px;border-radius:12px}
+ body.rd #appScreen.rd-master.master-mode #ordersArea>#newOrderBtn .plus{font-size:23px}
+ body.rd #appScreen.rd-master.master-mode #ordersArea>.tabs{margin:0 0 7px;padding:3px;border-radius:13px}
+ body.rd #appScreen.rd-master.master-mode #ordersArea>.tabs .tab{min-height:44px;font-size:clamp(11px,3vw,13px);border-radius:10px;gap:4px}
+ body.rd #appScreen.rd-master.master-mode .master-today-summary{margin:7px 0 8px;padding:8px;border-radius:13px}
+ body.rd #appScreen.rd-master.master-mode .master-today-top{margin:0 3px 4px}
+ body.rd #appScreen.rd-master.master-mode .master-today-title{font-size:14px;gap:6px}
+ body.rd #appScreen.rd-master.master-mode .master-today-title:before{width:17px;height:17px}
+ body.rd #appScreen.rd-master.master-mode .master-today-count{font-size:10px;padding:3px 7px}
+ body.rd #appScreen.rd-master.master-mode .master-next-jump{min-height:44px;padding:5px 25px 5px 40px;border-radius:9px}
+ body.rd #appScreen.rd-master.master-mode .master-next-jump:before{left:10px;width:19px;height:19px}
+ body.rd #appScreen.rd-master.master-mode .master-next-caption{font-size:10px}
+ body.rd #appScreen.rd-master.master-mode .master-next-value{font-size:12.5px;line-height:1.25}
+ body.rd #appScreen.rd-master.master-mode .master-review-note.master-review-jump{min-height:44px;margin-top:5px;padding:7px 25px 7px 38px;font-size:11px;border-radius:9px}
+ body.rd #appScreen.rd-master.master-mode .master-review-jump:before{left:11px;width:17px;height:17px}
+ body.rd #appScreen.rd-master.master-mode #ordersArea>.list-head{margin:10px 1px 3px}
+ body.rd #appScreen.rd-master.master-mode #ordersArea>.list-head h2{font-size:17px;line-height:1.15}
+ body.rd #appScreen.rd-master.master-mode #orderCount{font-size:11px}
+ body.rd #appScreen.rd-master.master-mode .master-day-heading{gap:5px;margin:9px 1px 3px;min-height:23px}
+ body.rd #appScreen.rd-master.master-mode .master-day-heading h3{font-size:13px;line-height:1.24;gap:6px}
+ body.rd #appScreen.rd-master.master-mode .master-day-heading h3:before{flex-basis:23px;width:23px;height:23px;border-radius:7px;background-size:15px 15px}
+ body.rd #appScreen.rd-master.master-mode .master-day-heading .muted{font-size:10.5px}
+ body.rd #appScreen.rd-master.master-mode .master-schedule-card{margin-bottom:5px;border-radius:13px;box-shadow:0 3px 10px #425a9d0d}
+ body.rd #appScreen.rd-master.master-mode .master-schedule-card .master-schedule-toggle{
+  min-height:70px;padding:6px 10px;grid-template-columns:minmax(0,1fr) auto 12px;
+  grid-template-areas:"person when arrow" "work work work" "state price price";
+  column-gap:5px;row-gap:1px;align-content:center
+ }
+ body.rd #appScreen.rd-master.master-mode .master-schedule-main{gap:7px}
+ body.rd #appScreen.rd-master.master-mode .master-schedule-avatar{width:27px;height:27px;flex-basis:27px;border-radius:8px;font-size:12px}
+ body.rd #appScreen.rd-master.master-mode .master-schedule-identity{gap:1px}
+ body.rd #appScreen.rd-master.master-mode .master-schedule-name{font-size:13px;line-height:1.13}
+ body.rd #appScreen.rd-master.master-mode .master-schedule-address{padding-left:14px;font-size:10px;line-height:1.2}
+ body.rd #appScreen.rd-master.master-mode .master-schedule-address:before{width:12px;height:12px}
+ body.rd #appScreen.rd-master.master-mode .master-schedule-time{gap:4px;font-size:12.5px;line-height:1.15}
+ body.rd #appScreen.rd-master.master-mode .master-schedule-time:before{width:13px;height:13px}
+ body.rd #appScreen.rd-master.master-mode .master-schedule-chevron{font-size:17px}
+ body.rd #appScreen.rd-master.master-mode .master-schedule-work{padding-left:19px;font-size:11px;font-weight:700;line-height:1.18}
+ body.rd #appScreen.rd-master.master-mode .master-schedule-work:not(:empty):before{width:15px;height:15px}
+ body.rd #appScreen.rd-master.master-mode .master-schedule-meta .status-badge{min-height:18px;padding:2px 8px;border-radius:999px;font-size:10px;line-height:1.15}
+ body.rd #appScreen.rd-master.master-mode .master-schedule-price{font-size:12.5px;line-height:1.2}
+ body.rd #appScreen.rd-master.master-mode .master-money-note{display:block;grid-column:1/-1;margin:1px 0 0;padding:3px 7px;border-radius:8px;font-size:10px;line-height:1.22}
+ body.rd #appScreen.rd-master.master-mode .master-settlements{margin:14px 0 8px;padding-top:10px}
+ body.rd #appScreen.rd-master.master-mode .master-settlements-heading h2{font-size:17px;line-height:1.2}
+ body.rd #appScreen.rd-master.master-mode .master-settlements-hint{margin:4px 0 8px;font-size:11px;line-height:1.35}
+ body.rd #appScreen.rd-master.master-mode .master-settlements .master-schedule-toggle{background:transparent}
+ body.rd #appScreen.rd-master.master-mode .master-schedule-card.is-expanded .master-schedule-toggle{background:#f8faff}
+ body.rd #appScreen.rd-master.master-mode .master-schedule-details{padding:8px 10px 12px}
+}
+@media(min-width:400px) and (max-width:790px){
+ body.rd #appScreen.rd-master.master-mode .master-brand{max-width:calc(100% - 154px);min-height:46px}
+ body.rd #appScreen.rd-master.master-mode > header{display:block;position:static}
+ body.rd #appScreen.rd-master.master-mode .master-header-actions{position:absolute;top:14px;right:12px}
+ body.rd #appScreen.rd-master.master-mode .master-header-meta{margin-top:4px}
+ body.rd #appScreen.rd-master.master-mode .master-header-actions #logoutBtn{min-height:44px}
+}
+@media(max-width:350px){
+ body.rd #appScreen.rd-master.master-mode .master-schedule-card .master-schedule-toggle{min-height:73px;padding:7px 8px;grid-template-columns:minmax(0,1fr) auto 10px}
+ body.rd #appScreen.rd-master.master-mode .master-schedule-name{font-size:12px}
+ body.rd #appScreen.rd-master.master-mode .master-schedule-time{font-size:12px}
+ body.rd #appScreen.rd-master.master-mode .master-schedule-price{font-size:12px}
+ body.rd #appScreen.rd-master.master-mode .master-schedule-work{font-size:10.5px}
+}
