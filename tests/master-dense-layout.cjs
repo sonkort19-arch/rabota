@@ -69,8 +69,9 @@ try{
   assert.ok(result.name.size<=15.1,"client font "+width);
   assert.ok(result.title.size<=21.1,"title font "+width);
   assert.ok(result.summary.height<=120,"today block height "+width+" "+result.summary.height);
-  assert.ok(result.card.height<=115,"master owner-size card at "+width+": "+result.card.height);
-  assert.ok(result.avatar.height>=29.5&&result.avatar.height<=32.5,"owner avatar geometry at "+width);
+  assert.ok(result.card.height<=88,"compact card at "+width+": "+result.card.height);
+  assert.ok(result.card.height>=62,"compact card remains tappable at "+width);
+  assert.ok(result.avatar.height>=26.5&&result.avatar.height<=29.5,"compact avatar geometry at "+width);
   assert.equal(result.headerOverlap,false,"balance must not overlap notifications/logout at "+width);
   assert.ok(result.logo.height>=37.5,"master brand logo visible at "+width);
   await page.close();
