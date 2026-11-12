@@ -208,6 +208,14 @@
   }
 }
 @media (max-width:350px) {
+  /* Узкий iPhone: действия в верхнем правом углу, баланс ниже заголовка. */
+  body.rd #appScreen.rd-master.master-mode > header { display:block;position:relative; }
+  body.rd #appScreen.rd-master.master-mode > header h1 { max-width:calc(100% - 122px); }
+  body.rd #appScreen.rd-master.master-mode > header > div:first-child { width:100%; }
+  body.rd #appScreen.rd-master.master-mode .master-header-actions {
+    position:absolute;right:0;top:0;
+  }
+  body.rd #appScreen.rd-master.master-mode #roleName { display:block;margin:5px 0 0; }
   body.rd #appScreen.rd-master.master-mode > header h1 { font-size: 19px; }
   body.rd #appScreen.rd-master.master-mode .master-balance-quick { gap: 4px; padding: 6px; }
   body.rd #appScreen.rd-master.master-mode .master-balance-quick .balance-label { font-size: 10px; }
