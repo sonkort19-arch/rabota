@@ -39,10 +39,10 @@ class Element {
  focus(){}
  closest(){return null}
  querySelectorAll(selector){
-  const wanted=selector.startsWith(".")?selector.slice(1):selector.includes(".")?selector.slice(selector.indexOf(".")+1):"";
+  const wanted=selector.includes(".")?selector.slice(selector.indexOf(".")+1).split("."):[];
   const found=[];
   const visit=root=>{for(const child of root.children){
-   if(wanted&&child.classList.contains(wanted))found.push(child);
+   if(wanted.length&&wanted.every(cls=>child.classList.contains(cls)))found.push(child);
    visit(child);
   }};visit(this);return found;
  }
