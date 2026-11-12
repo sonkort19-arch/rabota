@@ -1,0 +1,180 @@
+/* CRM Работа: unified iPhone master navigation and compact order/payment views.
+   Scoped to role=master. Owner/manager screens are not changed. */
+body.rd #appScreen.rd-master.master-mode #ordersArea > .tabs{
+  display:none!important; /* Legacy controls remain callable by JS; not a second navigation. */
+}
+body.rd #appScreen.rd-master.master-mode .mw-bottom-nav{
+  grid-template-columns:repeat(4,minmax(0,1fr));
+  z-index:140;
+  min-height:63px;
+  padding:5px max(7px,env(safe-area-inset-right)) calc(6px + env(safe-area-inset-bottom)) max(7px,env(safe-area-inset-left));
+}
+body.rd #appScreen.rd-master.master-mode .mw-nav-btn{min-height:53px;font-size:11px;gap:3px;padding:5px 1px}
+body.rd #appScreen.rd-master.master-mode .mw-icon{width:23px;height:23px}
+body.rd #appScreen.rd-master.master-mode .mw-nav-btn.is-active{background:#e8edff}
+body.rd #appScreen.rd-master.master-mode .mw-master-reports,
+body.rd #appScreen.rd-master.master-mode .mw-master-payments{padding:7px 0 calc(96px + env(safe-area-inset-bottom))}
+body.rd #appScreen.rd-master.master-mode .mw-master-reports[hidden],
+body.rd #appScreen.rd-master.master-mode .mw-master-payments[hidden],
+body.rd #appScreen.rd-master.master-mode .mw-master-orders-tools[hidden]{display:none!important}
+body.rd #appScreen.rd-master.master-mode #ordersArea>#newOrderBtn{
+  bottom:calc(87px + env(safe-area-inset-bottom));
+  right:max(14px,calc((100vw - 670px) / 2 + 16px));
+  z-index:145;
+}
+body.rd #appScreen.rd-master.master-mode {
+  padding-bottom:calc(120px + env(safe-area-inset-bottom));
+}
+body.rd #appScreen.rd-master.master-mode .mw-master-orders-tools{
+  display:flex;flex-direction:column;gap:10px;
+  padding:10px 0 12px;background:transparent;
+}
+body.rd #appScreen.rd-master.master-mode .mw-master-order-search{
+  box-sizing:border-box;width:100%;min-height:43px;border:1px solid #d5e0f3;
+  border-radius:13px;background:#fff;color:#233656;font-size:14px;
+  padding:10px 13px;outline:none;-webkit-appearance:none;appearance:none;
+}
+body.rd #appScreen.rd-master.master-mode .mw-master-order-search:focus-visible{outline:2px solid #6686f4;outline-offset:1px}
+body.rd #appScreen.rd-master.master-mode .mw-master-filter-chips{
+  display:flex;gap:7px;overflow-x:auto;overscroll-behavior-x:contain;
+  padding:0 0 3px;scrollbar-width:none;-webkit-overflow-scrolling:touch;
+}
+body.rd #appScreen.rd-master.master-mode .mw-master-filter-chips::-webkit-scrollbar{display:none}
+body.rd #appScreen.rd-master.master-mode .mw-master-filter{
+  box-sizing:border-box;flex:0 0 auto;min-height:35px;border:1px solid #d8e3f7;
+  border-radius:999px;background:#fff;color:#6b7991;padding:7px 12px;
+  white-space:nowrap;font-size:12px;font-weight:700;line-height:1.15;
+}
+body.rd #appScreen.rd-master.master-mode .mw-master-filter.is-active{
+  background:#e6edff;color:#345ec7;border-color:#afc2fa;
+}
+body.rd #appScreen.rd-master.master-mode #calendarPanel{
+  margin:0 0 10px;padding:8px 11px;
+  border:1px solid #e0e8f7;border-radius:14px;background:#fff;
+}
+body.rd #appScreen.rd-master.master-mode #calendarPanel .panel-top{
+  gap:6px;margin:0 0 5px;align-items:center;
+}
+body.rd #appScreen.rd-master.master-mode #calendarPanel .panel-top h2{
+  font-size:13px;line-height:1.25;margin:0;
+}
+body.rd #appScreen.rd-master.master-mode #ordersArea>.list-head{margin-top:8px}
+body.rd #appScreen.rd-master.master-mode #masterPendingSettlements{display:none!important}
+body.rd #appScreen.rd-master.master-mode .mw-payments-title{
+  font-size:19px;line-height:1.3;margin:4px 0 11px;color:#1e3153
+}
+body.rd #appScreen.rd-master.master-mode .mw-payment-metrics{
+  display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;
+}
+body.rd #appScreen.rd-master.master-mode .mw-payment-metric{
+  display:flex;flex-direction:column;gap:6px;min-width:0;background:#fff;
+  border:1px solid #dfe7f6;border-radius:14px;padding:13px;
+}
+body.rd #appScreen.rd-master.master-mode .mw-payment-metric:first-child{
+  grid-column:1/-1;background:#edf3ff;
+}
+body.rd #appScreen.rd-master.master-mode .mw-payment-metric>span{
+  color:#74839e;font-size:11px;font-weight:620
+}
+body.rd #appScreen.rd-master.master-mode .mw-payment-metric>strong{
+  color:#1d51aa;font-size:19px;font-weight:820;font-variant-numeric:tabular-nums;
+  overflow-wrap:anywhere
+}
+body.rd #appScreen.rd-master.master-mode .mw-payment-disclaimer{
+  color:#7b89a0;font-size:11px;line-height:1.45;margin:11px 1px
+}
+body.rd #appScreen.rd-master.master-mode .mw-payment-filters{
+  display:flex;gap:7px;overflow-x:auto;scrollbar-width:none;padding:6px 0 11px;
+}
+body.rd #appScreen.rd-master.master-mode .mw-payment-filters::-webkit-scrollbar{display:none}
+body.rd #appScreen.rd-master.master-mode .mw-payment-filter{
+  flex:0 0 auto;min-height:36px;border:1px solid #dce5f6;border-radius:999px;
+  background:#fff;color:#71809a;font-size:12px;font-weight:720;padding:8px 13px;
+}
+body.rd #appScreen.rd-master.master-mode .mw-payment-filter.is-active{
+  color:#2d5dce;background:#eaf0ff;border-color:#b5c7fa
+}
+body.rd #appScreen.rd-master.master-mode .mw-payment-list{display:flex;flex-direction:column;gap:8px}
+body.rd #appScreen.rd-master.master-mode .mw-payment-row{
+  display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;
+  padding:13px 12px;border:1px solid #e0e8f6;border-radius:13px;background:#fff;
+}
+body.rd #appScreen.rd-master.master-mode .mw-payment-row-main,
+body.rd #appScreen.rd-master.master-mode .mw-payment-row-side{
+  display:flex;flex-direction:column;gap:4px;min-width:0;
+}
+body.rd #appScreen.rd-master.master-mode .mw-payment-row-main strong{
+  font-size:13px;line-height:1.25;color:#223656;overflow-wrap:anywhere
+}
+body.rd #appScreen.rd-master.master-mode .mw-payment-row-main small,
+body.rd #appScreen.rd-master.master-mode .mw-payment-row-side small{
+  font-size:10.5px;line-height:1.35;color:#8290a9;overflow-wrap:anywhere
+}
+body.rd #appScreen.rd-master.master-mode .mw-payment-row-side{
+  align-items:flex-end;max-width:115px;text-align:right
+}
+body.rd #appScreen.rd-master.master-mode .mw-payment-row-side strong{
+  font-size:12px;line-height:1.3;white-space:nowrap;font-variant-numeric:tabular-nums;
+}
+body.rd #appScreen.rd-master.master-mode .mw-payment-order-link{
+  grid-column:1/-1;justify-self:start;min-height:34px;background:#eef3ff;color:#3460d3;
+  border:0;border-radius:9px;padding:7px 10px;font-size:12px;font-weight:720;
+}
+/* Sheet has higher stacking than sticky header; payment confirmation overlay is 12000. */
+.rd-master-order-backdrop{
+  position:fixed;inset:0;z-index:900;display:flex;align-items:flex-end;justify-content:center;
+  background:rgba(10,23,48,.62);
+  padding:0 0 env(safe-area-inset-bottom);
+  box-sizing:border-box;
+}
+.rd-master-order-modal{
+  box-sizing:border-box;width:min(100%,610px);max-height:calc(94dvh - env(safe-area-inset-top));
+  overflow-y:auto;overscroll-behavior:contain;background:#fff;color:#233553;
+  border:1px solid #e1e8f5;border-radius:22px 22px 0 0;
+  padding:15px 15px 22px;-webkit-overflow-scrolling:touch;
+  box-shadow:0 18px 60px rgba(8,26,58,.25);
+}
+.rd-master-order-head{
+  position:sticky;top:-15px;z-index:1;display:flex;justify-content:space-between;
+  align-items:flex-start;gap:10px;background:#fff;padding:0 0 8px;border-bottom:1px solid #e7edf7;
+}
+.rd-master-order-heading{min-width:0;flex:1}
+.rd-master-order-heading h2{margin:0;color:#1d3157;font-size:19px;line-height:1.25;overflow-wrap:anywhere}
+.rd-master-order-sub{margin:4px 0 0;color:#7585a1;font-size:12px;line-height:1.4}
+.rd-master-order-close{
+  flex:0 0 40px;display:grid;place-items:center;width:40px;height:40px;min-height:40px;
+  background:#eef2fa;border:0;border-radius:12px;color:#566883;font-size:26px;
+}
+.rd-master-order-summary{
+  display:flex;justify-content:space-between;align-items:center;gap:8px;padding:12px 0;
+}
+.rd-master-order-summary .status-badge{margin:0}
+.rd-master-order-price{
+  color:#1a4fae;font-size:20px;font-weight:850;white-space:nowrap
+}
+.rd-master-order-body{min-width:0}
+.rd-master-order-body>.order-card{margin:0;padding:0;border:0;box-shadow:none;background:transparent}
+.rd-master-order-body>.order-card>.card-top,
+.rd-master-order-body>.order-card>.status-badge,
+.rd-master-order-body>.order-card>.master-cost{display:none!important}
+.rd-master-order-body .actions{display:flex;flex-wrap:wrap;gap:8px;margin:13px 0}
+.rd-master-order-body .actions .action{
+  display:inline-flex;align-items:center;justify-content:center;min-height:41px;
+  border:1px solid #dbe5f7;border-radius:11px;padding:8px 11px;
+  background:#f6f9ff;color:#315fc5;text-decoration:none;font-size:12px;
+}
+.rd-master-order-body .master-action{width:100%;min-height:45px;border-radius:11px}
+.rd-master-order-body .cash-share{margin:11px 0 0}
+.rd-master-order-payment{
+  margin:0 0 10px;padding:10px 11px;border-radius:10px;
+  background:#f0f5ff;color:#46628c;font-size:12px;font-weight:700
+}
+@media(min-width:650px){
+  .rd-master-order-backdrop{align-items:center;padding:18px}
+  .rd-master-order-modal{border-radius:20px;max-height:calc(100dvh - 36px)}
+}
+@media(max-width:350px){
+  body.rd #appScreen.rd-master.master-mode .mw-nav-btn{font-size:10px}
+  body.rd #appScreen.rd-master.master-mode .mw-payment-metric>strong{font-size:17px}
+}
+@media(prefers-reduced-motion:reduce){.rd-master-order-backdrop,.rd-master-order-modal{scroll-behavior:auto}}
