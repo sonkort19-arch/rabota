@@ -3,6 +3,9 @@
 body.rd #appScreen.rd-master.master-mode #ordersArea > .tabs{
   display:none!important; /* Legacy controls remain callable by JS; not a second navigation. */
 }
+body.rd #appScreen.rd-master.master-mode #ordersArea[hidden]{
+  display:none!important;
+}
 body.rd #appScreen.rd-master.master-mode .mw-bottom-nav{
   grid-template-columns:repeat(4,minmax(0,1fr));
   z-index:140;
