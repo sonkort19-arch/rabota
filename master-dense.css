@@ -1,0 +1,221 @@
+/* Кабинет мастера: плотная мобильная раскладка. Только роль master, <= 790px.
+   Информация и обработчики остаются прежними; кнопки >= 44px. */
+@media (max-width:790px) {
+  body.rd #appScreen.rd-master.master-mode {
+    padding: 14px 10px calc(52px + env(safe-area-inset-bottom));
+  }
+  body.rd #appScreen.rd-master.master-mode > header {
+    margin-bottom: 8px;
+    gap: 7px;
+    align-items: flex-start;
+  }
+  body.rd #appScreen.rd-master.master-mode > header h1 {
+    font-size: 21px;
+    line-height: 1.12;
+    letter-spacing: -.5px;
+    margin-bottom: 3px;
+  }
+  body.rd #appScreen.rd-master.master-mode #roleName {
+    font-size: 12px;
+    line-height: 1.2;
+  }
+  body.rd #appScreen.rd-master.master-mode .master-header-actions {
+    gap: 5px;
+    padding-top: 0;
+  }
+  body.rd #appScreen.rd-master.master-mode .master-header-actions #logoutBtn {
+    min-height: 44px;
+    padding: 7px 10px;
+    font-size: 12px;
+    border-radius: 12px;
+  }
+  body.rd #appScreen.rd-master.master-mode #masterPushPanel .push-bell {
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
+  }
+  body.rd #appScreen.rd-master.master-mode #masterPushPanel .push-bell svg {
+    width: 23px;
+    height: 23px;
+  }
+  body.rd #appScreen.rd-master.master-mode .master-balance-quick {
+    min-height: 44px;
+    margin-top: 5px;
+    padding: 6px 9px;
+    border-radius: 10px;
+    gap: 6px;
+  }
+  body.rd #appScreen.rd-master.master-mode .master-balance-quick .balance-label {
+    font-size: 11px;
+  }
+  body.rd #appScreen.rd-master.master-mode .master-balance-quick .balance-amount {
+    font-size: 16px;
+    letter-spacing: -.3px;
+  }
+  body.rd #appScreen.rd-master.master-mode #syncStatus {
+    font-size: 11px;
+    line-height: 1.3;
+    margin: 3px 0 8px;
+  }
+  body.rd #appScreen.rd-master.master-mode #ordersArea > #newOrderBtn {
+    display: block;
+    width: 100%;
+    min-height: 44px;
+    padding: 9px 12px;
+    margin: 0 0 9px;
+    border-radius: 11px;
+    font-size: 14px;
+    line-height: 1.2;
+    box-shadow: 0 2px 8px #405de514;
+  }
+  body.rd #appScreen.rd-master.master-mode #ordersArea > #newOrderBtn .plus {
+    font-size: 18px;
+    margin-right: 5px;
+    vertical-align: -1px;
+  }
+  body.rd #appScreen.rd-master.master-mode #ordersArea > .tabs {
+    gap: 2px;
+    padding: 3px;
+    margin: 8px 0 9px;
+    border-radius: 11px;
+  }
+  body.rd #appScreen.rd-master.master-mode #ordersArea > .tabs .tab {
+    box-sizing: border-box;
+    min-height: 44px;
+    padding: 8px 3px;
+    border-radius: 9px;
+    font-size: 13px;
+    line-height: 1.15;
+    white-space: nowrap;
+  }
+  body.rd #appScreen.rd-master.master-mode .master-today-summary {
+    margin: 9px 0;
+    padding: 9px 10px;
+    border-radius: 12px;
+  }
+  body.rd #appScreen.rd-master.master-mode .master-today-top { gap: 6px; }
+  body.rd #appScreen.rd-master.master-mode .master-today-title {
+    font-size: 14px;
+    line-height: 1.25;
+  }
+  body.rd #appScreen.rd-master.master-mode .master-today-count {
+    font-size: 11px;
+  }
+  body.rd #appScreen.rd-master.master-mode .master-next-jump {
+    min-height: 44px;
+    padding: 6px 9px;
+    margin-top: 6px;
+    gap: 1px;
+    border-radius: 9px;
+  }
+  body.rd #appScreen.rd-master.master-mode .master-next-caption {
+    font-size: 11px;
+    line-height: 1.2;
+  }
+  body.rd #appScreen.rd-master.master-mode .master-next-value {
+    font-size: 13px;
+    line-height: 1.25;
+  }
+  body.rd #appScreen.rd-master.master-mode .master-review-note {
+    font-size: 11px;
+    margin: 6px 0 0;
+    padding-top: 6px;
+  }
+  body.rd #appScreen.rd-master.master-mode #ordersArea > .list-head {
+    margin: 11px 0 6px;
+    gap: 6px;
+  }
+  body.rd #appScreen.rd-master.master-mode #ordersArea > .list-head h2 {
+    font-size: 18px;
+    line-height: 1.2;
+    margin: 0;
+  }
+  body.rd #appScreen.rd-master.master-mode #orderCount {
+    font-size: 11px;
+  }
+  body.rd #appScreen.rd-master.master-mode .master-day-heading {
+    margin: 12px 1px 6px;
+    gap: 6px;
+  }
+  body.rd #appScreen.rd-master.master-mode .master-day-heading h3 {
+    font-size: 14px;
+    line-height: 1.25;
+  }
+  body.rd #appScreen.rd-master.master-mode .master-day-heading .muted {
+    font-size: 11px;
+  }
+  body.rd #appScreen.rd-master.master-mode .master-schedule-card {
+    margin-bottom: 6px;
+    border-radius: 11px;
+    box-shadow: 0 1px 7px #182a4e0b;
+  }
+  body.rd #appScreen.rd-master.master-mode .master-schedule-toggle {
+    min-height: 76px;
+    grid-template-columns: 62px minmax(0,1fr) 16px;
+    gap: 8px;
+    padding: 9px 10px;
+    align-items: center;
+  }
+  body.rd #appScreen.rd-master.master-mode .master-schedule-time {
+    font-size: 19px;
+    letter-spacing: -.5px;
+  }
+  body.rd #appScreen.rd-master.master-mode .master-schedule-main {
+    gap: 2px;
+  }
+  body.rd #appScreen.rd-master.master-mode .master-schedule-name {
+    font-size: 15px;
+    line-height: 1.15;
+  }
+  body.rd #appScreen.rd-master.master-mode .master-schedule-address {
+    font-size: 12px;
+    line-height: 1.25;
+  }
+  body.rd #appScreen.rd-master.master-mode .master-schedule-meta {
+    gap: 5px;
+    margin-top: 1px;
+  }
+  body.rd #appScreen.rd-master.master-mode .master-schedule-price {
+    font-size: 14px;
+  }
+  body.rd #appScreen.rd-master.master-mode .master-schedule-meta .status-badge {
+    padding: 3px 6px;
+    margin: 0;
+    border-radius: 7px;
+    font-size: 11px;
+    line-height: 1.15;
+  }
+  body.rd #appScreen.rd-master.master-mode .master-schedule-work {
+    font-size: 11px;
+    line-height: 1.3;
+  }
+  body.rd #appScreen.rd-master.master-mode .master-schedule-chevron {
+    font-size: 20px;
+  }
+  body.rd #appScreen.rd-master.master-mode .master-schedule-details {
+    padding: 4px 10px 12px;
+  }
+  body.rd #appScreen.rd-master.master-mode .master-settlements {
+    margin-top: 16px;
+    padding-top: 12px;
+  }
+  body.rd #appScreen.rd-master.master-mode .master-settlements-heading h2 {
+    font-size: 16px;
+  }
+  body.rd #appScreen.rd-master.master-mode .master-settlements-hint {
+    margin: 6px 0 10px;
+    font-size: 11px;
+  }
+}
+@media (max-width:350px) {
+  body.rd #appScreen.rd-master.master-mode > header h1 { font-size: 19px; }
+  body.rd #appScreen.rd-master.master-mode .master-balance-quick { gap: 4px; padding: 6px; }
+  body.rd #appScreen.rd-master.master-mode .master-balance-quick .balance-label { font-size: 10px; }
+  body.rd #appScreen.rd-master.master-mode .master-balance-quick .balance-amount { font-size: 14px; }
+  body.rd #appScreen.rd-master.master-mode .master-schedule-toggle {
+    grid-template-columns: 57px minmax(0,1fr) 14px;
+    gap: 6px; padding: 9px 8px;
+  }
+  body.rd #appScreen.rd-master.master-mode .master-schedule-time { font-size: 18px; }
+  body.rd #appScreen.rd-master.master-mode .master-schedule-name { font-size: 14px; }
+}
