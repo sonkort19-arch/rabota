@@ -10,6 +10,7 @@ on:
       - master-dense.css
       - tests/master-dashboard.cjs
       - tests/master-dense-layout.cjs
+      - tests/master-owner-cards.cjs
       - finance-payroll.js
 jobs:
   regressions:
@@ -26,6 +27,7 @@ jobs:
       - name: Verify master dashboard
         run: |
           node tests/master-dashboard.cjs
+          node tests/master-owner-cards.cjs
           node tests/master-notifications.js
           node tests/finance-payroll-preview.js
           node tests/startup-splash.test.cjs
