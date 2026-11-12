@@ -1236,7 +1236,8 @@
       grouped.forEach((items,date)=>{
         if(currentTab!=="calendar"){
           const heading=make("div","master-day-heading");
-          const label=date===today?"Сегодня · "+formatDate(date):
+          const label=currentTab==="history"?masterDayLabel(date):
+            date===today?"Сегодня · "+formatDate(date):
             date&&date<today?"Проверить дату · "+masterDayLabel(date):masterDayLabel(date);
           heading.append(make("h3","",label));
           heading.append(make("span","muted",masterOrderCount(items.length)));
@@ -1244,7 +1245,7 @@
         }
         items.forEach(order=>ordersNode.append(makeMasterScheduleRow(order,String(order.id)===String(next?.id))));
       });
-      if(!rows.length)ordersNode.append(make("div","empty","Рабочих заказов нет"));
+      if(!rows.length)ordersNode.append(make("div","empty",currentTab==="history"?"Выполненных заказов нет":"Рабочих заказов нет"));
     }
     let masterSettlementsSignature="";
     function renderMasterSettlements() {
@@ -1340,7 +1341,7 @@
       document.getElementById("orderCount").textContent=shown.length+" шт.";
       ordersNode.replaceChildren();
       renderMasterOverview(currentTab==="all"&&currentRole==="master"?shown:[]);
-      if(currentRole==="master" && currentTab!=="history") renderMasterSchedule(shown);
+      if(currentRole==="master") renderMasterSchedule(shown);
       else if(!shown.length) ordersNode.append(make("div","empty",currentTab==="history"?"Выполненных заказов нет":"Заказов нет"));
       else shown.forEach(o=>{const card=makeCard(o);window.__rdDecorateOrder?.(card,o);card.dataset.search=(o.name+' '+o.phone+' '+o.address+' '+o.master).toLocaleLowerCase('ru');card.dataset.date=o.date||'';card.dataset.master=o.master||'';card.dataset.status=o.status||'';card.dataset.unpaid=String(o.status==='Выполнен'&&!o.paid);card.dataset.pendingPayment=String(o.status==="Выполнен"&&!o.paid);ordersNode.append(card);});
       renderMasterSettlements();
