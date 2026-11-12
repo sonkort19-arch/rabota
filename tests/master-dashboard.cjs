@@ -110,3 +110,32 @@ test("master presentation and role-scoped finance remain wired",()=>{
  assert.match(css,/min-height:48px;font:inherit;cursor:pointer/);
  assert.match(css,/max-width:390px/);
 });
+
+test("finance refresh failure only marks finance as unavailable, not stale orders",()=>{
+ const start=main.indexOf("    function reportSync(error, source=");
+ const end=main.indexOf("    async function reloadOrders()",start);
+ assert.ok(start>=0&&end>start,"sync indicator function exists");
+ const node=()=>({textContent:"",classList:{toggle(){}}});
+ const nodes=new Map(["syncStatus","rdOrdersSynced","rdHomeSynced","rdCalendarSynced"]
+   .map(id=>[id,node()]));
+ const fn=new Function("document","Date",main.slice(start,end)+"\nreturn reportSync;")(
+   {getElementById:id=>nodes.get(id)||null},Date);
+ fn(new Error("financial timeout"),"finance");
+ assert.match(nodes.get("syncStatus").textContent,/Заявки обновлены/);
+ assert.match(nodes.get("syncStatus").textContent,/финансы недоступны/);
+ assert.doesNotMatch(nodes.get("syncStatus").textContent,/Не удалось обновить заявки/);
+ fn(new Error("orders timeout"));
+ assert.match(nodes.get("syncStatus").textContent,/Не удалось обновить заявки/);
+ fn(null);
+ assert.match(nodes.get("syncStatus").textContent,/Обновлено/);
+});
+test("changed order data restores focus to the same master's order row",()=>{
+ const start=main.indexOf("    async function reloadOrders() {");
+ const end=main.indexOf("    function getOrders()",start);
+ assert.ok(start>=0&&end>start,"refresh function exists");
+ const source=main.slice(start,end);
+ assert.match(source,/focusedMasterOrderId=activeToggle\?\.closest/);
+ assert.match(source,/row=>row\.dataset\.orderId===focusedMasterOrderId/);
+ assert.match(source,/\.focus\(\{preventScroll:true\}\)/);
+ assert.match(source,/reportSync\(syncError,"finance"\)/);
+});
