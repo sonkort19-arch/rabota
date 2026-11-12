@@ -136,7 +136,7 @@ body.rd .rd-selected-day h3{color:#253554}
 body.rd #rdCalendarNavigation{background:#fff;border:1px solid #e5ebf7;padding:12px;border-radius:14px;gap:9px}
 body.rd .sheet{background:#fff;border:1px solid #e2e8f4;color:#1a2740}
 body.rd .sheet .primary,body.rd form .primary{background:linear-gradient(110deg,#5064fe,#624aec)}
-body.rd .master-balance-quick,body.rd .cash-share,body.rd .push-panel{border-radius:14px}
+body.rd .cash-share,body.rd .push-panel{border-radius:14px}
 body.rd .finance-hero,body.rd .finance-entry,body.rd .finance-activity{border-radius:17px;border-color:#e1e9f6;box-shadow:var(--rd-shadow)}
 body.rd .finance-hero-primary{background:#f4f7ff;border-color:#dbe5ff}
 body.rd .finance-hero-primary .finance-hero-value{color:#3c56dc}
