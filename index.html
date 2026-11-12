@@ -225,6 +225,7 @@
   <link rel="stylesheet" href="/ui-alignment.css">
   <link rel="stylesheet" href="/master-dashboard.css?v=20261112-compact">
   <link rel="stylesheet" href="/master-dense.css?v=20261113-floating-order-v1">
+  <link rel="stylesheet" href="/money-workspace.css?v=20261113-v1">
 </head>
 <body>
 
@@ -1746,6 +1747,7 @@
         if(currentTab==="all")renderMasterOverview(masterWorkingOrders());
       }
       if(financeActive)renderFinance();
+      window.__rdMoneyUpdated?.();
     }
     function updateMasterBalance() {
       const amount=document.getElementById("masterBalanceAmount");
@@ -1780,6 +1782,9 @@
       if(financeActive)renderFinance();
     }
     document.getElementById("masterBalanceQuick").addEventListener("click",()=>{
+      if(currentRole==="master" && typeof window.__rdOpenMasterReports==="function"){
+        window.__rdOpenMasterReports("detail");return;
+      }
       document.getElementById("viewFinanceBtn").click();
     });
     function renderFinance() {
@@ -2188,10 +2193,74 @@
       showScreen("appScreen");
       if(currentRole==="master")window.__rdInitMasterPush?.();
       window.__rdAccess?.();
+      window.__rdMoneyAccess?.();
       if(currentRole==="owner") {
         try{await loadTeam();}catch(error){console.warn(error);}
       }
     }
+
+    // Role-aware adapters: the database RPC/RLS remains the final authority.
+    // Keep credentials inside dbRequest; UI modules never read localStorage tokens.
+    window.__rdMoneyUi={
+      snapshot(){
+        const mine=getOrders().filter(o=>o.assignedUserId===financeMasterId
+          &&o.status==="Выполнен"&&o.paid&&Number.isFinite(o.price)&&o.price>=0);
+        const payouts=financeOperations.filter(o=>!o.voided_at&&o.master_user_id===financeMasterId&&o.kind==="raul_payout");
+        const accrued=roundMoney(sumBy(mine,o=>financeSplit(o.price).raul));
+        const paid=roundMoney(sumBy(payouts,o=>o.amount));
+        return {
+          role:currentRole,masterName:currentMasterName,masterId:financeMasterId,
+          error:financeLoadError,accrued,paid,due:roundMoney(accrued-paid),
+          orders:mine.map(o=>({name:o.name,date:o.date,id:o.id,amount:financeSplit(o.price).raul,price:o.price})),
+          payouts:payouts.map(o=>({id:o.id,amount:Number(o.amount),note:o.note,
+            payment_method:o.payment_method,created_at:o.created_at,order_id:o.order_id}))
+        };
+      },
+      ownerSnapshot(){
+        if(currentRole!=="owner")throw Error("Нет доступа");
+        return {
+          paidOrders:getOrders().filter(o=>o.paid&&o.status!=="Отменён").map(o=>({
+            id:o.id,name:o.name,amount:o.paymentAmount??o.price,method:o.paymentMethod,
+            receivedBy:o.paymentReceivedBy,paidAt:o.paidAt,date:o.date
+          })),
+          operations:financeOperations.filter(o=>!o.voided_at).map(o=>({
+            id:o.id,kind:o.kind,amount:Number(o.amount),payment_method:o.payment_method,
+            note:o.note,created_at:o.created_at,order_id:o.order_id
+          })),
+          collections:financeCollections.map(c=>({
+            id:c.order_id,amount:Number(c.company_amount),confirmed_at:c.confirmed_at
+          }))
+        };
+      },
+      async payout({kind="raul_payout",amount,method,note,requestId,masterId}){
+        if(currentRole!=="owner"&&currentRole!=="master")throw Error("Нет доступа");
+        const record=await dbRequest("rpc/rabota_salary_payout_v2","POST",{
+          p_kind:kind,p_amount:amount,p_payment_method:method,p_note:note,
+          p_request_id:requestId,p_master_user_id:currentRole==="master"?currentUser?.id:masterId
+        });
+        let refreshError="";
+        try{await reloadOrders();}catch(error){refreshError=friendlyError(error);}
+        return {record,refreshError};
+      },
+      async cashbook(){
+        if(currentRole!=="owner")throw Error("Только владелец может видеть кассу");
+        const rows=[];
+        for(let offset=0;offset<100000;offset+=1000){
+          const page=await dbRequest("rabota_cashbook_entries?select=*&order=created_at.desc&limit=1000&offset="+offset,"GET");
+          if(!Array.isArray(page))throw Error("Не удалось загрузить движения денег");
+          rows.push(...page);if(page.length<1000)break;
+        }
+        return rows;
+      },
+      async recordCashbook({kind,amount,from,to,note,requestId}){
+        if(currentRole!=="owner")throw Error("Только владелец может проводить операции");
+        return dbRequest("rpc/rabota_cashbook_record_v1","POST",{
+          p_kind:kind,p_amount:amount,p_from_account:from,p_to_account:to,
+          p_note:note,p_request_id:requestId
+        });
+      }
+    };
+
     async function initialize() {
       if(!session||!session.refresh_token){showScreen("loginScreen");return;}
       try {await ensureSession();await checkAccess();}
@@ -2271,6 +2340,7 @@
   <script src="/master-notifications.js"></script>
   <script src="/orders-list.js"></script>
   <script src="/finance-payroll.js"></script>
+  <script src="/money-workspace.js?v=20261113-v1"></script>
   <script src="/lead-assistant.js"></script>
 </body>
 </html>
