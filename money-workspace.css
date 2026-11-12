@@ -55,7 +55,14 @@ body.rd #appScreen.rd-master.master-mode .mw-master-reports{
 .mw-tabs{display:grid;grid-template-columns:1fr 1fr;gap:5px;margin:17px 0 8px;border-bottom:1px solid #dbe4f4}
 .mw-tab{border:0;border-bottom:2px solid transparent;background:transparent;color:#75849b;min-height:43px;font-size:13px;font-weight:750;padding:10px}
 .mw-tab.active{color:#345fd3;border-bottom-color:#496ef0}
-.mw-history{display:flex;flex-direction:column;gap:7px}
+.mw-history{display:flex;flex-direction:column;gap:15px}
+.mw-month-group{display:flex;flex-direction:column;gap:9px;min-width:0}
+.mw-month-header{display:flex;align-items:baseline;justify-content:space-between;gap:12px;padding:10px 3px 9px;border-bottom:1px solid #d7e0f1;min-width:0}
+.mw-month-title{font-size:17px;line-height:1.25;font-weight:820;color:#243554;margin:0}
+.mw-month-total{font-size:17px;line-height:1.25;font-weight:820;color:#2454ac;text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
+.mw-month-rows{display:flex;flex-direction:column;gap:7px}
+@media(max-width:380px){.mw-month-title,.mw-month-total{font-size:15px}}
+
 .mw-history-row{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;background:#fff;border:1px solid #e4eafa;border-radius:12px;padding:12px}
 .mw-history-main{display:flex;flex-direction:column;gap:3px;min-width:0;flex:1}
 .mw-history-main strong{font-size:13px;line-height:1.25;color:#263653}
