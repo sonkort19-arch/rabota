@@ -13,7 +13,8 @@
   const accountName=m=>m==="cash"?"Наличные":m==="card"?"Карта":"Не указан";
   const validMethod=m=>m==="cash"||m==="card";
   const api=()=>window.__rdMoneyUi;
-  const token=()=>{if(typeof crypto?.randomUUID!=="function")throw Error("Браузер не поддерживает безопасный идентификатор операции");return crypto.randomUUID()};
+  const token=()=>{if(typeof window.crypto?.randomUUID!=="function")throw Error("Браузер не поддерживает безопасный идентификатор операции");return window.crypto.randomUUID()};
+  const isPreview=()=>/^rabota-[a-z0-9]{7,}-sonkort19-6069s-projects\.vercel\.app$/i.test(String(window.location?.hostname||""));
   let page="schedule",step="menu",salaryTab="accruals",payDialog=false,masterReady=false;
   function navIcon(name){
     const span=el("span","mw-icon");
@@ -122,11 +123,11 @@
     root.append(list);
     root.append(el("p","mw-help","Это учёт выплат. Программа не переводит деньги между банковскими счетами."));
   }
-  function modalBase(title){
+  function modalBase(title,onClosed){
     const prev=document.activeElement,overlay=el("div","mw-modal-backdrop");
     const sheet=el("section","mw-modal");
     sheet.setAttribute("role","dialog");sheet.setAttribute("aria-modal","true");sheet.setAttribute("aria-label",title);
-    const close=()=>{overlay.remove();prev?.focus?.({preventScroll:true});};
+    const close=()=>{if(sheet.dataset.busy==="1")return;overlay.remove();onClosed?.();prev?.focus?.({preventScroll:true});};
     const header=box("mw-modal-header",el("h2","",title),btn("×","mw-modal-close",close));
     sheet.append(header);overlay.append(sheet);document.body.append(overlay);
     overlay.addEventListener("click",e=>{if(e.target===overlay)close()});
@@ -146,7 +147,7 @@
   function openMasterPayout(m){
     if(payDialog||m.error||m.due<=0)return;
     payDialog=true;
-    const {sheet,close}=modalBase("Выплата зарплаты");
+    const {sheet,close}=modalBase("Выплата зарплаты",()=>{payDialog=false});
     const amount=el("input","mw-input");amount.type="text";amount.inputMode="decimal";
     amount.value=Number(m.due).toFixed(2).replace(".",",");
     const methods=radioSet("mw-master-pay-method","cash");
@@ -158,16 +159,14 @@
     const cancel=btn("Отмена","mw-minor",()=>closeDialog());
     let busy=false,used=false;
     let requestId;try{requestId=token()}catch(e){error.textContent=e.message;save.disabled=true}
-    const closeDialog=()=>{if(busy)return;payDialog=false;close()};
-    const closeButton=sheet.querySelector(".mw-modal-close");
-    closeButton.addEventListener("click",()=>{payDialog=false;});
+    const closeDialog=()=>{if(busy)return;close()};
     sheet.append(box("mw-modal-balance",el("span","","Доступно к выплате"),el("strong","",rub(m.due))));
     sheet.append(field("Сумма, ₽",amount),field("Способ получения",methods.node),field("Комментарий",note),acknowledge,error);
     sheet.append(box("mw-modal-actions",cancel,save));
     const originalClose=close;
-    sheet.parentElement.addEventListener("click",e=>{if(e.target===sheet.parentElement)payDialog=false});
+    if(isPreview()){error.textContent="Режим предпросмотра: выплата отключена.";save.disabled=true;}
     save.addEventListener("click",async()=>{
-      if(busy||used||!requestId)return;
+      if(busy||used||!requestId||isPreview())return;
       const value=parseSum(amount.value);
       if(!value||value>m.due||!note.value.trim()||!received.checked){
         error.textContent=!received.checked?"Подтверди фактическое получение денег.":
@@ -176,17 +175,17 @@
       }
       const method=methods.value();
       if(!window.confirm("Ты действительно получил "+rub(value)+" ("+accountName(method).toLowerCase()+")? Будет создана финансовая запись."))return;
-      busy=true;used=true;save.disabled=true;cancel.disabled=true;amount.disabled=true;note.disabled=true;
+      busy=true;used=true;sheet.dataset.busy="1";save.disabled=true;cancel.disabled=true;amount.disabled=true;note.disabled=true;
       error.textContent="Сохраняю...";
       try{
         const receipt=await api().payout({kind:"raul_payout",amount:value,method,note:note.value.trim(),requestId,masterId:m.masterId});
-        busy=false;payDialog=false;
+        busy=false;sheet.dataset.busy="0";payDialog=false;
         renderMaster();
         sheet.replaceChildren(el("h2","","Выплата записана"),el("p","","Получено: "+rub(value)+" · "+accountName(method)),
           el("p","mw-help",receipt.refreshError?"Запись сохранена, но обновление данных не удалось. Не проводи выплату повторно.":"Операция появилась в финансовой истории."),
           btn("Закрыть","mw-main-button",()=>originalClose()));
       }catch(e){
-        busy=false;error.textContent="Ответ не подтверждён: "+(e?.message||"ошибка")+
+        busy=false;sheet.dataset.busy="0";error.textContent="Ответ не подтверждён: "+(e?.message||"ошибка")+
           ". Проверь историю выплат перед повторной попыткой, чтобы избежать двойного списания.";
         cancel.disabled=false;save.disabled=true;
       }
@@ -231,7 +230,7 @@
     }
     root.replaceChildren();
     const heading=box("mw-owner-heading",el("h2","","Платежи"),
-      btn("Создать ▾","mw-owner-create",()=>{menu.hidden=!menu.hidden}));
+      btn("Создать ▾","mw-owner-create",()=>{if(isPreview()){window.alert("В предпросмотре изменения отключены.");return}menu.hidden=!menu.hidden}));
     const menu=el("div","mw-create-menu");menu.hidden=true;
     for(const [type,label] of [["income","＋ Создать приход"],["expense","− Создать расход"],["transfer","⇄ Перевод между счетами"]])
       menu.append(btn(label,"mw-menu-action",()=>{menu.hidden=true;openOwnerEntry(type,root)}));
@@ -259,6 +258,7 @@
     root.append(history);
   }
   function openOwnerEntry(kind,root){
+    if(isPreview())return;
     const labels={income:"Создать приход",expense:"Создать расход",transfer:"Перевести между счетами"};
     const {sheet,close}=modalBase(labels[kind]);
     const amount=el("input","mw-input");amount.type="text";amount.inputMode="decimal";amount.placeholder="0,00";
@@ -292,13 +292,13 @@
         error.textContent=!value?"Укажи корректную положительную сумму":
           !note.value.trim()?"Добавь комментарий":"Счета должны отличаться";return;
       }
-      busy=true;used=true;save.disabled=true;cancel.disabled=true;error.textContent="Сохраняю...";
+      busy=true;used=true;sheet.dataset.busy="1";save.disabled=true;cancel.disabled=true;error.textContent="Сохраняю...";
       try{
         await api().recordCashbook({kind,amount:value,from:src,to:dst,note:note.value.trim(),requestId});
         const newBook=await api().cashbook();
-        close();renderOwner(root,newBook);
+        sheet.dataset.busy="0";close();renderOwner(root,newBook);
       }catch(e){
-        busy=false;
+        busy=false;sheet.dataset.busy="0";
         error.textContent="Запись не подтверждена: "+(e.message||"ошибка связи")+
           ". Проверь историю перед повторной попыткой.";
         cancel.disabled=false;save.disabled=true;
