@@ -139,3 +139,26 @@ test("changed order data restores focus to the same master's order row",()=>{
  assert.match(source,/\.focus\(\{preventScroll:true\}\)/);
  assert.match(source,/reportSync\(syncError,"finance"\)/);
 });
+
+test("status review lists all past unfinished bookings",()=>{
+ const f=fixture();
+ f.renderMasterOverview(f.masterWorkingOrders());
+ const review=f.summary.children.find(x=>String(x.className||"").includes("master-review-jump"));
+ assert.ok(review);
+ assert.equal(review.attrs["aria-expanded"],"false");
+ review.events.click();
+ const list=f.summary.children.find(x=>x.className==="master-review-list");
+ assert.ok(list);
+ assert.equal(list.children.length,2);
+ const names=list.children.map(x=>x.textContent).join(" ");
+ assert.match(names,/Уточнить/);
+ assert.match(names,/Старый/);
+ const toggler=f.summary.children.find(x=>String(x.className||"").includes("master-review-jump"));
+ assert.equal(toggler.attrs["aria-expanded"],"true");
+ toggler.events.click();
+ assert.equal(f.summary.children.some(x=>x.className==="master-review-list"),false);
+});
+test("master brand uses inline vector, not an unloaded PNG",()=>{
+ assert.match(html,/class="master-brand-icon"/);
+ assert.match(html,/<linearGradient id="master-brand-gradient"/);
+});
