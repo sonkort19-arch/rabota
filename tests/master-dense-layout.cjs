@@ -20,7 +20,7 @@ const fixture=[
 '<nav class="tabs"><button class="tab">По дням</button><button class="tab active">Расписание</button><button class="tab">История</button></nav>',
 '<section class="panel" id="calendarPanel"><div class="panel-top"><h2>Календарь</h2><div class="nav"><button class="secondary" id="prevWeek">‹</button><button class="secondary" id="goToday">Сегодня</button><button class="secondary" id="nextWeek">›</button></div></div>',
 '<input class="calendar-date" id="calendarDate" type="date" value="2026-11-12"><div class="week" id="weekDays">',
-...Array.from({length:7},(_,i)=>'<button class="day'+(i===3?' active':i===4?' has-orders':'')+'" type="button"><span class="weekday">'+['Пн','Вт','Ср','Чт','Пт','Сб','Вс'][i]+'</span><strong>'+(i+9)+'</strong></button>').map(s=>"'"+s+"'"),'</div></section>',
+...Array.from({length:7},(_,i)=>'<button class="day'+(i===3?' active':i===4?' has-orders':'')+'" type="button"><span class="weekday">'+['Пн','Вт','Ср','Чт','Пт','Сб','Вс'][i]+'</span><strong>'+(i+9)+'</strong></button>'),'</div></section>',
 '<section class="master-today-summary"><div class="master-today-top"><strong class="master-today-title">Сегодня · 12 нояб.</strong><span class="master-today-count">1 заказ</span></div>',
 '<button class="master-next-jump"><span class="master-next-caption">Ближайший выезд</span><strong class="master-next-value">Сегодня · 18:00 · Давид</strong></button></section>',
 '<div class="list-head"><h2>Моё расписание</h2><span class="count" id="orderCount">9 шт.</span></div><div id="orders">',
@@ -89,9 +89,9 @@ try{
   assert.ok(result.avatar.height>=26.5&&result.avatar.height<=29.5,"compact avatar geometry at "+width);
   assert.equal(result.headerOverlap,false,"balance must not overlap notifications/logout at "+width);
   assert.ok(result.logo.height>=33.5,"compact master brand logo visible at "+width);
-  if(width===320)console.log("CALENDAR_DIAGNOSTICS",JSON.stringify(result.calendarComputed));
   assert.ok(result.calendar.height<=205,"calendar must be compact at "+width+": "+result.calendar.height);
   assert.ok(result.calendar.height>=146,"calendar remains usable at "+width);
+  assert.ok(result.calendarWeek.height<=55,"week row must remain one row at "+width+": "+result.calendarWeek.height);
   for(const key of ["calendarDate","calendarDay","calendarToday","calendarPrevious","calendarNext"])
     assert.ok(result[key].height>=43.5,key+" usable touch target at "+width+": "+result[key].height);
 
