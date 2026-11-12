@@ -1,0 +1,32 @@
+name: Master dashboard isolated checks
+on:
+  push:
+    branches:
+      - fix/raul-master-dashboard-20261112
+  pull_request:
+    paths:
+      - index.html
+      - master-dashboard.css
+      - tests/master-dashboard.cjs
+      - finance-payroll.js
+jobs:
+  regressions:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify master dashboard
+        run: |
+          node tests/master-dashboard.cjs
+          node tests/master-notifications.js
+          node tests/finance-payroll-preview.js
+          node tests/startup-splash.test.cjs
+          node tests/orders-compact-list.js
+          node tests/quick-slots.cjs
+          node tests/owner-order-deletion.cjs

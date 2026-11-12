@@ -11,7 +11,7 @@ const code=fs.readFileSync(path.join(__dirname,"../finance-payroll.js"),"utf8");
 class Element {
  constructor(tag){
   this.tagName=tag.toUpperCase();this.className="";this.children=[];this.events={};
-  this.parent=null;this.attrs={};this.hidden=false;this.value="";this.disabled=false;this.id="";
+  this.parent=null;this.attrs={};this.hidden=false;this.value="";this.disabled=false;this.id="";this.style={};
   this._text="";
  }
  set textContent(value){this._text=String(value);this.children=[]}
@@ -22,6 +22,7 @@ class Element {
   this.children.push(e);e.parent=this}
  replaceChildren(...children){this.children=[];this.append(...children)}
  remove(){if(this.parent)this.parent.children=this.parent.children.filter(e=>e!==this);this.parent=null}
+ contains(node){return node===this||this.children.some(child=>child.contains?.(node))}
  setAttribute(key,value){this.attrs[key]=String(value)}
  getAttribute(key){return this.attrs[key]}
  addEventListener(key,fn){(this.events[key]??=[]).push(fn)}
