@@ -265,7 +265,7 @@ body.rd #appScreen.rd-master.master-mode .master-brand-text span{
   font-size:12px;line-height:1.32;color:#62718b;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
 }
 body.rd #appScreen.rd-master.master-mode > header{
-  display:block;position:relative;min-height:91px;margin:0 0 12px;
+  display:block;position:relative;min-height:54px;margin:0 0 9px;
 }
 body.rd #appScreen.rd-master.master-mode > header > .master-header-info{width:100%;min-width:0}
 body.rd #appScreen.rd-master.master-mode > header h1{
