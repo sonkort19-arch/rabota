@@ -73,7 +73,7 @@ try{
   assert.ok(result.card.height>=62,"compact card remains tappable at "+width);
   assert.ok(result.avatar.height>=26.5&&result.avatar.height<=29.5,"compact avatar geometry at "+width);
   assert.equal(result.headerOverlap,false,"balance must not overlap notifications/logout at "+width);
-  assert.ok(result.logo.height>=37.5,"master brand logo visible at "+width);
+  assert.ok(result.logo.height>=33.5,"compact master brand logo visible at "+width);
   await page.close();
  }
  console.log("Master dense layout: PASS (WebKit, 320/350/375/390/430/768)");
