@@ -9,9 +9,10 @@ const links=[...html.matchAll(/<link rel="stylesheet" href="\/([^"?]+)(?:\?[^"]*
 assert.equal(links.at(-1),"master-dense.css");
 const styles=[inline,...links.map(file=>fs.readFileSync(path.join(root,file),"utf8"))].join("\n");
 const fixture=[
-'<main id="appScreen" class="rd-master master-mode"><header>',
-'<div><h1>Мои заказы</h1><span class="muted" id="roleName">Рауль</span>',
-'<button id="masterBalanceQuick" class="master-balance-quick"><span class="balance-label">К выплате</span><strong class="balance-amount">20 250 ₽</strong><span class="balance-arrow">›</span></button></div>',
+'<main id="appScreen" class="rd-master master-mode">',
+'<div class="master-brand"><svg class="master-brand-icon" width="38" height="38" viewBox="0 0 48 48"><rect width="48" height="48" rx="12" fill="#5367e8"/></svg><div class="master-brand-text"><strong>Работа</strong><span>Сервис промывки отопления</span></div></div>',
+'<header><div class="master-header-info"><h1>Мои заказы</h1><div class="master-header-meta"><span class="muted" id="roleName">Рауль</span>',
+'<button id="masterBalanceQuick" class="master-balance-quick"><span class="balance-label">К выплате</span><strong class="balance-amount">20 250 ₽</strong><span class="balance-arrow">›</span></button></div></div>',
 '<div class="master-header-actions"><section id="masterPushPanel" class="push-panel push-compact">',
 '<button class="push-bell" aria-label="Уведомления">☼</button></section><button class="secondary" id="logoutBtn">Выйти</button></div></header>',
 '<div class="sync-note" id="syncStatus">Обновлено 17:33</div><div id="ordersArea">',
@@ -51,7 +52,15 @@ try{
     title:dim("#appScreen header h1"),newOrder:dim("#newOrderBtn"),bell:dim(".push-bell"),
     logout:dim("#logoutBtn"),tab:dim(".tabs .tab"),next:dim(".master-next-jump"),
     time:dim(".master-schedule-time"),name:dim(".master-schedule-name"),
-    summary:dim(".master-today-summary"),card:dim(".master-schedule-toggle"),avatar:dim(".master-schedule-avatar")};
+    summary:dim(".master-today-summary"),card:dim(".master-schedule-toggle"),avatar:dim(".master-schedule-avatar"),
+    logo:dim(".master-brand-icon"),
+    headerOverlap:(()=>{
+      const a=document.querySelector(".master-balance-quick").getBoundingClientRect();
+      const b=document.querySelector(".push-bell").getBoundingClientRect();
+      const c=document.querySelector("#logoutBtn").getBoundingClientRect();
+      const overlaps=(x,y)=>x.left<y.right&&x.right>y.left&&x.top<y.bottom&&x.bottom>y.top;
+      return overlaps(a,b)||overlaps(a,c);
+    })()};
   });
   assert.ok(result.scroll<=result.width+1,"horizontal overflow at "+width+" "+JSON.stringify(result));
   for(const key of ["newOrder","bell","logout","tab","next"])
@@ -62,6 +71,8 @@ try{
   assert.ok(result.summary.height<=120,"today block height "+width+" "+result.summary.height);
   assert.ok(result.card.height<=115,"master owner-size card at "+width+": "+result.card.height);
   assert.ok(result.avatar.height>=29.5&&result.avatar.height<=32.5,"owner avatar geometry at "+width);
+  assert.equal(result.headerOverlap,false,"balance must not overlap notifications/logout at "+width);
+  assert.ok(result.logo.height>=37.5,"master brand logo visible at "+width);
   await page.close();
  }
  console.log("Master dense layout: PASS (WebKit, 320/350/375/390/430/768)");

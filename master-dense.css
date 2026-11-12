@@ -523,3 +523,58 @@ body.rd #appScreen.rd-master.master-mode .master-settlements{
   body.rd #appScreen.rd-master.master-mode .master-schedule-card,
   body.rd #appScreen.rd-master.master-mode .master-next-jump{transition:none!important}
 }
+
+
+/* Fix: independent master-header rows, stable logo and all status checks. */
+body.rd #appScreen.rd-master.master-mode .master-brand-icon{
+  display:block;flex:0 0 38px;width:38px;height:38px;border-radius:12px;
+  box-shadow:0 4px 12px #5369db22;
+}
+body.rd #appScreen.rd-master.master-mode > header{
+  display:grid;grid-template-columns:minmax(0,1fr) auto;
+  grid-template-rows:auto auto;column-gap:9px;row-gap:4px;
+  align-items:center;min-height:0;margin:0 0 8px;
+}
+body.rd #appScreen.rd-master.master-mode > header > .master-header-info{display:contents}
+body.rd #appScreen.rd-master.master-mode > header h1{
+  grid-column:1;grid-row:1;max-width:none;min-width:0;
+  margin:0;font-size:21px;line-height:1.16;
+}
+body.rd #appScreen.rd-master.master-mode .master-header-actions{
+  position:static;grid-column:2;grid-row:1;display:flex;
+  align-items:center;justify-content:flex-end;gap:7px;min-width:0;
+}
+body.rd #appScreen.rd-master.master-mode .master-header-meta{
+  grid-column:1/-1;grid-row:2;display:flex;align-items:center;
+  justify-content:flex-start;gap:10px;margin:0;min-width:0;flex-wrap:wrap;
+}
+body.rd #appScreen.rd-master.master-mode .master-balance-quick{
+  min-width:0;max-width:calc(100% - 55px);
+}
+body.rd #appScreen.rd-master.master-mode .master-schedule-card .master-schedule-toggle{
+  padding:10px 12px 9px;row-gap:3px;
+}
+body.rd #appScreen.rd-master.master-mode .master-schedule-main{gap:8px}
+body.rd #appScreen.rd-master.master-mode .master-schedule-identity{gap:3px}
+body.rd #appScreen.rd-master.master-mode .master-review-list{
+  display:grid;gap:6px;margin:8px 0 0;
+}
+body.rd #appScreen.rd-master.master-mode .master-review-item{
+  position:relative;display:block;min-width:0;width:100%;min-height:44px;
+  padding:9px 30px 9px 12px;text-align:left;border:1px solid #e4daf3;
+  border-radius:10px;background:#fff;color:#293b63;font-size:12px;
+  line-height:1.4;font-weight:700;overflow-wrap:anywhere;cursor:pointer;
+}
+body.rd #appScreen.rd-master.master-mode .master-review-item:after{
+  content:"›";position:absolute;right:11px;top:50%;transform:translateY(-50%);
+  font-size:20px;color:#6c7ea0;
+}
+body.rd #appScreen.rd-master.master-mode .master-review-item:focus-visible{
+  outline:2px solid #627cff;outline-offset:2px;
+}
+@media(max-width:350px){
+  body.rd #appScreen.rd-master.master-mode > header h1{max-width:none;font-size:19px}
+  body.rd #appScreen.rd-master.master-mode .master-header-actions{gap:5px}
+  body.rd #appScreen.rd-master.master-mode .master-header-meta{margin-top:0;gap:7px}
+  body.rd #appScreen.rd-master.master-mode .master-balance-quick{max-width:calc(100% - 50px)}
+}

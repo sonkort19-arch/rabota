@@ -292,7 +292,7 @@
   </section>
   <main id="appScreen" hidden>
     <div id="masterBrand" class="master-brand" hidden aria-label="Работа — сервис промывки отопления">
-      <img src="/icons/rabota-soft-blue-192.png" width="38" height="38" alt="" aria-hidden="true">
+      <svg class="master-brand-icon" viewBox="0 0 48 48" width="38" height="38" aria-hidden="true" focusable="false"><defs><linearGradient id="master-brand-gradient" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#477bfa"/><stop offset="1" stop-color="#6040ed"/></linearGradient></defs><rect width="48" height="48" rx="12" fill="url(#master-brand-gradient)"/><g stroke="white" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" fill="none"><path d="M15 8c-3 2.8 2.7 4.3 0 7M24 7c-3 2.8 2.7 4.3 0 7M33 8c-3 2.8 2.7 4.3 0 7"/><rect x="9.2" y="19" width="6.3" height="20" rx="2.7"/><rect x="17" y="19" width="6.3" height="20" rx="2.7"/><rect x="24.8" y="19" width="6.3" height="20" rx="2.7"/><rect x="32.6" y="19" width="6.3" height="20" rx="2.7"/><path d="M7 24h2.2M38.9 24H41M7 35h2.2M38.9 35H41"/></g></svg>
       <div class="master-brand-text"><strong>Работа</strong><span>Сервис промывки отопления</span></div>
     </div>
     <header><div class="master-header-info"><h1 id="appTitle">Работа</h1>
@@ -1127,6 +1127,7 @@
       return n+" "+(group>=11&&group<=14?"заказов":ending===1?"заказ":ending>=2&&ending<=4?"заказа":"заказов");
     }
     let masterOverviewSignature="";
+    let masterReviewOpen=false;
     function renderMasterOverview(rows) {
       const root=document.getElementById("masterTodaySummary");
       if(currentRole!=="master"||currentTab!=="all"){
@@ -1142,7 +1143,7 @@
           masterTimeMinutes(o.time)<now.minutes)));
       const signature=JSON.stringify([now.date,today.map(o=>[o.id,o.status]),
         next?[next.id,next.date,next.time,next.name]:null,
-        toReview.map(o=>[o.id,o.status])]);
+        toReview.map(o=>[o.id,o.status]),masterReviewOpen]);
       // Опрос финансов не должен сбрасывать фокус кнопки «Ближайший выезд».
       if(!root.hidden&&signature===masterOverviewSignature)return;
       masterOverviewSignature=signature;
@@ -1173,16 +1174,31 @@
         const note=make("button","master-review-note master-review-jump","Проверить статус · "+masterOrderCount(toReview.length));
         note.type="button";
         note.setAttribute("aria-label","Проверить незавершённые заказы, время записи которых прошло");
-        note.addEventListener("click",()=>{
-          const pending=toReview[0];
-          const row=[...document.querySelectorAll("#orders .master-schedule-card")]
-            .find(element=>element.dataset.orderId===String(pending.id));
-          if(!row)return;
-          const toggle=row.querySelector(".master-schedule-toggle");
-          if(toggle&&toggle.getAttribute("aria-expanded")!=="true")toggle.click();
-          row.scrollIntoView({behavior:"smooth",block:"center"});
-        });
+        note.setAttribute("aria-controls","masterReviewList");
+        note.setAttribute("aria-expanded",String(masterReviewOpen));
+        note.addEventListener("click",()=>{masterReviewOpen=!masterReviewOpen;renderMasterOverview(rows);});
         root.append(note);
+        if(masterReviewOpen){
+          const list=make("div","master-review-list");
+          list.id="masterReviewList";
+          [...toReview].sort((a,b)=>String(b.date||"").localeCompare(String(a.date||""))||
+            String(b.time||"").localeCompare(String(a.time||""))).forEach(order=>{
+            const item=make("button","master-review-item",
+              (order.date?formatDate(order.date):"Без даты")+" · "+
+              (order.time||"Без времени")+" · "+(order.name||"Без имени"));
+            item.type="button";
+            item.addEventListener("click",()=>{
+              const row=[...document.querySelectorAll("#orders .master-schedule-card")]
+                .find(element=>element.dataset.orderId===String(order.id));
+              if(!row)return;
+              const toggle=row.querySelector(".master-schedule-toggle");
+              if(toggle&&toggle.getAttribute("aria-expanded")!=="true")toggle.click();
+              row.scrollIntoView({behavior:"smooth",block:"center"});
+            });
+            list.append(item);
+          });
+          root.append(list);
+        }
       }
     }
     function makeMasterScheduleRow(order,isNext=false) {
@@ -1503,6 +1519,7 @@
       // The filters belong to each tab. Never carry a hidden date or status to another.
       window.__rdSwitchOrderFilters?.(currentTab,nextTab);
       currentTab=nextTab;
+      masterReviewOpen=false;
       render();
       // No scrollTo/scrollBy: stable layout + disabled scroll anchoring prevent iOS jumps.
     }));
