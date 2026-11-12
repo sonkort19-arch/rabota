@@ -49,7 +49,7 @@ test("Raul card has the owner-style name, avatar, address, time, work, badge and
  assert.ok(nodes.some(node=>node.textContent==="Д"));
  assert.ok(nodes.some(node=>node.textContent==="Давид"));
  assert.ok(nodes.some(node=>node.textContent==="18:00"));
- assert.ok(nodes.some(node=>node.textContent.includes("21 000 ₽")));
+ assert.ok(nodes.some(node=>node.textContent.replace(/\s/g," ").includes("21 000 ₽")));
  assert.ok(nodes.some(node=>node.textContent.includes("Радиаторы: 9")&&node.textContent.includes("3 конт.")));
  assert.equal(toggle.getAttribute("aria-expanded"),"false");
  assert.equal(detailBuilt,0,"closed cards do not eagerly render interactive finance controls");
