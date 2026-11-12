@@ -654,3 +654,89 @@ body.rd #appScreen.rd-master.master-mode .master-review-item:focus-visible{
  body.rd #appScreen.rd-master.master-mode .master-schedule-price{font-size:12px}
  body.rd #appScreen.rd-master.master-mode .master-schedule-work{font-size:10.5px}
 }
+
+
+/* Master-only compact weekly calendar: no change to date navigation logic. */
+@media(max-width:790px){
+  body.rd #appScreen.rd-master.master-mode #calendarPanel{
+    display:block;width:100%;min-width:0;margin:7px 0 9px;
+    padding:10px;border:1px solid #dbe4f7;border-radius:14px;
+    background:linear-gradient(145deg,#fff,#f9fbff);
+    box-shadow:0 3px 12px #425a9d0c;
+  }
+  body.rd #appScreen.rd-master.master-mode #calendarPanel[hidden]{display:none!important}
+  body.rd #appScreen.rd-master.master-mode #calendarPanel .panel-top{
+    display:flex;justify-content:space-between;align-items:center;
+    flex-wrap:nowrap;gap:7px;margin:0 0 8px;
+  }
+  body.rd #appScreen.rd-master.master-mode #calendarPanel .panel-top h2{
+    flex:1 1 auto;min-width:0;margin:0;color:#182440;
+    font-size:15px;font-weight:800;line-height:1.18;
+    letter-spacing:-.25px;white-space:nowrap;
+  }
+  body.rd #appScreen.rd-master.master-mode #calendarPanel .nav{
+    display:flex;align-items:center;justify-content:flex-end;
+    flex:0 0 auto;gap:5px;min-width:0;
+  }
+  body.rd #appScreen.rd-master.master-mode #calendarPanel .nav .secondary{
+    display:grid;place-items:center;min-width:44px;width:44px;
+    height:44px;min-height:44px;padding:0;
+    border:1px solid #dce5f8;border-radius:10px;
+    background:#fff;color:#294a89;
+    font-size:22px;line-height:1;font-weight:750;
+    box-shadow:none;
+  }
+  body.rd #appScreen.rd-master.master-mode #calendarPanel #goToday{
+    display:flex;align-items:center;justify-content:center;
+    width:auto;min-width:84px;padding:0 10px;
+    font-size:12px;line-height:1.1;font-weight:750;
+    color:#3555ce;background:#f3f6ff;
+  }
+  body.rd #appScreen.rd-master.master-mode #calendarPanel .calendar-date{
+    display:block;box-sizing:border-box;width:100%;max-width:100%;
+    min-width:0;height:44px;min-height:44px;max-height:44px;
+    margin:0 0 8px;padding:7px 11px;
+    border:1px solid #dfe7f6;border-radius:10px;
+    background:#fff;color:#384c70;
+    font:inherit;font-size:14px;line-height:1.2;
+  }
+  body.rd #appScreen.rd-master.master-mode #calendarPanel .week{
+    display:grid;grid-template-columns:repeat(7,minmax(0,1fr));
+    width:100%;min-width:0;gap:4px;margin:0;
+  }
+  body.rd #appScreen.rd-master.master-mode #calendarPanel .day{
+    display:flex;flex-direction:column;align-items:center;justify-content:center;
+    min-width:0;min-height:48px;height:48px;max-height:48px;
+    gap:2px;padding:3px 0;
+    border:1px solid #e0e8f8;border-radius:9px;
+    background:#f7f9ff;color:#1d2945;
+    box-shadow:none;touch-action:manipulation;
+  }
+  body.rd #appScreen.rd-master.master-mode #calendarPanel .day .weekday{
+    font-size:10px;line-height:1.1;color:#7a88a3;
+  }
+  body.rd #appScreen.rd-master.master-mode #calendarPanel .day strong{
+    font-size:15px;font-weight:800;line-height:1.1;
+  }
+  body.rd #appScreen.rd-master.master-mode #calendarPanel .day.has-orders:not(.active){
+    border-color:#b8cafa;background:#edf3ff;
+  }
+  body.rd #appScreen.rd-master.master-mode #calendarPanel .day.active{
+    border-color:#4461e8;background:#3d58d9;color:#fff;
+  }
+  body.rd #appScreen.rd-master.master-mode #calendarPanel .day.active .weekday{
+    color:#e4ebff;
+  }
+}
+@media(max-width:350px){
+  body.rd #appScreen.rd-master.master-mode #calendarPanel{padding:8px}
+  body.rd #appScreen.rd-master.master-mode #calendarPanel .panel-top h2{font-size:14px}
+  body.rd #appScreen.rd-master.master-mode #calendarPanel .nav{gap:4px}
+  body.rd #appScreen.rd-master.master-mode #calendarPanel .nav .secondary{
+    min-width:40px;width:40px;min-height:44px;height:44px;
+  }
+  body.rd #appScreen.rd-master.master-mode #calendarPanel #goToday{
+    width:auto;min-width:72px;padding:0 7px;font-size:11px;
+  }
+  body.rd #appScreen.rd-master.master-mode #calendarPanel .week{gap:3px}
+}
