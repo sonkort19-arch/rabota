@@ -2221,6 +2221,7 @@
       ownerSnapshot(){
         if(currentRole!=="owner")throw Error("Нет доступа");
         return {
+          error:financeLoadError,
           paidOrders:getOrders().filter(o=>o.paid&&o.status!=="Отменён").map(o=>({
             id:o.id,name:o.name,amount:o.paymentAmount??o.price,method:o.paymentMethod,
             receivedBy:o.paymentReceivedBy,paidAt:o.paidAt,date:o.date
