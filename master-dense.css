@@ -898,3 +898,191 @@ body.rd #appScreen.rd-master.master-mode .master-header-actions .rd-profile-menu
     width:44px;min-width:44px;height:44px;min-height:44px;
   }
 }
+
+
+/* Sticky compact header for Raul — 2026-11-13.
+   Existing brand, header, push/account menus and order tabs stay in the DOM.
+   Three adjacent sticky bands avoid changes to booking/calendar handlers. */
+@media (max-width:790px) {
+  body.rd #appScreen.rd-master.master-mode {
+    --master-sticky-safe:env(safe-area-inset-top, 0px);
+    --master-brand-height:54px;
+    --master-heading-height:39px;
+    --master-tabs-height:51px;
+    overflow:visible;
+  }
+  body.rd #appScreen.rd-master.master-mode #masterBrand.master-brand {
+    box-sizing:border-box;
+    position:sticky;
+    top:var(--master-sticky-safe);
+    z-index:96;
+    display:flex;
+    align-items:center;
+    width:calc(100% + 24px);
+    max-width:none;
+    height:var(--master-brand-height);
+    min-height:var(--master-brand-height);
+    margin:0 -12px;
+    padding:5px 112px 5px 12px;
+    gap:8px;
+    border-bottom:0;
+    border-radius:0;
+    background:#f2f6ff;
+    box-shadow:none;
+  }
+  body.rd #appScreen.rd-master.master-mode #masterBrand.master-brand[hidden]{
+    display:none!important;
+  }
+  body.rd #appScreen.rd-master.master-mode #masterBrand .master-brand-icon {
+    display:block;
+    width:34px;
+    height:34px;
+    flex:0 0 34px;
+  }
+  body.rd #appScreen.rd-master.master-mode #masterBrand .master-brand-text {
+    flex:1 1 auto;
+    min-width:0;
+    gap:1px;
+  }
+  body.rd #appScreen.rd-master.master-mode #masterBrand .master-brand-text strong {
+    font-size:17px;
+    line-height:1.08;
+    letter-spacing:-.35px;
+  }
+  body.rd #appScreen.rd-master.master-mode #masterBrand .master-brand-text span {
+    font-size:10px;
+    line-height:1.2;
+  }
+  body.rd #appScreen.rd-master.master-mode > header {
+    box-sizing:border-box;
+    position:sticky;
+    top:calc(var(--master-sticky-safe) + var(--master-brand-height));
+    z-index:97;
+    display:flex;
+    align-items:center;
+    width:calc(100% + 24px);
+    min-height:var(--master-heading-height);
+    height:var(--master-heading-height);
+    margin:0 -12px;
+    padding:2px 12px 5px;
+    background:#f2f6ff;
+    border-bottom:0;
+    border-radius:0;
+    box-shadow:none;
+    overflow:visible;
+  }
+  body.rd #appScreen.rd-master.master-mode > header > .master-header-info {
+    display:flex;
+    flex:1 1 auto;
+    align-items:baseline;
+    gap:9px;
+    width:auto;
+    min-width:0;
+  }
+  body.rd #appScreen.rd-master.master-mode > header h1 {
+    display:block;
+    flex:0 1 auto;
+    min-width:0;
+    max-width:initial;
+    margin:0;
+    font-size:18px;
+    line-height:1.2;
+    letter-spacing:-.4px;
+    white-space:nowrap;
+    overflow:hidden;
+    text-overflow:ellipsis;
+  }
+  body.rd #appScreen.rd-master.master-mode > header .master-header-meta {
+    display:flex;
+    align-items:baseline;
+    flex:0 0 auto;
+    gap:0;
+    margin:0;
+    min-width:0;
+    padding:0;
+    grid-column:auto;
+    grid-row:auto;
+    flex-wrap:nowrap;
+  }
+  body.rd #appScreen.rd-master.master-mode > header #roleName {
+    font-size:12px;
+    line-height:1.25;
+    color:#667893;
+    white-space:nowrap;
+  }
+  body.rd #appScreen.rd-master.master-mode > header #roleName:not(:empty):before {
+    content:"·";
+    margin-right:8px;
+    color:#8b9ab4;
+  }
+  body.rd #appScreen.rd-master.master-mode > header .master-header-actions {
+    position:absolute;
+    top:calc(0px - var(--master-brand-height) + 5px);
+    right:12px;
+    z-index:135;
+    display:flex;
+    align-items:center;
+    gap:6px;
+    margin:0;
+    padding:0;
+    overflow:visible;
+  }
+  body.rd #appScreen.rd-master.master-mode > header #masterPushPanel .push-bell,
+  body.rd #appScreen.rd-master.master-mode > header .rd-profile-trigger {
+    box-sizing:border-box;
+    width:44px;
+    min-width:44px;
+    height:44px;
+    min-height:44px;
+    border-radius:13px;
+  }
+  body.rd #appScreen.rd-master.master-mode #ordersArea > .tabs {
+    box-sizing:border-box;
+    position:sticky;
+    top:calc(var(--master-sticky-safe) + var(--master-brand-height) + var(--master-heading-height));
+    z-index:95;
+    width:calc(100% + 24px);
+    min-height:var(--master-tabs-height);
+    margin:0 -12px 9px;
+    padding:4px 12px 7px;
+    border:0;
+    border-bottom:1px solid #d9e3f6;
+    border-radius:0;
+    background:#f2f6ff;
+    box-shadow:0 5px 11px rgba(49,72,116,.08);
+  }
+  body.rd #appScreen.rd-master.master-mode #ordersArea > .tabs .tab {
+    min-height:39px;
+    height:39px;
+    padding:6px 2px;
+    border-radius:11px;
+    font-size:clamp(10.5px,3.1vw,13px);
+    line-height:1.12;
+    gap:4px;
+  }
+  body.rd #appScreen.rd-master.master-mode #ordersArea > .tabs .tab:before {
+    width:16px;
+    height:16px;
+    flex-basis:16px;
+  }
+  body.rd #appScreen.rd-master.master-mode .master-today-summary,
+  body.rd #appScreen.rd-master.master-mode .master-day-heading,
+  body.rd #appScreen.rd-master.master-mode #calendarPanel,
+  body.rd #appScreen.rd-master.master-mode #ordersArea > .list-head {
+    scroll-margin-top:calc(var(--master-sticky-safe) + var(--master-brand-height) + var(--master-heading-height) + var(--master-tabs-height) + 12px);
+  }
+}
+@media (max-width:350px) {
+  body.rd #appScreen.rd-master.master-mode #masterBrand.master-brand {
+    padding-right:106px;
+  }
+  body.rd #appScreen.rd-master.master-mode > header > .master-header-info {
+    gap:5px;
+  }
+  body.rd #appScreen.rd-master.master-mode > header h1 {
+    font-size:16px;
+  }
+  body.rd #appScreen.rd-master.master-mode > header #roleName {
+    font-size:11px;
+  }
+}
