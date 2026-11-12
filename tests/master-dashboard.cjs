@@ -20,6 +20,7 @@ function element(tag,text="") {
   append(...nodes){this.children.push(...nodes)},
   replaceChildren(...nodes){this.children=[...nodes]},
   addEventListener(name,fn){this.events[name]=fn},
+  setAttribute(name,value){this.attrs[name]=String(value)},
   getAttribute(name){return this.attrs[name]},
   querySelector(){return null},
   scrollIntoView(){}
