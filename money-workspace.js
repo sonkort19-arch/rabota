@@ -81,6 +81,7 @@
     }
     root.append(back("Отчёты",()=>{step="menu";renderMaster()}));
     root.append(el("h2","mw-heading","Моя зарплата"));
+    if(!m.masterId){root.append(el("p","mw-notice","Данные зарплаты для этого мастера не подключены."));return;}
     if(m.error)root.append(el("p","mw-error","Финансовые данные не обновились: "+m.error));
     const hero=box("mw-salary-hero",
       el("span","mw-small","Баланс к выплате"),
@@ -147,7 +148,7 @@
     const received=el("input");received.type="checkbox";received.className="mw-checkbox";
     const acknowledge=el("label","mw-ack");acknowledge.append(received,el("span","","Подтверждаю, что фактически получил указанную сумму."));
     const error=el("p","mw-error");error.setAttribute("role","alert");
-    const save=btn("Сохранить выплату","mw-main-button",()=>{});
+    const save=btn("Сохранить выплату","mw-main-button");
     const cancel=btn("Отмена","mw-minor",()=>closeDialog());
     let busy=false,used=false;
     let requestId;try{requestId=token()}catch(e){error.textContent=e.message;save.disabled=true}
@@ -268,12 +269,12 @@
       from.value="card";to.value="cash";
       sheet.append(field("Откуда",from),field("Куда",to));
     }else{
-      methods=radioSet("mw-owner-account",kind==="income"?"cash":"cash");
+      methods=radioSet("mw-owner-account","cash");
       sheet.append(field(kind==="income"?"Куда поступили деньги":"Откуда списать",methods.node));
     }
     sheet.append(field("Комментарий",note));
     const error=el("p","mw-error");error.setAttribute("role","alert");
-    const save=btn("Сохранить","mw-main-button",()=>{}),cancel=btn("Отмена","mw-minor",close);
+    const save=btn("Сохранить","mw-main-button"),cancel=btn("Отмена","mw-minor",close);
     const requestId=token();let busy=false,used=false;
     sheet.append(error,box("mw-modal-actions",cancel,save));
     save.addEventListener("click",async()=>{
