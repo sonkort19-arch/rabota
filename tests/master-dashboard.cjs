@@ -10,7 +10,7 @@ const {test}=require("node:test");
 const root=path.resolve(__dirname,"..");
 const html=fs.readFileSync(path.join(root,"index.html"),"utf8");
 const css=fs.readFileSync(path.join(root,"master-dashboard.css"),"utf8");
-const scripts=[...html.matchAll(/<script(?:\\s[^>]*)?>([\\s\\S]*?)<\\/script>/g)].map(m=>m[1]);
+const scripts=[...html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g)].map(m=>m[1]);
 const main=scripts.find(s=>s.includes("function renderMasterSchedule("));
 assert.ok(main,"inline application script must exist");
 assert.doesNotThrow(()=>new Function(main),"application JavaScript must parse");
@@ -54,7 +54,7 @@ function fixture(role="master",tab="all"){
  assert.ok(start>=0&&end>start,"master dashboard helpers must be present");
  const factory=new Function("getOrders","collectionForOrder","currentRole","currentTab",
   "document","make","formatDate","Date","Intl",
-  main.slice(start,end)+"\\nreturn {masterClock,masterTimeMinutes,masterWorkingOrders,masterSettlementOrders,masterScheduleSort,masterOrderCount,renderMasterOverview};");
+  main.slice(start,end)+"\nreturn {masterClock,masterTimeMinutes,masterWorkingOrders,masterSettlementOrders,masterScheduleSort,masterOrderCount,renderMasterOverview};");
  const api=factory(()=>records,id=>collections[id]||null,role,tab,document,make,
   d=>d==="2026-11-12"?"12 ноя":d, fixedDate,Intl);
  return {...api,summary};
@@ -97,13 +97,13 @@ test("master presentation and role-scoped finance remain wired",()=>{
  assert.match(html,/id="masterTodaySummary"/);
  assert.match(html,/id="masterPendingSettlements"/);
  assert.match(html,/id="masterSettlementRows"/);
- assert.match(html,/masterPendingSettlements[\\s\\S]*?masterSettlementRows/);
- assert.match(html,/masterWorkingOrders\\(\\)/);
- assert.match(html,/renderMasterSettlements\\(\\)/);
- assert.match(html,/isOwner\\?financeOperations:financeOperations\\.filter\\(o=>o\\.master_user_id===financeMasterId&&o\\.kind==="raul_payout"\\)/);
- assert.match(html,/if\\(isOwner\\)\\{[\\s\\S]*?financeMetric\\("Доля компании"/);
- assert.match(html,/id="masterBalanceQuick"[\\s\\S]*?Осталось выплатить/);
- assert.match(html,/href="\\/master-dashboard\\.css\\?v=20261112"/);
- assert.match(css,/#appScreen\\.master-mode \\.master-schedule-toggle/);
+ assert.match(html,/masterPendingSettlements[\s\S]*?masterSettlementRows/);
+ assert.match(html,/masterWorkingOrders\(\)/);
+ assert.match(html,/renderMasterSettlements\(\)/);
+ assert.match(html,/isOwner\?financeOperations:financeOperations\.filter\(o=>o\.master_user_id===financeMasterId&&o\.kind==="raul_payout"\)/);
+ assert.match(html,/if\(isOwner\)\{[\s\S]*?financeMetric\("Доля компании"/);
+ assert.match(html,/id="masterBalanceQuick"[\s\S]*?Осталось выплатить/);
+ assert.match(html,/href="\/master-dashboard\.css\?v=20261112"/);
+ assert.match(css,/#appScreen\.master-mode \.master-schedule-toggle/);
  assert.match(css,/max-width:390px/);
 });
