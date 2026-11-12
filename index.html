@@ -223,7 +223,7 @@
   <link rel="stylesheet" href="/finance-payroll.css">
   <link rel="stylesheet" href="/lead-assistant.css">
   <link rel="stylesheet" href="/ui-alignment.css">
-  <link rel="stylesheet" href="/master-dashboard.css?v=20261112">
+  <link rel="stylesheet" href="/master-dashboard.css?v=20261112-compact">
 </head>
 <body>
 
@@ -292,7 +292,7 @@
   <main id="appScreen" hidden>
     <header><div><h1 id="appTitle">Работа</h1><span class="muted" id="roleName"></span>
       <button id="masterBalanceQuick" class="master-balance-quick" type="button" hidden aria-label="Открыть мои финансы">
-        <span class="balance-label">Осталось выплатить</span>
+        <span class="balance-label">К выплате</span>
         <strong id="masterBalanceAmount" class="balance-amount" aria-live="polite">—</strong>
         <span class="balance-arrow" aria-hidden="true">›</span>
       </button>
@@ -1151,9 +1151,9 @@
         root.append(make("p","master-no-next","Ближайших новых выездов пока нет."));
       }
       if(toReview.length){
-        root.append(make("p","master-review-note",
-          "Проверьте статусы: "+masterOrderCount(toReview.length)+
-          ". Время записи уже прошло, но это не обязательно означает просрочку."));
+        const note=make("p","master-review-note","Проверить статус · "+masterOrderCount(toReview.length));
+        note.setAttribute("aria-label","Проверьте статус: время записи прошло, но это не означает просрочку.");
+        root.append(note);
       }
     }
     function makeMasterScheduleRow(order,isNext=false) {
