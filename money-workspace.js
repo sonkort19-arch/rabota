@@ -306,7 +306,19 @@
     });
   }
   window.__rdOpenMasterReports=target=>{setupMaster();step=target==="detail"?"detail":"menu";switchPage("reports")};
-  window.__rdMoneyAccess=()=>{setupMaster()};
+  window.__rdMoneyAccess=()=>{
+    const isMaster=api()?.snapshot()?.role==="master";
+    if(isMaster){
+      setupMaster();
+      const nav=$("mwMasterNav");if(nav)nav.hidden=false;
+      page="schedule";step="menu";
+      const reports=$("mwMasterReports");if(reports)reports.hidden=true;
+      updateNav();
+    }else{
+      const nav=$("mwMasterNav"),reports=$("mwMasterReports");
+      if(nav)nav.hidden=true;if(reports)reports.hidden=true;
+    }
+  };
   window.__rdMoneyUpdated=()=>{
     if(page!=="reports"||!$("mwMasterReports")||payDialog)return;
     const focus=document.activeElement;
