@@ -72,23 +72,15 @@
     if(!m||m.role!=="master")return;
     const back=(label,fn)=>btn("‹ "+label,"mw-back",fn);
     if(step==="menu"){
-      root.append(el("h2","mw-heading","Отчёты"));
-      const entry=btn("","mw-entry",()=>{step="people";renderMaster()});
-      entry.append(el("span","mw-entry-icon","▤"),box("mw-entry-copy",el("strong","","Зарплата"),el("small","","Начисления и выплаты")),el("span","mw-chevron","›"));
+      // The authenticated master only has one report: no extra staff directory.
+      const entry=btn("","mw-entry",()=>{step="detail";salaryTab="accruals";renderMaster()});
+      entry.append(el("span","mw-entry-icon","▤"),box("mw-entry-copy",
+        el("strong","","Зарплата"),el("small","","Баланс, начисления и выплаты")),el("span","mw-chevron","›"));
       root.append(entry);
       return;
     }
-    if(step==="people"){
-      root.append(back("Отчёты",()=>{step="menu";renderMaster()}),el("h2","mw-heading","Зарплата"));
-      if(m.masterName.trim().toLowerCase()!=="рауль"){
-        root.append(el("p","mw-notice","Зарплатный отчёт сейчас доступен только Раулю."));return;
-      }
-      const entry=btn("","mw-person",()=>{step="detail";salaryTab="accruals";renderMaster()});
-      entry.append(el("span","mw-avatar","Р"),box("mw-person-info",el("strong","","Рауль"),el("small","","Мастер • баланс: "+rub(m.due))),el("span","mw-chevron","›"));
-      root.append(entry);return;
-    }
-    root.append(back("Сотрудники",()=>{step="people";renderMaster()}));
-    root.append(el("h2","mw-heading","Зарплата · Рауль"));
+    root.append(back("Отчёты",()=>{step="menu";renderMaster()}));
+    root.append(el("h2","mw-heading","Моя зарплата"));
     if(m.error)root.append(el("p","mw-error","Финансовые данные не обновились: "+m.error));
     const hero=box("mw-salary-hero",
       el("span","mw-small","Баланс к выплате"),
@@ -306,7 +298,6 @@
       }
     });
   }
-  window.__rdOpenMasterReports=target=>{setupMaster();step=target==="detail"?"detail":"menu";switchPage("reports")};
   window.__rdMoneyAccess=()=>{
     const isMaster=api()?.snapshot()?.role==="master";
     if(isMaster){
