@@ -2216,7 +2216,16 @@
           error:financeLoadError,accrued,paid,due:roundMoney(accrued-paid),
           orders:mine.map(o=>({name:o.name,date:o.date,id:o.id,amount:financeSplit(o.price).raul,price:o.price})),
           payouts:payouts.map(o=>({id:o.id,amount:Number(o.amount),note:o.note,
-            payment_method:o.payment_method,created_at:o.created_at,order_id:o.order_id}))
+            payment_method:o.payment_method,created_at:o.created_at,order_id:o.order_id})),
+          paymentOrders:getOrders().filter(o=>o.assignedUserId===financeMasterId&&o.paid).map(o=>({
+            id:o.id,name:o.name,date:o.date,time:o.time,status:o.status,
+            amount:o.paymentAmount??o.price,method:o.paymentMethod,
+            paidAt:o.paidAt,receivedBy:o.paymentReceivedBy
+          })),
+          collections:financeCollections.filter(c=>c.master_user_id===financeMasterId).map(c=>({
+            orderId:c.order_id,amount:Number(c.company_amount),
+            submittedAt:c.submitted_at,confirmedAt:c.confirmed_at,createdAt:c.created_at
+          }))
         };
       },
       ownerSnapshot(){
