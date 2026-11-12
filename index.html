@@ -1143,8 +1143,8 @@
       }
       if(toReview.length){
         root.append(make("p","master-review-note",
-          "Проверьте статус "+masterOrderCount(toReview.length)+
-          ": время записи уже прошло. Это не означает, что заказ просрочен."));
+          "Проверьте статусы: "+masterOrderCount(toReview.length)+
+          ". Время записи уже прошло, но это не обязательно означает просрочку."));
       }
     }
     function makeMasterScheduleRow(order,isNext=false) {
