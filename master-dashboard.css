@@ -5,17 +5,6 @@
   font-size:16px;border-radius:13px;box-shadow:0 3px 13px rgba(62,86,207,.10)
 }
 #appScreen.master-mode #ordersArea>#newOrderBtn .plus{font-size:22px}
-#appScreen.master-mode .master-balance-quick{
-  display:inline-flex;max-width:100%;min-width:0;width:max-content;
-  flex-wrap:nowrap;align-items:center;padding:8px 9px;min-height:40px;gap:7px
-}
-#appScreen.master-mode .master-balance-quick .balance-label{
-  font-size:12px;line-height:1.25;white-space:nowrap;flex:0 0 auto
-}
-#appScreen.master-mode .master-balance-quick .balance-amount{
-  font-size:17px;white-space:nowrap;min-width:0;font-variant-numeric:tabular-nums
-}
-#appScreen.master-mode .master-balance-quick .balance-arrow{margin-left:2px;flex-shrink:0}
 #appScreen.master-mode .master-today-summary{
   margin:12px 0 10px;padding:10px 12px;background:#f0f5ff;
   border:1px solid #dce6fc;border-radius:14px;color:#20375e
@@ -86,9 +75,6 @@
   }
   #appScreen.master-mode .master-schedule-time{font-size:20px}
   #appScreen.master-mode .master-schedule-name{font-size:15px}
-  #appScreen.master-mode .master-balance-quick{gap:4px;padding:6px}
-  #appScreen.master-mode .master-balance-quick .balance-label{font-size:11px}
-  #appScreen.master-mode .master-balance-quick .balance-amount{font-size:15px}
 }
 @media(prefers-reduced-motion:reduce){
   #appScreen.master-mode .master-next-jump{scroll-behavior:auto}
