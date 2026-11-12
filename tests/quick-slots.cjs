@@ -22,7 +22,8 @@ function availability(rows) {
   api.refresh(rows);
   return api;
 }
-const slotTest=(api,masters,now,limit=14)=>core.candidateSlots({
+// Test full candidate set: UI mode deliberately lists free slots before tight ones.
+const slotTest=(api,masters,now,limit=1000)=>core.candidateSlots({
   masters,now:new Date(now),limit,
   checkTime:(time,date,master)=>api.checkTime(time,date,master)
 });
