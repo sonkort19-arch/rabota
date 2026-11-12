@@ -49,6 +49,12 @@
    sum.setAttribute("aria-label","Сумма выплаты в рублях");
    sum.value=Number(p.due).toFixed(2).replace(".",",");
    sumLabel.append(sum);
+   const methodLabel=el("label","fp-label","Способ выплаты");
+   const method=el("select","fp-input");
+   for(const [value,label] of [["cash","Наличные"],["card","Карта"]]){
+     const option=el("option","",label);option.value=value;method.append(option);
+   }
+   methodLabel.append(method);
    const noteLabel=el("label","fp-label","Комментарий");
    const note=el("textarea","fp-input");
    note.rows=2;note.maxLength=240;
@@ -91,13 +97,13 @@
        return;
      }
      submitting=true;confirmButton.disabled=true;cancelButton.disabled=true;
-     sum.disabled=true;note.disabled=true;doneEditing.disabled=true;
+     sum.disabled=true;note.disabled=true;method.disabled=true;doneEditing.disabled=true;
      document.activeElement?.blur?.();
      error.classList.add("fp-progress");
      error.textContent="Сохраняю выплату в финансовой истории...";
      try{
        const result=await window.__rdRecordPayrollPayout({
-         kind:p.kind,amount:value,note:note.value.trim()
+         kind:p.kind,amount:value,method:method.value,note:note.value.trim()
        });
        // The RPC has returned success. Show a receipt, never submit twice.
        submitting=false;
@@ -107,7 +113,7 @@
        const header=div("fp-modal-heading",receiptTitle,button("×","fp-close",close));
        const receipt=div("fp-success",
          el("strong","fp-success-amount",money(value)),
-         el("span","","Выплата — "+p.name),
+         el("span","","Выплата — "+p.name+" · "+(method.value==="cash"?"наличные":"карта")),
          el("p","","Запись подтверждена финансовой базой."));
        const balance=div("fp-modal-balance",
          el("span","",result.refreshError?"Расчётный остаток":"Осталось выплатить"),
@@ -127,7 +133,7 @@
        confirmButton.disabled=true;sum.disabled=true;note.disabled=true;
      }
    });
-   modal.append(sumLabel,noteLabel,div("fp-keyboard-actions",doneEditing),
+   modal.append(sumLabel,methodLabel,noteLabel,div("fp-keyboard-actions",doneEditing),
      div("fp-after",el("span","","Останется выплатить"),remainder),error);
    if(isPreview())modal.append(el("p","fp-hint",
      "Тестовая версия: кнопка показывает результат, но реальные деньги не списывает."));
@@ -186,7 +192,7 @@
    }
    wrap.append(tabs);
    const items=ui.view==="accruals"?m.orders.map(o=>({date:o.date,title:o.name||"Заказ",info:"Заказ на "+money(o.price),value:ui.person==="raul"?o.raul:o.timur}))
-     :m.operations.filter(o=>!o.voided_at&&o.kind===p.kind).map(o=>({date:o.created_at,title:o.note||"Выплата",info:o.order_id?"Автоматическое распределение":"Ручная выплата",value:-Number(o.amount)}));
+     :m.operations.filter(o=>!o.voided_at&&o.kind===p.kind).map(o=>({date:o.created_at,title:o.note||"Выплата",info:(o.order_id?"Автоматическое распределение":"Ручная выплата")+(o.payment_method?" · "+(o.payment_method==="cash"?"Наличные":"Карта"):" · способ не указан"),value:-Number(o.amount)}));
    const months=[...new Set(items.map(i=>String(i.date||"").slice(0,7)).filter(x=>/^\d{4}-\d{2}$/.test(x)))].sort().reverse();
    const period=el("select","fp-period");period.setAttribute("aria-label","Период");
    for(const [v,name] of [["all","Все периоды"],...months.map(v=>[v,new Intl.DateTimeFormat("ru-RU",{year:"numeric",month:"long",timeZone:"UTC"}).format(new Date(v+"-01T12:00:00Z"))])]){
@@ -269,9 +275,10 @@
      if(historyTitle)historyTitle.hidden=ui.tab!=="operations";
      if(ui.tab==="salary")panel.append(overview(m,redraw));
      else if(ui.tab==="cash")panel.append(cash(m));
+     else if(ui.tab==="payments")window.__rdPaymentsRender?.(panel);
      else panel.append(el("p","fp-hint","Здесь сохранены прежние формы ручных операций, история и возможность отмены записей. В этой тестовой версии запись и отмена финансовых операций отключены. Реальные данные не изменяются."));
    };
-   for(const [value,label] of [["salary","Зарплата"],["cash","Касса компании"],["operations","Операции"]]){
+   for(const [value,label] of [["salary","Зарплата"],["payments","Платежи"],["cash","Касса"],["operations","Операции"]]){
      const b=button(label,"fp-tab",()=>{
        if(ui.tab===value)return;
        ui.tab=value;ui.person=null;ui.month="all";
