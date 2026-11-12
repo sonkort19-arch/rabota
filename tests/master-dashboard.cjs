@@ -86,7 +86,7 @@ test("overview highlights next appointment and status needing review",()=>{
  assert.match(content,/Сегодня · 12 ноя/);
  assert.match(content,/2 заказа/);
  assert.match(content,/18:00 · Следующий/);
- assert.match(content,/Проверьте статус 2 заказов/);
+ assert.match(content,/Проверьте статусы: 2 заказа/);
 });
 test("overview stays hidden outside master active schedule",()=>{
  const owner=fixture("owner","all"),history=fixture("master","history");
