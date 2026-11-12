@@ -121,18 +121,16 @@ body.rd .finance-hero-primary{background:#f7f9fc;border-color:#dfe7f0}
 body.rd .finance-hero-primary .finance-hero-value{color:#202123}
 body.rd .finance-line{border-color:#ededee}
 body.rd .finance-activity-top{color:#242424}
-body.rd .master-balance-quick,body.rd .master-mode .master-cost,
+body.rd .master-mode .master-cost,
 body.rd .cash-share,body.rd .push-panel{
  background:#f7f9fc;border-color:#dfe6f0;color:#273955;
 }
-body.rd .master-balance-quick .balance-label,
 body.rd .master-mode .master-cost .cost-label{color:#66758a}
 body.rd .master-schedule-toggle:active,
 body.rd .master-schedule-card.is-expanded .master-schedule-toggle{background:#f7f8fa}
 body.rd .master-schedule-card.is-expanded .master-schedule-toggle{border-color:#e6e8eb}
 body.rd .master-schedule-details>.order-card{background:transparent;box-shadow:none;border:0}
-body.rd .master-schedule-time,body.rd .master-schedule-price,
-body.rd .master-balance-quick .balance-amount{color:#315c9b}
+body.rd .master-schedule-time,body.rd .master-schedule-price{color:#315c9b}
 body.rd .sync-note{color:#70757d}
 body.rd .sync-note.sync-error,body.rd .auth-message,body.rd .error{color:#b42318}
 body.rd .login-card{background:#fff;border:1px solid #e7e7e7;color:#242424;box-shadow:0 10px 34px #0000000b}
