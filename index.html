@@ -291,12 +291,18 @@
     </div>
   </section>
   <main id="appScreen" hidden>
-    <header><div><h1 id="appTitle">Работа</h1><span class="muted" id="roleName"></span>
+    <div id="masterBrand" class="master-brand" hidden aria-label="Работа — сервис промывки отопления">
+      <img src="/icons/rabota-soft-blue-192.png" width="38" height="38" alt="" aria-hidden="true">
+      <div class="master-brand-text"><strong>Работа</strong><span>Сервис промывки отопления</span></div>
+    </div>
+    <header><div class="master-header-info"><h1 id="appTitle">Работа</h1>
+      <div class="master-header-meta"><span class="muted" id="roleName"></span>
       <button id="masterBalanceQuick" class="master-balance-quick" type="button" hidden aria-label="Открыть мои финансы">
         <span class="balance-label">К выплате</span>
         <strong id="masterBalanceAmount" class="balance-amount" aria-live="polite">—</strong>
         <span class="balance-arrow" aria-hidden="true">›</span>
       </button>
+      </div>
     </div><div class="master-header-actions">
         <section id="masterPushPanel" class="push-panel push-compact" hidden aria-label="Уведомления о новых заявках">
           <button id="pushBellBtn" class="push-bell" type="button" aria-label="Открыть новые заявки" aria-expanded="false" aria-controls="pushPopover">
@@ -1164,8 +1170,18 @@
         root.append(make("p","master-no-next","Ближайших новых выездов пока нет."));
       }
       if(toReview.length){
-        const note=make("p","master-review-note","Проверить статус · "+masterOrderCount(toReview.length));
-        note.setAttribute("aria-label","Проверьте статус: время записи прошло, но это не означает просрочку.");
+        const note=make("button","master-review-note master-review-jump","Проверить статус · "+masterOrderCount(toReview.length));
+        note.type="button";
+        note.setAttribute("aria-label","Проверить незавершённые заказы, время записи которых прошло");
+        note.addEventListener("click",()=>{
+          const pending=toReview[0];
+          const row=[...document.querySelectorAll("#orders .master-schedule-card")]
+            .find(element=>element.dataset.orderId===String(pending.id));
+          if(!row)return;
+          const toggle=row.querySelector(".master-schedule-toggle");
+          if(toggle&&toggle.getAttribute("aria-expanded")!=="true")toggle.click();
+          row.scrollIntoView({behavior:"smooth",block:"center"});
+        });
         root.append(note);
       }
     }
@@ -1476,11 +1492,11 @@
     document.addEventListener("keydown",e=>{if(e.key==="Escape"&&!overlay.hidden)closeForm();});
     document.getElementById("prevWeek").addEventListener("click",()=>{selectedDate=addDays(selectedDate,-7);currentTab="calendar";render();});
     document.getElementById("nextWeek").addEventListener("click",()=>{selectedDate=addDays(selectedDate,7);currentTab="calendar";render();});
-    document.getElementById("goToday").addEventListener("click",()=>{selectedDate=localDate(new Date());currentTab="calendar";render();});
+    document.getElementById("goToday").addEventListener("click",()=>{selectedDate=currentRole==="master"?masterClock().date:localDate(new Date());currentTab="calendar";render();});
     calendarDate.addEventListener("change",()=>{if(calendarDate.value){selectedDate=calendarDate.value;render();}});
     document.getElementById("rdOrdersPrevWeek").addEventListener("click",()=>{selectedDate=addDays(selectedDate,-7);currentTab="calendar";render();});
     document.getElementById("rdOrdersNextWeek").addEventListener("click",()=>{selectedDate=addDays(selectedDate,7);currentTab="calendar";render();});
-    document.getElementById("rdOrdersToday").addEventListener("click",()=>{selectedDate=localDate(new Date());currentTab="calendar";render();});
+    document.getElementById("rdOrdersToday").addEventListener("click",()=>{selectedDate=currentRole==="master"?masterClock().date:localDate(new Date());currentTab="calendar";render();});
     document.querySelectorAll("[data-tab]").forEach(btn=>btn.addEventListener("click",()=>{
       const nextTab=btn.dataset.tab;
       if(currentTab===nextTab)return;
@@ -2144,10 +2160,11 @@
       document.querySelector('[data-tab="all"]').textContent=currentRole==="master"?"Расписание":"Все заказы";
       document.querySelector('[data-tab="calendar"]').textContent="По дням";
       document.getElementById("appScreen").classList.toggle("master-mode",currentRole==="master");
+      document.getElementById("masterBrand").hidden=currentRole!=="master";
       document.getElementById("masterPushPanel").hidden=currentRole!=="master";
       document.getElementById("newOrderBtn").hidden=!canCreateOrder();
       document.getElementById("aiChatLink").hidden=currentRole!=="owner";
-      if (currentRole==="master") currentTab="all";
+      if (currentRole==="master") { currentTab="all"; selectedDate=masterClock().date; }
       financeActive=false;
       financeVisible();
       await reloadOrders();
