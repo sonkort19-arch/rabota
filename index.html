@@ -1295,7 +1295,18 @@
         btn.setAttribute("aria-pressed",String(date === selectedDate));
         btn.append(make("span","weekday",dateObj.toLocaleDateString("ru-RU",{weekday:"short"})));
         btn.append(make("strong","",dateObj.getDate()));
-        btn.addEventListener("click",() => {selectedDate=date;currentTab="calendar";render();});
+        btn.addEventListener("click",() => {
+          // Preserve the master's viewport when iOS Safari rebuilds the day and order list.
+          if(currentRole!=="master"){selectedDate=date;currentTab="calendar";render();return;}
+          const scrollY=window.scrollY;
+          selectedDate=date;currentTab="calendar";render();
+          window.scrollTo(0,scrollY);
+          requestAnimationFrame(()=>{
+            if(currentRole==="master"&&currentTab==="calendar"&&selectedDate===date){
+              window.scrollTo(0,scrollY);
+            }
+          });
+        });
         weekDays.append(btn);
         // Compact seven-day selector lives BELOW the tabs so changing modes never moves them.
         const chip = make("button","rd-orders-weekday"+(date===selectedDate?" is-selected":"")+
