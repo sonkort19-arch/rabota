@@ -1,0 +1,89 @@
+/* CRM «Работа»: компактный рабочий кабинет мастера, не влияет на owner/manager. */
+#appScreen.master-mode header{margin-bottom:14px}
+#appScreen.master-mode #ordersArea>#newOrderBtn{
+  width:100%;max-width:none;min-height:48px;padding:11px 16px;
+  font-size:16px;border-radius:13px;box-shadow:0 3px 13px rgba(62,86,207,.10)
+}
+#appScreen.master-mode #ordersArea>#newOrderBtn .plus{font-size:22px}
+#appScreen.master-mode .master-balance-quick{
+  padding:8px 11px;min-height:42px;gap:10px
+}
+#appScreen.master-mode .master-balance-quick .balance-label{font-size:12px;line-height:1.25}
+#appScreen.master-mode .master-balance-quick .balance-amount{font-size:17px}
+#appScreen.master-mode .master-today-summary{
+  margin:18px 0 15px;padding:14px;background:#f0f5ff;
+  border:1px solid #dce6fc;border-radius:17px;color:#20375e
+}
+#appScreen.master-mode .master-today-top{
+  display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap
+}
+#appScreen.master-mode .master-today-title{font-size:16px;font-weight:800;letter-spacing:-.2px}
+#appScreen.master-mode .master-today-count{font-size:13px;color:#5c6f8e;white-space:nowrap}
+#appScreen.master-mode .master-next-jump{
+  display:flex;flex-direction:column;align-items:flex-start;text-align:left;
+  gap:4px;width:100%;padding:12px 13px;margin-top:11px;
+  background:#fff;border:1px solid #c7d8fc;border-radius:13px;
+  color:#204c9d;min-height:65px;font:inherit;cursor:pointer
+}
+#appScreen.master-mode .master-next-jump:focus-visible{
+  outline:3px solid #8eaefa;outline-offset:2px
+}
+#appScreen.master-mode .master-next-caption{font-size:12px;color:#677991}
+#appScreen.master-mode .master-next-value{font-size:15px;line-height:1.35;overflow-wrap:anywhere}
+#appScreen.master-mode .master-no-next{font-size:13px;color:#697a95;margin:9px 0 0}
+#appScreen.master-mode .master-review-note{
+  font-size:12px;line-height:1.45;color:#965321;margin:10px 0 0;
+  border-top:1px solid #d7e1f3;padding-top:10px
+}
+#appScreen.master-mode .list-head{margin-top:15px}
+#appScreen.master-mode .master-day-heading{margin:18px 1px 9px;gap:8px}
+#appScreen.master-mode .master-day-heading h3{font-size:16px}
+#appScreen.master-mode .master-day-heading .muted{font-size:12px}
+#appScreen.master-mode .master-schedule-card{
+  border-radius:13px;margin-bottom:8px;box-shadow:0 2px 9px rgba(24,42,78,.045)
+}
+#appScreen.master-mode .master-schedule-card.is-next{border-color:#96b6f8}
+#appScreen.master-mode .master-schedule-toggle{
+  grid-template-columns:70px minmax(0,1fr) 18px;
+  min-height:81px;padding:12px;gap:10px
+}
+#appScreen.master-mode .master-schedule-time{font-size:22px}
+#appScreen.master-mode .master-schedule-main{gap:3px}
+#appScreen.master-mode .master-schedule-name{font-size:16px}
+#appScreen.master-mode .master-schedule-address{font-size:12px;line-height:1.35}
+#appScreen.master-mode .master-schedule-meta{gap:7px;margin-top:2px}
+#appScreen.master-mode .master-schedule-price{font-size:14px}
+#appScreen.master-mode .master-schedule-meta .status-badge{font-size:11px}
+#appScreen.master-mode .master-schedule-work{
+  font-size:12px;line-height:1.4;color:#607493;overflow-wrap:anywhere
+}
+#appScreen.master-mode .master-money-note{
+  display:inline-block;align-self:flex-start;margin-top:3px;
+  color:#8d5619;background:#fff1dd;border-radius:7px;
+  font-size:11px;font-weight:700;line-height:1.25;padding:4px 6px
+}
+#appScreen.master-mode .master-schedule-details{padding:4px 12px 14px}
+#appScreen.master-mode .master-settlements{
+  margin:25px 0 16px;padding-top:17px;border-top:1px solid #dce4f2
+}
+#appScreen.master-mode .master-settlements-heading{
+  display:flex;justify-content:space-between;gap:8px;align-items:baseline
+}
+#appScreen.master-mode .master-settlements-heading h2{font-size:18px;margin:0}
+#appScreen.master-mode .master-settlements-hint{
+  font-size:12px;line-height:1.45;color:#697a94;margin:8px 0 13px
+}
+#appScreen.master-mode .master-settlements .master-schedule-toggle{background:#fffaf3}
+@media(max-width:390px){
+  #appScreen.master-mode .master-schedule-toggle{
+    grid-template-columns:62px minmax(0,1fr) 16px;gap:8px;padding:11px 9px
+  }
+  #appScreen.master-mode .master-schedule-time{font-size:20px}
+  #appScreen.master-mode .master-schedule-name{font-size:15px}
+  #appScreen.master-mode .master-balance-quick{gap:6px;padding:7px 8px}
+  #appScreen.master-mode .master-balance-quick .balance-label{font-size:11px}
+  #appScreen.master-mode .master-balance-quick .balance-amount{font-size:15px}
+}
+@media(prefers-reduced-motion:reduce){
+  #appScreen.master-mode .master-next-jump{scroll-behavior:auto}
+}
