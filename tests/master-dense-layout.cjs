@@ -57,6 +57,15 @@ try{
     time:dim(".master-schedule-time"),name:dim(".master-schedule-name"),
     summary:dim(".master-today-summary"),card:dim(".master-schedule-toggle"),avatar:dim(".master-schedule-avatar"),
     calendar:dim("#calendarPanel"),calendarDate:dim("#calendarDate"),
+    calendarHeader:dim("#calendarPanel .panel-top"),calendarNav:dim("#calendarPanel .nav"),
+    calendarWeek:dim("#weekDays"),
+    calendarComputed:(()=>{
+      const selectors=["#calendarPanel","#calendarPanel .panel-top","#calendarPanel .nav","#calendarDate","#weekDays","#weekDays .day"];
+      return selectors.map(selector=>{
+        const e=document.querySelector(selector),s=getComputedStyle(e),r=e.getBoundingClientRect();
+        return {selector,height:r.height,width:r.width,padding:s.padding,margin:s.margin,display:s.display,flexWrap:s.flexWrap,minHeight:s.minHeight,maxHeight:s.maxHeight};
+      });
+    })(),
     calendarDay:dim("#weekDays .day"),calendarToday:dim("#goToday"),
     calendarPrevious:dim("#prevWeek"),calendarNext:dim("#nextWeek"),
     logo:dim(".master-brand-icon"),
@@ -80,6 +89,7 @@ try{
   assert.ok(result.avatar.height>=26.5&&result.avatar.height<=29.5,"compact avatar geometry at "+width);
   assert.equal(result.headerOverlap,false,"balance must not overlap notifications/logout at "+width);
   assert.ok(result.logo.height>=33.5,"compact master brand logo visible at "+width);
+  if(width===320)console.log("CALENDAR_DIAGNOSTICS",JSON.stringify(result.calendarComputed));
   assert.ok(result.calendar.height<=205,"calendar must be compact at "+width+": "+result.calendar.height);
   assert.ok(result.calendar.height>=146,"calendar remains usable at "+width);
   for(const key of ["calendarDate","calendarDay","calendarToday","calendarPrevious","calendarNext"])
