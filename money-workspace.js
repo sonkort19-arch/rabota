@@ -235,6 +235,7 @@
     for(const [type,label] of [["income","＋ Создать приход"],["expense","− Создать расход"],["transfer","⇄ Перевод между счетами"]])
       menu.append(btn(label,"mw-menu-action",()=>{menu.hidden=true;openOwnerEntry(type,root)}));
     root.append(heading,menu);
+    if(d.error)root.append(el("p","mw-error","Финансовые данные могли устареть: "+d.error));
     root.append(el("p","mw-help","Расчётные движения по наличным и карте. Не является выпиской банка: начальные остатки не заданы, старые операции без способа не распределены."));
     root.append(box("mw-money-stats",
       box("mw-money-stat",el("small","","Наличные · расчёт"),el("strong","",rub(balance.cash))),
