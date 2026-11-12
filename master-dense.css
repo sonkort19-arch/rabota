@@ -144,54 +144,7 @@
   body.rd #appScreen.rd-master.master-mode .master-day-heading .muted {
     font-size: 11px;
   }
-  body.rd #appScreen.rd-master.master-mode .master-schedule-card {
-    margin-bottom: 6px;
-    border-radius: 11px;
-    box-shadow: 0 1px 7px #182a4e0b;
-  }
-  body.rd #appScreen.rd-master.master-mode .master-schedule-toggle {
-    min-height: 76px;
-    grid-template-columns: 62px minmax(0,1fr) 16px;
-    gap: 8px;
-    padding: 9px 10px;
-    align-items: center;
-  }
-  body.rd #appScreen.rd-master.master-mode .master-schedule-time {
-    font-size: 19px;
-    letter-spacing: -.5px;
-  }
-  body.rd #appScreen.rd-master.master-mode .master-schedule-main {
-    gap: 2px;
-  }
-  body.rd #appScreen.rd-master.master-mode .master-schedule-name {
-    font-size: 15px;
-    line-height: 1.15;
-  }
-  body.rd #appScreen.rd-master.master-mode .master-schedule-address {
-    font-size: 12px;
-    line-height: 1.25;
-  }
-  body.rd #appScreen.rd-master.master-mode .master-schedule-meta {
-    gap: 5px;
-    margin-top: 1px;
-  }
-  body.rd #appScreen.rd-master.master-mode .master-schedule-price {
-    font-size: 14px;
-  }
-  body.rd #appScreen.rd-master.master-mode .master-schedule-meta .status-badge {
-    padding: 3px 6px;
-    margin: 0;
-    border-radius: 7px;
-    font-size: 11px;
-    line-height: 1.15;
-  }
-  body.rd #appScreen.rd-master.master-mode .master-schedule-work {
-    font-size: 11px;
-    line-height: 1.3;
-  }
-  body.rd #appScreen.rd-master.master-mode .master-schedule-chevron {
-    font-size: 20px;
-  }
+  /* Card geometry is defined once below, in the owner-style mobile rules. */
   body.rd #appScreen.rd-master.master-mode .master-schedule-details {
     padding: 4px 10px 12px;
   }
