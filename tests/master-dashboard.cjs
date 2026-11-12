@@ -10,6 +10,10 @@ const {test}=require("node:test");
 const root=path.resolve(__dirname,"..");
 const html=fs.readFileSync(path.join(root,"index.html"),"utf8");
 const css=fs.readFileSync(path.join(root,"master-dashboard.css"),"utf8");
+const unifiedCss=fs.readFileSync(path.join(root,"master-unified.css"),"utf8");
+const workspace=fs.readFileSync(path.join(root,"money-workspace.js"),"utf8");
+const payments=fs.readFileSync(path.join(root,"master-payments.js"),"utf8");
+const masterDialog=fs.readFileSync(path.join(root,"master-order-dialog.js"),"utf8");
 const scripts=[...html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g)].map(m=>m[1]);
 const main=scripts.find(s=>s.includes("function renderMasterSchedule("));
 assert.ok(main,"inline application script must exist");
@@ -103,8 +107,6 @@ test("master presentation and role-scoped finance remain wired",()=>{
  assert.match(html,/renderMasterSettlements\(\)/);
  assert.match(html,/isOwner\?financeOperations:financeOperations\.filter\(o=>o\.master_user_id===financeMasterId&&o\.kind==="raul_payout"\)/);
  assert.match(html,/if\(isOwner\)\{[\s\S]*?financeMetric\("Доля компании"/);
- assert.match(html,/id="masterBalanceQuick"[\s\S]*?К выплате/);
- assert.match(html,/href="\/master-dashboard\.css\?v=20261112-compact"/);
  assert.match(css,/#appScreen\.master-mode \.master-schedule-toggle/);
  assert.match(css,/white-space:nowrap;flex:0 0 auto/);
  assert.match(css,/min-height:48px;font:inherit;cursor:pointer/);
@@ -161,4 +163,25 @@ test("status review lists all past unfinished bookings",()=>{
 test("master brand uses inline vector, not an unloaded PNG",()=>{
  assert.match(html,/class="master-brand-icon"/);
  assert.match(html,/<linearGradient id="master-brand-gradient"/);
+});
+
+test("one master navigation, all-status orders and role-scoped legacy tabs",()=>{
+  for(const pattern of ['["day","По дням","day"]','["orders","Заказы","schedule"]',
+    '["payments","Платежи","payments"]','["reports","Отчёты","reports"]']){
+    assert.ok(workspace.includes(pattern),pattern);
+  }
+  assert.match(unifiedCss,/#ordersArea > \.tabs\{\s*display:none!important/);
+  assert.ok(html.includes('data-tab="history"'),"owners keep history tab");
+  assert.ok(html.includes('window.__rdMasterApplyOrderFilters?.(shown)'));
+  assert.ok(html.includes('window.__rdMasterDialogApi='));
+  assert.doesNotMatch(html,/expandedMasterOrders|id="masterBalanceQuick"/);
+});
+test("new modules parse and payments contain no additional cash write endpoint",()=>{
+  for(const script of [workspace,payments,masterDialog])
+    assert.doesNotThrow(()=>new Function(script));
+  assert.match(payments,/window\.__rdMasterPaymentsRender=render/);
+  assert.match(masterDialog,/window\.__rdOpenMasterDialog=open/);
+  assert.doesNotMatch(payments,/rpc\/rabota_finance_record|rpc\/rabota_cashbook_record_v1/);
+  assert.match(unifiedCss,/\.rd-master-order-backdrop/);
+  assert.equal([...unifiedCss].reduce((n,c)=>n+(c==="{")-(c==="}"),0),0);
 });
