@@ -86,7 +86,7 @@ test("overview highlights next appointment and status needing review",()=>{
  assert.match(content,/Сегодня · 12 ноя/);
  assert.match(content,/2 заказа/);
  assert.match(content,/18:00 · Следующий/);
- assert.match(content,/Проверьте статусы: 2 заказа/);
+ assert.match(content,/Проверить статус · 2 заказа/);
 });
 test("overview stays hidden outside master active schedule",()=>{
  const owner=fixture("owner","all"),history=fixture("master","history");
@@ -102,8 +102,10 @@ test("master presentation and role-scoped finance remain wired",()=>{
  assert.match(html,/renderMasterSettlements\(\)/);
  assert.match(html,/isOwner\?financeOperations:financeOperations\.filter\(o=>o\.master_user_id===financeMasterId&&o\.kind==="raul_payout"\)/);
  assert.match(html,/if\(isOwner\)\{[\s\S]*?financeMetric\("Доля компании"/);
- assert.match(html,/id="masterBalanceQuick"[\s\S]*?Осталось выплатить/);
- assert.match(html,/href="\/master-dashboard\.css\?v=20261112"/);
+ assert.match(html,/id="masterBalanceQuick"[\s\S]*?К выплате/);
+ assert.match(html,/href="\/master-dashboard\.css\?v=20261112-compact"/);
  assert.match(css,/#appScreen\.master-mode \.master-schedule-toggle/);
+ assert.match(css,/white-space:nowrap;flex:0 0 auto/);
+ assert.match(css,/min-height:48px;font:inherit;cursor:pointer/);
  assert.match(css,/max-width:390px/);
 });
