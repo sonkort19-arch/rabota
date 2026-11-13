@@ -62,7 +62,7 @@ jobs:
         run: psql -X -v ON_ERROR_STOP=1 -f tests/sql/roles-stage3-scenarios.sql
       - name: Retest stage-1 paid orders after salary role changes
         run: psql -X -v ON_ERROR_STOP=1 -f tests/sql/paid-guard-scenarios.sql
-      - name: Drift: fail closed if original payout RPC changed
+      - name: 'Drift: fail closed if original payout RPC changed'
         run: |
           createdb rabota_role_drift
           psql -X -v ON_ERROR_STOP=1 -d rabota_role_drift -f tests/sql/roles-stage3-fixture.sql
