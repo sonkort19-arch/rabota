@@ -1,0 +1,67 @@
+name: Safe release step 5 - disposable backup restore
+on:
+  push:
+    branches:
+      - audit/release-step05-backup-recovery-20261114
+  pull_request:
+    paths:
+      - tests/step05-backup-restore.sh
+      - tests/step05-backup-restore.test.cjs
+      - tests/sql/step05-*
+      - .github/workflows/release-step05-backup.yml
+permissions:
+  contents: read
+jobs:
+  guard:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Ensure backup drill is synthetic only
+        run: |
+          bash -n tests/step05-backup-restore.sh
+          node --test tests/step05-backup-restore.test.cjs
+      - name: Prove backup drill refuses non-local sources
+        run: |
+          if CI=true PGHOST=example.invalid PGPORT=5432 PGUSER=postgres PGDATABASE=postgres PGPASSWORD=disposable bash tests/step05-backup-restore.sh; then
+            echo "FAIL: backup drill did not refuse non-local database"
+            exit 1
+          fi
+  restore:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 18
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: disposable-ci-only
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s --health-timeout 3s --health-retries 15
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Back up fake finance data and restore to independent disposable DB
+        run: |
+          docker run --rm --network host \
+            -e CI=true -e PGHOST=127.0.0.1 -e PGPORT=5432 \
+            -e PGUSER=postgres -e PGPASSWORD=disposable-ci-only \
+            -e PGDATABASE=postgres \
+            -v "$GITHUB_WORKSPACE":/work:ro -w /work \
+            postgres:17 bash -euo pipefail -c '
+              psql -X -v ON_ERROR_STOP=1 -f tests/sql/roles-stage3-fixture.sql
+              psql -X -v ON_ERROR_STOP=1 -f sql/008-protect-paid-orders.sql
+              psql -X -v ON_ERROR_STOP=1 -f sql/009-owner-only-salary-payout.sql
+              psql -X -v ON_ERROR_STOP=1 -c "CREATE TABLE public.rabota_cashbook_entries (id uuid PRIMARY KEY,amount numeric,kind text)"
+              psql -X -v ON_ERROR_STOP=1 -f tests/sql/step05-backup-seed.sql
+              bash tests/step05-backup-restore.sh
+            '
