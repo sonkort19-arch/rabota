@@ -32,12 +32,17 @@
   const api=()=>window.__rdMoneyUi;
   const token=()=>{if(typeof window.crypto?.randomUUID!=="function")throw Error("Браузер не поддерживает безопасный идентификатор операции");return window.crypto.randomUUID()};
   const isPreview=()=>/^rabota-[a-z0-9]{7,}-sonkort19-6069s-projects\.vercel\.app$/i.test(String(window.location?.hostname||""));
-  let page="schedule",step="menu",salaryTab="accruals",payDialog=false,masterReady=false;
+  let page="orders",step="menu",salaryTab="accruals",payDialog=false,masterReady=false;
+  let orderQuery="",orderStatus="all",paymentMethod="all";
+  const scrollPositions=new Map();
+  const statusOptions=[["all","Все"],["Новый","Новые"],["Записан","Записаны"],
+    ["В работе","В работе"],["Выполнен","Выполнены"],["Отменён","Отменены"]];
   function navIcon(name){
     const span=el("span","mw-icon");
     const shapes={
       day:'<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M7 3v4M17 3v4M3 10h18"/>',
-      schedule:'<rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/>',
+      orders:'<rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 7h8M8 11h8M8 15h5"/>',
+      payments:'<rect x="3" y="5" width="18" height="15" rx="2"/><path d="M3 9h18M16 15h3"/>',
       reports:'<path d="M4 20V11M10 20V4M16 20v-9M22 20V7M2 21h21"/>'
     };
     span.innerHTML='<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'+shapes[name]+'</svg>';
@@ -47,41 +52,152 @@
     if(masterReady||api()?.snapshot()?.role!=="master")return;
     const app=$("appScreen"),orders=$("ordersArea"),finance=$("financePanel");
     if(!app||!orders||!finance)return;
-    const panel=el("section","mw-master-reports");panel.id="mwMasterReports";panel.hidden=true;
-    panel.setAttribute("aria-label","Отчёты мастера");
-    const nav=el("nav","mw-bottom-nav");nav.id="mwMasterNav";
-    nav.setAttribute("aria-label","Главные разделы мастера");
-    for(const [key,label,icon] of [["day","По дням","day"],["schedule","Расписание","schedule"],["reports","Отчёты","reports"]]){
-      const item=btn("","mw-nav-btn",()=>switchPage(key));
-      item.dataset.mwPage=key;item.append(navIcon(icon),el("span","",label));nav.append(item);
+    const reports=el("section","mw-master-reports");reports.id="mwMasterReports";reports.hidden=true;
+    reports.setAttribute("aria-label","Отчёты мастера");
+    const payments=el("section","mw-master-payments");payments.id="mwMasterPayments";payments.hidden=true;
+    payments.setAttribute("aria-label","Платежи мастера");
+    const toolbar=el("section","mw-master-filterbar");toolbar.id="mwMasterFilterbar";
+    toolbar.setAttribute("aria-label","Фильтры заказов");
+    const search=el("input","mw-filter-search");search.type="search";
+    search.placeholder="Поиск по заказам";search.autocomplete="off";
+    search.setAttribute("aria-label","Поиск по имени, адресу, телефону, дате");
+    search.addEventListener("input",()=>{orderQuery=search.value.trim().toLocaleLowerCase("ru");filterRows()});
+    const filters=el("div","mw-status-filters");
+    for(const [value,label] of statusOptions){
+      const chip=btn(label,"mw-filter-chip",()=>{
+        orderStatus=value;syncFilterChips(filters);filterRows();
+      });
+      chip.dataset.status=value;filters.append(chip);
     }
-    app.insertBefore(panel,finance);
+    toolbar.append(search,filters);
+    orders.insertBefore(toolbar,orders.querySelector(".tabs"));
+    app.insertBefore(reports,finance);app.insertBefore(payments,finance);
+    const nav=el("nav","mw-bottom-nav");nav.id="mwMasterNav";
+    nav.setAttribute("aria-label","Разделы мастера");
+    for(const [key,label,icon] of [["day","По дням","day"],["orders","Заказы","orders"],
+      ["payments","Платежи","payments"],["reports","Отчёты","reports"]]){
+      const item=btn("","mw-nav-btn",()=>switchPage(key));
+      item.dataset.mwPage=key;
+      item.append(navIcon(icon),el("span","",label));nav.append(item);
+    }
     app.append(nav);masterReady=true;
-    updateNav();
+    syncFilterChips(filters);updateNav();
+  }
+  function syncFilterChips(filters){
+    for(const chip of filters.querySelectorAll("[data-status]")){
+      const active=chip.dataset.status===orderStatus;
+      chip.classList.toggle("active",active);chip.setAttribute("aria-pressed",String(active));
+    }
+  }
+  function filterRows(){
+    if(page!=="orders"||api()?.snapshot()?.role!=="master")return;
+    const root=$("orders");if(!root)return;
+    let heading=null,shown=0,visibleInGroup=0;
+    const finishGroup=()=>{if(heading)heading.hidden=visibleInGroup===0;};
+    for(const element of root.children){
+      if(element.classList.contains("master-day-heading")){
+        finishGroup();heading=element;visibleInGroup=0;
+      }else if(element.classList.contains("master-schedule-card")){
+        const statusMatch=orderStatus==="all"||element.dataset.status===orderStatus;
+        const match=statusMatch&&(!orderQuery||String(element.dataset.search||"").includes(orderQuery));
+        element.hidden=!match;
+        if(match){shown++;visibleInGroup++;}
+      }
+    }
+    finishGroup();
+    const count=$("orderCount");if(count)count.textContent=shown+" шт.";
   }
   function updateNav(){
     const nav=$("mwMasterNav");if(!nav)return;
-    for(const b of nav.querySelectorAll("button")){const active=b.dataset.mwPage===page;b.classList.toggle("is-active",active);b.setAttribute("aria-current",active?"page":"false");}
+    for(const b of nav.querySelectorAll("button")){
+      const active=b.dataset.mwPage===page;
+      b.classList.toggle("is-active",active);
+      b.setAttribute("aria-current",active?"page":"false");
+    }
   }
-  function switchPage(which){
+  function switchPage(which,restore=true){
     if(api()?.snapshot()?.role!=="master")return;
-    const reports=$("mwMasterReports"),orders=$("ordersArea"),finance=$("financePanel");
-    if(!reports||!orders||!finance)return;
-    page=which;reports.hidden=which!=="reports";
+    const reports=$("mwMasterReports"),payments=$("mwMasterPayments"),
+      orders=$("ordersArea"),finance=$("financePanel");
+    if(!reports||!payments||!orders||!finance)return;
+    if(restore&&which!==page)scrollPositions.set(page,window.scrollY||0);
+    page=which;reports.hidden=which!=="reports";payments.hidden=which!=="payments";
+    const filters=$("mwMasterFilterbar");
+    if(filters)filters.hidden=which!=="orders";
     const title=$("appTitle");
-    if(which==="reports"){
+    if(which==="reports"||which==="payments"){
       orders.hidden=true;finance.hidden=true;
-      if(title)title.textContent="Отчёты";
-      renderMaster();
+      if(title)title.textContent=which==="reports"?"Отчёты":"Платежи";
+      if(which==="reports")renderMaster();else renderMasterPayments();
     }else{
-      if(title)title.textContent="Мои заказы";
-      // Legacy finance state remains unchanged and its back handler restores orders.
+      if(title)title.textContent=which==="day"?"По дням":"Мои заказы";
+      // Legacy tab handlers remain for calendar calculations, but tabs are not visible to master.
       if(!finance.hidden)$("masterFinanceBack")?.click();
       orders.hidden=false;finance.hidden=true;
       const tab=orders.querySelector('.tab[data-tab="'+(which==="day"?"calendar":"all")+'"]');
       tab?.click();
+      if(which==="orders")filterRows();
     }
-    updateNav();window.scrollTo({top:0,behavior:"instant"});
+    updateNav();
+    if(restore)window.scrollTo({top:scrollPositions.get(which)||0,behavior:"instant"});
+  }
+  function renderMasterPayments(){
+    const root=$("mwMasterPayments");if(!root||root.hidden)return;
+    root.replaceChildren();
+    let m;
+    try{m=api()?.masterPayments?.()}catch(error){
+      root.append(el("p","mw-error",error.message));return;
+    }
+    if(!m)return;
+    root.append(el("h2","mw-heading","Платежи"));
+    if(m.error)root.append(el("p","mw-error","Финансовые данные не обновились: "+m.error));
+    const paid=m.orders.filter(o=>o.paid&&o.status!=="Отменён"&&
+      Number.isFinite(Number(o.amount))&&Number(o.amount)>=0);
+    const sum=rows=>Math.round(rows.reduce((total,o)=>total+(Number(o.amount)||0),0)*100)/100;
+    const cash=paid.filter(o=>o.method==="cash"),card=paid.filter(o=>o.method==="card"),
+      unknown=paid.filter(o=>!validMethod(o.method));
+    const total=sum(paid);
+    const confirmed=m.collections.filter(c=>c.confirmedAt).reduce((t,c)=>t+c.companyAmount,0);
+    const pending=m.collections.filter(c=>c.submittedAt&&!c.confirmedAt)
+      .reduce((t,c)=>t+c.companyAmount,0);
+    const waiting=m.collections.filter(c=>!c.submittedAt&&!c.confirmedAt)
+      .reduce((t,c)=>t+c.companyAmount,0);
+    root.append(box("mw-money-stats",
+      box("mw-money-stat",el("small","","Оплачено клиентами"),el("strong","",rub(total))),
+      box("mw-money-stat",el("small","","Наличные"),el("strong","",rub(sum(cash)))),
+      box("mw-money-stat",el("small","","Карта"),el("strong","",rub(sum(card)))),
+      box("mw-money-stat",el("small","","Не указан способ"),el("strong","",rub(sum(unknown))))));
+    root.append(el("p","mw-help","Это суммы платежей по твоим заказам, а не баланс банковского счёта или кассы."));
+    root.append(box("mw-settlement-summary",
+      box("",el("small","","Подтверждено компанией"),el("strong","",rub(confirmed))),
+      box("",el("small","","Ожидает подтверждения"),el("strong","",rub(pending))),
+      box("",el("small","","Осталось передать"),el("strong","",rub(waiting)))));
+    root.append(el("h3","mw-subheading","Оплаты заказов"));
+    const tabs=el("div","mw-payment-filters");
+    for(const [key,label] of [["all","Все"],["cash","Наличные"],["card","Карта"],["unknown","Без способа"]]){
+      const b=btn(label,"mw-filter-chip"+(paymentMethod===key?" active":""),()=>{
+        paymentMethod=key;renderMasterPayments();
+      });b.setAttribute("aria-pressed",String(paymentMethod===key));tabs.append(b);
+    }
+    root.append(tabs);
+    const list=el("div","mw-owner-history");
+    const filtered=paid.filter(o=>paymentMethod==="all"|| (paymentMethod==="unknown"?
+      !validMethod(o.method):o.method===paymentMethod));
+    filtered.sort((a,b)=>String(b.paidAt||b.date||"").localeCompare(String(a.paidAt||a.date||"")));
+    if(!filtered.length)list.append(el("p","mw-notice","Оплат по выбранному фильтру нет."));
+    for(const o of filtered){
+      const item=btn("","mw-payment-row",()=>window.__rdOpenMasterOrder?.(o.id));
+      item.append(box("mw-payment-row-main",
+        el("strong","","Заказ · "+(o.name||"Клиент")),
+        el("small","",date(o.paidAt||o.date)),
+        el("small","",accountName(o.method)+" · "+
+          (o.receivedBy==="master"?"Принял мастер":"Получено компанией"))),
+        box("mw-payment-row-value",el("strong","mw-plus","+"+rub(o.amount)),
+          el("span","","›")));
+      list.append(item);
+    }
+    root.append(list);
+    root.append(el("p","mw-help","Платежи клиентов, передача денег компании и выплаты зарплаты учитываются отдельно. Зарплату смотри в «Отчётах»."));
   }
   function renderMaster(){
     const root=$("mwMasterReports");if(!root||root.hidden)return;
@@ -349,24 +465,30 @@
       }
     });
   }
+  window.__rdMasterOrdersRefresh=()=>{filterRows()};
   window.__rdMoneyAccess=()=>{
     const isMaster=api()?.snapshot()?.role==="master";
     if(isMaster){
       setupMaster();
       const nav=$("mwMasterNav");if(nav)nav.hidden=false;
-      page="schedule";step="menu";
-      const reports=$("mwMasterReports");if(reports)reports.hidden=true;
-      updateNav();
+      page="orders";step="menu";
+      const reports=$("mwMasterReports"),payments=$("mwMasterPayments");
+      if(reports)reports.hidden=true;if(payments)payments.hidden=true;
+      const filters=$("mwMasterFilterbar");if(filters)filters.hidden=false;
+      updateNav();filterRows();
     }else{
-      const nav=$("mwMasterNav"),reports=$("mwMasterReports");
-      if(nav)nav.hidden=true;if(reports)reports.hidden=true;
+      const nav=$("mwMasterNav"),reports=$("mwMasterReports"),
+        payments=$("mwMasterPayments");
+      if(nav)nav.hidden=true;
+      if(reports)reports.hidden=true;
+      if(payments)payments.hidden=true;
     }
   };
   window.__rdMoneyUpdated=()=>{
-    if(page!=="reports"||!$("mwMasterReports")||payDialog)return;
+    if(payDialog)return;
     const focus=document.activeElement;
-    if(focus?.closest?.("#mwMasterReports"))return; // don't interrupt a tap or focused control
-    renderMaster();
+    if(page==="reports"&&$("mwMasterReports")&&!focus?.closest?.("#mwMasterReports"))renderMaster();
+    if(page==="payments"&&$("mwMasterPayments")&&!focus?.closest?.("#mwMasterPayments"))renderMasterPayments();
   };
   window.__rdPaymentsRender=ownerPayments;
 })();
