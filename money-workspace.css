@@ -350,3 +350,89 @@ body.rd #appScreen.rd-master.master-mode #orders .mw-filter-empty{
     bottom:0;
   }
 }
+
+
+/* Master viewport header shield and fixed rows — iOS PWA.
+   Both visual header rows are fixed against the viewport scroll; the opaque
+   shield closes the iPhone safe-area gap so cards cannot appear above them.
+   Narrow master-only scope protects owner/manager layouts and order modals. */
+@media (max-width:790px) {
+  html.rd-master-scroll-locked body.rd #appScreen.rd-master.master-mode:not([hidden]) {
+    --master-topbar-width:min(100vw,670px);
+    padding-top:calc(
+      var(--master-sticky-safe, env(safe-area-inset-top, 0px))
+      + var(--master-brand-height,54px)
+      + var(--master-heading-height,39px)
+      + 8px
+    )!important;
+    scroll-padding-top:calc(
+      var(--master-sticky-safe, env(safe-area-inset-top, 0px))
+      + var(--master-brand-height,54px)
+      + var(--master-heading-height,39px)
+      + 8px
+    );
+  }
+  html.rd-master-scroll-locked body.rd #appScreen.rd-master.master-mode:not([hidden])::before {
+    content:"";
+    position:fixed;
+    z-index:95;
+    top:0;
+    left:50%;
+    transform:translateX(-50%);
+    width:var(--master-topbar-width);
+    height:calc(
+      var(--master-sticky-safe, env(safe-area-inset-top, 0px))
+      + var(--master-brand-height,54px)
+      + var(--master-heading-height,39px)
+      + 2px
+    );
+    background:#f2f6ff;
+    pointer-events:none;
+  }
+  html.rd-master-scroll-locked body.rd #appScreen.rd-master.master-mode:not([hidden]) #masterBrand.master-brand {
+    position:fixed;
+    z-index:96;
+    top:var(--master-sticky-safe, env(safe-area-inset-top, 0px));
+    left:50%;
+    right:auto;
+    transform:translateX(-50%);
+    width:var(--master-topbar-width);
+    max-width:670px;
+    height:var(--master-brand-height,54px);
+    min-height:var(--master-brand-height,54px);
+    margin:0;
+    border:0;
+    border-radius:0;
+    padding:5px 112px 5px 12px;
+    background:#f2f6ff;
+    box-shadow:none;
+  }
+  html.rd-master-scroll-locked body.rd #appScreen.rd-master.master-mode:not([hidden]) > header {
+    position:fixed;
+    z-index:97;
+    top:calc(
+      var(--master-sticky-safe, env(safe-area-inset-top, 0px))
+      + var(--master-brand-height,54px)
+    );
+    left:50%;
+    right:auto;
+    transform:translateX(-50%);
+    box-sizing:border-box;
+    width:var(--master-topbar-width);
+    max-width:670px;
+    height:var(--master-heading-height,39px);
+    min-height:var(--master-heading-height,39px);
+    margin:0;
+    border:0;
+    padding:2px 12px 5px;
+    border-radius:0;
+    background:#f2f6ff;
+    box-shadow:none;
+    overflow:visible;
+  }
+  /* Profile and push popovers remain above the shield, and dialogs remain above
+     both header rows (dialogs use z-index 350/440/1800). */
+  html.rd-master-scroll-locked body.rd #appScreen.rd-master.master-mode > header .master-header-actions {
+    z-index:135;
+  }
+}
