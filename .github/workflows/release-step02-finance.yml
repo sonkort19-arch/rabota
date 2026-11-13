@@ -1,0 +1,62 @@
+name: Safe release step 2 — finance audit
+on:
+  push:
+    branches:
+      - audit/release-step02-finance-20261114
+  pull_request:
+    paths:
+      - qa/finance_reconciliation_readonly.sql
+      - tests/finance-reconciliation-readonly.test.cjs
+      - .github/workflows/release-step02-finance.yml
+permissions:
+  contents: read
+jobs:
+  static:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Prove SQL is read-only and contains no personal fields
+        run: node --test tests/finance-reconciliation-readonly.test.cjs
+  postgres-17:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: disposable-ci-only
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s --health-timeout 3s --health-retries 15
+    env:
+      PGHOST: 127.0.0.1
+      PGPORT: '5432'
+      PGUSER: postgres
+      PGPASSWORD: disposable-ci-only
+      PGDATABASE: postgres
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Install psql client
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq postgresql-client
+      - name: Create disposable schema with fake records
+        run: |
+          psql -X -v ON_ERROR_STOP=1 -f tests/sql/paid-guard-fixture.sql
+          psql -X -v ON_ERROR_STOP=1 -c "CREATE TABLE public.rabota_cashbook_entries (id uuid PRIMARY KEY, amount numeric, kind text)"
+      - name: Run finance reconciliation query in READ ONLY transaction
+        run: |
+          psql -X -v ON_ERROR_STOP=1 -f qa/finance_reconciliation_readonly.sql > /tmp/rabota-reconciliation.log
+          grep -q 'order_code' /tmp/rabota-reconciliation.log
+          grep -q 'raul_recorded_due' /tmp/rabota-reconciliation.log
+          grep -q 'ROLLBACK' /tmp/rabota-reconciliation.log
+      - name: Ensure synthetic order count unchanged
+        run: |
+          test "$(psql -X -At -c 'SELECT count(*) FROM public.rabota_orders')" = "8"
