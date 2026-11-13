@@ -1,0 +1,75 @@
+name: Safe release step 3 — role and salary guards
+on:
+  push:
+    branches:
+      - audit/release-step03-role-hardening-20261114
+  pull_request:
+    paths:
+      - sql/009-owner-only-salary-payout.sql
+      - money-workspace.js
+      - tests/roles-stage3.test.cjs
+      - tests/sql/roles-stage3-fixture.sql
+      - tests/sql/roles-stage3-scenarios.sql
+      - .github/workflows/release-step03-roles.yml
+permissions:
+  contents: read
+jobs:
+  node:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify roles, salary RPC, and read-only master UI
+        run: node --test tests/roles-stage3.test.cjs
+      - name: Verify prior guards and finance reconciliation
+        run: node --test tests/paid-order-guard.test.cjs tests/finance-reconciliation-readonly.test.cjs
+  postgres-17:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: disposable-ci-only
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s --health-timeout 3s --health-retries 15
+    env:
+      PGHOST: 127.0.0.1
+      PGPORT: '5432'
+      PGUSER: postgres
+      PGPASSWORD: disposable-ci-only
+      PGDATABASE: postgres
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: Install psql client
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq postgresql-client
+      - name: Create fake employee, order, and salary history
+        run: psql -X -v ON_ERROR_STOP=1 -f tests/sql/roles-stage3-fixture.sql
+      - name: Install stage-1 paid order protection on synthetic data
+        run: psql -X -v ON_ERROR_STOP=1 -f sql/008-protect-paid-orders.sql
+      - name: Apply reviewed owner-only salary guard on synthetic data
+        run: psql -X -v ON_ERROR_STOP=1 -f sql/009-owner-only-salary-payout.sql
+      - name: Test owner, Raul, manager, anonymous, replay and RLS visibility
+        run: psql -X -v ON_ERROR_STOP=1 -f tests/sql/roles-stage3-scenarios.sql
+      - name: Retest stage-1 paid orders after salary role changes
+        run: psql -X -v ON_ERROR_STOP=1 -f tests/sql/paid-guard-scenarios.sql
+      - name: Drift: fail closed if original payout RPC changed
+        run: |
+          createdb rabota_role_drift
+          psql -X -v ON_ERROR_STOP=1 -d rabota_role_drift -f tests/sql/roles-stage3-fixture.sql
+          psql -X -v ON_ERROR_STOP=1 -d rabota_role_drift -c "CREATE OR REPLACE FUNCTION public.rabota_salary_payout_v2(text,numeric,text,text,uuid,uuid) RETURNS uuid LANGUAGE sql SECURITY DEFINER SET search_path TO '' AS 'SELECT NULL::uuid'"
+          if psql -X -v ON_ERROR_STOP=1 -d rabota_role_drift -f sql/009-owner-only-salary-payout.sql > /tmp/expected-role-drift.log 2>&1; then
+            echo "FAIL: changing source RPC did not block salary guard migration"
+            exit 1
+          fi
+          grep -q 'Salary payout RPC changed since audit' /tmp/expected-role-drift.log
+          test "$(psql -X -At -d rabota_role_drift -c "SELECT obj_description('public.rabota_salary_payout_v2(text,numeric,text,text,uuid,uuid)'::regprocedure,'pg_proc')")" != 'Rabota owner-only salary payout ledger, master retains read-only history'
