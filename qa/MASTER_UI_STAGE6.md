@@ -56,3 +56,21 @@ node --test tests/order-model.test.cjs tests/order-sync.test.cjs tests/calendar-
 ## Откат
 Вернуть `index.html` из ветки этапа 5 и удалить `master-ui.js`.
 Изменений данных и схем БД нет.
+
+## Результат автоматического GitHub CI
+- Дополнительный workflow `Modular master UI checks` на commit
+  `20361f4ba3316b3beefa72746cca759a63147b9b` — **SUCCESS**.
+- В нём выполнены реальные Node.js 22 проверки:
+  `order-model`, `order-sync`, `calendar-model`, `finance-model`,
+  `master-ui`, `master-dashboard`, `master-owner-cards`.
+- Существующие `master-dashboard.cjs` и `master-owner-cards.cjs`
+  адаптированы к переносу функций в `master-ui.js`, без отказа от проверок.
+- Старый workflow `Master dashboard isolated checks` не прошёл:
+  он останавливается в `tests/finance-payroll-preview.js` на проверке
+  состояния финансовой вкладки. Файлы `finance-payroll.js` и
+  `tests/finance-payroll-preview.js` имеют **те же SHA**, что и в `main`;
+  данный сбой не вызван кодом этапа 6.
+- Полностью зелёного статуса всех CI/workflows пока **нет**.
+- iPhone/WebKit и интеграционные тесты с real backend всё ещё впереди.
+
+CI: https://github.com/sonkort19-arch/rabota/actions/runs/43502739662
