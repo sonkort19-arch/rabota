@@ -31,3 +31,12 @@ jobs:
         run: |
           node --test tests/lead-ai-bridge.test.cjs
           node --test tests/order-model.test.cjs tests/order-sync.test.cjs tests/calendar-model.test.cjs tests/finance-model.test.cjs tests/master-ui.test.cjs
+      - name: Verify compact master and icon CSS tests
+        run: |
+          node --test tests/master-owner-cards.cjs tests/ui-icon-layout.test.js
+      - name: Install Safari WebKit runner
+        run: |
+          npm install --no-save --ignore-scripts playwright@1.56.1
+          npx playwright install --with-deps webkit
+      - name: Check mobile master density and touch targets
+        run: node tests/master-dense-layout.cjs
