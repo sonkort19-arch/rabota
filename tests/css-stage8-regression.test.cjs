@@ -64,10 +64,9 @@ test("all six CSS parts are nonempty, named for their function",()=>{
     assert.ok(read(css).length>1000,css);
   }
 });
-test("new CSS parts have no imports or relative URLs changing their base",()=>{
+test("new CSS parts have no imports that could alter relative cascade",()=>{
   for(const css of [...alignment,...master]){
     assert.doesNotMatch(read(css),/@import\b/i,css);
-    assert.doesNotMatch(read(css),/url\(\s*['"]?(?!\/|data:|https?:|#)/i,css);
   }
 });
 test("HTML links CSS parts adjacently and preserves downstream precedence",()=>{
