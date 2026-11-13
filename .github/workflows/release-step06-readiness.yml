@@ -47,6 +47,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - name: Test private offline backup checksum validation on synthetic files
+        run: node --test tests/free-backup-local.test.cjs
       - name: Verify combined architecture, rights and finance contracts
         run: |
           node --test tests/release-step04-combined.test.cjs tests/stage10-contracts.test.cjs
