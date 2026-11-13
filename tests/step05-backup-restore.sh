@@ -18,7 +18,7 @@ WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
 
 # Backup a synthetic source database containing fake order, cash and salary data.
-pg_dump --format=custom --no-owner --no-acl --dbname="$PGDATABASE" \
+pg_dump --format=custom --no-owner --dbname="$PGDATABASE" \
   --file="$WORK/synthetic-backup.dump"
 (
   cd "$WORK"
