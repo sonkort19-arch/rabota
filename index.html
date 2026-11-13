@@ -520,6 +520,7 @@
   </div>
 
   <script src="/order-notes.js?v=20261111-notes1"></script>
+  <script src="/order-sync.js?v=20261113-stage2"></script>
   <script>
 
     "use strict";
@@ -642,7 +643,8 @@
       localStorage.setItem(AUTH_KEY, JSON.stringify(session));
     }
     function clearSession() {
-      session = null; currentUser = null; currentRole=null; currentMasterName=""; cloudOrders = [];
+      session = null; currentUser = null; currentRole=null; currentMasterName=""; cloudOrders = []; ordersLoaded=false;
+      window.__rdOrderSync?.reset();
       financeOperations=[];financeCollections=[];financeMasterId=null;financeActive=false;financeLoadError="";
       financeLoadGeneration++; // invalidate finance responses still in flight
       localStorage.removeItem(AUTH_KEY);
@@ -744,36 +746,48 @@
       const calendarStatus=document.getElementById("rdCalendarSynced");
       if(calendarStatus){calendarStatus.textContent=node.textContent;calendarStatus.classList.toggle("sync-error",Boolean(error));}
     }
-    async function reloadOrders() {
-      const items = [];
-      for (let offset = 0; offset < 100000; offset += 1000) {
-        const page = await dbRequest("rabota_orders?select=*&order=created_at.desc&limit=1000&offset=" + offset, "GET");
-        if (!Array.isArray(page)) throw new Error("Неверный ответ базы данных.");
-        items.push(...page);
-        if (page.length < 1000) break;
-      }
-      const incoming=items.map(readOrder);
-      const changed=!ordersLoaded || JSON.stringify(incoming)!==JSON.stringify(cloudOrders);
-      cloudOrders=incoming;
-      ordersLoaded=true;
-      // A periodic refresh must not destroy focused controls or expanded cards.
-      if(changed){
-        // Preserve keyboard focus when a background refresh recreates master's rows.
-        const activeToggle=currentRole==="master"&&document.activeElement?.classList?.contains("master-schedule-toggle")
-          ?document.activeElement:null;
-        const focusedMasterOrderId=activeToggle?.closest(".master-schedule-card")?.dataset.orderId;
-        // Invalidate calendar views only when fresh order data actually differs.
-        window.__rdOrdersRevision=(window.__rdOrdersRevision||0)+1;
-        render();
-        if(focusedMasterOrderId){
-          const replacement=[...ordersNode.querySelectorAll(".master-schedule-card")]
-            .find(row=>row.dataset.orderId===focusedMasterOrderId);
-          replacement?.querySelector(".master-schedule-toggle")?.focus({preventScroll:true});
+    async function reloadOrders({background=false}={}) {
+      // Background polls compare tiny id/updated_at headers first.
+      // Explicit user actions always fetch the authoritative complete list.
+      const unchanged=background && ordersLoaded && window.__rdOrderSync &&
+        await window.__rdOrderSync.isUnchanged((offset,limit)=>
+          dbRequest("rabota_orders?select=id,updated_at&order=id.asc&limit="+limit+"&offset="+offset,"GET")
+        );
+      if(!unchanged){
+        const items = [];
+        for (let offset = 0; offset < 100000; offset += 1000) {
+          const page = await dbRequest("rabota_orders?select=*&order=created_at.desc&limit=1000&offset=" + offset, "GET");
+          if (!Array.isArray(page)) throw new Error("Неверный ответ базы данных.");
+          items.push(...page);
+          if (page.length < 1000) break;
         }
-        window.__rdOrderAvailability?.refresh(incoming);
-        updateImportButton();
-      }else{
-        // Keep relative slot times current even when the orders table is unchanged.
+        window.__rdOrderSync?.rememberFull(items);
+        const incoming=items.map(readOrder);
+        const changed=!ordersLoaded || JSON.stringify(incoming)!==JSON.stringify(cloudOrders);
+        cloudOrders=incoming;
+        ordersLoaded=true;
+        // A periodic refresh must not destroy focused controls or expanded cards.
+        if(changed){
+          // Preserve keyboard focus when a background refresh recreates master's rows.
+          const activeToggle=currentRole==="master"&&document.activeElement?.classList?.contains("master-schedule-toggle")
+            ?document.activeElement:null;
+          const focusedMasterOrderId=activeToggle?.closest(".master-schedule-card")?.dataset.orderId;
+          // Invalidate calendar views only when fresh order data actually differs.
+          window.__rdOrdersRevision=(window.__rdOrdersRevision||0)+1;
+          render();
+          if(focusedMasterOrderId){
+            const replacement=[...ordersNode.querySelectorAll(".master-schedule-card")]
+              .find(row=>row.dataset.orderId===focusedMasterOrderId);
+            replacement?.querySelector(".master-schedule-toggle")?.focus({preventScroll:true});
+          }
+          window.__rdOrderAvailability?.refresh(incoming);
+          updateImportButton();
+        }else{
+          // Keep relative slot times current even when the orders table is unchanged.
+          window.__rdQuickSlotsRefresh?.();
+        }
+        }else{
+        // Keep slot suggestions current without rebuilding unchanged order cards.
         window.__rdQuickSlotsRefresh?.();
       }
       let syncError=null;
@@ -2444,12 +2458,12 @@
     document.getElementById("accessLogout").addEventListener("click",logout);
     window.addEventListener("focus",async()=>{
       if(!session||document.getElementById("appScreen").hidden)return;
-      try {await reloadOrders();if(currentRole==="owner")await loadTeam();}
+      try {await reloadOrders({background:true});if(currentRole==="owner")await loadTeam();}
       catch(error){reportSync(error);}
     });
     setInterval(async()=>{
       if(!session || document.visibilityState==="hidden" || document.getElementById("appScreen").hidden)return;
-      try{await reloadOrders();if(currentRole==="owner")await loadTeam();}
+      try{await reloadOrders({background:true});if(currentRole==="owner")await loadTeam();}
       catch(error){reportSync(error);}
     },30000);
     initialize();
