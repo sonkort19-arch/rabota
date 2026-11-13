@@ -66,7 +66,7 @@ jobs:
         run: |
           createdb rabota_role_drift
           psql -X -v ON_ERROR_STOP=1 -d rabota_role_drift -f tests/sql/roles-stage3-fixture.sql
-          psql -X -v ON_ERROR_STOP=1 -d rabota_role_drift -c "CREATE OR REPLACE FUNCTION public.rabota_salary_payout_v2(text,numeric,text,text,uuid,uuid) RETURNS uuid LANGUAGE sql SECURITY DEFINER SET search_path TO '' AS 'SELECT NULL::uuid'"
+          psql -X -v ON_ERROR_STOP=1 -d rabota_role_drift -c "CREATE OR REPLACE FUNCTION public.rabota_salary_payout_v2(p_kind text,p_amount numeric,p_payment_method text,p_note text,p_request_id uuid,p_master_user_id uuid DEFAULT NULL::uuid) RETURNS uuid LANGUAGE sql SECURITY DEFINER SET search_path TO '' AS 'SELECT NULL::uuid'"
           if psql -X -v ON_ERROR_STOP=1 -d rabota_role_drift -f sql/009-owner-only-salary-payout.sql > /tmp/expected-role-drift.log 2>&1; then
             echo "FAIL: changing source RPC did not block salary guard migration"
             exit 1
