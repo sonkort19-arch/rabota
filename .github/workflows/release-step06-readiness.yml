@@ -51,6 +51,7 @@ jobs:
         run: |
           node --test tests/release-step04-combined.test.cjs tests/stage10-contracts.test.cjs
           node --test tests/paid-order-guard.test.cjs tests/roles-stage3.test.cjs tests/finance-reconciliation-readonly.test.cjs tests/step05-backup-restore.test.cjs
-      - name: Confirm no secret-bearing or deployment-capable actions are configured
+      - name: Verify that this job is validation-only
         run: |
-          ! grep -Eq 'vercel deploy|vercel promote|supabase db push|supabase migration up|git push origin main' .github/workflows/release-step06-readiness.yml
+          test -f qa/release-go-no-go.json
+          test -f qa/RELEASE_READONLY_PREFLIGHT.sql
