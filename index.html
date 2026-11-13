@@ -530,6 +530,7 @@
   <script src="/finance-model.js?v=20261113-stage5"></script>
   <script src="/master-ui.js?v=20261113-stage6"></script>
   <script src="/lead-ai-bridge.js?v=20261113-stage7"></script>
+  <script src="/app-services.js?v=20261114-stage9"></script>
   <script>
 
     "use strict";
@@ -617,13 +618,8 @@
       if (value === null || value === undefined || value === "") return;
       card.append(make("div", "info", label + String(value)));
     }
-    function phoneForDisplay(phone) { return String(phone || "").trim(); }
-    function normalizePhone(phone) {
-      let number = String(phone || "").replace(/\D/g, "");
-      if (number.length === 11 && number[0] === "8") number = "7" + number.slice(1);
-      if (number.length === 10) number = "7" + number;
-      return number.length >= 10 && number.length <= 15 ? number : "";
-    }
+    function phoneForDisplay(phone){return sharedServices.phoneForDisplay(phone);}
+    function normalizePhone(phone){return sharedServices.normalizePhone(phone);}
     function masterViewportScroller(){
       return currentRole==="master" &&
         window.matchMedia?.("(max-width:790px)")?.matches
@@ -661,16 +657,16 @@
       financeLoadGeneration++; // invalidate finance responses still in flight
       localStorage.removeItem(AUTH_KEY);
     }
-    async function authRequest(path, method, payload, authenticated) {
-      const headers = {apikey:SUPABASE_KEY,"Content-Type":"application/json"};
-      if (authenticated && session && session.access_token)
-        headers.Authorization = "Bearer " + session.access_token;
-      const response = await fetch(SUPABASE_URL + "/auth/v1/" + path, {
-        method:method || "GET",headers,body:payload ? JSON.stringify(payload) : undefined
-      });
-      const value = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(value.msg || value.error_description || value.message || value.error || "Ошибка авторизации");
-      return value;
+    // Existing session state and refresh policy are authoritative in this file.
+    // SharedServices handles only network request/response semantics.
+    const sharedServices=window.__rdCreateSharedServices({
+      url:SUPABASE_URL,key:SUPABASE_KEY,
+      getSession:()=>session,
+      ensureSession:()=>ensureSession(),
+      fetch:(url,options)=>fetch(url,options)
+    });
+    async function authRequest(path,method,payload,authenticated){
+      return sharedServices.authRequest(path,method,payload,authenticated);
     }
     async function ensureSession() {
       if (!session || !session.refresh_token) throw new Error("Требуется вход в аккаунт.");
@@ -683,21 +679,8 @@
       }
       await refreshPromise;
     }
-    async function dbRequest(path, method, payload) {
-      await ensureSession();
-      const headers = {apikey:SUPABASE_KEY,Authorization:"Bearer " + session.access_token,Accept:"application/json"};
-      if (payload !== undefined) headers["Content-Type"] = "application/json";
-      if (method !== "GET") headers.Prefer = "return=representation";
-      const response = await fetch(SUPABASE_URL + "/rest/v1/" + path, {
-        method,headers,body:payload === undefined ? undefined : JSON.stringify(payload)
-      });
-      const value = await response.json().catch(() => null);
-      if (!response.ok) {
-        const err = new Error(value && (value.message || value.error) || "Ошибка базы данных (" + response.status + ")");
-        err.code = value && value.code;
-        throw err;
-      }
-      return value;
+    async function dbRequest(path,method,payload){
+      return sharedServices.dbRequest(path,method,payload);
     }
     // Adapter: user-facing code keeps its existing function names. The
     // implementation lives in the isolated order-model.js module.
@@ -712,10 +695,7 @@
     });
     function readOrder(row) {return orderModel.readOrder(row);}
     function serializeOrder(order) {return orderModel.serializeOrder(order);}
-    function friendlyError(error) {
-      if (error && error.code === "23505") return "В это время у выбранного мастера уже есть заказ либо запись дублируется.";
-      return error instanceof Error ? error.message : String(error);
-    }
+    function friendlyError(error){return sharedServices.friendlyError(error);}
     function reportSync(error, source="orders") {
       const node=document.getElementById("syncStatus");
       if(!node)return;
