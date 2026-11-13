@@ -244,3 +244,10 @@ body.rd #appScreen.rd-master.master-mode #orders .master-day-heading[hidden]{
   .mw-money-stat strong{font-size:13px}
   .mw-settlement-summary strong{font-size:12px}
 }
+
+/* No matches in the unified order list: never leave the screen looking broken. */
+body.rd #appScreen.rd-master.master-mode #orders .mw-filter-empty{
+  padding:20px 14px;text-align:center;border:1px dashed #cedbf1;
+  border-radius:13px;background:#f7faff;color:#74849f;font-size:13px;
+  line-height:1.45;
+}
