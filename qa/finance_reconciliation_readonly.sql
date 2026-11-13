@@ -42,7 +42,11 @@ WITH order_stats AS (
  WHERE f.order_id IS NULL AND f.voided_at IS NULL
    AND f.kind IN ('raul_payout','timur_payout')
 )
-SELECT o.*,c.*,m.*,p.*,
+SELECT o.all_orders,o.paid_orders,o.completed_paid,o.legacy_paid,o.legacy_gross,
+ c.collections,c.confirmed_collections,c.pending_collections,c.pending_company_cash,
+ c.collections_missing_auto_ledger,c.missing_auto_ledger_gross,
+ m.paid_master_no_distribution,m.paid_master_undistributed_gross,
+ p.manual_payouts,p.manual_amount,
  (SELECT count(*)::int FROM public.rabota_cashbook_entries) AS cashbook_entries
 FROM order_stats o CROSS JOIN cash_stats c CROSS JOIN master_stats m
 CROSS JOIN manual_stats p;
@@ -75,7 +79,9 @@ WITH ledger AS (
  LEFT JOIN public.rabota_cash_collections c ON c.order_id=o.id
  LEFT JOIN ledger l ON l.order_id=o.id
 )
-SELECT * FROM flagged
+SELECT order_code,visit_date,order_gross,status,collection_gross,company_share,
+ collection_state,legacy_paid,master_no_collection,collection_no_automatic_ledger,awaiting_owner
+FROM flagged
 WHERE legacy_paid OR master_no_collection OR collection_no_automatic_ledger OR awaiting_owner
 ORDER BY visit_date,order_code;
 
