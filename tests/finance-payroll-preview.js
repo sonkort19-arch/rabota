@@ -60,7 +60,7 @@ function fixture(){
 }
 test("owner finance opens on salary; totals come from supplied numbers",()=>{
  const f=fixture();
- assert.equal(select(f.root,"fp-tab").length,3);
+ assert.equal(select(f.root,"fp-tab").length,4);
  assert.equal(select(f.root,"fp-person-row").length,2);
  assert.equal(select(f.root,"fp-metric").length,3);
  assert.ok(f.root.textContent.includes("8 750,00")||f.root.textContent.includes("8 750,00"));
@@ -75,7 +75,7 @@ test("employee views show earned and paid entries; preview never executes payout
  select(f.root,"fp-balance-payout")[0].click();
  assert.equal(select(f.body,"fp-modal").length,1);
  const inputs=select(f.body,"fp-input");
- inputs[0].value="5000";inputs[1].value="Частичная зарплата";inputs.forEach(e=>e.input());
+ inputs[0].value="5000";inputs[1].value="cash";inputs[2].value="Частичная зарплата";inputs.forEach(e=>e.input());
  assert.ok(f.body.textContent.includes("2 250,00")||f.body.textContent.includes("2 250,00"));
  select(f.body,"fp-primary")[0].click();
  assert.equal(f.confirmed,0);
@@ -84,16 +84,16 @@ test("employee views show earned and paid entries; preview never executes payout
 test("switching finance tabs preserves button identity, focus target and active states",()=>{
  const f=fixture();
  const all=select(f.root,"fp-tab");
- assert.equal(all.length,3);
- const salary=all[0],cash=all[1],ops=all[2];
+ assert.equal(all.length,4);
+ const salary=all[0],payments=all[1],cash=all[2],ops=all[3];
  assert.equal(salary.getAttribute("aria-pressed"),"true");
  cash.click();
- assert.equal(select(f.root,"fp-tab")[1],cash);
+ assert.equal(select(f.root,"fp-tab")[2],cash);
  assert.equal(select(f.root,"fp-tab")[0],salary);
  assert.equal(cash.getAttribute("aria-pressed"),"true");
  assert.equal(salary.getAttribute("aria-pressed"),"false");
  ops.click();
- assert.equal(select(f.root,"fp-tab")[2],ops);
+ assert.equal(select(f.root,"fp-tab")[3],ops);
  assert.equal(ops.getAttribute("aria-pressed"),"true");
  salary.click();
  assert.equal(select(f.root,"fp-tab")[0],salary);
@@ -128,10 +128,10 @@ test("Timur detail has independent balance and the same transaction tabs",()=>{
 });
 test("cash and operations retain old report and operation controls",()=>{
  const f=fixture();
- select(f.root,"fp-tab")[1].click();
+ select(f.root,"fp-tab")[2].click();
  assert.equal(select(f.root,"fp-original")[0].hidden,false);
  assert.ok(f.root.textContent.includes("Оригинальные финансовые расчёты"));
- select(f.root,"fp-tab")[2].click();
+ select(f.root,"fp-tab")[3].click();
  assert.equal(f.history.hidden,false);
  assert.equal(f.entry.hidden,false);
  assert.equal(f.heading.hidden,false);
