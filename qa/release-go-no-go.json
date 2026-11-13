@@ -30,7 +30,7 @@
       "title": "Реальная резервная копия общей Supabase и восстановление в отдельную среду",
       "verified": false,
       "evidence": null,
-      "note": "Инвентарь managed backup не доступен; фактическая копия не подтверждена"
+      "note": "Организация Supabase на Free: автоматические ежедневные backup недоступны по правилам тарифа. Реальный ручной экспорт и восстановление не подтверждены. См. qa/FREE_PLAN_BACKUP_OWNER_GUIDE.md."
     },
     {
       "id": "finance_historical_reconciliation",
@@ -58,7 +58,7 @@
       "title": "Установлена точная production-привязка CRM Работа в Vercel и предыдущий deployment",
       "verified": false,
       "evidence": null,
-      "note": "Доступный Vercel показал только grafik (другой GitHub-репозиторий)"
+      "note": "GitHub homepage указывает https://rabota-rust.vercel.app, но рабочий Vercel-коннектор показывает только grafik. Домен/production deployment CRM пока не подтверждены."
     },
     {
       "id": "migration_approval_and_drift",
@@ -95,5 +95,24 @@
       "evidence": null,
       "note": "Команда «Делай следующий этап» не означает разрешение на production"
     }
-  ]
+  ],
+  "additional_observations": {
+    "supabase_organization_plan": "free",
+    "managed_daily_backup_confirmed": false,
+    "planned_backup_method": "manual Supabase CLI export on owner's trusted device, encrypted off-repository; independent restore mandatory",
+    "guide": "qa/FREE_PLAN_BACKUP_OWNER_GUIDE.md",
+    "supabase_readonly_inventory": {
+      "public_tables": 57,
+      "rabota_tables": 11,
+      "auth_users": 2,
+      "storage_buckets": 1,
+      "storage_objects": 0
+    },
+    "repository_homepage_url": "https://rabota-rust.vercel.app",
+    "repository_homepage_is_verified_live": false,
+    "connected_vercel_projects": [
+      "grafik"
+    ],
+    "correct_vercel_project_verified": false
+  }
 }
