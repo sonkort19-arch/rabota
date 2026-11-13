@@ -131,7 +131,7 @@ async function check(browser,label,device){
   assert.equal(refused,false,label+": user may cancel when no assigned master");
   assert.equal(await page.evaluate(()=>window.__whatsappUrls.length),countBefore,
     label+": no WhatsApp draft opened without confirmation");
-  assert.match((await page.evaluate(()=>window.__confirmDialogCalls.join("\n"))),/Нет привязки мастера в базе/,
+  assert.match((await page.evaluate(()=>window.__confirmDialogCalls.join("\n"))),/привязка мастера в базе не подтверждена/, 
     label+": descriptive warning");
   await page.evaluate(()=>{window.confirm=()=>true;});
   const accepted=await page.evaluate(()=>
