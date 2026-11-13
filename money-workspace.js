@@ -115,7 +115,7 @@
     finishGroup();
     const count=$("orderCount");if(count)count.textContent=shown+" шт.";
     let empty=root.querySelector(".mw-filter-empty");
-    if(shown===0){
+    if(shown===0&&!root.querySelector(".empty")){
       if(!empty){
         empty=el("div","mw-filter-empty","По выбранным фильтрам заказов нет.");
         root.append(empty);
