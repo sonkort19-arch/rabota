@@ -135,7 +135,9 @@
     const reports=$("mwMasterReports"),payments=$("mwMasterPayments"),
       orders=$("ordersArea"),finance=$("financePanel");
     if(!reports||!payments||!orders||!finance)return;
-    if(restore&&which!==page)scrollPositions.set(page,window.scrollY||0);
+    if(restore&&which!==page){
+      scrollPositions.set(page,window.__rdMasterViewportScroll?.position?.()??window.scrollY??0);
+    }
     page=which;reports.hidden=which!=="reports";payments.hidden=which!=="payments";
     const filters=$("mwMasterFilterbar");
     if(filters)filters.hidden=which!=="orders";
@@ -154,7 +156,11 @@
       if(which==="orders")filterRows();
     }
     updateNav();
-    if(restore)window.scrollTo({top:scrollPositions.get(which)||0,behavior:"instant"});
+    if(restore){
+      const y=scrollPositions.get(which)||0;
+      if(window.__rdMasterViewportScroll?.restore)window.__rdMasterViewportScroll.restore(y);
+      else window.scrollTo({top:y,behavior:"instant"});
+    }
   }
   function renderMasterPayments(){
     const root=$("mwMasterPayments");if(!root||root.hidden)return;
