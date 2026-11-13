@@ -6,6 +6,7 @@
 const assert=require("node:assert/strict");
 const fs=require("node:fs");
 const path=require("node:path");
+const {createMasterUI}=require("../master-ui.js");
 const {test}=require("node:test");
 const root=path.resolve(__dirname,"..");
 const html=fs.readFileSync(path.join(root,"index.html"),"utf8");
@@ -50,14 +51,16 @@ function fixture(role="master",tab="all"){
  const summary=element("section");
  const document={getElementById:id=>id==="masterTodaySummary"?summary:null,querySelectorAll:()=>[]};
  const make=(tag,cls,txt)=>{const e=element(tag,txt||"");e.className=cls;return e};
- const start=main.indexOf("    function masterClock() {");
- const end=main.indexOf("    function makeMasterScheduleRow(",start);
- assert.ok(start>=0&&end>start,"master dashboard helpers must be present");
- const factory=new Function("getOrders","collectionForOrder","currentRole","currentTab",
-  "document","make","formatDate","Date","Intl",
-  main.slice(start,end)+"\nreturn {masterClock,masterTimeMinutes,masterWorkingOrders,masterSettlementOrders,masterScheduleSort,masterOrderCount,renderMasterOverview};");
- const api=factory(()=>records,id=>collections[id]||null,role,tab,document,make,
-  d=>d==="2026-11-12"?"12 ноя":d, fixedDate,Intl);
+ const api=createMasterUI({
+  make,parseDate:date=>{
+    const [year,month,day]=date.split("-").map(Number);
+    return new Date(year,month-1,day,12);
+  },formatDate:d=>d==="2026-11-12"?"12 ноя":d,
+  getOrders:()=>records,collectionForOrder:id=>collections[id]||null,
+  getCurrentRole:()=>role,getCurrentTab:()=>tab,
+  doc:document,ordersNode:element("section"),STATUSES:["Новый","Записан","В работе","Выполнен","Отменён"],
+  openMasterOrderDialog:()=>{},DateImpl:fixedDate
+ });
  return {...api,summary};
 }
 test("time is determined in Europe/Moscow, independent of browser timezone",()=>{
@@ -104,7 +107,7 @@ test("master presentation and role-scoped finance remain wired",()=>{
  assert.match(html,/isOwner\?financeOperations:financeOperations\.filter\(o=>o\.master_user_id===financeMasterId&&o\.kind==="raul_payout"\)/);
  assert.match(html,/if\(isOwner\)\{[\s\S]*?financeMetric\("Доля компании"/);
  assert.match(html,/id="masterBalanceQuick"[\s\S]*?К выплате/);
- assert.match(html,/href="\/master-dashboard\.css\?v=20261112-compact"/);
+ assert.match(html,/href="\/master-dashboard\.css\?v=[^"]+"/);
  assert.match(css,/#appScreen\.master-mode \.master-schedule-toggle/);
  assert.match(css,/white-space:nowrap;flex:0 0 auto/);
  assert.match(css,/min-height:48px;font:inherit;cursor:pointer/);
@@ -113,7 +116,7 @@ test("master presentation and role-scoped finance remain wired",()=>{
 
 test("finance refresh failure only marks finance as unavailable, not stale orders",()=>{
  const start=main.indexOf("    function reportSync(error, source=");
- const end=main.indexOf("    async function reloadOrders()",start);
+ const end=main.indexOf("    async function reloadOrders(",start);
  assert.ok(start>=0&&end>start,"sync indicator function exists");
  const node=()=>({textContent:"",classList:{toggle(){}}});
  const nodes=new Map(["syncStatus","rdOrdersSynced","rdHomeSynced","rdCalendarSynced"]
@@ -130,7 +133,7 @@ test("finance refresh failure only marks finance as unavailable, not stale order
  assert.match(nodes.get("syncStatus").textContent,/Обновлено/);
 });
 test("changed order data restores focus to the same master's order row",()=>{
- const start=main.indexOf("    async function reloadOrders() {");
+ const start=main.indexOf("    async function reloadOrders(");
  const end=main.indexOf("    function getOrders()",start);
  assert.ok(start>=0&&end>start,"refresh function exists");
  const source=main.slice(start,end);
