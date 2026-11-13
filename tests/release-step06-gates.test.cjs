@@ -68,7 +68,7 @@ test("runbook defines safe migration order and non-destructive rollback",()=>{
  assert.match(runbook,/не применять часть набора/i);
  assert.match(runbook,/grafik/);
  assert.match(runbook,/общей/);
- assert.match(runbook,/real/i);
+ assert.match(runbook,/реальн/i);
 });
 
 test("the evidence ledger stores no secrets or client PII",()=>{
