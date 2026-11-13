@@ -1,8 +1,17 @@
 -- Isolated PostgreSQL 17 fixture. Synthetic user IDs / clients only.
 -- Never execute this fixture on any Supabase project (it creates schema/roles).
 \set ON_ERROR_STOP on
-CREATE ROLE authenticated NOLOGIN;
-CREATE ROLE anon NOLOGIN;
+-- Roles are shared by all databases in the same ephemeral PostgreSQL cluster.
+DO $roles$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_catalog.pg_roles WHERE rolname='authenticated') THEN
+    CREATE ROLE authenticated NOLOGIN;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_catalog.pg_roles WHERE rolname='anon') THEN
+    CREATE ROLE anon NOLOGIN;
+  END IF;
+END;
+$roles$;
 CREATE SCHEMA auth;
 CREATE SCHEMA private;
 GRANT USAGE ON SCHEMA public,auth,private TO authenticated,anon;
