@@ -32,8 +32,9 @@ echo "PASS: disposable archive generated, listed and SHA-256 verified"
 # Corruption MUST be detected before a restore is considered.
 cp "$WORK/synthetic-backup.dump" "$WORK/corrupted.dump"
 printf 'intentional damage' >> "$WORK/corrupted.dump"
-if [[ "$(sha256sum "$WORK/corrupted.dump" | cut -d' ' -f1)" ==
-      "$(sha256sum "$WORK/synthetic-backup.dump" | cut -d' ' -f1)" ]]; then
+corrupted_digest="$(sha256sum "$WORK/corrupted.dump" | cut -d' ' -f1)"
+original_digest="$(sha256sum "$WORK/synthetic-backup.dump" | cut -d' ' -f1)"
+if [[ "$corrupted_digest" == "$original_digest" ]]; then
   echo "FAIL: corrupted archive retained original digest" >&2
   exit 1
 fi
