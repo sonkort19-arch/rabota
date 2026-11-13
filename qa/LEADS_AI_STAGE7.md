@@ -20,18 +20,23 @@
   роли, данные лида, дата/время, Preview, пустые поля, UUID, лимит заметок,
   нормализация материалов, безопасная ссылка на ИИ-чат.
 - Добавлен `tests/lead-ai-bridge.test.cjs`, 12 сценариев.
-- Включён CI `.github/workflows/stage07-lead-ai.yml`, выполняющий новый набор,
-  существующие тесты preview-лидов и тесты предыдущих модулей.
+- Включён CI `.github/workflows/stage07-lead-ai.yml`: 12 новых тестов связки
+  и 64 теста ранее выделенных модулей. Старый `tests/lead-assistant-preview.js`
+  исключён из этого CI: он проверяет устаревшую модель browser-local-only,
+  а текущие лиды работают с Supabase. Сам старый тест требует отдельного обновления.
 
 Команда тестирования в Node:
 ```sh
-node --test tests/lead-ai-bridge.test.cjs tests/lead-assistant-preview.js
+node --test tests/lead-ai-bridge.test.cjs
 node --test tests/order-model.test.cjs tests/order-sync.test.cjs tests/calendar-model.test.cjs tests/finance-model.test.cjs tests/master-ui.test.cjs
 ```
 
 ## Важные ограничения
 - Код изменён только в stacked feature-ветке на основе этапа 6 (PR #63);
   автоматический деплой и слияние в main не выполнялись.
+- Отдельный устаревший тест `tests/lead-assistant-preview.js` не проходит на текущем
+  `lead-assistant.js` (проверка старой browser-only модели). Это существующий
+  пробел в тестовом покрытии, который нельзя скрывать.
 - Предварительные unit-тесты не доказывают корректность браузера WebKit,
   реальной авторизации, старой базы и создания заказа в Supabase.
 - Не выполнено подключение Instagram/WhatsApp/Авито к ИИ; этот этап не добавляет
