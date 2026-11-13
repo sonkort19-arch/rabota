@@ -523,6 +523,7 @@
   <script src="/order-sync.js?v=20261113-stage2"></script>
   <script src="/order-model.js?v=20261113-stage3"></script>
   <script src="/calendar-model.js?v=20261113-stage4"></script>
+  <script src="/finance-model.js?v=20261113-stage5"></script>
   <script>
 
     "use strict";
@@ -1679,18 +1680,33 @@
 
     // Начисления: только выполненные и оплаченные заказы Рауля.
     // Касса: оплаченные заказы, за вычетом реально проведённых выплат и расходов.
-    const FINANCE_TIMUR_FEE = 1500;
-    const FINANCE_RAUL_PERCENT = 0.5;
-    const money = amount => Number(amount||0).toLocaleString("ru-RU",{maximumFractionDigits:2})+" ₽";
-    const sumBy = (rows,fn) => rows.reduce((total,row)=>total+Number(fn(row)||0),0);
-    const roundMoney = value => Math.round((Number(value)+Number.EPSILON)*100)/100;
-    function financeSplit(price) {
-      const gross=roundMoney(price);
-      const raul=roundMoney(gross*FINANCE_RAUL_PERCENT);
-      const timur=FINANCE_TIMUR_FEE;
-      const company=roundMoney(gross-raul-timur);
-      return {gross,raul,timur,company};
-    }
+    // Financial reports and source data live in finance-model.js.
+    // Transactions still go through existing server-side RPC functions.
+    const financeModel=window.__rdCreateFinanceModel({
+      dbRequest:(path,method,payload)=>dbRequest(path,method,payload),
+      getRole:()=>currentRole,getMasterName:()=>currentMasterName,
+      getUserId:()=>currentUser?.id||null,
+      nextGeneration:()=>++financeLoadGeneration,
+      isCurrentGeneration:g=>g===financeLoadGeneration,
+      onSnapshot:({masterId,operations,collections})=>{
+        financeMasterId=masterId;
+        financeOperations=operations;
+        financeCollections=collections;
+        financeLoadError="";
+        if(currentRole==="master"&&!financeActive){
+          renderMasterSettlements();
+          if(currentTab==="calendar")renderMasterOverview(masterWorkingOrders());
+        }
+        if(financeActive)renderFinance();
+        window.__rdMoneyUpdated?.();
+      }
+    });
+    const FINANCE_TIMUR_FEE=financeModel.TIMUR_FEE;
+    const FINANCE_RAUL_PERCENT=financeModel.RAUL_PERCENT;
+    const money=financeModel.money;
+    const sumBy=financeModel.sumBy;
+    const roundMoney=financeModel.roundMoney;
+    function financeSplit(price){return financeModel.financeSplit(price);}
     function financeLine(label,value) {
       const line=make("div","finance-line");
       line.append(make("span","finance-line-label",label),make("strong","",value));
@@ -1707,46 +1723,7 @@
     // Assemble each snapshot off-screen. Older requests must never append duplicates
     // or replace the result of a newer request.
     let financeLoadGeneration=0;
-    async function loadFinance() {
-      if(currentRole!=="owner" && currentRole!=="master") return;
-      const generation=++financeLoadGeneration;
-      let masterId=null;
-      if(currentRole==="owner"){
-        const masters=await dbRequest("rabota_members?select=user_id,role,active,master_name&role=eq.master&limit=100","GET");
-        masterId=masters.find(m=>m.active && String(m.master_name||"").trim().toLowerCase()==="рауль")?.user_id||null;
-      }else{
-        masterId=String(currentMasterName||"").trim().toLowerCase()==="рауль"?currentUser?.id:null;
-      }
-      const operations=[];
-      for(let offset=0;offset<100000;offset+=1000){
-        const page=await dbRequest("rabota_finance_operations?select=*&order=created_at.desc&limit=1000&offset="+offset,"GET");
-        if(!Array.isArray(page))throw Error("Не удалось загрузить финансовые операции");
-        operations.push(...page);
-        if(page.length<1000)break;
-      }
-      const collections=[];
-      for(let offset=0;offset<100000;offset+=1000){
-        const page=await dbRequest("rabota_cash_collections?select=*&order=created_at.desc&limit=1000&offset="+offset,"GET");
-        if(!Array.isArray(page))throw Error("Не удалось загрузить распределения");
-        collections.push(...page);
-        if(page.length<1000)break;
-      }
-      if(generation!==financeLoadGeneration)return;
-      // A stable id also protects the UI against overlapping result pages.
-      const uniqueOperations=new Map(operations.map(row=>[String(row.id),row]));
-      const uniqueCollections=new Map(collections.map(row=>[String(row.order_id),row]));
-      financeMasterId=masterId;
-      financeOperations=[...uniqueOperations.values()];
-      financeCollections=[...uniqueCollections.values()];
-      financeLoadError="";
-      // Do not recreate the master schedule every time finance updates.
-      if(currentRole==="master"&&!financeActive){
-        renderMasterSettlements();
-        if(currentTab==="calendar")renderMasterOverview(masterWorkingOrders());
-      }
-      if(financeActive)renderFinance();
-      window.__rdMoneyUpdated?.();
-    }
+    async function loadFinance() {return financeModel.loadFinance();}
     function financeVisible() {
       const show=currentRole==="owner"|| (currentRole==="master"&&String(currentMasterName||"").trim().toLowerCase()==="рауль");
       // Владелец переключается вкладками. У Рауля только баланс и кнопка возврата.
@@ -1769,22 +1746,14 @@
         return;
       }
       const isOwner=currentRole==="owner";
-      const relevantOrders=financeMasterId?getOrders().filter(o=>o.assignedUserId===financeMasterId):[];
-      const eligible=relevantOrders.filter(o=>o.status==="Выполнен" && o.paid && Number.isFinite(o.price) && o.price>=0);
-      const payments=financeOperations.filter(o=>!o.voided_at);
-      const teamPayments=payments.filter(o=>o.master_user_id===financeMasterId);
-      const raulAccrued=roundMoney(sumBy(eligible,o=>financeSplit(o.price).raul));
-      const timurAccrued=eligible.length*FINANCE_TIMUR_FEE;
-      const raulPaid=sumBy(teamPayments.filter(o=>o.kind==="raul_payout"),o=>o.amount);
-      const timurPaid=sumBy(teamPayments.filter(o=>o.kind==="timur_payout"),o=>o.amount);
-      const raulDue=roundMoney(raulAccrued-raulPaid);
-      const timurDue=roundMoney(timurAccrued-timurPaid);
-      const companyEarned=roundMoney(sumBy(eligible,o=>financeSplit(o.price).company));
-      const eligibleGross=sumBy(eligible,o=>o.price);
-      const bookedPending=relevantOrders.filter(o=>!o.paid || o.status!=="Выполнен");
-      const unconfirmedCash=financeCollections.filter(c=>!c.confirmed_at);
-      const masterHeld=sumBy(unconfirmedCash.filter(c=>!c.submitted_at && c.master_user_id===financeMasterId),c=>c.company_amount);
-      const waitingOwner=sumBy(unconfirmedCash.filter(c=>c.submitted_at && c.master_user_id===financeMasterId),c=>c.company_amount);
+      const {
+        relevantOrders,eligible,payments,teamPayments,raulAccrued,timurAccrued,
+        raulPaid,timurPaid,raulDue,timurDue,companyEarned,eligibleGross,
+        bookedPending,unconfirmedCash,masterHeld,waitingOwner
+      }=financeModel.calculateAccruals({
+        orders:getOrders(),operations:financeOperations,
+        collections:financeCollections,masterId:financeMasterId
+      });
       if(!financeMasterId) {
         root.append(make("p","finance-tip","Рауль пока не подключён. Начисления станут доступны после назначения мастера."));
         document.getElementById("financeEntry").hidden=true;
@@ -1814,22 +1783,13 @@
       if(bookedPending.length)root.append(make("p","finance-tip","Ожидают выполнения и/или оплаты: "+bookedPending.length+" заказ(ов). Они не входят в начисления."));
 
       if(isOwner){
-        const receivedOrders=getOrders().filter(o=>o.paid&&o.status!=="Отменён");
-        const cashCollections=new Set(financeCollections.map(c=>String(c.order_id)));
-        // Payments reported by a master are not yet receipts in the company's cash desk.
-        const masterUnallocated=receivedOrders.filter(o=>
-          o.paymentReceivedBy==="master"&&!cashCollections.has(String(o.id)));
-        const directReceipts=sumBy(receivedOrders.filter(o=>
-          !cashCollections.has(String(o.id))&&o.paymentReceivedBy!=="master"),o=>o.price);
-        const confirmedDeposits=sumBy(financeCollections.filter(c=>c.confirmed_at),c=>c.company_amount);
-        const cashIn=roundMoney(directReceipts+confirmedDeposits);
-        const allPayouts=sumBy(payments.filter(o=>(o.kind==="raul_payout"||o.kind==="timur_payout")&&!o.order_id),o=>o.amount);
-        const expenses=sumBy(payments.filter(o=>o.kind==="expense"),o=>o.amount);
-        const notCompletedPaid=sumBy(receivedOrders.filter(o=>o.status!=="Выполнен"),o=>o.price);
-        const cashBalance=roundMoney(cashIn-allPayouts-expenses);
-        const freeBalance=roundMoney(cashBalance-raulDue-timurDue-notCompletedPaid);
+        const {
+          masterUnallocated,directReceipts,confirmedDeposits,allPayouts,
+          expenses,notCompletedPaid,cashBalance,freeBalance,awaiting
+        }=financeModel.calculateCompanyCash({
+          orders:getOrders(),collections:financeCollections,payments,raulDue,timurDue
+        });
         root.append(make("h2","finance-title","Касса компании"));
-        const awaiting=financeCollections.filter(c=>c.submitted_at&&!c.confirmed_at);
         if(awaiting.length){
           root.append(make("h2","finance-title","Подтвердить поступление от Рауля"));
           for(const collection of awaiting){
