@@ -1227,7 +1227,10 @@
       name.textContent=order.name||"Без имени";
       subtitle.textContent=(order.date?formatDate(order.date):"Без даты")+
         (order.time?" · "+order.time:"")+" · "+(order.status||"Новый");
+      // Financial/status refresh must not jump to the top of the open order sheet.
+      const scrollTop=body.scrollTop;
       body.replaceChildren(makeCard(order));
+      body.scrollTop=scrollTop;
     }
     function openMasterOrderDialog(order){
       if(currentRole!=="master"||!order||order.assignedUserId!==currentUser?.id)return;
