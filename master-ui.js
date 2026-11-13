@@ -11,6 +11,7 @@
       typeof deps.getCurrentTab!=="function"||
       typeof deps.openMasterOrderDialog!=="function"||
       !deps.doc||!deps.ordersNode)throw new TypeError("Нет зависимостей интерфейса мастера");
+    const DateImpl=deps.DateImpl||Date; // deterministic tests; production uses native Date
     const {make,parseDate,formatDate,getOrders,collectionForOrder,
       getCurrentRole,getCurrentTab,doc,ordersNode,
       openMasterOrderDialog,STATUSES}=deps;
@@ -26,7 +27,7 @@ function masterDayLabel(day) {
       const parts=new Intl.DateTimeFormat("en-GB",{
         timeZone:"Europe/Moscow",year:"numeric",month:"2-digit",day:"2-digit",
         hour:"2-digit",minute:"2-digit",hourCycle:"h23"
-      }).formatToParts(new Date());
+      }).formatToParts(new DateImpl());
       const part=type=>parts.find(item=>item.type===type)?.value||"00";
       return {date:part("year")+"-"+part("month")+"-"+part("day"),
         minutes:Number(part("hour"))*60+Number(part("minute"))};
