@@ -245,3 +245,94 @@
   #orderForm .order-submit-bar { padding-inline: 12px; }
   #orderForm .order-core-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
+
+
+/* Compact master create-order sheet, 2026-11-13.
+   Only the master's new-order form is affected; owner/manager and server
+   validation retain their existing behaviour. */
+@media (max-width:790px) {
+  body.rd #orderOverlay.master-quick {
+    z-index:1800; /* Above sticky brand (96), header (97), notifications and nav. */
+    align-items:flex-end;
+    padding:10px 12px max(10px,env(safe-area-inset-bottom));
+    background:rgba(14,24,47,.62);
+  }
+  body.rd #orderOverlay.master-quick > .sheet {
+    box-sizing:border-box;
+    width:min(100%,540px);
+    height:min(72dvh,610px);
+    max-height:calc(100dvh - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 22px);
+    min-height:0;
+    border-radius:18px;
+  }
+  body.rd #orderOverlay.master-quick .sheet-head {
+    min-height:50px;
+    padding:7px 13px;
+  }
+  body.rd #orderOverlay.master-quick .sheet-head h2 {
+    font-size:17px;
+    line-height:1.2;
+  }
+  body.rd #orderOverlay.master-quick .sheet-head .close {
+    width:36px;
+    height:36px;
+    flex-basis:36px;
+  }
+  body.rd #orderOverlay.master-quick #orderForm .order-form-scroll {
+    padding:6px 13px 15px;
+    scroll-padding:12px;
+  }
+  body.rd #orderOverlay.master-quick #orderForm .order-form-scroll label {
+    margin-top:7px;
+    margin-bottom:4px;
+    font-size:12px;
+    line-height:1.2;
+  }
+  body.rd #orderOverlay.master-quick #orderForm .order-form-scroll :is(input:not([type="checkbox"]),select,textarea) {
+    min-height:43px;
+    padding:8px 10px;
+    border-radius:10px;
+    font-size:16px; /* Do not trigger automatic iOS zoom. */
+  }
+  body.rd #orderOverlay.master-quick #orderForm .form-title {
+    margin:10px 0 3px;
+    font-size:13px;
+  }
+  body.rd #orderOverlay.master-quick #orderForm .order-core-grid {
+    grid-template-columns:repeat(2,minmax(0,1fr));
+    gap:1px 10px;
+  }
+  body.rd #orderOverlay.master-quick #orderMasterField {
+    display:none!important; /* Value is still populated and validated in JavaScript. */
+  }
+  body.rd #orderOverlay.master-quick #orderPriceField {
+    grid-column:1/-1;
+  }
+  body.rd #orderOverlay.master-quick #orderForm #oaCalendar {
+    margin-top:7px;
+  }
+  body.rd #orderOverlay.master-quick #orderForm #oaToggle {
+    min-height:54px;
+    padding:8px 11px;
+  }
+  body.rd #orderOverlay.master-quick #orderForm .order-advanced {
+    margin-top:11px;
+  }
+  body.rd #orderOverlay.master-quick #orderForm .order-advanced > summary {
+    min-height:43px;
+    padding:10px 12px;
+  }
+  body.rd #orderOverlay.master-quick #orderForm .order-submit-bar {
+    padding:8px 12px 10px;
+  }
+  body.rd #orderOverlay.master-quick #orderForm .order-submit-bar .save {
+    min-height:44px;
+    padding:9px 13px;
+    font-size:15px;
+  }
+}
+@media (max-width:350px) {
+  body.rd #orderOverlay.master-quick {padding-inline:8px}
+  body.rd #orderOverlay.master-quick #orderForm .order-form-scroll {padding-inline:11px}
+  body.rd #orderOverlay.master-quick #orderForm .order-submit-bar {padding-inline:11px}
+}
