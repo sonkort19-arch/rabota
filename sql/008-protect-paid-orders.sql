@@ -6,6 +6,43 @@ BEGIN;
 SET LOCAL lock_timeout = '5s';
 SET LOCAL statement_timeout = '30s';
 
+
+-- Abort before changing any function if production RPCs drift since audit.
+-- This prevents replacing newer business logic with an old captured definition.
+DO $preflight$
+BEGIN
+  IF pg_catalog.current_setting('server_version_num')::integer < 170000
+     OR pg_catalog.current_setting('server_version_num')::integer >= 180000 THEN
+    RAISE EXCEPTION 'Expected PostgreSQL 17: review migration for this server';
+  END IF;
+  IF (
+    SELECT pg_catalog.md5(p.prosrc) FROM pg_catalog.pg_proc p
+    WHERE p.oid = 'public.rabota_record_order_payment(uuid,numeric,text)'::pg_catalog.regprocedure
+  ) IS DISTINCT FROM 'd44bada20981d77a9922fe28f383ab10'
+  OR (
+    SELECT pg_catalog.md5(p.prosrc) FROM pg_catalog.pg_proc p
+    WHERE p.oid = 'public.rabota_cash_distribute(uuid)'::pg_catalog.regprocedure
+  ) IS DISTINCT FROM '75dbf74b2e70cfc6d3b73012ae66baaf' THEN
+    RAISE EXCEPTION 'Rabota financial RPC changed since audit: STOP, re-audit before applying';
+  END IF;
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_catalog.pg_trigger t
+    WHERE t.tgrelid='public.rabota_orders'::pg_catalog.regclass
+      AND t.tgname='rabota_cash_order_guard_trigger' AND t.tgenabled='O'
+  ) THEN
+    RAISE EXCEPTION 'Original cash guard missing or disabled: STOP';
+  END IF;
+  IF EXISTS (
+    SELECT 1 FROM pg_catalog.pg_trigger t
+    WHERE t.tgrelid='public.rabota_orders'::pg_catalog.regclass
+      AND t.tgname='rabota_paid_order_guard_trigger'
+  ) THEN
+    RAISE EXCEPTION 'Paid guard already exists: do not apply same migration twice';
+  END IF;
+END;
+$preflight$;
+
+
 CREATE OR REPLACE FUNCTION public.rabota_record_order_payment(p_order_id uuid, p_amount numeric, p_method text)
  RETURNS jsonb
  LANGUAGE plpgsql
