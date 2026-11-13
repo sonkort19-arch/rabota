@@ -25,7 +25,8 @@ pg_dump --format=custom --no-owner --dbname="$PGDATABASE" \
   sha256sum synthetic-backup.dump > synthetic-backup.sha256
   sha256sum --check synthetic-backup.sha256
 )
-pg_restore --list "$WORK/synthetic-backup.dump" | grep -q 'rabota_orders'
+pg_restore --list "$WORK/synthetic-backup.dump" > "$WORK/archive.manifest"
+grep -q 'rabota_orders' "$WORK/archive.manifest"
 echo "PASS: disposable archive generated, listed and SHA-256 verified"
 
 # Corruption MUST be detected before a restore is considered.
