@@ -41,7 +41,16 @@ test("original RPC role, cash and double-payment safeguards remain",()=>{
   "v_order.payment_method is distinct from 'cash'",
   "v_order.payment_received_by is distinct from 'master'"
  ]) assert.ok(sql.includes(needle),needle);
- assert.match(sql,/INSERT INTO public\.rabota_orders/i.test(sql)?"SHOULD_NOT_MATCH":/CREATE OR REPLACE FUNCTION private\.rabota_paid_order_guard/);
+ assert.match(sql,/CREATE OR REPLACE FUNCTION private\.rabota_paid_order_guard/);
+ assert.doesNotMatch(sql,/INSERT INTO public\.rabota_orders/i);
+});
+test("abort before writes when audited RPC code or original cash guard drift",()=>{
+ assert.match(sql,/Rabota financial RPC changed since audit/);
+ assert.match(sql,/d44bada20981d77a9922fe28f383ab10/);
+ assert.match(sql,/75dbf74b2e70cfc6d3b73012ae66baaf/);
+ assert.match(sql,/Original cash guard missing or disabled/);
+ assert.match(sql,/Paid guard already exists/);
+ assert.match(sql,/Expected PostgreSQL 17/);
 });
 test("no data writes, weakening RLS or unrelated table changes in migration",()=>{
  assert.doesNotMatch(sql,/\bDELETE FROM\s+public\.rabota_orders\b/i);
