@@ -611,10 +611,30 @@
       if (number.length === 10) number = "7" + number;
       return number.length >= 10 && number.length <= 15 ? number : "";
     }
+    function masterViewportScroller(){
+      return currentRole==="master" &&
+        window.matchMedia?.("(max-width:790px)")?.matches
+        ?document.getElementById("appScreen"):null;
+    }
+    function verticalScrollPosition(){
+      return masterViewportScroller()?.scrollTop??window.scrollY??0;
+    }
+    function restoreVerticalScroll(value){
+      const y=Math.max(0,Number(value)||0),scrollable=masterViewportScroller();
+      if(scrollable)scrollable.scrollTop=y;
+      else window.scrollTo(0,y);
+    }
+    // Shared with the compact master navigation, which retains scroll per section.
+    window.__rdMasterViewportScroll={
+      position:verticalScrollPosition,
+      restore:restoreVerticalScroll
+    };
     function showScreen(which) {
       ["startupScreen","loginScreen","accessScreen","appScreen"].forEach(id => {
         document.getElementById(id).hidden = (id !== which);
       });
+      document.documentElement.classList.toggle("rd-master-scroll-locked",
+        which==="appScreen"&&currentRole==="master");
     }
     function setSession(data) {
       session = {access_token:data.access_token,refresh_token:data.refresh_token,
@@ -1376,12 +1396,12 @@
         btn.addEventListener("click",() => {
           // Preserve the master's viewport when iOS Safari rebuilds the day and order list.
           if(currentRole!=="master"){selectedDate=date;currentTab="calendar";render();return;}
-          const scrollY=window.scrollY;
+          const scrollY=verticalScrollPosition();
           selectedDate=date;currentTab="calendar";render();
-          window.scrollTo(0,scrollY);
+          restoreVerticalScroll(scrollY);
           requestAnimationFrame(()=>{
             if(currentRole==="master"&&currentTab==="calendar"&&selectedDate===date){
-              window.scrollTo(0,scrollY);
+              restoreVerticalScroll(scrollY);
             }
           });
         });
@@ -1984,13 +2004,13 @@
     }
     function openOrdersView() {
       financeActive=false;financeVisible();
-      window.scrollTo(0,0);
+      restoreVerticalScroll(0);
     }
     document.getElementById("viewOrdersBtn").addEventListener("click",openOrdersView);
     document.getElementById("masterFinanceBack").addEventListener("click",openOrdersView);
     document.getElementById("viewFinanceBtn").addEventListener("click",async()=>{
       financeActive=true;financeVisible();
-      window.scrollTo(0,0);
+      restoreVerticalScroll(0);
       try{await loadFinance();}catch(error){financeLoadError=friendlyError(error);renderFinance();}
     });
     // Payroll payouts use one awaited operation, not a hidden form submission.
