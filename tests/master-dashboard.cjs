@@ -110,7 +110,7 @@ test("master presentation and role-scoped finance remain wired",()=>{
  assert.match(html,/financeMetric\("Осталось выплатить"/);
  assert.match(html,/href="\/master-dashboard\.css\?v=[^"]+"/);
  assert.match(css,/#appScreen\.master-mode \.master-schedule-toggle/);
- assert.match(css,/white-space:nowrap;flex:0 0 auto/);
+ assert.match(css,/grid-template-columns:70px minmax\(0,1fr\) 18px/);
  assert.match(css,/min-height:48px;font:inherit;cursor:pointer/);
  assert.match(css,/max-width:390px/);
 });
