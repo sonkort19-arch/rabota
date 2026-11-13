@@ -1,0 +1,60 @@
+name: Paid order guard V2 (isolated PostgreSQL)
+on:
+  push:
+    branches:
+      - feature/stage-01-paid-guard-hardening-20261114
+  pull_request:
+    paths:
+      - sql/008-protect-paid-orders.sql
+      - tests/paid-order-guard.test.cjs
+      - tests/sql/paid-guard-fixture.sql
+      - tests/sql/paid-guard-scenarios.sql
+      - .github/workflows/stage01-paid-guard-v2.yml
+permissions:
+  contents: read
+jobs:
+  static:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify migration and safeguards
+        run: node --test tests/paid-order-guard.test.cjs
+  postgres-17:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: disposable-ci-only
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s --health-timeout 3s --health-retries 15
+    env:
+      PGHOST: 127.0.0.1
+      PGPORT: '5432'
+      PGUSER: postgres
+      PGPASSWORD: disposable-ci-only
+      PGDATABASE: postgres
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install psql client
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq postgresql-client
+      - name: Create synthetic schema and historic receipts BEFORE migration
+        run: psql -X -v ON_ERROR_STOP=1 -f tests/sql/paid-guard-fixture.sql
+      - name: Apply proposed migration to disposable PostgreSQL ONLY
+        run: psql -X -v ON_ERROR_STOP=1 -f sql/008-protect-paid-orders.sql
+      - name: Verify roles, direct REST-equivalent updates, payment and cash RPCs
+        run: psql -X -v ON_ERROR_STOP=1 -f tests/sql/paid-guard-scenarios.sql
+      - name: Verify triggers were installed only in disposable PostgreSQL
+        run: |
+          psql -X -v ON_ERROR_STOP=1 -c "SELECT tgname FROM pg_trigger WHERE tgrelid='public.rabota_orders'::regclass AND tgname IN ('rabota_paid_order_guard_trigger','rabota_cash_order_guard_trigger') ORDER BY tgname"
