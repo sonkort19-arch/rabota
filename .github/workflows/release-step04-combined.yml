@@ -75,6 +75,8 @@ jobs:
         run: |
           psql -X -v ON_ERROR_STOP=1 -f tests/sql/paid-guard-scenarios.sql
           psql -X -v ON_ERROR_STOP=1 -f tests/sql/roles-stage3-scenarios.sql
+      - name: Verify owner, manager, Raul and anon RLS scopes on fake orders
+        run: psql -X -v ON_ERROR_STOP=1 -f tests/sql/step04-rls-scopes.sql
       - name: Parallel double-payment, salary and cash distribution prevention
         run: bash tests/step04-concurrency.sh
       - name: Run finance reconciliation safely on fake data
