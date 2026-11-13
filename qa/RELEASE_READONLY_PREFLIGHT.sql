@@ -32,6 +32,13 @@ WHERE p.oid IN (
 )
 ORDER BY p.proname;
 
+SELECT
+ count(*) FILTER (WHERE t.tgname='rabota_paid_order_guard_trigger' AND t.tgenabled='O') AS active_paid_guard,
+ count(*) FILTER (WHERE t.tgname='rabota_cash_order_guard_trigger' AND t.tgenabled='O') AS active_cash_guard
+FROM pg_catalog.pg_trigger t
+WHERE t.tgrelid='public.rabota_orders'::pg_catalog.regclass
+ AND NOT t.tgisinternal;
+
 SELECT t.tgname AS trigger_name,t.tgenabled AS enabled,
        t.tgrelid::pg_catalog.regclass::text AS table_name
 FROM pg_catalog.pg_trigger t
