@@ -47,7 +47,7 @@ const collections={
 const fixedDate=class extends Date{
  constructor(...a){super(...(a.length?a:["2026-11-12T13:36:00.000Z"]))}
 };
-function fixture(role="master",tab="all"){
+function fixture(role="master",tab="calendar"){
  const summary=element("section");
  const document={getElementById:id=>id==="masterTodaySummary"?summary:null,querySelectorAll:()=>[]};
  const make=(tag,cls,txt)=>{const e=element(tag,txt||"");e.className=cls;return e};
@@ -106,7 +106,8 @@ test("master presentation and role-scoped finance remain wired",()=>{
  assert.match(html,/renderMasterSettlements\(\)/);
  assert.match(html,/isOwner\?financeOperations:financeOperations\.filter\(o=>o\.master_user_id===financeMasterId&&o\.kind==="raul_payout"\)/);
  assert.match(html,/if\(isOwner\)\{[\s\S]*?financeMetric\("Доля компании"/);
- assert.match(html,/id="masterBalanceQuick"[\s\S]*?К выплате/);
+ assert.match(html,/id="masterFinanceBack"/);
+ assert.match(html,/financeMetric\("Осталось выплатить"/);
  assert.match(html,/href="\/master-dashboard\.css\?v=[^"]+"/);
  assert.match(css,/#appScreen\.master-mode \.master-schedule-toggle/);
  assert.match(css,/white-space:nowrap;flex:0 0 auto/);
