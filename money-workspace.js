@@ -93,7 +93,15 @@
     if(page!=="orders"||api()?.snapshot()?.role!=="master")return;
     const root=$("orders");if(!root)return;
     let heading=null,shown=0,visibleInGroup=0;
-    const finishGroup=()=>{if(heading)heading.hidden=visibleInGroup===0;};
+    const finishGroup=()=>{
+      if(!heading)return;
+      heading.hidden=visibleInGroup===0;
+      const count=heading.querySelector(".muted");
+      if(count)count.textContent=visibleInGroup+" "+(
+        visibleInGroup%100>=11&&visibleInGroup%100<=14?"заказов":
+        visibleInGroup%10===1?"заказ":
+        visibleInGroup%10>=2&&visibleInGroup%10<=4?"заказа":"заказов");
+    };
     for(const element of root.children){
       if(element.classList.contains("master-day-heading")){
         finishGroup();heading=element;visibleInGroup=0;
@@ -106,6 +114,13 @@
     }
     finishGroup();
     const count=$("orderCount");if(count)count.textContent=shown+" шт.";
+    let empty=root.querySelector(".mw-filter-empty");
+    if(shown===0){
+      if(!empty){
+        empty=el("div","mw-filter-empty","По выбранным фильтрам заказов нет.");
+        root.append(empty);
+      }
+    }else empty?.remove();
   }
   function updateNav(){
     const nav=$("mwMasterNav");if(!nav)return;
