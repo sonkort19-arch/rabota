@@ -9,7 +9,8 @@ const path=require("node:path");
 const {createMasterUI}=require("../master-ui.js");
 const root=path.resolve(__dirname,"..");
 const html=fs.readFileSync(path.join(root,"index.html"),"utf8");
-const masterCss=fs.readFileSync(path.join(root,"master-dense.css"),"utf8");
+const masterCss=["master-dense.css","master-dense-enhancements.css"]
+  .map(file=>fs.readFileSync(path.join(root,file),"utf8")).join("");
 const ownerCss=fs.readFileSync(path.join(root,"orders-list.css"),"utf8");
 class Node {
   constructor(tag,cls="",value=""){

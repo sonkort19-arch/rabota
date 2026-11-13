@@ -6,7 +6,9 @@ const root=path.resolve(__dirname,".."),html=fs.readFileSync(path.join(root,"ind
 const inline=html.match(/<style>([\s\S]*?)<\/style>/)?.[1];
 assert.ok(inline,"base inline style");
 const links=[...html.matchAll(/<link rel="stylesheet" href="\/([^"?]+)(?:\?[^"]*)?">/g)].map(m=>m[1]);
-assert.equal(links.at(-1),"master-dense.css");
+assert.equal(links.at(-1),"money-workspace.css");
+const i=links.indexOf("master-dense.css");
+assert.deepEqual(links.slice(i,i+2),["master-dense.css","master-dense-enhancements.css"]);
 const styles=[inline,...links.map(file=>fs.readFileSync(path.join(root,file),"utf8"))].join("\n");
 const fixture=[
 '<main id="appScreen" class="rd-master master-mode">',
@@ -41,7 +43,7 @@ const fixture=[
 '<span class="master-schedule-work">Радиаторы: 5</span>',
 '<span class="master-schedule-meta"><span class="status-badge s-booked">Записан</span></span>',
 '<strong class="master-schedule-price">11 000 ₽</strong></button></article>',
-'</div></div></main>'
+'</div></div><nav id="mwMasterNav" class="mw-bottom-nav"><button class="mw-nav-btn is-active"><span class="mw-icon">▣</span>Расписание</button><button class="mw-nav-btn">Заказы</button><button class="mw-nav-btn">Финансы</button><button class="mw-nav-btn">Профиль</button></nav></main>'
 ].join("");
 (async()=>{
 const browser=await webkit.launch({headless:true});
@@ -53,7 +55,7 @@ try{
    const dim=sel=>{const node=document.querySelector(sel),r=node.getBoundingClientRect();return {height:r.height,size:parseFloat(getComputedStyle(node).fontSize)}};
    return {scroll:document.documentElement.scrollWidth,width:document.documentElement.clientWidth,
     title:dim("#appScreen header h1"),newOrder:dim("#newOrderBtn"),bell:dim(".push-bell"),
-    logout:dim("#logoutBtn"),tab:dim(".tabs .tab"),next:dim(".master-next-jump"),
+    logout:dim("#logoutBtn"),tab:dim(".mw-bottom-nav .mw-nav-btn"),next:dim(".master-next-jump"),
     time:dim(".master-schedule-time"),name:dim(".master-schedule-name"),
     summary:dim(".master-today-summary"),card:dim(".master-schedule-toggle"),avatar:dim(".master-schedule-avatar"),
     calendar:dim("#calendarPanel"),calendarDate:dim("#calendarDate"),

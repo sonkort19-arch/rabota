@@ -1,0 +1,42 @@
+name: CSS architecture stage 8
+on:
+  push:
+    branches:
+      - feature/stage-08-css-modules-20261113
+  pull_request:
+    paths:
+      - index.html
+      - ui-alignment.css
+      - ui-alignment-orders.css
+      - ui-alignment-home-calendar.css
+      - ui-alignment-mobile.css
+      - master-dense.css
+      - master-dense-enhancements.css
+      - tests/css-stage8-regression.test.cjs
+jobs:
+  css-regression:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify exact CSS cascade preservation
+        run: node --test tests/css-stage8-regression.test.cjs
+      - name: Verify previously extracted modules
+        run: |
+          node --test tests/lead-ai-bridge.test.cjs
+          node --test tests/order-model.test.cjs tests/order-sync.test.cjs tests/calendar-model.test.cjs tests/finance-model.test.cjs tests/master-ui.test.cjs
+      - name: Verify compact master and icon CSS tests
+        run: |
+          node --test tests/master-owner-cards.cjs tests/ui-icon-layout.test.js
+      - name: Install Safari WebKit runner
+        run: |
+          npm install --no-save --ignore-scripts playwright@1.56.1
+          npx playwright install --with-deps webkit
+      - name: Check mobile master density and touch targets
+        run: node tests/master-dense-layout.cjs

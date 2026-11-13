@@ -1,0 +1,526 @@
+/* Swipeable HelloClient-style mobile navigation: all permitted sections, no More sheet. */
+body.rd .rd-profile-trigger{
+  appearance:none;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:10px;
+  border:1px solid transparent;
+  border-radius:12px;
+  padding:4px;
+  background:transparent;
+  color:#354565;
+  cursor:pointer;
+  min-height:42px;
+  touch-action:manipulation;
+}
+body.rd .rd-profile-trigger[aria-expanded="true"],
+body.rd .rd-profile-trigger:focus-visible{
+  outline:2px solid #a5b6fb;
+  outline-offset:1px;
+  background:#f2f5ff;
+}
+body.rd .rd-profile-menu[hidden]{display:none!important}
+body.rd .rd-profile-menu{
+  position:fixed;
+  right:max(12px,env(safe-area-inset-right));
+  top:calc(67px + env(safe-area-inset-top));
+  z-index:45;
+  display:grid;
+  gap:8px;
+  width:min(290px,calc(100vw - 24px));
+  max-height:calc(100dvh - 100px - env(safe-area-inset-top));
+  overflow-y:auto;
+  padding:16px;
+  border:1px solid #dbe5f7;
+  border-radius:17px;
+  background:#fff;
+  box-shadow:0 12px 40px #172e5730;
+  color:#192b4c;
+}
+body.rd .rd-profile-title{font-size:16px;font-weight:800}
+body.rd .rd-profile-role{font-size:12px;color:#7c8da8}
+body.rd .rd-profile-logout{
+  min-height:44px;
+  border:1px solid #dae4f5;
+  border-radius:11px;
+  background:#f7f9ff;
+  color:#293e63;
+  font-size:14px;
+  font-weight:700;
+  padding:10px 14px;
+}
+@media (max-width:790px){
+  body.rd #appScreen:not(.rd-master){
+    padding-bottom:calc(101px + env(safe-area-inset-bottom));
+  }
+  body.rd .rd-mobilebar{
+    box-sizing:border-box;
+    display:flex;
+    align-items:stretch;
+    justify-content:flex-start;
+    gap:4px;
+    overflow-x:auto;
+    overflow-y:hidden;
+    -webkit-overflow-scrolling:touch;
+    overscroll-behavior-x:contain;
+    scroll-snap-type:x proximity;
+    scroll-padding-inline:8px;
+    scrollbar-width:none;
+    -ms-overflow-style:none;
+    padding:7px max(8px,env(safe-area-inset-right))
+      max(8px,env(safe-area-inset-bottom))
+      max(8px,env(safe-area-inset-left));
+    touch-action:pan-x pinch-zoom;
+  }
+  body.rd .rd-mobilebar::-webkit-scrollbar{
+    display:none;
+    width:0;
+    height:0;
+  }
+  body.rd .rd-mobilebar .rd-nav-btn{
+    box-sizing:border-box;
+    flex:0 0 clamp(76px,21.5vw,92px);
+    min-width:76px;
+    max-width:92px;
+    min-height:58px;
+    gap:4px;
+    padding:5px 3px;
+    margin:0;
+    align-self:stretch;
+    font-size:10px;
+    line-height:1.15;
+    font-weight:700;
+    border-radius:13px;
+    white-space:nowrap;
+    text-align:center;
+    scroll-snap-align:start;
+    touch-action:pan-x pinch-zoom;
+  }
+  body.rd .rd-mobilebar .rd-nav-btn .rd-icon{
+    display:flex;
+    justify-content:center;
+    align-items:center;
+    width:25px;
+    height:25px;
+    min-width:25px;
+    flex:0 0 25px;
+  }
+  body.rd .rd-mobilebar .rd-nav-btn .rd-svgicon{
+    width:22px;
+    height:22px;
+  }
+}
+@media(max-width:360px){
+  body.rd .rd-mobilebar .rd-nav-btn{
+    font-size:10px;
+    letter-spacing:-.2px;
+  }
+}
+
+/* 2026-11-09 · Phone-first home: nearest bookable times before analytics. */
+body.rd #rdHome .rd-home-slot-picker{
+ box-sizing:border-box;min-width:0;margin:2px 0 12px;padding:15px;
+ border:1px solid #c5d4ee;border-radius:16px;background:#f4f7fe;
+ color:#253f68;
+}
+body.rd #rdHome .rd-home-slot-heading{
+ display:flex;align-items:start;justify-content:space-between;gap:10px;
+}
+body.rd #rdHome .rd-home-slot-heading h2{
+ margin:0 0 3px;font-size:17px;line-height:1.25;font-weight:800;
+}
+body.rd #rdHome .rd-home-slot-heading p{
+ margin:0;font-size:12px;line-height:1.4;color:#647c9f;
+}
+body.rd #rdHome .rd-home-slots-all{
+ display:inline-flex;align-items:center;justify-content:center;flex:0 0 auto;
+ min-height:38px;padding:7px 10px;border:1px solid #d3dff1;border-radius:10px;
+ background:#fff;color:#3d64a1;font:inherit;font-size:12px;font-weight:750;
+ cursor:pointer;touch-action:manipulation;
+}
+body.rd #rdHome .rd-home-slots-note{
+ margin:11px 0 8px;font-size:11px;font-weight:650;color:#526d92;
+}
+body.rd #rdHome .rd-home-slot-grid{
+ display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px;
+}
+body.rd #rdHome .rd-home-slot-choice{
+ min-width:0;min-height:72px;padding:10px 6px 8px;
+ display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;
+ background:#fff;border:1px solid #dce6f5;border-radius:12px;
+ color:#29446e;cursor:pointer;font:inherit;touch-action:manipulation;
+}
+body.rd #rdHome .rd-home-slot-choice strong{
+ font-size:21px;line-height:1.05;font-weight:800;font-variant-numeric:tabular-nums;
+}
+body.rd #rdHome .rd-home-slot-choice span{
+ font-size:11px;line-height:1.3;color:#6a7e99;text-align:center;text-transform:lowercase;
+}
+body.rd #rdHome .rd-home-slot-choice:disabled{opacity:.6;cursor:wait}
+body.rd #rdHome .rd-home-slots-disclaimer{
+ display:block;margin-top:9px;font-size:10px;line-height:1.4;color:#7c90ad;
+}
+body.rd #rdHome .rd-home-slots-empty{
+ font-size:12px;line-height:1.5;color:#586b85;margin:12px 0;
+}
+body.rd #rdHome .rd-home-slot-choice:focus-visible,
+body.rd #rdHome .rd-home-slots-all:focus-visible{
+ outline:2px solid #547ad4;outline-offset:2px;
+}
+body.rd #rdHome .rd-home-metrics{gap:7px;margin-bottom:10px}
+body.rd #rdHome .rd-home-metric{
+ min-height:66px;padding:9px 10px;gap:3px;
+ border-radius:12px;justify-content:center;
+}
+body.rd #rdHome .rd-home-metric strong{font-size:24px;line-height:1.05}
+body.rd #rdHome .rd-home-metric span{font-size:11px;line-height:1.25}
+body.rd #rdHome .rd-home-paid-summary{margin-top:2px;}
+body.rd #rdHome .rd-home-primary-panel .rd-row:focus-visible{
+ outline:2px solid #547ad4;outline-offset:2px;
+}
+body.rd .rd-nav-more[hidden]{display:none!important}
+@media(max-width:790px){
+ body.rd .rd-nav-more:not([hidden]){
+   position:fixed;z-index:31;right:2px;bottom:calc(15px + env(safe-area-inset-bottom));
+   display:flex;align-items:center;justify-content:center;
+   min-height:42px;padding:7px 7px 7px 12px;
+   border:1px solid #dbe4f3;border-radius:12px;
+   background:linear-gradient(90deg,#fffE,#fff 36%);color:#4163a4;
+   box-shadow:-6px 0 10px #ffffffcc;
+   font-size:11px;font-weight:800;font-family:inherit;cursor:pointer;
+ }
+ body.rd #rdHome .rd-home-slot-picker{padding:12px}
+ body.rd #rdHome .rd-home-slot-heading h2{font-size:16px}
+ body.rd #rdHome .rd-home-slot-choice{min-height:67px}
+ body.rd #rdHome .rd-home-metric{min-height:64px;padding:8px}
+ body.rd #rdHome .rd-home-metric strong{font-size:23px}
+}
+@media(min-width:791px){body.rd .rd-nav-more{display:none!important}}
+@media(max-width:350px){
+ body.rd #rdHome .rd-home-slot-heading{flex-wrap:wrap}
+ body.rd #rdHome .rd-home-slot-choice strong{font-size:19px}
+ body.rd #rdHome .rd-home-slot-choice span{font-size:10px}
+ body.rd #rdHome .rd-home-metrics{gap:5px}
+ body.rd #rdHome .rd-home-metric{padding:7px}
+}
+
+
+/* Owner-only irreversible deletion is deliberately less prominent than Save. */
+#orderForm .order-delete-btn{
+  display:block;min-height:42px;width:100%;margin:10px 0 0;
+  border:1px solid #e7baba;border-radius:10px;background:transparent;
+  color:#a12f39;font-size:13px;font-weight:650;cursor:pointer;
+  touch-action:manipulation;
+}
+#orderForm .order-delete-btn[hidden]{display:none!important}
+#orderForm .order-delete-btn:disabled{opacity:.55;cursor:not-allowed}
+#orderForm .order-delete-btn:focus-visible{outline:2px solid #b23c45;outline-offset:2px}
+
+
+/* 2026-11-10: five equal mobile tabs, no horizontal scrolling or overlay arrow. */
+@media(max-width:790px){
+ body.rd .rd-mobilebar{
+  display:grid;
+  grid-template-columns:repeat(5,minmax(0,1fr));
+  align-items:stretch;
+  justify-content:stretch;
+  gap:2px;
+  overflow:visible;
+  touch-action:manipulation;
+  padding:7px max(6px,env(safe-area-inset-right))
+    max(8px,env(safe-area-inset-bottom))
+    max(6px,env(safe-area-inset-left));
+ }
+ body.rd .rd-mobilebar .rd-nav-btn{
+  box-sizing:border-box;
+  display:flex;
+  flex:none;
+  width:100%;
+  min-width:0;
+  max-width:none;
+  min-height:56px;
+  margin:0;
+  gap:4px;
+  padding:5px 1px;
+  font-size:clamp(9px,2.35vw,11px);
+  line-height:1.2;
+  border-radius:12px;
+  text-align:center;
+  white-space:normal;
+  overflow-wrap:normal;
+  scroll-snap-align:none;
+  touch-action:manipulation;
+ }
+ body.rd .rd-mobilebar .rd-nav-btn .rd-icon{
+  width:23px;height:23px;min-width:23px;flex:0 0 23px;
+ }
+ body.rd .rd-mobilebar .rd-mobile-more-trigger[aria-current="page"]{
+  background:#eff1ff;color:#4057ef;
+ }
+ body.rd .rd-mobilebar .rd-mobile-more-trigger[aria-current="page"] .rd-icon{
+  color:#4057ef;
+ }
+ body.rd .rd-more-sheet:not([hidden]){
+  display:grid;
+  gap:7px;
+  bottom:calc(78px + env(safe-area-inset-bottom));
+  padding:15px;
+  max-height:calc(100dvh - 110px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+ }
+ body.rd .rd-more-sheet .rd-nav-btn{
+  display:flex;
+  align-items:center;
+  gap:12px;
+  min-height:48px;
+  width:100%;
+  font-size:15px;
+  padding:11px 13px;
+ }
+ body.rd .rd-more-sheet .rd-nav-btn .rd-icon{
+  display:inline-flex;align-items:center;justify-content:center;
+  width:23px;height:23px;min-width:23px;
+ }
+}
+
+/* 2026-11-10 · compact, dismissible secondary navigation sheet. */
+@media(max-width:790px){
+ body.rd .rd-mobilebar .rd-mobile-more-trigger[aria-expanded="true"]{
+  background:#eff1ff;
+  color:#4057ef;
+  border-color:transparent;
+ }
+ body.rd .rd-mobilebar .rd-mobile-more-trigger[aria-expanded="true"] .rd-icon{
+  color:#4158ef;
+ }
+ body.rd .rd-more-sheet:not([hidden]){
+  box-sizing:border-box;
+  display:flex;
+  flex-direction:column;
+  align-items:stretch;
+  justify-content:flex-start;
+  gap:3px;
+  height:auto;
+  min-height:0;
+  max-height:calc(100dvh - 110px - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+  padding:13px 13px 11px;
+  overflow-y:auto;
+ }
+ body.rd .rd-more-sheet .rd-more-header{
+  display:flex;
+  flex:0 0 auto;
+  justify-content:space-between;
+  align-items:center;
+  gap:12px;
+  margin:0 1px 5px;
+  padding:0 1px 0 10px;
+ }
+ body.rd .rd-more-sheet .rd-more-header h2{
+  margin:0;
+  padding:0;
+  font-size:17px;
+  line-height:1.25;
+  font-weight:750;
+ }
+ body.rd .rd-more-sheet .rd-more-close{
+  display:grid;
+  flex:0 0 38px;
+  place-items:center;
+  width:38px;
+  height:38px;
+  min-height:38px;
+  padding:0;
+  margin:0;
+  border:0;
+  border-radius:11px;
+  background:#f1f4fb;
+  color:#566a8b;
+  font-size:27px;
+  font-weight:400;
+  line-height:1;
+  cursor:pointer;
+ }
+ body.rd .rd-more-sheet .rd-nav-btn{
+  box-sizing:border-box;
+  display:flex;
+  flex:0 0 auto;
+  align-items:center;
+  justify-content:flex-start;
+  gap:12px;
+  width:100%;
+  min-width:0;
+  min-height:47px;
+  height:47px;
+  margin:0;
+  padding:9px 12px;
+  line-height:1.25;
+  border-radius:11px;
+  font-size:15px;
+ }
+ body.rd .rd-more-sheet .rd-nav-btn[aria-current="page"]{
+  background:#eff1ff;
+  color:#4057ef;
+ }
+}
+
+/* Mobile orders filters bottom sheet (2026-11-11).
+   Dialog is appended to body (top layer), not the order list's layout flow. */
+@media (max-width:790px){
+  body.rd .rd-orders-filters-dialog:not([open]){display:none!important}
+  body.rd .rd-orders-filters-dialog[open]{
+    display:block;
+    box-sizing:border-box;
+    position:fixed;
+    inset:auto 0 0 0;
+    width:100%;max-width:100%;
+    max-height:min(85dvh,660px);
+    margin:0;
+    padding:10px 18px calc(18px + env(safe-area-inset-bottom,0px));
+    overflow-y:auto;overscroll-behavior:contain;
+    border:0;border-radius:23px 23px 0 0;
+    background:#fff;color:#1f2c45;
+    box-shadow:0 -14px 50px rgba(25,40,76,.19);
+  }
+  body.rd .rd-orders-filters-dialog::backdrop{
+    background:rgba(19,29,53,.5);
+  }
+  body.rd .rd-orders-filter-heading{
+    display:flex;align-items:center;justify-content:space-between;
+    gap:12px;margin:0 0 18px;
+  }
+  body.rd .rd-orders-filter-title{
+    margin:0;font-size:19px;line-height:1.25;
+    font-weight:800;color:#202f50;
+  }
+  body.rd .rd-orders-filter-close{
+    min-height:42px;padding:9px 12px;
+    border:0;border-radius:11px;background:#f1f4fb;
+    font-size:14px;font-weight:650;color:#62718c;
+  }
+  body.rd .rd-orders-filters-dialog #rdOrderToolbar{
+    display:flex!important;
+    flex-wrap:wrap;gap:13px 10px;
+    min-width:0;width:100%;
+    padding:0;margin:0 0 18px;
+    background:transparent;border:0;box-shadow:none;
+  }
+  body.rd .rd-orders-filters-dialog #rdOrderToolbar .rd-date-filter{
+    display:flex;flex-direction:column;align-items:stretch;gap:6px;
+    flex:1 1 100%;width:100%;min-width:0;height:auto;
+    padding:0;border:0;background:transparent;
+    color:#4e5d78;font-size:14px;font-weight:650;
+  }
+  body.rd .rd-orders-filters-dialog #rdOrderDate{
+    box-sizing:border-box;display:block;
+    width:100%;max-width:100%;min-width:0;height:48px;
+    padding:10px 12px;margin:0;
+    background:#fff;color:#263652;
+    border:1px solid #dce5f6;border-radius:12px;
+    font-size:16px;font-weight:500;
+  }
+  body.rd .rd-orders-filters-dialog #rdOrderToolbar select{
+    box-sizing:border-box;display:block;
+    flex:1 1 calc(50% - 5px);
+    min-width:0;width:calc(50% - 5px);max-width:100%;height:48px;
+    margin:0;padding:10px 11px;
+    background:#fff;color:#263652;
+    border:1px solid #dce5f6;border-radius:12px;
+    font-size:16px;
+  }
+  body.rd .rd-orders-filter-actions{
+    display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.2fr);
+    gap:10px;align-items:center;
+  }
+  body.rd .rd-orders-filter-actions button{
+    box-sizing:border-box;min-height:48px;width:100%;
+    border-radius:12px;font-size:15px;font-weight:750;
+  }
+  body.rd .rd-orders-filter-actions .secondary{
+    color:#4f6087;border:1px solid #dce4f4;background:#f1f4fc;
+  }
+  body.rd .rd-orders-filter-actions .rd-orders-filter-apply{
+    color:#fff;border:0;
+    background:linear-gradient(115deg,#5169f5,#6647ed);
+  }
+}
+
+
+/* Narrow phones: readable date selector in calendar navigation (2026-11-11). */
+@media (max-width:520px) {
+  /* At narrow widths a one-row toolbar squeezes the native date control.
+     Two rows retain readable date text without horizontal overflow. */
+  body.rd #appScreen.rd-view-calendar #rdCalendarNavigation {
+    grid-template-columns:36px minmax(0,1fr) minmax(0,1fr) 36px !important;
+    gap:4px !important;
+    padding:6px !important;
+  }
+  body.rd #appScreen.rd-view-calendar #rdCalendarNavigation>.rd-cal-step:first-child {
+    grid-column:1;
+    grid-row:1;
+  }
+  body.rd #appScreen.rd-view-calendar #rdCalendarNavigation>.rd-cal-date-field {
+    grid-column:2/4;
+    grid-row:1;
+  }
+  body.rd #appScreen.rd-view-calendar #rdCalendarNavigation>.rd-cal-step:nth-child(3) {
+    grid-column:4;
+    grid-row:1;
+  }
+  body.rd #appScreen.rd-view-calendar #rdCalendarNavigation>.rd-cal-today {
+    grid-column:1/3;
+    grid-row:2;
+  }
+  body.rd #appScreen.rd-view-calendar #rdCalendarNavigation>.rd-cal-filter-toggle {
+    grid-column:3/5;
+    grid-row:2;
+    min-height:40px;
+    height:40px;
+  }
+  body.rd #appScreen.rd-view-calendar #rdCalendarNavigation.is-filters-open>#rdCalendarMaster {
+    grid-column:1/3;
+    grid-row:3;
+  }
+  body.rd #appScreen.rd-view-calendar #rdCalendarNavigation.is-filters-open>#rdCalendarStatus {
+    grid-column:3/5;
+    grid-row:3;
+  }
+}
+
+/* Keep mobile navigation anchored to the viewport on iOS (2026-11-11). */
+body.rd > #rdMobileNav[hidden] { display:none !important; }
+@media (max-width:790px) {
+  body.rd > #rdMobileNav {
+    position:fixed !important;
+    inset:auto 0 0 0;
+    width:100%;
+    margin:0;
+    transform:none;
+    z-index:28;
+  }
+}
+
+/* WhatsApp manual sharing for Raul's heating appointments. */
+body.rd #rdOrdersIntro .rd-raul-share-tools {
+  display:flex;flex-wrap:wrap;gap:9px;align-items:stretch;
+  width:100%;margin:8px 0 4px;
+}
+body.rd #rdOrdersIntro .rd-raul-share-tools button {
+  min-height:43px;min-width:0;
+  border-radius:12px;padding:10px 12px;
+  font-size:13px;font-weight:750;
+}
+body.rd #rdOrdersIntro .rd-raul-share-tomorrow {
+  flex:1 1 220px;
+  background:#eaf8ef;border:1px solid #bee6cd;color:#137646;
+}
+body.rd #rdOrdersIntro .rd-raul-share-settings {
+  flex:0 1 auto;
+  background:#f2f5fc;border:1px solid #dde5f4;color:#415a82;
+}
+body.rd .actions .action.rd-share-raul-wa {
+  border:1px solid #bde5cd;background:#eaf8ef;color:#147849;
+  min-height:42px;padding:9px 11px;font-weight:750;
+}
+@media (max-width:390px){
+ body.rd #rdOrdersIntro .rd-raul-share-settings {flex:1 1 auto;}
+}
