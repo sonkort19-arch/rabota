@@ -6,7 +6,9 @@ const root=path.resolve(__dirname,".."),html=fs.readFileSync(path.join(root,"ind
 const inline=html.match(/<style>([\s\S]*?)<\/style>/)?.[1];
 assert.ok(inline,"base inline style");
 const links=[...html.matchAll(/<link rel="stylesheet" href="\/([^"?]+)(?:\?[^"]*)?">/g)].map(m=>m[1]);
-assert.equal(links.at(-1),"master-dense.css");
+assert.equal(links.at(-1),"money-workspace.css");
+const i=links.indexOf("master-dense.css");
+assert.deepEqual(links.slice(i,i+2),["master-dense.css","master-dense-enhancements.css"]);
 const styles=[inline,...links.map(file=>fs.readFileSync(path.join(root,file),"utf8"))].join("\n");
 const fixture=[
 '<main id="appScreen" class="rd-master master-mode">',
