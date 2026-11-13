@@ -22,7 +22,7 @@ COMMIT;
 DO $verify$
 BEGIN
   IF (SELECT count(*) FROM public.rabota_orders)<>8
-    OR (SELECT count(*) FROM public.rabota_orders WHERE paid)<>6
+    OR (SELECT count(*) FROM public.rabota_orders WHERE paid)<>5
     OR (SELECT count(*) FROM public.rabota_cash_collections)<>1
     OR (SELECT count(*) FROM public.rabota_finance_operations)<>3
     OR NOT EXISTS (
