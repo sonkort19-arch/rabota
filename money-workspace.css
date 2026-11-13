@@ -307,3 +307,46 @@ body.rd #appScreen.rd-master.master-mode #orders .mw-filter-empty{
     transition:none;
   }
 }
+
+
+/* iOS master viewport scroll isolation, 2026-11-13.
+   The account screen is the ONLY vertical page scroller. This prevents Safari's
+   document rubber-band from pulling the pinned header away from the content.
+   Other roles, login screen and desktop scrolling keep their original behavior. */
+@media (max-width:790px) {
+  html.rd-master-scroll-locked,
+  html.rd-master-scroll-locked body.rd {
+    box-sizing:border-box;
+    height:100%;
+    max-height:100%;
+    overflow:hidden!important;
+    overscroll-behavior:none;
+    background:#f2f6ff;
+  }
+  html.rd-master-scroll-locked body.rd #appScreen.rd-master.master-mode:not([hidden]){
+    box-sizing:border-box;
+    position:fixed;
+    inset:0;
+    width:min(100%,670px);
+    max-width:670px;
+    height:100dvh;
+    min-height:0;
+    max-height:100dvh;
+    margin:0 auto;
+    overflow-x:hidden;
+    overflow-y:auto;
+    overscroll-behavior-x:none;
+    overscroll-behavior-y:none;
+    -webkit-overflow-scrolling:touch;
+    background:#f2f6ff;
+    scrollbar-width:none;
+  }
+  html.rd-master-scroll-locked body.rd #appScreen.rd-master.master-mode::-webkit-scrollbar{
+    display:none;
+  }
+  /* Keep the fixed lower navigation above the scrolled schedule and usable on iPhone. */
+  html.rd-master-scroll-locked body.rd #appScreen.rd-master.master-mode .mw-bottom-nav {
+    position:fixed;
+    bottom:0;
+  }
+}
