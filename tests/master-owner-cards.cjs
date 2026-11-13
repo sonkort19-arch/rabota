@@ -29,9 +29,10 @@ const flat=n=>[n,...n.children.flatMap(flat)];
 function cardFixture(){
  const calls=[];
  const win={__rdOpenMasterDialog:(id,trigger)=>calls.push({id,trigger})};
- const factory=new Function("make","collectionForOrder","window",
+ const factory=new Function("make","collectionForOrder","window","STATUSES",
    html.slice(start,end)+"\nreturn makeMasterScheduleRow;");
- return {render:factory(make,()=>null,win),calls};
+ return {render:factory(make,()=>null,win,
+   ["Новый","Записан","В работе","Выполнен","Отменён"]),calls};
 }
 test("master order displays compact content and opens an isolated dialog",()=>{
  const {render,calls}=cardFixture();
