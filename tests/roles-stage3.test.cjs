@@ -54,7 +54,8 @@ test("master salary UI remains readable but cannot trigger self-payout",()=>{
  assert.match(master,/Выплаты/);
 });
 test("owner payroll form and server RPC remain connected",()=>{
- assert.match(owner,/Оформить выплату/);
+ assert.match(owner,/Подтвердить выплату/);
+ assert.match(owner,/fp-balance-payout/);
  assert.match(home,/rpc\/rabota_salary_payout_v2/);
  assert.doesNotThrow(()=>new Function(owner));
 });
