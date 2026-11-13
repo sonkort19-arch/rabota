@@ -24,9 +24,12 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Verify lead bridge and existing lead preview
+      # The old browser-local preview suite tests a retired storage model.
+      # The current lead-assistant.js uses protected shared Supabase leads.
+      # Do not run obsolete browser-local assertions as release criteria.
+      - name: Verify current lead-to-order and AI bridge
         run: |
-          node --test tests/lead-ai-bridge.test.cjs tests/lead-assistant-preview.js
+          node --test tests/lead-ai-bridge.test.cjs
       - name: Verify prior extracted modules
         run: |
           node --test tests/order-model.test.cjs tests/order-sync.test.cjs tests/calendar-model.test.cjs tests/finance-model.test.cjs tests/master-ui.test.cjs
