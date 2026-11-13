@@ -23,5 +23,5 @@ assert(css.includes("overflow-x: hidden"), "sheet must not scroll horizontally")
 assert(css.includes("overflow-y: auto"), "sheet must still scroll vertically");
 assert(css.includes("touch-action: pan-y pinch-zoom"), "vertical gestures remain available");
 assert(css.includes("grid-template-columns: repeat(2, minmax(0, 1fr))"), "narrow grid min-width fix");
-assert(css.includes("position: sticky"), "save action stays visible");
+assert(/#orderForm \.order-submit-bar\s*\{[^}]*flex:\s*0 0 auto/s.test(css), "save panel stays outside scrolling form body");
 console.log("Mobile order form regression checks: PASS");
