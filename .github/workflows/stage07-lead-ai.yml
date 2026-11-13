@@ -1,0 +1,32 @@
+name: Lead and AI bridge checks
+on:
+  push:
+    branches:
+      - feature/stage-07-leads-ai-bridge-20261113
+  pull_request:
+    paths:
+      - index.html
+      - lead-ai-bridge.js
+      - lead-assistant.js
+      - ai.html
+      - api/ai-chat.js
+      - tests/lead-ai-bridge.test.cjs
+      - tests/lead-assistant-preview.js
+jobs:
+  lead-ai:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify lead bridge and existing lead preview
+        run: |
+          node --test tests/lead-ai-bridge.test.cjs tests/lead-assistant-preview.js
+      - name: Verify prior extracted modules
+        run: |
+          node --test tests/order-model.test.cjs tests/order-sync.test.cjs tests/calendar-model.test.cjs tests/finance-model.test.cjs tests/master-ui.test.cjs
