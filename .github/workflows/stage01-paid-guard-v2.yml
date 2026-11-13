@@ -55,6 +55,17 @@ jobs:
         run: psql -X -v ON_ERROR_STOP=1 -f sql/008-protect-paid-orders.sql
       - name: Verify roles, direct REST-equivalent updates, payment and cash RPCs
         run: psql -X -v ON_ERROR_STOP=1 -f tests/sql/paid-guard-scenarios.sql
+      - name: Reject outdated migration when a production RPC has drifted
+        run: |
+          createdb rabota_drift
+          psql -X -v ON_ERROR_STOP=1 -d rabota_drift -f tests/sql/paid-guard-fixture.sql
+          psql -X -v ON_ERROR_STOP=1 -d rabota_drift -f tests/sql/paid-guard-rpc-drift.sql
+          if psql -X -v ON_ERROR_STOP=1 -d rabota_drift -f sql/008-protect-paid-orders.sql > /tmp/rabota-expected-preflight-failure.log 2>&1; then
+            echo "Unexpected success: changed RPC was overwritten"
+            exit 1
+          fi
+          grep -q 'Rabota financial RPC changed since audit' /tmp/rabota-expected-preflight-failure.log
+          [ "$(psql -X -At -d rabota_drift -c "SELECT count(*) FROM pg_trigger WHERE tgrelid='public.rabota_orders'::regclass AND tgname='rabota_paid_order_guard_trigger'")" = "0" ]
       - name: Verify triggers were installed only in disposable PostgreSQL
         run: |
           psql -X -v ON_ERROR_STOP=1 -c "SELECT tgname FROM pg_trigger WHERE tgrelid='public.rabota_orders'::regclass AND tgname IN ('rabota_paid_order_guard_trigger','rabota_cash_order_guard_trigger') ORDER BY tgname"
