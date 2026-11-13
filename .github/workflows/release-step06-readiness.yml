@@ -1,0 +1,56 @@
+name: Safe release step 6 - mandatory NO-GO review
+on:
+  push:
+    branches:
+      - audit/release-step06-go-no-go-20261114
+  pull_request:
+    paths:
+      - qa/release-go-no-go.json
+      - qa/RELEASE_READONLY_PREFLIGHT.sql
+      - qa/RELEASE_RUNBOOK_STAGE6.md
+      - scripts/release-go-no-go.cjs
+      - tests/release-step06-gates.test.cjs
+      - .github/workflows/release-step06-readiness.yml
+permissions:
+  contents: read
+jobs:
+  readiness:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify exact candidate, evidence and SQL read-only contract
+        run: node --test tests/release-step06-gates.test.cjs
+      - name: Publish a NO-GO diagnostic in CI logs (no network writes)
+        run: node scripts/release-go-no-go.cjs --status
+      - name: Prove strict release gate refuses production
+        run: |
+          result=0
+          node scripts/release-go-no-go.cjs --require-go || result=$?
+          if [ "$result" -ne 3 ]; then
+            echo "FAIL: production release was not blocked with the expected code"
+            exit 1
+          fi
+          echo "PASS: automatic production release remains blocked"
+  previous-architecture-and-finance:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify combined architecture, rights and finance contracts
+        run: |
+          node --test tests/release-step04-combined.test.cjs tests/stage10-contracts.test.cjs
+          node --test tests/paid-order-guard.test.cjs tests/roles-stage3.test.cjs tests/finance-reconciliation-readonly.test.cjs tests/step05-backup-restore.test.cjs
+      - name: Confirm no secret-bearing or deployment-capable actions are configured
+        run: |
+          ! grep -Eq 'vercel deploy|vercel promote|supabase db push|supabase migration up|git push origin main' .github/workflows/release-step06-readiness.yml
