@@ -38,6 +38,20 @@ BEGIN
     RAISE EXCEPTION 'FAIL: direct payment metadata UPDATE accepted';
   EXCEPTION WHEN check_violation THEN NULL;
   END;
+  -- Even a forged custom PostgreSQL setting cannot make an authenticated
+  -- REST-style SQL update run under the trusted SECURITY DEFINER owner role.
+  PERFORM pg_catalog.set_config('rabota.order_payment_intent',
+    'payment:10000000-0000-4000-8000-000000000001',true);
+  BEGIN
+    UPDATE public.rabota_orders SET paid=true,status='Выполнен',
+      price=15000,payment_method='cash',payment_amount=15000,
+      payment_received_by='company',paid_at=now(),
+      paid_by='00000000-0000-4000-8000-000000000001',completed_at=now()
+    WHERE id='10000000-0000-4000-8000-000000000001';
+    RAISE EXCEPTION 'FAIL: spoofed payment-intent setting accepted';
+  EXCEPTION WHEN check_violation THEN NULL;
+  END;
+  PERFORM pg_catalog.set_config('rabota.order_payment_intent','',true);
   IF (SELECT paid FROM public.rabota_orders WHERE id='10000000-0000-4000-8000-000000000001') THEN
     RAISE EXCEPTION 'FAIL: denied update changed paid flag';
   END IF;
