@@ -1138,7 +1138,7 @@
     let masterReviewOpen=false;
     function renderMasterOverview(rows) {
       const root=document.getElementById("masterTodaySummary");
-      if(currentRole!=="master"||currentTab!=="all"){
+      if(currentRole!=="master"||currentTab!=="calendar"){
         root.hidden=true;masterOverviewSignature="";return;
       }
       const now=masterClock(),today=rows.filter(o=>o.date===now.date);
@@ -1171,7 +1171,7 @@
             .find(element=>element.dataset.orderId===String(next.id));
           if(!row)return;
           const toggle=row.querySelector(".master-schedule-toggle");
-          if(toggle&&toggle.getAttribute("aria-expanded")!=="true")toggle.click();
+          if(toggle)toggle.click();
           row.scrollIntoView({behavior:"smooth",block:"center"});
         });
         root.append(jump);
@@ -1200,7 +1200,7 @@
                 .find(element=>element.dataset.orderId===String(order.id));
               if(!row)return;
               const toggle=row.querySelector(".master-schedule-toggle");
-              if(toggle&&toggle.getAttribute("aria-expanded")!=="true")toggle.click();
+              if(toggle)toggle.click();
               row.scrollIntoView({behavior:"smooth",block:"center"});
             });
             list.append(item);
@@ -1209,17 +1209,68 @@
         }
       }
     }
+    let masterOrderDialog=null,masterOrderDialogId=null,masterDialogFocus=null;
+    function closeMasterOrderDialog(){
+      if(!masterOrderDialog)return;
+      masterOrderDialog.remove();masterOrderDialog=null;masterOrderDialogId=null;
+      document.body.classList.remove("mw-order-modal-open");
+      masterDialogFocus?.focus?.({preventScroll:true});masterDialogFocus=null;
+    }
+    function refreshMasterOrderDialog(){
+      if(!masterOrderDialog||!masterOrderDialogId)return;
+      const order=getOrders().find(o=>String(o.id)===masterOrderDialogId &&
+        o.assignedUserId===currentUser?.id);
+      if(!order){closeMasterOrderDialog();return;}
+      const name=masterOrderDialog.querySelector(".mw-order-modal-title"),
+        subtitle=masterOrderDialog.querySelector(".mw-order-modal-subtitle"),
+        body=masterOrderDialog.querySelector(".mw-order-modal-body");
+      if(!name||!subtitle||!body)return;
+      name.textContent=order.name||"Без имени";
+      subtitle.textContent=(order.date?formatDate(order.date):"Без даты")+
+        (order.time?" · "+order.time:"")+" · "+(order.status||"Новый");
+      body.replaceChildren(makeCard(order));
+    }
+    function openMasterOrderDialog(order){
+      if(currentRole!=="master"||!order||order.assignedUserId!==currentUser?.id)return;
+      closeMasterOrderDialog();
+      masterDialogFocus=document.activeElement;masterOrderDialogId=String(order.id);
+      const backdrop=make("div","mw-order-modal-backdrop");
+      const sheet=make("section","mw-order-modal");
+      sheet.setAttribute("role","dialog");sheet.setAttribute("aria-modal","true");
+      sheet.setAttribute("aria-label","Заказ "+(order.name||"Без имени"));
+      const header=make("div","mw-order-modal-head"),copy=make("div","mw-order-modal-headtext"),
+        close=make("button","mw-order-modal-close","×");
+      copy.append(make("h2","mw-order-modal-title"),make("p","mw-order-modal-subtitle"));
+      close.type="button";close.setAttribute("aria-label","Закрыть заказ");
+      close.addEventListener("click",closeMasterOrderDialog);
+      header.append(copy,close);
+      sheet.append(header,make("div","mw-order-modal-body"));
+      backdrop.append(sheet);backdrop.addEventListener("click",e=>{
+        if(e.target===backdrop)closeMasterOrderDialog();
+      });
+      masterOrderDialog=backdrop;document.body.append(backdrop);
+      document.body.classList.add("mw-order-modal-open");
+      refreshMasterOrderDialog();close.focus({preventScroll:true});
+    }
+    window.__rdOpenMasterOrder=id=>{
+      if(currentRole!=="master")return;
+      const order=getOrders().find(o=>String(o.id)===String(id));
+      if(order)openMasterOrderDialog(order);
+    };
+    document.addEventListener("keydown",e=>{
+      if(e.key==="Escape"&&masterOrderDialog)closeMasterOrderDialog();
+    });
     function makeMasterScheduleRow(order,isNext=false) {
       const id=String(order.id);
-      const expanded=expandedMasterOrders.has(id);
-      const article=make("article","master-schedule-card"+(expanded?" is-expanded":"")+(isNext?" is-next":""));
+      const expanded=false;
+      const article=make("article","master-schedule-card"+(isNext?" is-next":""));
       article.dataset.orderId=id;
       const toggle=make("button","master-schedule-toggle");
       toggle.type="button";
-      toggle.setAttribute("aria-expanded",String(expanded));
+
       toggle.setAttribute("aria-label",(expanded?"Скрыть":"Открыть")+" заявку "+(order.name||"Без имени")+", "+(order.time||"время не указано"));
-      const detailId="master-details-"+id.replace(/[^a-zA-Z0-9_-]/g,"");
-      toggle.setAttribute("aria-controls",detailId);
+
+
 
       // Use the owner's compact card geometry, while retaining master's own action handlers.
       const name=String(order.name||"Без имени");
@@ -1254,25 +1305,8 @@
             (collection.submitted_at?"Передача ожидает подтверждения":"Нужно завершить расчёт"):"";
         if(note)toggle.append(make("span","master-money-note",note));
       }
-      const details=make("div","master-schedule-details");
-      details.id=detailId;
-      details.hidden=!expanded;
-      if(expanded) details.append(makeCard(order));
-      toggle.addEventListener("click",()=>{
-        const open=toggle.getAttribute("aria-expanded")!=="true";
-        toggle.setAttribute("aria-expanded",String(open));
-        toggle.setAttribute("aria-label",(open?"Скрыть":"Открыть")+" заявку "+(order.name||"Без имени")+", "+(order.time||"время не указано"));
-        article.classList.toggle("is-expanded",open);
-        details.hidden=!open;
-        if(open){
-          expandedMasterOrders.add(id);
-          details.replaceChildren(makeCard(order));
-        }else{
-          expandedMasterOrders.delete(id);
-          details.replaceChildren();
-        }
-      });
-      article.append(toggle,details);
+      toggle.addEventListener("click",()=>openMasterOrderDialog(order));
+      article.append(toggle);
       return article;
     }
     function renderMasterSchedule(rows) {
@@ -1302,6 +1336,7 @@
     let masterSettlementsSignature="";
     function renderMasterSettlements() {
       const section=document.getElementById("masterPendingSettlements");
+      if(currentRole==="master"){section.hidden=true;return;}
       if(currentRole!=="master"||currentTab==="history"){
         section.hidden=true;masterSettlementsSignature="";return;
       }
@@ -1387,14 +1422,15 @@
         document.getElementById("listTitle").textContent="Выполненные заказы";
       } else if (currentTab==="all") {
         if(currentRole==="master") {
-          shown=masterWorkingOrders();
-          shown.sort((a,b)=>masterScheduleSort(a,b,masterClock().date));
+          shown=getOrders().filter(o=>o.assignedUserId===currentUser?.id);
+          shown.sort((a,b)=>String(b.date||"").localeCompare(String(a.date||""))||
+            String(b.time||"").localeCompare(String(a.time||"")));
         } else {
           shown=getOrders();
           shown.sort((a,b)=>String(b.date||"").localeCompare(String(a.date||"")) ||
             String(b.time||"").localeCompare(String(a.time||"")));
         }
-        document.getElementById("listTitle").textContent=currentRole==="master"?"Моё расписание":"Все заказы";
+        document.getElementById("listTitle").textContent=currentRole==="master"?"Все мои заказы":"Все заказы";
       } else {
         shown=getOrders().filter(o=>o.date===selectedDate &&
           (currentRole!=="master"||(o.status!=="Выполнен"&&o.status!=="Отменён")));
@@ -1403,11 +1439,13 @@
       }
       document.getElementById("orderCount").textContent=shown.length+" шт.";
       ordersNode.replaceChildren();
-      renderMasterOverview(currentTab==="all"&&currentRole==="master"?shown:[]);
+      renderMasterOverview(currentTab==="calendar"&&currentRole==="master"?masterWorkingOrders():[]);
       if(currentRole==="master") renderMasterSchedule(shown);
       else if(!shown.length) ordersNode.append(make("div","empty",currentTab==="history"?"Выполненных заказов нет":"Заказов нет"));
       else shown.forEach(o=>{const card=makeCard(o);window.__rdDecorateOrder?.(card,o);card.dataset.search=(o.name+' '+o.phone+' '+o.address+' '+o.master).toLocaleLowerCase('ru');card.dataset.date=o.date||'';card.dataset.master=o.master||'';card.dataset.status=o.status||'';card.dataset.unpaid=String(o.status==='Выполнен'&&!o.paid);card.dataset.pendingPayment=String(o.status==="Выполнен"&&!o.paid);ordersNode.append(card);});
       renderMasterSettlements();
+      window.__rdMasterOrdersRefresh?.();
+      refreshMasterOrderDialog();
       window.__rdRefresh?.();
     }
     let formPaymentChoice=null;
@@ -2221,6 +2259,28 @@
           orders:mine.map(o=>({name:o.name,date:o.date,id:o.id,amount:financeSplit(o.price).raul,price:o.price})),
           payouts:payouts.map(o=>({id:o.id,amount:Number(o.amount),note:o.note,
             payment_method:o.payment_method,created_at:o.created_at,order_id:o.order_id}))
+        };
+      },
+      masterPayments(){
+        if(currentRole!=="master")throw Error("Доступно только мастеру");
+        const orders=getOrders().filter(o=>o.assignedUserId===currentUser?.id);
+        const ids=new Set(orders.map(o=>String(o.id)));
+        return {
+          error:financeLoadError,
+          orders:orders.map(o=>({
+            id:o.id,name:o.name,date:o.date,time:o.time,status:o.status,
+            paid:o.paid,amount:o.paymentAmount??o.price,method:o.paymentMethod,
+            paidAt:o.paidAt,receivedBy:o.paymentReceivedBy
+          })),
+          collections:financeCollections.filter(c=>ids.has(String(c.order_id))).map(c=>({
+            orderId:c.order_id,companyAmount:Number(c.company_amount)||0,
+            submittedAt:c.submitted_at,confirmedAt:c.confirmed_at
+          })),
+          payouts:financeOperations.filter(o=>!o.voided_at &&
+            o.master_user_id===currentUser?.id && o.kind==="raul_payout").map(o=>({
+              id:o.id,amount:Number(o.amount)||0,note:o.note,createdAt:o.created_at,
+              method:o.payment_method,orderId:o.order_id
+            }))
         };
       },
       ownerSnapshot(){
