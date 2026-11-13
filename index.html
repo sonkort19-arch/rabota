@@ -349,7 +349,7 @@
       <button id="viewFinanceBtn" class="view-button" type="button">Финансы</button>
     </div>
     <div id="ordersArea">
-    <button id="newOrderBtn" class="primary new-order" type="button" hidden><span class="plus" aria-hidden="true">+</span>Новый заказ</button>
+    <button id="newOrderBtn" class="primary new-order" type="button" aria-label="Создать новый заказ" hidden><span class="plus" aria-hidden="true">+</span><span class="new-order-label">Новый заказ</span></button>
     <button class="secondary" id="importBtn" type="button" hidden>Перенести старые заказы с телефона</button>
     <section class="panel" id="teamPanel" hidden>
       <div class="panel-top"><h2>Мастера и доступ</h2><button class="secondary" id="refreshTeam" type="button">Обновить</button></div>
@@ -2232,6 +2232,10 @@
       document.getElementById("appScreen").classList.toggle("master-mode",currentRole==="master");
       document.getElementById("masterBrand").hidden=currentRole!=="master";
       document.getElementById("masterPushPanel").hidden=currentRole!=="master";
+      // Only the master's floating button uses the short visible label.
+      // The accessible name continues to describe the full action.
+      document.querySelector("#newOrderBtn .new-order-label").textContent=
+        currentRole==="master"?"Заказ":"Новый заказ";
       document.getElementById("newOrderBtn").hidden=!canCreateOrder();
       document.getElementById("aiChatLink").hidden=currentRole!=="owner";
       if (currentRole==="master") { currentTab="all"; selectedDate=masterClock().date; }
