@@ -125,14 +125,25 @@ async function check(browser,label,device){
    };
   });
   const countBefore=await page.evaluate(()=>window.__whatsappUrls.length);
+  // Legacy unclassified comments must be blocked before any assignment prompt.
+  const legacyBlocked=await page.evaluate(()=>
+   window.__rdWhatsApp.shareOne(window.__unsafeTestOrder,[window.__unsafeTestOrder])
+  );
+  assert.equal(legacyBlocked,false,label+": legacy notes cannot be forwarded");
+  assert.equal(await page.evaluate(()=>window.__whatsappUrls.length),countBefore,
+    label+": legacy notes never open WhatsApp");
+  assert.match(alerts.join("\n"),/старый комментарий/,label+": legacy note warning");
+
+  // After removing legacy notes, the separate missing-assignment guard must prompt.
+  await page.evaluate(()=>{window.__unsafeTestOrder.details="";});
   const refused=await page.evaluate(()=>
    window.__rdWhatsApp.shareOne(window.__unsafeTestOrder,[window.__unsafeTestOrder])
   );
-  assert.equal(refused,false,label+": user may cancel when no assigned master");
+  assert.equal(refused,false,label+": owner can cancel unassigned booking");
   assert.equal(await page.evaluate(()=>window.__whatsappUrls.length),countBefore,
-    label+": no WhatsApp draft opened without confirmation");
-  assert.match((await page.evaluate(()=>window.__confirmDialogCalls.join("\n"))),/привязка мастера в базе не подтверждена/, 
-    label+": descriptive warning");
+    label+": no WhatsApp draft without confirmation");
+  assert.match((await page.evaluate(()=>window.__confirmDialogCalls.join("\n"))),/Нет привязки мастера в базе/,
+    label+": missing assignment is explained");
   await page.evaluate(()=>{window.confirm=()=>true;});
   const accepted=await page.evaluate(()=>
    window.__rdWhatsApp.shareOne(window.__unsafeTestOrder,[window.__unsafeTestOrder])
