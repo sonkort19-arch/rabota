@@ -522,6 +522,7 @@
   <script src="/order-notes.js?v=20261111-notes1"></script>
   <script src="/order-sync.js?v=20261113-stage2"></script>
   <script src="/order-model.js?v=20261113-stage3"></script>
+  <script src="/calendar-model.js?v=20261113-stage4"></script>
   <script>
 
     "use strict";
@@ -582,20 +583,23 @@
     try { session = JSON.parse(localStorage.getItem(AUTH_KEY) || "null"); }
     catch (error) { session = null; }
 
-    function localDate(date) {
-      return date.getFullYear() + "-" + String(date.getMonth() + 1).padStart(2, "0") + "-" + String(date.getDate()).padStart(2, "0");
-    }
-    function parseDate(date) {
-      const parts = date.split("-").map(Number);
-      return new Date(parts[0], parts[1] - 1, parts[2], 12);
-    }
-    function addDays(day, offset) {
-      const date = parseDate(day); date.setDate(date.getDate() + offset); return localDate(date);
-    }
-    function formatDate(value) {
-      if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return "Дата не указана";
-      return parseDate(value).toLocaleDateString("ru-RU", {day:"numeric", month:"short"});
-    }
+    // Public date helpers retain their old function names for other sections.
+    function localDate(date) {return window.__rdCalendarUtils.localDate(date);}
+    function parseDate(date) {return window.__rdCalendarUtils.parseDate(date);}
+    function addDays(day,offset) {return window.__rdCalendarUtils.addDays(day,offset);}
+    function formatDate(value) {return window.__rdCalendarUtils.formatDate(value);}
+    const calendarModule=window.__rdCreateCalendarModule({
+      elements:{calendarDate,weekDays,ordersWeekDays,ordersDayDateLabel},
+      make,getOrders:()=>getOrders(),
+      getSelectedDate:()=>selectedDate,setSelectedDate:date=>{selectedDate=date;},
+      getCurrentRole:()=>currentRole,getCurrentTab:()=>currentTab,
+      setCurrentTab:tab=>{currentTab=tab;},render:()=>render(),
+      verticalScrollPosition:()=>verticalScrollPosition(),
+      restoreVerticalScroll:value=>restoreVerticalScroll(value),
+      requestAnimationFrame:callback=>requestAnimationFrame(callback),
+      getElement:id=>document.getElementById(id),masterClock:()=>masterClock()
+    });
+
     function make(tag, className, content) {
       const element = document.createElement(tag);
       if (className) element.className = className;
@@ -1334,50 +1338,7 @@
       items.forEach(order=>root.append(makeMasterScheduleRow(order)));
     }
 
-    function renderCalendar() {
-      calendarDate.value = selectedDate;
-      const base = parseDate(selectedDate);
-      const monday = addDays(selectedDate,-((base.getDay()+6)%7));
-      const sunday = addDays(monday,6);
-      ordersDayDateLabel.textContent=parseDate(monday).getDate()+"–"+
-        parseDate(sunday).toLocaleDateString("ru-RU",{day:"numeric",month:"short"});
-      const orders = getOrders();
-      weekDays.replaceChildren();
-      ordersWeekDays.replaceChildren();
-      for(let i=0;i<7;i++) {
-        const date = addDays(monday,i), dateObj = parseDate(date);
-        const btn = make("button","day" + (date === selectedDate ? " active" : "") +
-          (orders.some(o => o.date === date && o.status !== "Отменён") ? " has-orders" : ""));
-        btn.type = "button";
-        btn.setAttribute("aria-label",dateObj.toLocaleDateString("ru-RU"));
-        btn.setAttribute("aria-pressed",String(date === selectedDate));
-        btn.append(make("span","weekday",dateObj.toLocaleDateString("ru-RU",{weekday:"short"})));
-        btn.append(make("strong","",dateObj.getDate()));
-        btn.addEventListener("click",() => {
-          // Preserve the master's viewport when iOS Safari rebuilds the day and order list.
-          if(currentRole!=="master"){selectedDate=date;currentTab="calendar";render();return;}
-          const scrollY=verticalScrollPosition();
-          selectedDate=date;currentTab="calendar";render();
-          restoreVerticalScroll(scrollY);
-          requestAnimationFrame(()=>{
-            if(currentRole==="master"&&currentTab==="calendar"&&selectedDate===date){
-              restoreVerticalScroll(scrollY);
-            }
-          });
-        });
-        weekDays.append(btn);
-        // Compact seven-day selector lives BELOW the tabs so changing modes never moves them.
-        const chip = make("button","rd-orders-weekday"+(date===selectedDate?" is-selected":"")+
-          (orders.some(o=>o.date===date&&o.status!=="Отменён")?" has-orders":""));
-        chip.type="button";
-        chip.setAttribute("aria-label",dateObj.toLocaleDateString("ru-RU"));
-        chip.setAttribute("aria-pressed",String(date===selectedDate));
-        chip.append(make("span","",dateObj.toLocaleDateString("ru-RU",{weekday:"short"})));
-        chip.append(make("strong","",dateObj.getDate()));
-        chip.addEventListener("click",() => {selectedDate=date;currentTab="calendar";render();});
-        ordersWeekDays.append(chip);
-      }
-    }
+    function renderCalendar() {calendarModule.renderCalendar();}
     function render() {
       renderCalendar();
       document.querySelectorAll("[data-tab]").forEach(btn => {
@@ -1539,13 +1500,7 @@
     document.getElementById("closeOrderBtn").addEventListener("click",closeForm);
     overlay.addEventListener("click",e=>{if(e.target===overlay)closeForm();});
     document.addEventListener("keydown",e=>{if(e.key==="Escape"&&!overlay.hidden)closeForm();});
-    document.getElementById("prevWeek").addEventListener("click",()=>{selectedDate=addDays(selectedDate,-7);currentTab="calendar";render();});
-    document.getElementById("nextWeek").addEventListener("click",()=>{selectedDate=addDays(selectedDate,7);currentTab="calendar";render();});
-    document.getElementById("goToday").addEventListener("click",()=>{selectedDate=currentRole==="master"?masterClock().date:localDate(new Date());currentTab="calendar";render();});
-    calendarDate.addEventListener("change",()=>{if(calendarDate.value){selectedDate=calendarDate.value;render();}});
-    document.getElementById("rdOrdersPrevWeek").addEventListener("click",()=>{selectedDate=addDays(selectedDate,-7);currentTab="calendar";render();});
-    document.getElementById("rdOrdersNextWeek").addEventListener("click",()=>{selectedDate=addDays(selectedDate,7);currentTab="calendar";render();});
-    document.getElementById("rdOrdersToday").addEventListener("click",()=>{selectedDate=currentRole==="master"?masterClock().date:localDate(new Date());currentTab="calendar";render();});
+    calendarModule.bindNavigation();
     document.querySelectorAll("[data-tab]").forEach(btn=>btn.addEventListener("click",()=>{
       const nextTab=btn.dataset.tab;
       if(currentTab===nextTab)return;
@@ -2133,11 +2088,10 @@
       return window.__rdQuickSlotsSnapshot();
     };
     window.__rdQuickSlotFill=({date,time,master})=>{
-      if(!["owner","manager"].includes(currentRole)||
-        !/^\d{4}-\d{2}-\d{2}$/.test(date)||
-        !/^([01]\d|2[0-3]):[0-5]\d$/.test(time)||
-        !String(master||"").trim())return false;
-      if(!["available","tight"].includes(window.__rdOrderAvailability?.checkTime(time,date,master)))return false;
+      if(!window.__rdCalendarUtils.canPrefillSlot(
+        {role:currentRole,date,time,master},
+        (slotTime,slotDate,slotMaster)=>window.__rdOrderAvailability?.checkTime(slotTime,slotDate,slotMaster)
+      ))return false;
       openForm();
       controls.date.value=date;
       controls.time.value=time;
