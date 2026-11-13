@@ -438,8 +438,8 @@
           <div class="form-grid order-core-grid">
             <div class="field"><label for="radiators">Радиаторы (шт.)</label><input id="radiators" name="radiators" type="number" min="0" step="1"></div>
             <div class="field"><label for="floorLoops">Тёплый пол (контуры)</label><input id="floorLoops" name="floorLoops" type="number" min="0" step="1"></div>
-            <div class="field"><label for="master">Мастер</label><input id="master" name="master" type="text" maxlength="100" list="masterNames"></div>
-            <div class="field"><label for="price">Стоимость (₽)</label><input id="price" name="price" type="number" min="0" step="1"></div>
+            <div class="field" id="orderMasterField"><label for="master">Мастер</label><input id="master" name="master" type="text" maxlength="100" list="masterNames"></div>
+            <div class="field" id="orderPriceField"><label for="price">Стоимость (₽)</label><input id="price" name="price" type="number" min="0" step="1"></div>
           </div>
           <datalist id="masterNames"></datalist>
           <div class="form-title">Запись</div>
@@ -1458,6 +1458,10 @@
       previousFocus=document.activeElement;form.reset();delete form.dataset.leadPreview;delete form.dataset.leadId;formStatus.textContent="";formStatus.classList.remove("is-saving");
       formPaymentChoice=null;
       const advanced=document.getElementById("orderAdvanced");advanced.open=false;
+      // Raul's create form is compact; keep all inputs and backend validation intact.
+      overlay.classList.toggle("master-quick",raulCreating);
+      advanced.querySelector("summary").firstChild.nodeValue=
+        raulCreating?"Ещё ":"Дополнительные параметры ";
       editingId=id===undefined?null:String(id);
       updateMasters();
       const existing=editingId===null?null:getOrders().find(x=>String(x.id)===editingId);
@@ -1511,7 +1515,7 @@
     function closeForm(force) {
       // Запретить закрытие до завершения сохранения: результат запроса ещё неизвестен.
       if(orderSaving && force!==true)return;
-      overlay.hidden=true;window.__rdOrderAvailability?.close();document.body.style.overflow="";form.reset();delete form.dataset.leadPreview;delete form.dataset.leadId;editingId=null;
+      overlay.hidden=true;overlay.classList.remove("master-quick");window.__rdOrderAvailability?.close();document.body.style.overflow="";form.reset();delete form.dataset.leadPreview;delete form.dataset.leadId;editingId=null;
       if(previousFocus&&typeof previousFocus.focus==="function")previousFocus.focus();
     }
     deleteOrderBtn.addEventListener("click",async()=>{
