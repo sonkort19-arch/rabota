@@ -11,7 +11,7 @@ const css = fs.readFileSync(path.join(root, "mobile-order-form.css"), "utf8");
 const script = html.match(/<script>([\s\S]*?)<\/script>/)?.[1];
 assert(script, "inline app script must exist");
 assert.doesNotThrow(() => new Function(script), "inline script must parse");
-assert(html.includes('<link rel="stylesheet" href="/mobile-order-form.css">'), "new CSS must be linked");
+assert(/<link rel="stylesheet" href="\/mobile-order-form\.css(?:\?[^"]*)?">/.test(html), "order form CSS must be linked");
 assert.equal((html.match(/class="order-submit-bar"/g) || []).length, 1, "one order save bar");
 assert.equal((html.match(/id="formStatus"/g) || []).length, 1, "one status live region");
 assert(html.includes('form.addEventListener("invalid"'), "required field feedback");
