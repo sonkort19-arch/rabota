@@ -3,7 +3,7 @@
 .mw-master-reports,.mw-owner-payments{min-width:0}
 .mw-bottom-nav{
   position:fixed;z-index:32;left:50%;bottom:0;transform:translateX(-50%);
-  display:grid;grid-template-columns:repeat(3,minmax(0,1fr));
+  display:grid;grid-template-columns:repeat(4,minmax(0,1fr));
   width:min(100%,670px);min-height:64px;padding:5px 10px calc(5px + env(safe-area-inset-bottom));
   background:rgba(252,253,255,.97);-webkit-backdrop-filter:blur(16px);
   backdrop-filter:blur(16px);border:1px solid #dce4f4;border-bottom:0;border-radius:17px 17px 0 0;
@@ -145,3 +145,102 @@ textarea.mw-input{min-height:69px;resize:vertical;line-height:1.4}
  .mw-money-stat strong{font-size:16px}
 }
 @media(prefers-reduced-motion:reduce){.mw-modal,.mw-modal-backdrop{transition:none;animation:none}}
+
+
+/* Mobile master: single navigation, search/status filters and compact order sheet. */
+body.rd #appScreen.rd-master.master-mode #ordersArea > .tabs {
+  display:none!important;
+}
+body.rd #appScreen.rd-master.master-mode #masterPendingSettlements {display:none!important}
+body.rd #appScreen.rd-master.master-mode #ordersArea > .mw-master-filterbar {
+  display:flex;flex-direction:column;gap:9px;
+  padding:7px 0 12px;margin:0;
+}
+body.rd #appScreen.rd-master.master-mode #ordersArea > .mw-master-filterbar[hidden],
+body.rd #appScreen.rd-master.master-mode .mw-master-payments[hidden] {display:none!important}
+.mw-filter-search{
+  box-sizing:border-box;display:block;width:100%;height:43px;
+  padding:10px 13px;outline:none;
+  border:1px solid #d7e1f3;border-radius:13px;
+  background:#fff;color:#203552;font-size:14px;
+}
+.mw-filter-search:focus{border-color:#5c80e9;box-shadow:0 0 0 3px #6085ec1d}
+.mw-status-filters,.mw-payment-filters{
+  display:flex;align-items:center;gap:6px;
+  width:100%;padding:0 0 3px;
+  overflow-x:auto;overscroll-behavior-x:contain;
+  scrollbar-width:none;-webkit-overflow-scrolling:touch;
+}
+.mw-status-filters::-webkit-scrollbar,.mw-payment-filters::-webkit-scrollbar{display:none}
+.mw-filter-chip{
+  display:inline-flex;justify-content:center;align-items:center;
+  min-height:34px;min-width:max-content;padding:7px 11px;
+  border:1px solid #dde6f5;background:#fff;border-radius:10px;
+  color:#62738e;font-size:12px;font-weight:700;line-height:1.15;
+  white-space:nowrap;
+}
+.mw-filter-chip.active{background:#eaf0ff;color:#3462cf;border-color:#aec4fb}
+body.rd #appScreen.rd-master.master-mode #orders .master-schedule-card[hidden],
+body.rd #appScreen.rd-master.master-mode #orders .master-day-heading[hidden]{
+  display:none!important;
+}
+.mw-master-payments{display:flex;flex-direction:column;gap:11px;color:#223451;padding:5px 0 85px;min-width:0}
+.mw-master-payments .mw-heading{margin-bottom:6px}
+.mw-settlement-summary{display:grid;grid-template-columns:1fr;gap:8px;padding:13px;border:1px solid #d9e3f4;background:#f6f9ff;border-radius:13px}
+.mw-settlement-summary>div{display:flex;align-items:baseline;justify-content:space-between;gap:8px;min-width:0}
+.mw-settlement-summary small{color:#7383a0;font-size:12px;line-height:1.35}
+.mw-settlement-summary strong{color:#294263;font-size:14px;white-space:nowrap;font-variant-numeric:tabular-nums}
+.mw-master-payments .mw-money-stat strong{font-size:15px}
+.mw-payment-filters{padding-bottom:2px}
+.mw-payment-row{
+  appearance:none;display:flex;align-items:center;justify-content:space-between;gap:8px;
+  width:100%;padding:12px;min-height:66px;border:1px solid #e0e8f6;border-radius:12px;
+  background:#fff;color:#2a3956;text-align:left;
+}
+.mw-payment-row-main{display:flex;flex-direction:column;gap:3px;flex:1;min-width:0}
+.mw-payment-row-main strong{font-size:13px;line-height:1.2}
+.mw-payment-row-main small{font-size:11px;color:#7e8da6;line-height:1.3}
+.mw-payment-row-value{display:flex;align-items:center;gap:9px;flex:0 0 auto}
+.mw-payment-row-value strong{font-size:13px;font-variant-numeric:tabular-nums}
+.mw-payment-row-value span{font-size:19px;color:#8192b3}
+.mw-order-modal-open{overflow:hidden!important}
+.mw-order-modal-backdrop{
+  box-sizing:border-box;position:fixed;inset:0;z-index:440;
+  display:flex;align-items:flex-end;justify-content:center;
+  padding:12px 10px max(10px,env(safe-area-inset-bottom));
+  background:rgba(14,27,49,.58);overscroll-behavior:contain;
+}
+.mw-order-modal{
+  box-sizing:border-box;display:flex;flex-direction:column;
+  width:min(100%,600px);max-height:min(90dvh,830px);
+  background:#f9fbff;color:#233552;border:1px solid #dce6f4;
+  border-radius:19px;box-shadow:0 16px 52px #1429444d;
+  overflow:hidden;
+}
+.mw-order-modal-head{
+  display:flex;align-items:flex-start;justify-content:space-between;gap:9px;
+  border-bottom:1px solid #e4ebf6;background:#fff;padding:14px 15px;
+}
+.mw-order-modal-headtext{min-width:0;display:flex;flex-direction:column;gap:4px}
+.mw-order-modal-title{font-size:18px;line-height:1.2;margin:0;font-weight:800;overflow-wrap:anywhere}
+.mw-order-modal-subtitle{font-size:12px;line-height:1.35;margin:0;color:#73829b}
+.mw-order-modal-close{
+  display:grid;place-items:center;flex:0 0 42px;
+  width:42px;height:42px;margin:0;padding:0;
+  border:0;border-radius:11px;background:#eaf0f9;color:#586b89;font-size:25px;
+}
+.mw-order-modal-body{padding:10px 13px 17px;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch}
+.mw-order-modal-body .order-card{display:flex;flex-direction:column;gap:10px;padding:0;margin:0;border:0;box-shadow:none;background:transparent}
+.mw-order-modal-body .order-card>.card-top{display:none}
+.mw-order-modal-body .order-card>.status-badge{align-self:flex-start}
+.mw-order-modal-body .order-card .actions{display:flex;flex-wrap:wrap;gap:7px}
+.mw-order-modal-body .order-card .actions>a,
+.mw-order-modal-body .order-card .actions>button{flex:1 1 auto;min-height:41px}
+.mw-order-modal-body .order-card .master-action{width:100%;min-height:43px}
+.mw-order-modal-body .cash-share{padding:11px;border-radius:12px}
+@media(max-width:360px){
+  .mw-bottom-nav{padding-left:5px;padding-right:5px}
+  .mw-nav-btn{font-size:10px}
+  .mw-money-stat strong{font-size:13px}
+  .mw-settlement-summary strong{font-size:12px}
+}
