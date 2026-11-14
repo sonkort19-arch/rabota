@@ -58,6 +58,19 @@
     function renderCalendar(){
       const selectedDate=getSelectedDate();
       calendarDate.value=selectedDate;
+      // The master calendar keeps the real date input tappable under a compact
+      // text label. The "Today" shortcut appears only when another day is selected.
+      const compactLabel=deps.getElement?.("masterCalendarDateText");
+      if(compactLabel){
+        const date=parseDate(selectedDate);
+        compactLabel.textContent=date.toLocaleDateString("ru-RU",{day:"numeric",month:"short"})+
+          " "+date.getFullYear();
+      }
+      const todayRow=deps.getElement?.("masterCalendarTodayRow");
+      if(todayRow){
+        const today=getCurrentRole()==="master"?deps.masterClock().date:localDate(new Date());
+        todayRow.hidden=selectedDate===today;
+      }
       const {monday,sunday,days}=weekDates(selectedDate);
       ordersDayDateLabel.textContent=parseDate(monday).getDate()+"–"+
         parseDate(sunday).toLocaleDateString("ru-RU",{day:"numeric",month:"short"});
