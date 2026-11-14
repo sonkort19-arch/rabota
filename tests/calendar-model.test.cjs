@@ -152,3 +152,21 @@ test("app loads calendar before use while preserving availability scripts",()=>{
   const inline=html.split("<script>\n").at(-1).split("</script>")[0];
   assert.doesNotThrow(()=>new Function(inline));
 });
+
+
+test("master calendar title stays the Today action without a separate row",()=>{
+  const html=fs.readFileSync(path.join(__dirname,"..","index.html"),"utf8");
+  const section=html.match(/<section class="panel master-calendar-compact" id="calendarPanel">([\\s\\S]*?)<\\/section>/)?.[1];
+  assert.ok(section,"compact master calendar exists");
+  assert.match(section,/<h2><button id="goToday"[^>]+aria-label="Календарь — вернуться к сегодняшнему дню"/);
+  assert.doesNotMatch(section,/masterCalendarTodayRow|class="master-calendar-today-row"|>Сегодня<\\/button>/);
+  assert.equal((section.match(/id="goToday"/g)||[]).length,1);
+  assert.match(section,/id="calendarDate"/);
+  assert.match(section,/id="prevWeek"/);
+  assert.match(section,/id="nextWeek"/);
+  const app=build({role:"master",date:"2026-11-20"});
+  app.module.bindNavigation();
+  app.buttons.goToday.fire("click");
+  assert.equal(app.getSelected(),"2026-11-14");
+  assert.equal(app.getRenders(),1);
+});
