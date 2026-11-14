@@ -2,6 +2,7 @@ name: Final architecture audit stage 10
 on:
   push:
     branches:
+      - main
       - feature/stage-10-final-audit-20261114
   pull_request:
     paths:
