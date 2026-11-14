@@ -42,6 +42,10 @@ jobs:
           node tests/mobile-order-form.js
           node tests/finance-payroll-preview.js
           node tests/orders-compact-list.js
+      - name: Paid order, salary roles, backup and release-gate regression contracts
+        run: |
+          node --test tests/paid-order-guard.test.cjs tests/roles-stage3.test.cjs tests/release-step06-gates.test.cjs tests/free-backup-local.test.cjs tests/step05-backup-restore.test.cjs
+          node scripts/release-go-no-go.cjs --status
       - name: Push bell, splash, and read-only finance audit contracts
         run: |
           node tests/master-notifications.js
