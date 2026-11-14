@@ -26,7 +26,7 @@ jobs:
         with:
           node-version: '22'
       - name: Module architecture contracts
-        run: node --test tests/stage10-contracts.test.cjs
+        run: node --test tests/stage10-contracts.test.cjs tests/autonomous-roadmap-contract.test.cjs
       - name: All extracted modules
         run: |
           node --test tests/app-services.test.cjs tests/order-sync.test.cjs tests/order-model.test.cjs tests/calendar-model.test.cjs tests/finance-model.test.cjs tests/master-ui.test.cjs tests/lead-ai-bridge.test.cjs
