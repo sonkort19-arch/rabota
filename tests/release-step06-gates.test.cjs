@@ -65,6 +65,13 @@ test("the preflight SQL is READ ONLY and returns no customer rows",()=>{
  assert.match(uncommented,/pg_catalog\.md5\(p\.prosrc\)/);
  assert.match(uncommented,/relrowsecurity/);
  assert.match(uncommented,/rabota_paid_order_guard_trigger/);
+ for(const rpc of ["rabota_record_order_payment","rabota_cash_distribute",
+  "rabota_salary_payout_v2","rabota_approve_master","rabota_provision_master"]){
+   assert.ok(uncommented.includes(rpc),"preflight missing "+rpc);
+ }
+ assert.match(uncommented,/paid_unassigned/);
+ assert.match(uncommented,/paid_assigned/);
+ assert.match(uncommented,/expected_md5/);
 });
 
 test("runbook defines safe migration order and non-destructive rollback",()=>{
