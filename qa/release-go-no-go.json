@@ -3,12 +3,14 @@
   "project": "CRM Работа / MOBA",
   "audited_at": "2026-11-14",
   "repository": "sonkort19-arch/rabota",
-  "current_main_sha_at_audit": "298b12af05cc2bfa8984114d1ad62946cb275cb1",
+  "current_main_sha_at_audit": "55a14e441abdf849e6b585d5b102f3fbf56cf13b",
   "candidate": {
     "pr": 74,
-    "sha": "99d2c07b679ecc02a8eb9055a21f3d0c806aa2c5",
+    "sha": "1346e537caff58d7d8ffcb47d3491d15c52e83eb",
     "branch": "release/consolidated-review-20261114",
-    "note": "Snapshot HEAD at reconciliation; check current PR HEAD and repeat CI before release"
+    "note": "PR #74 merged to main 2026-11-14; this NO_GO ledger refers to the remaining production database migrations and operational safety gates.",
+    "merged": true,
+    "merge_commit_sha": "55a14e441abdf849e6b585d5b102f3fbf56cf13b"
   },
   "decision": "NO_GO",
   "gates": [
@@ -52,14 +54,14 @@
       "title": "Проверка на настоящем iPhone владельца и Рауля",
       "verified": false,
       "evidence": null,
-      "note": "WebKit CI не заменяет проверку PWA, клавиатуры и фона на устройстве"
+      "note": "Владелец подтвердил в чате, что приложение работает на его iPhone, но отдельный вход Рауля, PWA offline/background/keyboard и подробный тест не подтверждены."
     },
     {
       "id": "vercel_target_verified",
       "title": "Установлена точная production-привязка CRM Работа в Vercel и предыдущий deployment",
       "verified": false,
       "evidence": null,
-      "note": "Owner screenshot showed rabota Production Ready main 298b12a, and GitHub Vercel status success. API connector still sees only grafik and cannot inspect rabota; direct deployment control unverified."
+      "note": "Vercel GitHub commit status success on merged main 55a14e44 and owner reports working app; direct Vercel connector cannot inspect rabota project, so target ownership/deployment not fully verified."
     },
     {
       "id": "migration_approval_and_drift",
@@ -80,21 +82,21 @@
       "title": "Подготовлен один финальный PR к main без дублирования стековых веток",
       "verified": true,
       "evidence": "https://github.com/sonkort19-arch/rabota/pull/74",
-      "note": "Single draft PR targets current main, GitHub mergeable=true, 79 diff files; main reconciliation preserves owner + Заказ. This proves PR preparation, NOT independent diff review or production permission."
+      "note": "Code merge completed: PR #74, commit 55a14e44; prior diff and architecture CI reviewed. This does not cover database migration readiness."
     },
     {
       "id": "rollback_and_monitoring",
       "title": "Реальные точки восстановления, план совместимого отката и мониторинг",
       "verified": false,
       "evidence": null,
-      "note": "Полный PITR общей базы затрагивает другие приложения"
+      "note": "Prior GitHub code محفوظён в rollback/main-before-pr74-20261114. Shared database snapshot restore and rollback of migrations still unverified."
     },
     {
       "id": "explicit_production_approval",
-      "title": "Владелец явно разрешил выпуск командой «на основную» после прохождения проверок",
+      "title": "Отдельное разрешение на финансовые миграции рабочей Supabase после выполнения остальных условий",
       "verified": false,
       "evidence": null,
-      "note": "Команда «Делай следующий этап» не означает разрешение на production"
+      "note": "Владелец разрешил и выполнил слияние КОДА PR #74. Это не подтверждает безопасное применение SQL 008/009/010 к общей Supabase без backup/staging."
     }
   ],
   "additional_observations": {
@@ -122,6 +124,13 @@
     "production_paid_guard_active": false,
     "production_finance_rpc_drift_at_snapshot": false,
     "master_provisioning_sql_010_staging_only": true,
-    "master_provisioning_md5_verified_at_snapshot": true
-  }
+    "master_provisioning_md5_verified_at_snapshot": true,
+    "code_merge_completed": true,
+    "code_merge_sha": "55a14e441abdf849e6b585d5b102f3fbf56cf13b",
+    "code_rollback_branch": "rollback/main-before-pr74-20261114",
+    "code_merge_vercel_commit_status": "success",
+    "production_finance_migrations_installed": false,
+    "post_release_rls_readonly": "qa/POST_RELEASE_AUTH_RLS_READONLY_20261114.md"
+  },
+  "release_phase": "post_code_merge_pre_finance_db_migration"
 }
