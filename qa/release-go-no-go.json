@@ -3,11 +3,12 @@
   "project": "CRM Работа / MOBA",
   "audited_at": "2026-11-14",
   "repository": "sonkort19-arch/rabota",
-  "current_main_sha_at_audit": "3c3e037b9a97ba74544af2fe337e09175cb603d7",
+  "current_main_sha_at_audit": "298b12af05cc2bfa8984114d1ad62946cb275cb1",
   "candidate": {
-    "pr": 72,
-    "sha": "499baf79e65614d6eb6877f8c6baba0e8aba6fb2",
-    "branch": "audit/release-step05-backup-recovery-20261114"
+    "pr": 74,
+    "sha": "99d2c07b679ecc02a8eb9055a21f3d0c806aa2c5",
+    "branch": "release/consolidated-review-20261114",
+    "note": "Snapshot HEAD at reconciliation; check current PR HEAD and repeat CI before release"
   },
   "decision": "NO_GO",
   "gates": [
@@ -58,7 +59,7 @@
       "title": "Установлена точная production-привязка CRM Работа в Vercel и предыдущий deployment",
       "verified": false,
       "evidence": null,
-      "note": "GitHub homepage указывает https://rabota-rust.vercel.app, но рабочий Vercel-коннектор показывает только grafik. Домен/production deployment CRM пока не подтверждены."
+      "note": "Owner screenshot showed rabota Production Ready main 298b12a, and GitHub Vercel status success. API connector still sees only grafik and cannot inspect rabota; direct deployment control unverified."
     },
     {
       "id": "migration_approval_and_drift",
@@ -77,9 +78,9 @@
     {
       "id": "final_main_comparison",
       "title": "Подготовлен один финальный PR к main без дублирования стековых веток",
-      "verified": false,
-      "evidence": null,
-      "note": "Нельзя слепо сливать PR #58-#72; требуется обзор общего diff"
+      "verified": true,
+      "evidence": "https://github.com/sonkort19-arch/rabota/pull/74",
+      "note": "Single draft PR targets current main, GitHub mergeable=true, 79 diff files; main reconciliation preserves owner + Заказ. This proves PR preparation, NOT independent diff review or production permission."
     },
     {
       "id": "rollback_and_monitoring",
@@ -113,6 +114,12 @@
     "connected_vercel_projects": [
       "grafik"
     ],
-    "correct_vercel_project_verified": false
+    "correct_vercel_project_verified": false,
+    "production_screenshot_seen": true,
+    "github_vercel_status_url": "https://vercel.com/sonkort19-6069s-projects/rabota/JAheWzykPPG681mzwjvD1QHcLyRR",
+    "github_candidate_pr": 74,
+    "snapshot_utc": "2026-11-14T00:52:33Z",
+    "production_paid_guard_active": false,
+    "production_finance_rpc_drift_at_snapshot": false
   }
 }
