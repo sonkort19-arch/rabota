@@ -1,5 +1,12 @@
 -- Fake PostgreSQL CI baseline; NEVER apply to Supabase production.
 ALTER TABLE public.rabota_members ADD COLUMN email text;
+-- Synthetic owner-only member inspection; authenticated test role must not
+-- receive unrestricted access to membership information.
+ALTER TABLE public.rabota_members ENABLE ROW LEVEL SECURITY;
+GRANT SELECT ON public.rabota_members TO authenticated;
+CREATE POLICY synthetic_owner_members_select ON public.rabota_members
+  FOR SELECT TO authenticated
+  USING ((SELECT private.rabota_my_role())='owner');
 CREATE TABLE auth.users (id uuid PRIMARY KEY,email text,email_confirmed_at timestamptz);
 INSERT INTO auth.users(id,email,email_confirmed_at) VALUES
 ('00000000-0000-4000-8000-000000000006','fresh_master@staff.rabota.invalid',now()),
