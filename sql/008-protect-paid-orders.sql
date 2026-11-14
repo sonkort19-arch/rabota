@@ -32,6 +32,14 @@ BEGIN
   ) THEN
     RAISE EXCEPTION 'Original cash guard missing or disabled: STOP';
   END IF;
+  -- The original cash guard is part of the migration safety boundary.
+  -- Merely finding the trigger is insufficient if its function was changed.
+  IF (
+    SELECT pg_catalog.md5(p.prosrc) FROM pg_catalog.pg_proc p
+    WHERE p.oid='private.rabota_cash_order_guard()'::pg_catalog.regprocedure
+  ) IS DISTINCT FROM '27e721f9909f2ab0e7d08dcea1a3225c' THEN
+    RAISE EXCEPTION 'Original cash guard source changed since audit: STOP';
+  END IF;
   IF EXISTS (
     SELECT 1 FROM pg_catalog.pg_trigger t
     WHERE t.tgrelid='public.rabota_orders'::pg_catalog.regclass

@@ -69,6 +69,8 @@ jobs:
         run: psql -X -v ON_ERROR_STOP=1 -f tests/sql/roles-stage3-fixture.sql
       - name: Load live-equivalent master RPCs against synthetic data only
         run: psql -X -v ON_ERROR_STOP=1 -f tests/sql/master-provisioning-fixture.sql
+      - name: Verify SQL 008 fails safely if original cash guard has drifted
+        run: bash tests/verify-cash-guard-drift-disposable.sh
       - name: Install audited financial and master migration candidates in disposable DB only
         run: |
           psql -X -v ON_ERROR_STOP=1 -f sql/008-protect-paid-orders.sql

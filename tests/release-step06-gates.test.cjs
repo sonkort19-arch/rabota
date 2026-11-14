@@ -11,10 +11,14 @@ const preflight=read("qa/RELEASE_READONLY_PREFLIGHT.sql");
 const runbook=read("qa/RELEASE_RUNBOOK_STAGE6.md");
 const gateScript=path.join(root,"scripts","release-go-no-go.cjs");
 
-test("candidate points to one consolidated draft PR against current main",()=>{
+test("merged PR #74 is recorded without treating pending financial migrations as shipped",()=>{
  assert.equal(manifest.repository,"sonkort19-arch/rabota");
- assert.equal(manifest.current_main_sha_at_audit,"298b12af05cc2bfa8984114d1ad62946cb275cb1");
+ assert.equal(manifest.current_main_sha_at_audit,"55a14e441abdf849e6b585d5b102f3fbf56cf13b");
  assert.equal(manifest.candidate.pr,74);
+ assert.equal(manifest.candidate.merged,true);
+ assert.equal(manifest.candidate.merge_commit_sha,manifest.current_main_sha_at_audit);
+ assert.equal(manifest.release_phase,"post_code_merge_pre_finance_db_migration");
+ assert.equal(manifest.additional_observations.production_finance_migrations_installed,false);
  assert.match(manifest.candidate.sha,/^[a-f0-9]{40}$/);
  assert.equal(manifest.candidate.branch,"release/consolidated-review-20261114");
 });
@@ -61,6 +65,15 @@ test("the preflight SQL is READ ONLY and returns no customer rows",()=>{
  assert.match(uncommented,/pg_catalog\.md5\(p\.prosrc\)/);
  assert.match(uncommented,/relrowsecurity/);
  assert.match(uncommented,/rabota_paid_order_guard_trigger/);
+ for(const rpc of ["rabota_record_order_payment","rabota_cash_distribute",
+  "rabota_salary_payout_v2","rabota_approve_master","rabota_provision_master"]){
+   assert.ok(uncommented.includes(rpc),"preflight missing "+rpc);
+ }
+ assert.match(uncommented,/paid_unassigned/);
+ assert.match(uncommented,/paid_assigned/);
+ assert.match(uncommented,/expected_md5/);
+ assert.match(uncommented,/27e721f9909f2ab0e7d08dcea1a3225c/);
+ assert.match(uncommented,/private\.rabota_cash_order_guard/);
 });
 
 test("runbook defines safe migration order and non-destructive rollback",()=>{

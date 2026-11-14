@@ -53,5 +53,43 @@ JOIN pg_catalog.pg_namespace n ON n.oid=c.relnamespace
 WHERE n.nspname='public' AND c.relkind='r' AND c.relname LIKE 'rabota_%'
 ORDER BY c.relname;
 
--- This script NEVER applies 008/009, changes policies or provisions users.
+-- Extended migration preflight: five SECURITY DEFINER RPCs used by SQL 008/009/010.
+-- All checks are read-only and report only database metadata, never client rows.
+SELECT p.proname AS rpc,
+       pg_catalog.md5(p.prosrc) AS source_md5,
+       CASE p.proname
+         WHEN 'rabota_record_order_payment' THEN 'd44bada20981d77a9922fe28f383ab10'
+         WHEN 'rabota_cash_distribute' THEN '75dbf74b2e70cfc6d3b73012ae66baaf'
+         WHEN 'rabota_salary_payout_v2' THEN 'ffedbdc596808059ab7601c6527f9c44'
+         WHEN 'rabota_approve_master' THEN 'b2dfc4a09157b434b327da4864e0337c'
+         WHEN 'rabota_provision_master' THEN '5861f5b084d08f613e808dd385c64175'
+       END AS expected_md5,
+       p.prosecdef AS security_definer,
+       pg_catalog.pg_get_userbyid(p.proowner) AS function_owner
+FROM pg_catalog.pg_proc p
+WHERE p.oid IN (
+ 'public.rabota_record_order_payment(uuid,numeric,text)'::pg_catalog.regprocedure,
+ 'public.rabota_cash_distribute(uuid)'::pg_catalog.regprocedure,
+ 'public.rabota_salary_payout_v2(text,numeric,text,text,uuid,uuid)'::pg_catalog.regprocedure,
+ 'public.rabota_approve_master(uuid,text)'::pg_catalog.regprocedure,
+ 'public.rabota_provision_master(uuid,text,text)'::pg_catalog.regprocedure
+)
+ORDER BY p.proname;
+
+-- Confirm the existing cash guard source has not changed since the audited snapshot.
+SELECT p.oid::pg_catalog.regprocedure::text AS guard_rpc,
+       pg_catalog.md5(p.prosrc) AS source_md5,
+       '27e721f9909f2ab0e7d08dcea1a3225c'::text AS expected_md5,
+       p.prosecdef AS security_definer,
+       pg_catalog.pg_get_userbyid(p.proowner) AS function_owner
+FROM pg_catalog.pg_proc p
+WHERE p.oid='private.rabota_cash_order_guard()'::pg_catalog.regprocedure;
+
+-- Paid history is reported only as aggregate counts; do not auto-reassign.
+SELECT count(*) FILTER (WHERE paid) AS paid_orders,
+       count(*) FILTER (WHERE paid AND assigned_user_id IS NULL) AS paid_unassigned,
+       count(*) FILTER (WHERE paid AND assigned_user_id IS NOT NULL) AS paid_assigned
+FROM public.rabota_orders;
+
+-- This script NEVER applies 008/009/010, changes policies or provisions users.
 ROLLBACK;
