@@ -166,3 +166,29 @@ test("master brand uses inline vector, not an unloaded PNG",()=>{
  assert.match(html,/class="master-brand-icon"/);
  assert.match(html,/<linearGradient id="master-brand-gradient"/);
 });
+
+test("Raul profile photo stays circular and the account menu stays usable",()=>{
+ const start=html.indexOf('<div class="rd-profile" id="rdProfile">');
+ const end=html.indexOf('<div class="rd-profile-menu"',start);
+ assert.ok(start>=0&&end>start,"profile trigger is present");
+ const profile=html.slice(start,end);
+ assert.ok(profile.includes('id="rdProfileTrigger"'),"original trigger ID kept");
+ assert.ok(profile.includes('aria-controls="rdProfileMenu"'),"dropdown remains wired");
+ assert.ok(profile.includes('class="rd-profile-photo" src="/icons/raul-profile-avatar-20261114.jpg"'));
+ assert.ok(profile.includes('<svg viewBox="0 0 24 24"'),"original SVG fallback kept");
+ const avatar=fs.readFileSync(path.join(root,"icons/raul-profile-avatar-20261114.jpg"));
+ assert.ok(avatar.length>1000&&avatar.length<10000,"small local image exists");
+ assert.deepEqual([...avatar.subarray(0,3)],[0xff,0xd8,0xff],"valid JPEG signature");
+ const cssStart=html.indexOf('<style id="raul-round-profile-photo-20261114">');
+ const cssEnd=html.indexOf('</style>',cssStart);
+ assert.ok(cssStart>=0&&cssEnd>cssStart,"avatar CSS included");
+ const avatarCss=html.slice(cssStart,cssEnd);
+ assert.ok(avatarCss.includes('body.rd #rdProfileTrigger > .rd-profile-photo{display:none}'),
+  "picture hidden by default for other roles");
+ assert.ok(avatarCss.includes('#appScreen.rd-master.master-mode'),"role-specific style");
+ assert.ok(avatarCss.includes('border-radius:50%'),"round photo");
+ assert.ok(avatarCss.includes('object-fit:cover'),"photo fills circle");
+ assert.ok(avatarCss.includes('pointer-events:none'),"profile button receives taps");
+ assert.ok(html.includes('const profileTrigger=document.getElementById("rdProfileTrigger")'),
+  "original profile click handler stays available");
+});
