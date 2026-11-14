@@ -187,22 +187,77 @@
     .push-panel .push-status{font-size:13px;line-height:1.45;overflow-wrap:anywhere}
     .push-panel .push-notice{border-top:1px solid #e0e8f4;padding:10px 0 2px;font-size:13px}
     .push-panel .push-notice button{font-size:12px;padding:5px 8px;margin-top:6px}
-    /* Logo-only startup: self-contained SVG, no text, files, or artificial delay. */
+    /* Premium water-flow splash: self-contained SVG; no timers, external assets or artificial delay. */
     .rd-startup[hidden]{display:none!important}
-    .rd-startup{position:fixed;inset:0;z-index:9999;display:grid;place-items:center;min-height:100dvh;padding:24px;background:#fbfcff;overflow:hidden}
-    .rd-startup-content{display:grid;place-items:center;width:min(100%,420px)}
-    .rd-startup-radiator{display:block;width:min(400px,86vw);height:auto;max-height:70dvh;overflow:visible;filter:drop-shadow(0 13px 22px rgba(89,130,204,.10));animation:rd-startup-float 3.8s ease-in-out infinite}
-    .rd-startup-bar{opacity:.82;animation:rd-startup-bar-glow 2.6s ease-in-out infinite}
-    .rd-startup-bar:nth-child(2){animation-delay:.16s}
-    .rd-startup-bar:nth-child(3){animation-delay:.32s}
-    .rd-startup-bar:nth-child(4){animation-delay:.48s}
-    .rd-startup-droplet{transform-box:view-box;transform-origin:118px 108px;animation:rd-startup-droplet-breathe 2.6s ease-in-out infinite}
-    .rd-startup-flow{stroke-dasharray:42 320;stroke-dashoffset:350;animation:rd-startup-water-flow 3s ease-in-out infinite}
-    @keyframes rd-startup-float{0%,100%{transform:translateY(0)}50%{transform:translateY(-5px)}}
-    @keyframes rd-startup-bar-glow{0%,100%{opacity:.74}50%{opacity:1}}
-    @keyframes rd-startup-droplet-breathe{0%,100%{transform:scale(.965)}50%{transform:scale(1.035)}}
-    @keyframes rd-startup-water-flow{0%{stroke-dashoffset:350;opacity:0}12%{opacity:1}84%{opacity:1}100%{stroke-dashoffset:-42;opacity:0}}
-    @media(prefers-reduced-motion:reduce){.rd-startup-radiator,.rd-startup-bar,.rd-startup-droplet,.rd-startup-flow{animation:none!important}.rd-startup-bar{opacity:1}.rd-startup-flow{stroke-dashoffset:35;opacity:.7}}
+    .rd-startup{
+      position:fixed;inset:0;z-index:9999;display:grid;place-items:center;
+      min-height:100dvh;padding:24px;overflow:hidden;
+      background:radial-gradient(circle at 50% 48%,#f8faff 0%,#fbfcff 48%,#fdfdff 100%);
+    }
+    .rd-startup-content{
+      position:relative;isolation:isolate;display:grid;place-items:center;
+      width:min(100%,420px);min-height:280px;
+    }
+    .rd-startup-content::before{
+      content:"";pointer-events:none;position:absolute;z-index:-1;
+      left:50%;top:50%;width:min(320px,82vw);height:min(320px,82vw);
+      border-radius:50%;
+      background:radial-gradient(circle,rgba(160,192,255,.25) 0%,rgba(209,226,255,.15) 42%,rgba(238,245,255,0) 72%);
+      filter:blur(10px);
+      transform:translate(-50%,-50%) scale(.94);
+      animation:rd-startup-halo 3.2s ease-in-out infinite;
+    }
+    .rd-startup-radiator{
+      display:block;position:relative;width:min(260px,72vw);height:auto;
+      max-height:55dvh;overflow:visible;
+      filter:drop-shadow(0 12px 16px rgba(89,130,204,.11));
+      animation:rd-startup-float 3.2s ease-in-out infinite;
+    }
+    .rd-startup-bar{opacity:.93;animation:rd-startup-bar-glow 3.2s ease-in-out infinite}
+    .rd-startup-bar:nth-child(2){animation-delay:.14s}
+    .rd-startup-bar:nth-child(3){animation-delay:.28s}
+    .rd-startup-bar:nth-child(4){animation-delay:.42s}
+    .rd-startup-droplet{
+      transform-box:fill-box;transform-origin:center;
+      animation:rd-startup-droplet-breathe 3.2s ease-in-out infinite;
+    }
+    .rd-startup-glint{animation:rd-startup-glimmer 3.2s ease-in-out infinite}
+    .rd-startup-flow{
+      stroke-dasharray:48 320;stroke-dashoffset:368;
+      animation:rd-startup-water-flow 2.9s linear infinite;
+    }
+    @keyframes rd-startup-float{
+      0%,100%{transform:translateY(0)}
+      50%{transform:translateY(-3px)}
+    }
+    @keyframes rd-startup-bar-glow{
+      0%,100%{opacity:.88}
+      50%{opacity:1}
+    }
+    @keyframes rd-startup-droplet-breathe{
+      0%,100%{transform:scale(.97)}
+      50%{transform:scale(1.025)}
+    }
+    @keyframes rd-startup-glimmer{
+      0%,100%{opacity:.55}
+      50%{opacity:1}
+    }
+    @keyframes rd-startup-halo{
+      0%,100%{opacity:.55;transform:translate(-50%,-50%) scale(.94)}
+      50%{opacity:1;transform:translate(-50%,-50%) scale(1.07)}
+    }
+    @keyframes rd-startup-water-flow{
+      from{stroke-dashoffset:368}
+      to{stroke-dashoffset:0}
+    }
+    @media(prefers-reduced-motion:reduce){
+      .rd-startup-radiator,.rd-startup-bar,.rd-startup-droplet,.rd-startup-glint,
+      .rd-startup-flow,.rd-startup-content::before{animation:none!important}
+      .rd-startup-bar{opacity:1}
+      .rd-startup-glint{opacity:.85}
+      .rd-startup-flow{stroke-dashoffset:0;opacity:.7}
+      .rd-startup-content::before{opacity:.65}
+    }
   </style>
   <link rel="stylesheet" href="/redesign.css?v=20261113-clean-v3">
   <link rel="stylesheet" href="/light-theme.css?v=20261113-clean-v3">
@@ -457,7 +512,7 @@
         <g class="rd-startup-droplet">
           <path d="M118 65C107 80 95 95 95 109a24 24 0 0 0 48 0c0-14-13-29-25-44Z" fill="#fff" stroke="#fff" stroke-width="9"/>
           <path d="M118 69c-10 15-20 28-20 41a20 20 0 0 0 40 0c0-13-11-27-20-41Z" fill="url(#rd-startup-blue-drop)"/>
-          <path d="M108 104c1-7 5-13 8-18" stroke="#d5f7ff" stroke-width="4" stroke-linecap="round" opacity=".9" fill="none"/>
+          <path class="rd-startup-glint" d="M108 104c1-7 5-13 8-18" stroke="#d5f7ff" stroke-width="4" stroke-linecap="round" opacity=".9" fill="none"/>
         </g>
         <path d="M25 163C81 157 180 133 207 98C231 66 197 45 158 44" fill="none" stroke="#e4ecfe" stroke-width="9" stroke-linecap="round"/>
         <path class="rd-startup-flow" d="M25 163C81 157 180 133 207 98C231 66 197 45 158 44" pathLength="320" fill="none" stroke="url(#rd-startup-blue-flow)" stroke-width="6" stroke-linecap="round"/>
