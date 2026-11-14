@@ -89,7 +89,7 @@
       "title": "Реальные точки восстановления, план совместимого отката и мониторинг",
       "verified": false,
       "evidence": null,
-      "note": "Prior GitHub code محفوظён в rollback/main-before-pr74-20261114. Shared database snapshot restore and rollback of migrations still unverified."
+      "note": "Prior GitHub code сохранён в rollback/main-before-pr74-20261114. Shared database snapshot restore and rollback of migrations still unverified."
     },
     {
       "id": "explicit_production_approval",
