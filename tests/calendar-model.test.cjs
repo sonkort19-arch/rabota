@@ -156,10 +156,13 @@ test("app loads calendar before use while preserving availability scripts",()=>{
 
 test("master calendar title stays the Today action without a separate row",()=>{
   const html=fs.readFileSync(path.join(__dirname,"..","index.html"),"utf8");
-  const section=html.match(/<section class="panel master-calendar-compact" id="calendarPanel">([\\s\\S]*?)<\\/section>/)?.[1];
-  assert.ok(section,"compact master calendar exists");
+  const start=html.indexOf('<section class="panel master-calendar-compact" id="calendarPanel">');
+  const end=html.indexOf('<div class="week" id="weekDays">',start);
+  assert.ok(start>=0&&end>start,"compact master calendar exists");
+  const section=html.slice(start,end);
   assert.match(section,/<h2><button id="goToday"[^>]+aria-label="Календарь — вернуться к сегодняшнему дню"/);
-  assert.doesNotMatch(section,/masterCalendarTodayRow|class="master-calendar-today-row"|>Сегодня<\\/button>/);
+  assert.ok(!section.includes("masterCalendarTodayRow"),"no separate Today container");
+  assert.ok(!section.includes(">Сегодня</button>"),"no separate Today button");
   assert.equal((section.match(/id="goToday"/g)||[]).length,1);
   assert.match(section,/id="calendarDate"/);
   assert.match(section,/id="prevWeek"/);
