@@ -9,6 +9,9 @@ on:
       - '*.js'
       - '*.css'
       - 'tests/**'
+      - 'qa/autonomy-progress.json'
+      - 'qa/AUTONOMOUS_IMPROVEMENT_ROADMAP.md'
+      - 'qa/POST_FINANCE_MIGRATION_STATUS_20261114.md'
       - '.github/workflows/stage10-final-audit.yml'
 permissions:
   contents: read
