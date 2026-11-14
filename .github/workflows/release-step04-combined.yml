@@ -29,7 +29,7 @@ jobs:
           node --test tests/app-services.test.cjs tests/order-sync.test.cjs tests/order-model.test.cjs tests/calendar-model.test.cjs tests/finance-model.test.cjs tests/master-ui.test.cjs tests/lead-ai-bridge.test.cjs
           node --test tests/css-stage8-regression.test.cjs tests/quick-slots.cjs tests/master-dashboard.cjs tests/master-owner-cards.cjs tests/ui-icon-layout.test.js
       - name: Finance role, paid guard, and read-only reconciliation contracts
-        run: node --test tests/paid-order-guard.test.cjs tests/roles-stage3.test.cjs tests/finance-reconciliation-readonly.test.cjs
+        run: node --test tests/paid-order-guard.test.cjs tests/roles-stage3.test.cjs tests/finance-reconciliation-readonly.test.cjs tests/master-provisioning-contract.test.cjs
       - name: Previous mobile forms, orders and finance preview
         run: |
           node --test tests/owner-order-deletion.cjs tests/order-notes.test.js
@@ -67,14 +67,18 @@ jobs:
           sudo apt-get install -y -qq postgresql-client
       - name: Create fictional users and historical orders only
         run: psql -X -v ON_ERROR_STOP=1 -f tests/sql/roles-stage3-fixture.sql
-      - name: Install both financial migration candidates in disposable DB only
+      - name: Load live-equivalent master RPCs against synthetic data only
+        run: psql -X -v ON_ERROR_STOP=1 -f tests/sql/master-provisioning-fixture.sql
+      - name: Install audited financial and master migration candidates in disposable DB only
         run: |
           psql -X -v ON_ERROR_STOP=1 -f sql/008-protect-paid-orders.sql
           psql -X -v ON_ERROR_STOP=1 -f sql/009-owner-only-salary-payout.sql
+          psql -X -v ON_ERROR_STOP=1 -f sql/010-master-provisioning-paid-order-compat.sql
       - name: Cross-check paid orders, legacy receipts and roles
         run: |
           psql -X -v ON_ERROR_STOP=1 -f tests/sql/paid-guard-scenarios.sql
           psql -X -v ON_ERROR_STOP=1 -f tests/sql/roles-stage3-scenarios.sql
+          psql -X -v ON_ERROR_STOP=1 -f tests/sql/master-provisioning-scenarios.sql
       - name: Verify owner, manager, Raul and anon RLS scopes on fake orders
         run: psql -X -v ON_ERROR_STOP=1 -f tests/sql/step04-rls-scopes.sql
       - name: Parallel double-payment, salary and cash distribution prevention
