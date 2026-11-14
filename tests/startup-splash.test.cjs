@@ -32,3 +32,18 @@ test("login and app transitions continue to hide splash without delay", () => {
   assert.ok(html.includes('showScreen("appScreen")'));
   assert.ok(html.includes('showScreen("loginScreen")'));
 });
+
+test("premium splash softly animates halo, water, and droplet without adding visible text",()=>{
+  const css=html.match(/\/\* Premium water-flow splash:[\s\S]*?@media\(prefers-reduced-motion:reduce\)[\s\S]*?\n    }/)?.[0]||"";
+  assert.ok(css,"premium startup styles are present");
+  assert.match(css,/\.rd-startup-content::before/,"ambient halo");
+  assert.match(css,/@keyframes rd-startup-halo/);
+  assert.match(css,/@keyframes rd-startup-glimmer/);
+  assert.match(css,/\.rd-startup-radiator\{[\s\S]*?width:min\(260px,72vw\)/);
+  assert.match(css,/\.rd-startup-flow\{[\s\S]*?animation:rd-startup-water-flow 2\.9s linear infinite/);
+  assert.match(splash,/class="rd-startup-glint"/);
+  assert.match(splash,/pathLength="320"/,"existing water-flow geometry retained");
+  assert.match(css,/prefers-reduced-motion:reduce/);
+  assert.match(css,/\.rd-startup-flow,\.rd-startup-content::before\{animation:none!important\}/);
+  assert.doesNotMatch(splash,/<img|<video|<script|<h1|<p[\s>]/);
+});
