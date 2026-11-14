@@ -3,7 +3,7 @@
   "project": "CRM Работа / MOBA",
   "plan": "qa/AUTONOMOUS_IMPROVEMENT_ROADMAP.md",
   "created_at_utc": "2026-11-14",
-  "last_verified_main_sha": "1fb295b4003e2a116ee051217643c6fcbf6cd294",
+  "last_verified_main_sha": "ba83af7c2d775d923bd483c15f6b9b70d625e22c",
   "completed": 1,
   "total": 10,
   "next_phase": 2,
@@ -55,7 +55,15 @@
       "number": 2,
       "title": "Автоматические проверки и защита от регрессий",
       "status": "in_progress",
-      "evidence": [],
+      "evidence": [
+        "https://github.com/sonkort19-arch/rabota/pull/78",
+        "https://github.com/sonkort19-arch/rabota/pull/81",
+        "https://github.com/sonkort19-arch/rabota/pull/85",
+        "https://github.com/sonkort19-arch/rabota/pull/86",
+        "https://github.com/sonkort19-arch/rabota/pull/87",
+        "https://github.com/sonkort19-arch/rabota/actions/runs/43635419255",
+        "https://github.com/sonkort19-arch/rabota/commit/ba83af7c2d775d923bd483c15f6b9b70d625e22c"
+      ],
       "blockers": []
     },
     {
@@ -129,6 +137,10 @@
     {
       "at_utc": "2026-11-14",
       "event": "Этап 1: baseline, roadmap, post-finance snapshot, ledger и offline contract test опубликованы PR #76; оба workflow success на head 1fe93d2ca8582cd322afb8eb7f60043bb5ef6f45, merge 1fb295b4003e2a116ee051217643c6fcbf6cd294. Этап 2 начат."
+    },
+    {
+      "at_utc": "2026-11-14",
+      "event": "Этап 2: PR #78/#81/#85/#86/#87 усилили регрессионный CI; #87 merged ba83af7c2d775d923bd483c15f6b9b70d625e22c после architecture/browser success на f62a194ad6b6c65b5d78a710bee87c87e29897b3, Vercel success на PR head. Post-merge Vercel pending при проверке; этап 2 пока in_progress."
     }
   ]
 }
