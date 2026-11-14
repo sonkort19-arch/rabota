@@ -72,6 +72,8 @@ test("the preflight SQL is READ ONLY and returns no customer rows",()=>{
  assert.match(uncommented,/paid_unassigned/);
  assert.match(uncommented,/paid_assigned/);
  assert.match(uncommented,/expected_md5/);
+ assert.match(uncommented,/27e721f9909f2ab0e7d08dcea1a3225c/);
+ assert.match(uncommented,/private\.rabota_cash_order_guard/);
 });
 
 test("runbook defines safe migration order and non-destructive rollback",()=>{
