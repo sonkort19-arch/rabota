@@ -49,7 +49,7 @@ test("roadmap does not mistake deployed finance SQL for uninstalled code",()=>{
 });
 test("automation contract keeps production data protected and uses verifiable progress",()=>{
  assert.match(roadmap,/одну\*\* самую раннюю/);
- assert.match(roadmap,/Node \+ WebKit\/Chromium/);
+ assert.match(roadmap,/Node \+ Chromium\/WebKit/);
  assert.match(roadmap,/GitHub admin/);
  assert.match(roadmap,/10\/10/);
  assert.match(roadmap,/не проводить/);
