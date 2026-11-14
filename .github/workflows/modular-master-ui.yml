@@ -1,0 +1,35 @@
+name: Modular master UI checks
+on:
+  push:
+    branches:
+      - feature/stage-06-master-ui-20261113
+  pull_request:
+    paths:
+      - index.html
+      - master-ui.js
+      - order-model.js
+      - order-sync.js
+      - calendar-model.js
+      - finance-model.js
+      - tests/master-ui.test.cjs
+      - tests/master-dashboard.cjs
+      - tests/master-owner-cards.cjs
+jobs:
+  modules:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Module unit tests
+        run: |
+          node --test tests/order-model.test.cjs tests/order-sync.test.cjs tests/calendar-model.test.cjs tests/finance-model.test.cjs tests/master-ui.test.cjs
+      - name: Raul master regressions
+        run: |
+          node tests/master-dashboard.cjs
+          node tests/master-owner-cards.cjs

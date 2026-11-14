@@ -80,7 +80,8 @@ test("Quick selection fills unsaved order and refreshes before display/selection
   assert.ok(html.includes("await reloadOrders();"));
   assert.ok(html.includes("window.__rdQuickSlotsRead=async"));
   assert.ok(html.includes("window.__rdQuickSlotFill="));
-  assert.ok(html.includes("window.__rdOrderAvailability?.checkTime(time,date,master)"));
+  assert.ok(html.includes("window.__rdCalendarUtils.canPrefillSlot("));
+  assert.ok(html.includes("window.__rdOrderAvailability?.checkTime(slotTime,slotDate,slotMaster)"));
   assert.ok(html.includes("openForm();"));
   assert.ok(html.includes('src="/quick-slots.js"'));
   assert.ok(redesign.includes("function homeSlotPicker()"));

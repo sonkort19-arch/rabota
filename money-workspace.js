@@ -32,7 +32,7 @@
   const api=()=>window.__rdMoneyUi;
   const token=()=>{if(typeof window.crypto?.randomUUID!=="function")throw Error("Браузер не поддерживает безопасный идентификатор операции");return window.crypto.randomUUID()};
   const isPreview=()=>/^rabota-[a-z0-9]{7,}-sonkort19-6069s-projects\.vercel\.app$/i.test(String(window.location?.hostname||""));
-  let page="orders",step="menu",salaryTab="accruals",payDialog=false,masterReady=false;
+  let page="orders",step="menu",salaryTab="accruals",masterReady=false;
   let orderQuery="",orderStatus="all",paymentMethod="all";
   const scrollPositions=new Map();
   const statusOptions=[["all","Все"],["Новый","Новые"],["Записан","Записаны"],
@@ -237,27 +237,15 @@
     root.append(el("h2","mw-heading","Моя зарплата"));
     if(!m.masterId){root.append(el("p","mw-notice","Данные зарплаты для этого мастера не подключены."));return;}
     if(m.error)root.append(el("p","mw-error","Финансовые данные не обновились: "+m.error));
-    const payoutDisabled=!!m.error||!m.masterId||m.due<=0;
-    const wallet=btn("","mw-wallet-action",()=>openMasterPayout(m));
-    wallet.setAttribute("aria-label","Оформить выплату зарплаты");
-    wallet.title=payoutDisabled?"Нет доступной суммы к выплате":"Оформить выплату";
-    wallet.disabled=payoutDisabled;
-    const walletIcon=el("span","mw-wallet-glyph");
-    walletIcon.setAttribute("aria-hidden","true");
-    walletIcon.innerHTML='<svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M20 7V5a2 2 0 0 0-2-2H5a3 3 0 0 0-3 3v12a3 3 0 0 0 3 3h15a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2H5a3 3 0 0 1 0-6"/><path d="M16 12h6v5h-6a2.5 2.5 0 0 1 0-5Z"/><path d="M17 14.5h.01"/></svg>';
-    wallet.append(walletIcon);
-    const payout=btn("Оформить выплату","mw-main-button mw-salary-payout",()=>openMasterPayout(m));
-    payout.disabled=payoutDisabled;
     const hero=box("mw-salary-hero",
       box("mw-salary-head",
         box("mw-salary-balance",
           el("span","mw-small","Баланс к выплате"),
-          el("strong","mw-big",m.error?"—":rub(m.due))),
-        wallet),
+          el("strong","mw-big",m.error?"—":rub(m.due)))),
       box("mw-numbers",
         box("",el("small","","Начислено"),el("strong","",rub(m.accrued))),
         box("",el("small","","Выплачено"),el("strong","",rub(m.paid)))),
-      payout
+      el("p","mw-help","Выплату проводит владелец. Для получения денег обратитесь к нему.")
     );
     root.append(hero);
     if(m.due<=0)root.append(el("p","mw-help","Доступной суммы к выплате нет. Проверь начисления и уже проведённые выплаты."));
@@ -324,53 +312,6 @@
     return {node:wrap,value:()=>wrap.querySelector("input:checked")?.value};
   }
   function field(label,control){const n=el("label","mw-field");n.append(el("span","",label),control);return n}
-  function openMasterPayout(m){
-    if(payDialog||m.error||m.due<=0)return;
-    payDialog=true;
-    const {sheet,close}=modalBase("Выплата зарплаты",()=>{payDialog=false});
-    const amount=el("input","mw-input");amount.type="text";amount.inputMode="decimal";
-    amount.value=Number(m.due).toFixed(2).replace(".",",");
-    const methods=radioSet("mw-master-pay-method","cash");
-    const note=el("textarea","mw-input");note.rows=2;note.maxLength=240;note.value="Выплата зарплаты Раулю";
-    const received=el("input");received.type="checkbox";received.className="mw-checkbox";
-    const acknowledge=el("label","mw-ack");acknowledge.append(received,el("span","","Подтверждаю, что фактически получил указанную сумму."));
-    const error=el("p","mw-error");error.setAttribute("role","alert");
-    const save=btn("Сохранить выплату","mw-main-button");
-    const cancel=btn("Отмена","mw-minor",()=>closeDialog());
-    let busy=false,used=false;
-    let requestId;try{requestId=token()}catch(e){error.textContent=e.message;save.disabled=true}
-    const closeDialog=()=>{if(busy)return;close()};
-    sheet.append(box("mw-modal-balance",el("span","","Доступно к выплате"),el("strong","",rub(m.due))));
-    sheet.append(field("Сумма, ₽",amount),field("Способ получения",methods.node),field("Комментарий",note),acknowledge,error);
-    sheet.append(box("mw-modal-actions",cancel,save));
-    const originalClose=close;
-    if(isPreview()){error.textContent="Режим предпросмотра: выплата отключена.";save.disabled=true;}
-    save.addEventListener("click",async()=>{
-      if(busy||used||!requestId||isPreview())return;
-      const value=parseSum(amount.value);
-      if(!value||value>m.due||!note.value.trim()||!received.checked){
-        error.textContent=!received.checked?"Подтверди фактическое получение денег.":
-          !value||value>m.due?"Сумма должна быть больше нуля и не превышать доступный остаток.":"Укажи комментарий.";
-        return;
-      }
-      const method=methods.value();
-      if(!window.confirm("Ты действительно получил "+rub(value)+" ("+accountName(method).toLowerCase()+")? Будет создана финансовая запись."))return;
-      busy=true;used=true;sheet.dataset.busy="1";save.disabled=true;cancel.disabled=true;amount.disabled=true;note.disabled=true;
-      error.textContent="Сохраняю...";
-      try{
-        const receipt=await api().payout({kind:"raul_payout",amount:value,method,note:note.value.trim(),requestId,masterId:m.masterId});
-        busy=false;sheet.dataset.busy="0";payDialog=false;
-        renderMaster();
-        sheet.replaceChildren(el("h2","","Выплата записана"),el("p","","Получено: "+rub(value)+" · "+accountName(method)),
-          el("p","mw-help",receipt.refreshError?"Запись сохранена, но обновление данных не удалось. Не проводи выплату повторно.":"Операция появилась в финансовой истории."),
-          btn("Закрыть","mw-main-button",()=>originalClose()));
-      }catch(e){
-        busy=false;sheet.dataset.busy="0";error.textContent="Ответ не подтверждён: "+(e?.message||"ошибка")+
-          ". Проверь историю выплат перед повторной попыткой, чтобы избежать двойного списания.";
-        cancel.disabled=false;save.disabled=true;
-      }
-    });
-  }
   function ownerPayments(panel){
     const loading=el("div","mw-owner-payments");panel.append(loading);
     loading.append(el("p","mw-help","Загружаю кассу и выплаты..."));
@@ -506,7 +447,6 @@
     }
   };
   window.__rdMoneyUpdated=()=>{
-    if(payDialog)return;
     const focus=document.activeElement;
     if(page==="reports"&&$("mwMasterReports")&&!focus?.closest?.("#mwMasterReports"))renderMaster();
     if(page==="payments"&&$("mwMasterPayments")&&!focus?.closest?.("#mwMasterPayments"))renderMasterPayments();

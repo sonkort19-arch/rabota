@@ -218,8 +218,12 @@
   <link rel="stylesheet" href="/finance-payroll.css">
   <link rel="stylesheet" href="/lead-assistant.css">
   <link rel="stylesheet" href="/ui-alignment.css">
+  <link rel="stylesheet" href="/ui-alignment-orders.css?v=20261113-stage8">
+  <link rel="stylesheet" href="/ui-alignment-home-calendar.css?v=20261113-stage8">
+  <link rel="stylesheet" href="/ui-alignment-mobile.css?v=20261113-stage8">
   <link rel="stylesheet" href="/master-dashboard.css?v=20261113-finance-clean-v3">
-  <link rel="stylesheet" href="/master-dense.css?v=20261113-sticky-header-v1">
+  <link rel="stylesheet" href="/master-dense.css?v=20261113-stage8">
+  <link rel="stylesheet" href="/master-dense-enhancements.css?v=20261113-stage8">
   <link rel="stylesheet" href="/money-workspace.css?v=20261113-header-safe-shield-v2">
   <!-- Owner mobile create-order action mirrors Raul's floating button.
        The owner has a bottom navigation bar, so the button sits above it. -->
@@ -575,6 +579,13 @@
   </div>
 
   <script src="/order-notes.js?v=20261111-notes1"></script>
+  <script src="/order-sync.js?v=20261113-stage2"></script>
+  <script src="/order-model.js?v=20261113-stage3"></script>
+  <script src="/calendar-model.js?v=20261113-stage4"></script>
+  <script src="/finance-model.js?v=20261113-stage5"></script>
+  <script src="/master-ui.js?v=20261113-stage6"></script>
+  <script src="/lead-ai-bridge.js?v=20261113-stage7"></script>
+  <script src="/app-services.js?v=20261114-stage9"></script>
   <script>
 
     "use strict";
@@ -635,20 +646,23 @@
     try { session = JSON.parse(localStorage.getItem(AUTH_KEY) || "null"); }
     catch (error) { session = null; }
 
-    function localDate(date) {
-      return date.getFullYear() + "-" + String(date.getMonth() + 1).padStart(2, "0") + "-" + String(date.getDate()).padStart(2, "0");
-    }
-    function parseDate(date) {
-      const parts = date.split("-").map(Number);
-      return new Date(parts[0], parts[1] - 1, parts[2], 12);
-    }
-    function addDays(day, offset) {
-      const date = parseDate(day); date.setDate(date.getDate() + offset); return localDate(date);
-    }
-    function formatDate(value) {
-      if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return "Дата не указана";
-      return parseDate(value).toLocaleDateString("ru-RU", {day:"numeric", month:"short"});
-    }
+    // Public date helpers retain their old function names for other sections.
+    function localDate(date) {return window.__rdCalendarUtils.localDate(date);}
+    function parseDate(date) {return window.__rdCalendarUtils.parseDate(date);}
+    function addDays(day,offset) {return window.__rdCalendarUtils.addDays(day,offset);}
+    function formatDate(value) {return window.__rdCalendarUtils.formatDate(value);}
+    const calendarModule=window.__rdCreateCalendarModule({
+      elements:{calendarDate,weekDays,ordersWeekDays,ordersDayDateLabel},
+      make,getOrders:()=>getOrders(),
+      getSelectedDate:()=>selectedDate,setSelectedDate:date=>{selectedDate=date;},
+      getCurrentRole:()=>currentRole,getCurrentTab:()=>currentTab,
+      setCurrentTab:tab=>{currentTab=tab;},render:()=>render(),
+      verticalScrollPosition:()=>verticalScrollPosition(),
+      restoreVerticalScroll:value=>restoreVerticalScroll(value),
+      requestAnimationFrame:callback=>requestAnimationFrame(callback),
+      getElement:id=>document.getElementById(id),masterClock:()=>masterClock()
+    });
+
     function make(tag, className, content) {
       const element = document.createElement(tag);
       if (className) element.className = className;
@@ -659,13 +673,8 @@
       if (value === null || value === undefined || value === "") return;
       card.append(make("div", "info", label + String(value)));
     }
-    function phoneForDisplay(phone) { return String(phone || "").trim(); }
-    function normalizePhone(phone) {
-      let number = String(phone || "").replace(/\D/g, "");
-      if (number.length === 11 && number[0] === "8") number = "7" + number.slice(1);
-      if (number.length === 10) number = "7" + number;
-      return number.length >= 10 && number.length <= 15 ? number : "";
-    }
+    function phoneForDisplay(phone){return sharedServices.phoneForDisplay(phone);}
+    function normalizePhone(phone){return sharedServices.normalizePhone(phone);}
     function masterViewportScroller(){
       return currentRole==="master" &&
         window.matchMedia?.("(max-width:790px)")?.matches
@@ -697,21 +706,22 @@
       localStorage.setItem(AUTH_KEY, JSON.stringify(session));
     }
     function clearSession() {
-      session = null; currentUser = null; currentRole=null; currentMasterName=""; cloudOrders = [];
+      session = null; currentUser = null; currentRole=null; currentMasterName=""; cloudOrders = []; ordersLoaded=false;
+      window.__rdOrderSync?.reset();
       financeOperations=[];financeCollections=[];financeMasterId=null;financeActive=false;financeLoadError="";
       financeLoadGeneration++; // invalidate finance responses still in flight
       localStorage.removeItem(AUTH_KEY);
     }
-    async function authRequest(path, method, payload, authenticated) {
-      const headers = {apikey:SUPABASE_KEY,"Content-Type":"application/json"};
-      if (authenticated && session && session.access_token)
-        headers.Authorization = "Bearer " + session.access_token;
-      const response = await fetch(SUPABASE_URL + "/auth/v1/" + path, {
-        method:method || "GET",headers,body:payload ? JSON.stringify(payload) : undefined
-      });
-      const value = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(value.msg || value.error_description || value.message || value.error || "Ошибка авторизации");
-      return value;
+    // Existing session state and refresh policy are authoritative in this file.
+    // SharedServices handles only network request/response semantics.
+    const sharedServices=window.__rdCreateSharedServices({
+      url:SUPABASE_URL,key:SUPABASE_KEY,
+      getSession:()=>session,
+      ensureSession:()=>ensureSession(),
+      fetch:(url,options)=>fetch(url,options)
+    });
+    async function authRequest(path,method,payload,authenticated){
+      return sharedServices.authRequest(path,method,payload,authenticated);
     }
     async function ensureSession() {
       if (!session || !session.refresh_token) throw new Error("Требуется вход в аккаунт.");
@@ -724,65 +734,23 @@
       }
       await refreshPromise;
     }
-    async function dbRequest(path, method, payload) {
-      await ensureSession();
-      const headers = {apikey:SUPABASE_KEY,Authorization:"Bearer " + session.access_token,Accept:"application/json"};
-      if (payload !== undefined) headers["Content-Type"] = "application/json";
-      if (method !== "GET") headers.Prefer = "return=representation";
-      const response = await fetch(SUPABASE_URL + "/rest/v1/" + path, {
-        method,headers,body:payload === undefined ? undefined : JSON.stringify(payload)
-      });
-      const value = await response.json().catch(() => null);
-      if (!response.ok) {
-        const err = new Error(value && (value.message || value.error) || "Ошибка базы данных (" + response.status + ")");
-        err.code = value && value.code;
-        throw err;
-      }
-      return value;
+    async function dbRequest(path,method,payload){
+      return sharedServices.dbRequest(path,method,payload);
     }
-    function readOrder(row) {
-      return {
-        id: row.id, createdAt: row.created_at, leadId:row.lead_id||null,
-        completedAt: row.completed_at, legacyId: row.legacy_id,
-        name:row.name || "",phone:row.phone || "",address:row.address || "",
-        radiatorType:row.radiator_type || "",radiators:row.radiators == null ? "" : row.radiators,
-        floorLoops:row.floor_loops == null ? "" : row.floor_loops,
-        master:row.master || "",date:row.appointment_date || "",
-        time:row.appointment_time ? row.appointment_time.slice(0,5) : "",
-        price:row.price == null ? null : Number(row.price),assignedUserId:row.assigned_user_id || null,
-        paid:Boolean(row.paid),status:row.status || "Новый",details:row.details || "",
-        paymentMethod:row.payment_method||"",paymentAmount:row.payment_amount==null?null:Number(row.payment_amount),
-        paymentReceivedBy:row.payment_received_by||"",paidAt:row.paid_at||null,paidBy:row.paid_by||null
-      };
-    }
-    function serializeOrder(order) {
-      const obj = {
-        name:String(order.name || "").trim(),phone:String(order.phone || "").trim(),
-        address:String(order.address || ""),radiator_type:order.radiatorType || "",
-        radiators:order.radiators === "" || order.radiators == null ? null : Number(order.radiators),
-        floor_loops:order.floorLoops === "" || order.floorLoops == null ? null : Number(order.floorLoops),
-        master:order.master || "", appointment_date:order.date || null,
-        appointment_time:order.time || null,
-        price:order.price === "" || order.price == null ? null : Number(order.price),
-        paid:Boolean(order.paid),status:STATUSES.includes(order.status) ? order.status : "Новый",
-        details:order.details || "",completed_at:order.completedAt || null,
-        updated_at:new Date().toISOString()
-      };
-      if (order.paymentMethod && order.paid) {
-        obj.payment_method=order.paymentMethod;
-        obj.payment_amount=order.paymentAmount??order.price;
-        obj.payment_received_by=order.paymentReceivedBy||"company";
-        obj.paid_at=order.paidAt||new Date().toISOString();
-        obj.paid_by=order.paidBy||currentUser?.id||null;
-      }
-      if (order.legacyId) obj.legacy_id = order.legacyId;
-      if (order.leadId) obj.lead_id = order.leadId;
-      return obj;
-    }
-    function friendlyError(error) {
-      if (error && error.code === "23505") return "В это время у выбранного мастера уже есть заказ либо запись дублируется.";
-      return error instanceof Error ? error.message : String(error);
-    }
+    // Adapter: user-facing code keeps its existing function names. The
+    // implementation lives in the isolated order-model.js module.
+    const orderModel=window.__rdCreateOrdersModel({
+      statuses:STATUSES,
+      dbRequest:(path,method,payload)=>dbRequest(path,method,payload),
+      reloadOrders:()=>reloadOrders(),
+      getOrders:()=>getOrders(),
+      getCurrentUserId:()=>currentUser?.id||null,
+      getFinanceOperations:()=>financeOperations,
+      getFinanceCollections:()=>financeCollections
+    });
+    function readOrder(row) {return orderModel.readOrder(row);}
+    function serializeOrder(order) {return orderModel.serializeOrder(order);}
+    function friendlyError(error){return sharedServices.friendlyError(error);}
     function reportSync(error, source="orders") {
       const node=document.getElementById("syncStatus");
       if(!node)return;
@@ -799,36 +767,48 @@
       const calendarStatus=document.getElementById("rdCalendarSynced");
       if(calendarStatus){calendarStatus.textContent=node.textContent;calendarStatus.classList.toggle("sync-error",Boolean(error));}
     }
-    async function reloadOrders() {
-      const items = [];
-      for (let offset = 0; offset < 100000; offset += 1000) {
-        const page = await dbRequest("rabota_orders?select=*&order=created_at.desc&limit=1000&offset=" + offset, "GET");
-        if (!Array.isArray(page)) throw new Error("Неверный ответ базы данных.");
-        items.push(...page);
-        if (page.length < 1000) break;
-      }
-      const incoming=items.map(readOrder);
-      const changed=!ordersLoaded || JSON.stringify(incoming)!==JSON.stringify(cloudOrders);
-      cloudOrders=incoming;
-      ordersLoaded=true;
-      // A periodic refresh must not destroy focused controls or expanded cards.
-      if(changed){
-        // Preserve keyboard focus when a background refresh recreates master's rows.
-        const activeToggle=currentRole==="master"&&document.activeElement?.classList?.contains("master-schedule-toggle")
-          ?document.activeElement:null;
-        const focusedMasterOrderId=activeToggle?.closest(".master-schedule-card")?.dataset.orderId;
-        // Invalidate calendar views only when fresh order data actually differs.
-        window.__rdOrdersRevision=(window.__rdOrdersRevision||0)+1;
-        render();
-        if(focusedMasterOrderId){
-          const replacement=[...ordersNode.querySelectorAll(".master-schedule-card")]
-            .find(row=>row.dataset.orderId===focusedMasterOrderId);
-          replacement?.querySelector(".master-schedule-toggle")?.focus({preventScroll:true});
+    async function reloadOrders({background=false}={}) {
+      // Background polls compare tiny id/updated_at headers first.
+      // Explicit user actions always fetch the authoritative complete list.
+      const unchanged=background && ordersLoaded && window.__rdOrderSync &&
+        await window.__rdOrderSync.isUnchanged((offset,limit)=>
+          dbRequest("rabota_orders?select=id,updated_at&order=id.asc&limit="+limit+"&offset="+offset,"GET")
+        );
+      if(!unchanged){
+        const items = [];
+        for (let offset = 0; offset < 100000; offset += 1000) {
+          const page = await dbRequest("rabota_orders?select=*&order=created_at.desc&limit=1000&offset=" + offset, "GET");
+          if (!Array.isArray(page)) throw new Error("Неверный ответ базы данных.");
+          items.push(...page);
+          if (page.length < 1000) break;
         }
-        window.__rdOrderAvailability?.refresh(incoming);
-        updateImportButton();
-      }else{
-        // Keep relative slot times current even when the orders table is unchanged.
+        window.__rdOrderSync?.rememberFull(items);
+        const incoming=items.map(readOrder);
+        const changed=!ordersLoaded || JSON.stringify(incoming)!==JSON.stringify(cloudOrders);
+        cloudOrders=incoming;
+        ordersLoaded=true;
+        // A periodic refresh must not destroy focused controls or expanded cards.
+        if(changed){
+          // Preserve keyboard focus when a background refresh recreates master's rows.
+          const activeToggle=currentRole==="master"&&document.activeElement?.classList?.contains("master-schedule-toggle")
+            ?document.activeElement:null;
+          const focusedMasterOrderId=activeToggle?.closest(".master-schedule-card")?.dataset.orderId;
+          // Invalidate calendar views only when fresh order data actually differs.
+          window.__rdOrdersRevision=(window.__rdOrdersRevision||0)+1;
+          render();
+          if(focusedMasterOrderId){
+            const replacement=[...ordersNode.querySelectorAll(".master-schedule-card")]
+              .find(row=>row.dataset.orderId===focusedMasterOrderId);
+            replacement?.querySelector(".master-schedule-toggle")?.focus({preventScroll:true});
+          }
+          window.__rdOrderAvailability?.refresh(incoming);
+          updateImportButton();
+        }else{
+          // Keep relative slot times current even when the orders table is unchanged.
+          window.__rdQuickSlotsRefresh?.();
+        }
+        }else{
+        // Keep slot suggestions current without rebuilding unchanged order cards.
         window.__rdQuickSlotsRefresh?.();
       }
       let syncError=null;
@@ -862,43 +842,14 @@
         return orders?Boolean(window.__rdWhatsApp?.shareTomorrow(orders)):false;
       }finally{raulShareBusy=false;}
     };
-    function orderHasFinancialHistory(order){
-      if(!order)return false;
-      return Boolean(order.paid||order.paymentMethod||order.paymentAmount!=null||
-        order.paymentReceivedBy||order.paidAt||order.paidBy||
-        financeOperations.some(row=>String(row.order_id)===String(order.id))||
-        financeCollections.some(row=>String(row.order_id)===String(order.id)));
-    }
-    async function persistOrder(order) {
-      const existing = cloudOrders.some(o => String(o.id) === String(order.id));
-      const data = serializeOrder(order);
-      if (existing) {
-        const result = await dbRequest("rabota_orders?id=eq." + encodeURIComponent(order.id),"PATCH",data);
-        if (!Array.isArray(result) || !result.length) throw new Error("Заказ не обновлён.");
-      } else {
-        const result = await dbRequest("rabota_orders","POST",data);
-        if (!Array.isArray(result) || !result.length) throw new Error("Заказ не сохранён.");
-      }
-      await reloadOrders();
-    }
-    function hasConflict(date, time, master, excludeId) {
-      const selectedMaster=String(master||"").trim().toLocaleLowerCase("ru");
-      return getOrders().some(order => String(order.id) !== String(excludeId) &&
-        order.status !== "Отменён" && order.date === date && order.time === time &&
-        String(order.master||"").trim().toLocaleLowerCase("ru") === selectedMaster);
+    function orderHasFinancialHistory(order){return orderModel.orderHasFinancialHistory(order);}
+    async function persistOrder(order) {return orderModel.persistOrder(order);}
+    function hasConflict(date,time,master,excludeId) {
+      return orderModel.hasConflict(date,time,master,excludeId);
     }
     // Типовая работа 3 часа и 20 минут дороги. Исключения разрешает диспетчер.
     function findTightBookings(date,time,master,excludeId) {
-      const minutes=t=>{
-        const p=String(t||"").split(":");
-        return p.length>=2 ? Number(p[0])*60+Number(p[1]) : NaN;
-      };
-      const target=minutes(time),name=String(master||"").trim().toLowerCase();
-      if(!date||!Number.isFinite(target)||!name)return [];
-      return getOrders().filter(o=>
-        String(o.id)!==String(excludeId) && o.status!=="Отменён" &&
-        o.date===date && String(o.master||"").trim().toLowerCase()===name &&
-        Number.isFinite(minutes(o.time)) && Math.abs(minutes(o.time)-target)<200);
+      return orderModel.findTightBookings(date,time,master,excludeId);
     }
     function updateMasters() {
       const names = [...new Set(getOrders().map(x => String(x.master || "").trim()).filter(Boolean))].sort();
@@ -1166,123 +1117,22 @@
       return card;
     }
 
-    function masterDayLabel(day) {
-      if (!day || !/^\d{4}-\d{2}-\d{2}$/.test(day)) return "Без даты";
-      const label=parseDate(day).toLocaleDateString("ru-RU",{weekday:"long",day:"numeric",month:"long"});
-      return label.charAt(0).toUpperCase()+label.slice(1);
-    }
-
-    // Сравниваем даты и время записей по часовому поясу Владикавказа (Москва).
-    function masterClock() {
-      const parts=new Intl.DateTimeFormat("en-GB",{
-        timeZone:"Europe/Moscow",year:"numeric",month:"2-digit",day:"2-digit",
-        hour:"2-digit",minute:"2-digit",hourCycle:"h23"
-      }).formatToParts(new Date());
-      const part=type=>parts.find(item=>item.type===type)?.value||"00";
-      return {date:part("year")+"-"+part("month")+"-"+part("day"),
-        minutes:Number(part("hour"))*60+Number(part("minute"))};
-    }
-    function masterTimeMinutes(value) {
-      const match=/^([01]\d|2[0-3]):([0-5]\d)/.exec(String(value||""));
-      return match?Number(match[1])*60+Number(match[2]):-1;
-    }
-    function masterWorkingOrders() {
-      return getOrders().filter(o=>o.status!=="Выполнен"&&o.status!=="Отменён");
-    }
-    function masterSettlementOrders() {
-      return getOrders().filter(o=>{
-        if(o.status!=="Выполнен")return false;
-        const collection=collectionForOrder(o.id);
-        return !o.paid||Boolean(collection&&!collection.confirmed_at);
-      }).sort((a,b)=>String(b.date||"").localeCompare(String(a.date||""))||
-        String(b.time||"").localeCompare(String(a.time||"")));
-    }
-    function masterScheduleSort(a,b,today) {
-      // Сегодня и будущие заказы первыми; старые записи на проверку — внизу.
-      const orderRank=o=>!o.date?3:o.date<today?2:0;
-      return orderRank(a)-orderRank(b)||
-        String(a.date||"").localeCompare(String(b.date||""))||
-        String(a.time||"").localeCompare(String(b.time||""));
-    }
-    function masterOrderCount(n) {
-      const ending=n%10,group=n%100;
-      return n+" "+(group>=11&&group<=14?"заказов":ending===1?"заказ":ending>=2&&ending<=4?"заказа":"заказов");
-    }
-    let masterOverviewSignature="";
-    let masterReviewOpen=false;
-    function renderMasterOverview(rows) {
-      const root=document.getElementById("masterTodaySummary");
-      if(currentRole!=="master"||currentTab!=="calendar"){
-        root.hidden=true;masterOverviewSignature="";return;
-      }
-      const now=masterClock(),today=rows.filter(o=>o.date===now.date);
-      const schedule=rows.filter(o=>(o.status==="Записан"||o.status==="Новый")&&
-        (o.date>now.date||(o.date===now.date&&masterTimeMinutes(o.time)>=now.minutes)))
-        .sort((a,b)=>masterScheduleSort(a,b,now.date));
-      const next=schedule[0];
-      const toReview=rows.filter(o=>(o.status==="Записан"||o.status==="Новый")&&
-        (o.date<now.date||(o.date===now.date&&masterTimeMinutes(o.time)>=0&&
-          masterTimeMinutes(o.time)<now.minutes)));
-      const signature=JSON.stringify([now.date,today.map(o=>[o.id,o.status]),
-        next?[next.id,next.date,next.time,next.name]:null,
-        toReview.map(o=>[o.id,o.status]),masterReviewOpen]);
-      // Опрос финансов не должен сбрасывать фокус кнопки «Ближайший выезд».
-      if(!root.hidden&&signature===masterOverviewSignature)return;
-      masterOverviewSignature=signature;
-      root.hidden=false;root.replaceChildren();
-      const top=make("div","master-today-top");
-      top.append(make("strong","master-today-title","Сегодня · "+formatDate(now.date)));
-      top.append(make("span","master-today-count",masterOrderCount(today.length)));
-      root.append(top);
-      if(next){
-        const jump=make("button","master-next-jump");
-        jump.type="button";
-        jump.append(make("span","master-next-caption","Ближайший выезд"),
-          make("strong","master-next-value",(next.date===now.date?"Сегодня":formatDate(next.date))+
-            " · "+(next.time||"Без времени")+" · "+(next.name||"Клиент")));
-        jump.addEventListener("click",()=>{
-          const row=[...document.querySelectorAll("#orders .master-schedule-card")]
-            .find(element=>element.dataset.orderId===String(next.id));
-          if(!row)return;
-          const toggle=row.querySelector(".master-schedule-toggle");
-          if(toggle)toggle.click();
-          row.scrollIntoView({behavior:"smooth",block:"center"});
-        });
-        root.append(jump);
-      }else{
-        root.append(make("p","master-no-next","Ближайших новых выездов пока нет."));
-      }
-      if(toReview.length){
-        const note=make("button","master-review-note master-review-jump","Проверить статус · "+masterOrderCount(toReview.length));
-        note.type="button";
-        note.setAttribute("aria-label","Проверить незавершённые заказы, время записи которых прошло");
-        note.setAttribute("aria-controls","masterReviewList");
-        note.setAttribute("aria-expanded",String(masterReviewOpen));
-        note.addEventListener("click",()=>{masterReviewOpen=!masterReviewOpen;renderMasterOverview(rows);});
-        root.append(note);
-        if(masterReviewOpen){
-          const list=make("div","master-review-list");
-          list.id="masterReviewList";
-          [...toReview].sort((a,b)=>String(b.date||"").localeCompare(String(a.date||""))||
-            String(b.time||"").localeCompare(String(a.time||""))).forEach(order=>{
-            const item=make("button","master-review-item",
-              (order.date?formatDate(order.date):"Без даты")+" · "+
-              (order.time||"Без времени")+" · "+(order.name||"Без имени"));
-            item.type="button";
-            item.addEventListener("click",()=>{
-              const row=[...document.querySelectorAll("#orders .master-schedule-card")]
-                .find(element=>element.dataset.orderId===String(order.id));
-              if(!row)return;
-              const toggle=row.querySelector(".master-schedule-toggle");
-              if(toggle)toggle.click();
-              row.scrollIntoView({behavior:"smooth",block:"center"});
-            });
-            list.append(item);
-          });
-          root.append(list);
-        }
-      }
-    }
+    // Stable adapters keep existing dialog, finance and calendar call sites intact.
+    const masterUI=window.__rdCreateMasterUI({
+      make,parseDate,formatDate,getOrders:()=>getOrders(),
+      collectionForOrder:id=>collectionForOrder(id),
+      getCurrentRole:()=>currentRole,getCurrentTab:()=>currentTab,
+      doc:document,ordersNode,STATUSES,
+      openMasterOrderDialog:order=>openMasterOrderDialog(order)
+    });
+    function masterDayLabel(day){return masterUI.masterDayLabel(day);}
+    function masterClock(){return masterUI.masterClock();}
+    function masterTimeMinutes(value){return masterUI.masterTimeMinutes(value);}
+    function masterWorkingOrders(){return masterUI.masterWorkingOrders();}
+    function masterSettlementOrders(){return masterUI.masterSettlementOrders();}
+    function masterScheduleSort(a,b,today){return masterUI.masterScheduleSort(a,b,today);}
+    function masterOrderCount(n){return masterUI.masterOrderCount(n);}
+    function renderMasterOverview(rows){return masterUI.renderMasterOverview(rows);}
     let masterOrderDialog=null,masterOrderDialogId=null,masterDialogFocus=null;
     function closeMasterOrderDialog(){
       if(!masterOrderDialog)return;
@@ -1337,80 +1187,8 @@
     document.addEventListener("keydown",e=>{
       if(e.key==="Escape"&&masterOrderDialog)closeMasterOrderDialog();
     });
-    function makeMasterScheduleRow(order,isNext=false) {
-      const id=String(order.id);
-      const article=make("article","master-schedule-card"+(isNext?" is-next":""));
-      article.dataset.orderId=id;
-      article.dataset.status=order.status||"Новый";
-      article.dataset.search=[order.name,order.phone,order.address,order.date,
-        order.time,order.status,order.radiatorType].join(" ").toLocaleLowerCase("ru");
-      const toggle=make("button","master-schedule-toggle");
-      toggle.type="button";
-
-      toggle.setAttribute("aria-label","Открыть заказ "+(order.name||"Без имени")+", "+(order.time||"время не указано"));
-
-
-
-      // Use the owner's compact card geometry, while retaining master's own action handlers.
-      const name=String(order.name||"Без имени");
-      const main=make("span","master-schedule-main");
-      const avatar=make("span","master-schedule-avatar",Array.from(name)[0]?.toLocaleUpperCase("ru-RU")||"К");
-      avatar.setAttribute("aria-hidden","true");
-      const identity=make("span","master-schedule-identity");
-      identity.append(make("span","master-schedule-name",name),
-        make("span","master-schedule-address",order.address||"Адрес не указан"));
-      main.append(avatar,identity);
-      const time=make("span","master-schedule-time",order.time||"—:—");
-      const chevron=make("span","master-schedule-chevron","›");
-      chevron.setAttribute("aria-hidden","true");
-
-      const work=[];
-      if(order.radiators!==""&&order.radiators!=null)work.push("Радиаторы: "+order.radiators);
-      if(order.floorLoops!==""&&order.floorLoops!=null&&Number(order.floorLoops)>0)
-        work.push("Тёплый пол: "+order.floorLoops+" конт.");
-      const workNode=make("span","master-schedule-work",work.join(" · "));
-      const state=STATUSES.includes(order.status)?order.status:"Новый";
-      const classes={"Новый":"s-new","Записан":"s-booked","В работе":"s-progress","Выполнен":"s-done","Отменён":"s-cancelled"};
-      const meta=make("span","master-schedule-meta");
-      meta.append(make("span","status-badge "+classes[state],state));
-      const priceText=order.price==null||order.price===""?
-        "Стоимость не указана":Number(order.price).toLocaleString("ru-RU")+" ₽";
-      const price=make("span","master-schedule-price",priceText);
-      toggle.append(main,time,chevron,workNode,meta,price);
-      if(state==="Выполнен"){
-        const collection=collectionForOrder(order.id);
-        const note=!order.paid?"Оплата ещё не отмечена":
-          collection&&!collection.confirmed_at?
-            (collection.submitted_at?"Передача ожидает подтверждения":"Нужно завершить расчёт"):"";
-        if(note)toggle.append(make("span","master-money-note",note));
-      }
-      toggle.addEventListener("click",()=>openMasterOrderDialog(order));
-      article.append(toggle);
-      return article;
-    }
-    function renderMasterSchedule(rows) {
-      const grouped=new Map(),today=masterClock().date;
-      rows.forEach(order=>{
-        const date=order.date||"";
-        if(!grouped.has(date)) grouped.set(date,[]);
-        grouped.get(date).push(order);
-      });
-      const next=rows.filter(o=>(o.status==="Записан"||o.status==="Новый")&&
-        (o.date>today||(o.date===today&&masterTimeMinutes(o.time)>=masterClock().minutes)))
-        .sort((a,b)=>masterScheduleSort(a,b,today))[0];
-      grouped.forEach((items,date)=>{
-        if(currentTab!=="calendar"){
-          const heading=make("div","master-day-heading");
-          const label=currentTab==="history"?masterDayLabel(date):
-            date===today?"Сегодня · "+formatDate(date):masterDayLabel(date);
-          heading.append(make("h3","",label));
-          heading.append(make("span","muted",masterOrderCount(items.length)));
-          ordersNode.append(heading);
-        }
-        items.forEach(order=>ordersNode.append(makeMasterScheduleRow(order,String(order.id)===String(next?.id))));
-      });
-      if(!rows.length)ordersNode.append(make("div","empty",currentTab==="history"?"Выполненных заказов нет":"Рабочих заказов нет"));
-    }
+    function makeMasterScheduleRow(order,isNext=false){return masterUI.makeMasterScheduleRow(order,isNext);}
+    function renderMasterSchedule(rows){return masterUI.renderMasterSchedule(rows);}
     let masterSettlementsSignature="";
     function renderMasterSettlements() {
       const section=document.getElementById("masterPendingSettlements");
@@ -1429,50 +1207,7 @@
       items.forEach(order=>root.append(makeMasterScheduleRow(order)));
     }
 
-    function renderCalendar() {
-      calendarDate.value = selectedDate;
-      const base = parseDate(selectedDate);
-      const monday = addDays(selectedDate,-((base.getDay()+6)%7));
-      const sunday = addDays(monday,6);
-      ordersDayDateLabel.textContent=parseDate(monday).getDate()+"–"+
-        parseDate(sunday).toLocaleDateString("ru-RU",{day:"numeric",month:"short"});
-      const orders = getOrders();
-      weekDays.replaceChildren();
-      ordersWeekDays.replaceChildren();
-      for(let i=0;i<7;i++) {
-        const date = addDays(monday,i), dateObj = parseDate(date);
-        const btn = make("button","day" + (date === selectedDate ? " active" : "") +
-          (orders.some(o => o.date === date && o.status !== "Отменён") ? " has-orders" : ""));
-        btn.type = "button";
-        btn.setAttribute("aria-label",dateObj.toLocaleDateString("ru-RU"));
-        btn.setAttribute("aria-pressed",String(date === selectedDate));
-        btn.append(make("span","weekday",dateObj.toLocaleDateString("ru-RU",{weekday:"short"})));
-        btn.append(make("strong","",dateObj.getDate()));
-        btn.addEventListener("click",() => {
-          // Preserve the master's viewport when iOS Safari rebuilds the day and order list.
-          if(currentRole!=="master"){selectedDate=date;currentTab="calendar";render();return;}
-          const scrollY=verticalScrollPosition();
-          selectedDate=date;currentTab="calendar";render();
-          restoreVerticalScroll(scrollY);
-          requestAnimationFrame(()=>{
-            if(currentRole==="master"&&currentTab==="calendar"&&selectedDate===date){
-              restoreVerticalScroll(scrollY);
-            }
-          });
-        });
-        weekDays.append(btn);
-        // Compact seven-day selector lives BELOW the tabs so changing modes never moves them.
-        const chip = make("button","rd-orders-weekday"+(date===selectedDate?" is-selected":"")+
-          (orders.some(o=>o.date===date&&o.status!=="Отменён")?" has-orders":""));
-        chip.type="button";
-        chip.setAttribute("aria-label",dateObj.toLocaleDateString("ru-RU"));
-        chip.setAttribute("aria-pressed",String(date===selectedDate));
-        chip.append(make("span","",dateObj.toLocaleDateString("ru-RU",{weekday:"short"})));
-        chip.append(make("strong","",dateObj.getDate()));
-        chip.addEventListener("click",() => {selectedDate=date;currentTab="calendar";render();});
-        ordersWeekDays.append(chip);
-      }
-    }
+    function renderCalendar() {calendarModule.renderCalendar();}
     function render() {
       renderCalendar();
       document.querySelectorAll("[data-tab]").forEach(btn => {
@@ -1634,20 +1369,14 @@
     document.getElementById("closeOrderBtn").addEventListener("click",closeForm);
     overlay.addEventListener("click",e=>{if(e.target===overlay)closeForm();});
     document.addEventListener("keydown",e=>{if(e.key==="Escape"&&!overlay.hidden)closeForm();});
-    document.getElementById("prevWeek").addEventListener("click",()=>{selectedDate=addDays(selectedDate,-7);currentTab="calendar";render();});
-    document.getElementById("nextWeek").addEventListener("click",()=>{selectedDate=addDays(selectedDate,7);currentTab="calendar";render();});
-    document.getElementById("goToday").addEventListener("click",()=>{selectedDate=currentRole==="master"?masterClock().date:localDate(new Date());currentTab="calendar";render();});
-    calendarDate.addEventListener("change",()=>{if(calendarDate.value){selectedDate=calendarDate.value;render();}});
-    document.getElementById("rdOrdersPrevWeek").addEventListener("click",()=>{selectedDate=addDays(selectedDate,-7);currentTab="calendar";render();});
-    document.getElementById("rdOrdersNextWeek").addEventListener("click",()=>{selectedDate=addDays(selectedDate,7);currentTab="calendar";render();});
-    document.getElementById("rdOrdersToday").addEventListener("click",()=>{selectedDate=currentRole==="master"?masterClock().date:localDate(new Date());currentTab="calendar";render();});
+    calendarModule.bindNavigation();
     document.querySelectorAll("[data-tab]").forEach(btn=>btn.addEventListener("click",()=>{
       const nextTab=btn.dataset.tab;
       if(currentTab===nextTab)return;
       // The filters belong to each tab. Never carry a hidden date or status to another.
       window.__rdSwitchOrderFilters?.(currentTab,nextTab);
       currentTab=nextTab;
-      masterReviewOpen=false;
+      masterUI.resetReviewOpen();
       render();
       // No scrollTo/scrollBy: stable layout + disabled scroll anchoring prevent iOS jumps.
     }));
@@ -1819,18 +1548,33 @@
 
     // Начисления: только выполненные и оплаченные заказы Рауля.
     // Касса: оплаченные заказы, за вычетом реально проведённых выплат и расходов.
-    const FINANCE_TIMUR_FEE = 1500;
-    const FINANCE_RAUL_PERCENT = 0.5;
-    const money = amount => Number(amount||0).toLocaleString("ru-RU",{maximumFractionDigits:2})+" ₽";
-    const sumBy = (rows,fn) => rows.reduce((total,row)=>total+Number(fn(row)||0),0);
-    const roundMoney = value => Math.round((Number(value)+Number.EPSILON)*100)/100;
-    function financeSplit(price) {
-      const gross=roundMoney(price);
-      const raul=roundMoney(gross*FINANCE_RAUL_PERCENT);
-      const timur=FINANCE_TIMUR_FEE;
-      const company=roundMoney(gross-raul-timur);
-      return {gross,raul,timur,company};
-    }
+    // Financial reports and source data live in finance-model.js.
+    // Transactions still go through existing server-side RPC functions.
+    const financeModel=window.__rdCreateFinanceModel({
+      dbRequest:(path,method,payload)=>dbRequest(path,method,payload),
+      getRole:()=>currentRole,getMasterName:()=>currentMasterName,
+      getUserId:()=>currentUser?.id||null,
+      nextGeneration:()=>++financeLoadGeneration,
+      isCurrentGeneration:g=>g===financeLoadGeneration,
+      onSnapshot:({masterId,operations,collections})=>{
+        financeMasterId=masterId;
+        financeOperations=operations;
+        financeCollections=collections;
+        financeLoadError="";
+        if(currentRole==="master"&&!financeActive){
+          renderMasterSettlements();
+          if(currentTab==="calendar")renderMasterOverview(masterWorkingOrders());
+        }
+        if(financeActive)renderFinance();
+        window.__rdMoneyUpdated?.();
+      }
+    });
+    const FINANCE_TIMUR_FEE=financeModel.TIMUR_FEE;
+    const FINANCE_RAUL_PERCENT=financeModel.RAUL_PERCENT;
+    const money=financeModel.money;
+    const sumBy=financeModel.sumBy;
+    const roundMoney=financeModel.roundMoney;
+    function financeSplit(price){return financeModel.financeSplit(price);}
     function financeLine(label,value) {
       const line=make("div","finance-line");
       line.append(make("span","finance-line-label",label),make("strong","",value));
@@ -1847,46 +1591,7 @@
     // Assemble each snapshot off-screen. Older requests must never append duplicates
     // or replace the result of a newer request.
     let financeLoadGeneration=0;
-    async function loadFinance() {
-      if(currentRole!=="owner" && currentRole!=="master") return;
-      const generation=++financeLoadGeneration;
-      let masterId=null;
-      if(currentRole==="owner"){
-        const masters=await dbRequest("rabota_members?select=user_id,role,active,master_name&role=eq.master&limit=100","GET");
-        masterId=masters.find(m=>m.active && String(m.master_name||"").trim().toLowerCase()==="рауль")?.user_id||null;
-      }else{
-        masterId=String(currentMasterName||"").trim().toLowerCase()==="рауль"?currentUser?.id:null;
-      }
-      const operations=[];
-      for(let offset=0;offset<100000;offset+=1000){
-        const page=await dbRequest("rabota_finance_operations?select=*&order=created_at.desc&limit=1000&offset="+offset,"GET");
-        if(!Array.isArray(page))throw Error("Не удалось загрузить финансовые операции");
-        operations.push(...page);
-        if(page.length<1000)break;
-      }
-      const collections=[];
-      for(let offset=0;offset<100000;offset+=1000){
-        const page=await dbRequest("rabota_cash_collections?select=*&order=created_at.desc&limit=1000&offset="+offset,"GET");
-        if(!Array.isArray(page))throw Error("Не удалось загрузить распределения");
-        collections.push(...page);
-        if(page.length<1000)break;
-      }
-      if(generation!==financeLoadGeneration)return;
-      // A stable id also protects the UI against overlapping result pages.
-      const uniqueOperations=new Map(operations.map(row=>[String(row.id),row]));
-      const uniqueCollections=new Map(collections.map(row=>[String(row.order_id),row]));
-      financeMasterId=masterId;
-      financeOperations=[...uniqueOperations.values()];
-      financeCollections=[...uniqueCollections.values()];
-      financeLoadError="";
-      // Do not recreate the master schedule every time finance updates.
-      if(currentRole==="master"&&!financeActive){
-        renderMasterSettlements();
-        if(currentTab==="calendar")renderMasterOverview(masterWorkingOrders());
-      }
-      if(financeActive)renderFinance();
-      window.__rdMoneyUpdated?.();
-    }
+    async function loadFinance() {return financeModel.loadFinance();}
     function financeVisible() {
       const show=currentRole==="owner"|| (currentRole==="master"&&String(currentMasterName||"").trim().toLowerCase()==="рауль");
       // Владелец переключается вкладками. У Рауля только баланс и кнопка возврата.
@@ -1909,22 +1614,14 @@
         return;
       }
       const isOwner=currentRole==="owner";
-      const relevantOrders=financeMasterId?getOrders().filter(o=>o.assignedUserId===financeMasterId):[];
-      const eligible=relevantOrders.filter(o=>o.status==="Выполнен" && o.paid && Number.isFinite(o.price) && o.price>=0);
-      const payments=financeOperations.filter(o=>!o.voided_at);
-      const teamPayments=payments.filter(o=>o.master_user_id===financeMasterId);
-      const raulAccrued=roundMoney(sumBy(eligible,o=>financeSplit(o.price).raul));
-      const timurAccrued=eligible.length*FINANCE_TIMUR_FEE;
-      const raulPaid=sumBy(teamPayments.filter(o=>o.kind==="raul_payout"),o=>o.amount);
-      const timurPaid=sumBy(teamPayments.filter(o=>o.kind==="timur_payout"),o=>o.amount);
-      const raulDue=roundMoney(raulAccrued-raulPaid);
-      const timurDue=roundMoney(timurAccrued-timurPaid);
-      const companyEarned=roundMoney(sumBy(eligible,o=>financeSplit(o.price).company));
-      const eligibleGross=sumBy(eligible,o=>o.price);
-      const bookedPending=relevantOrders.filter(o=>!o.paid || o.status!=="Выполнен");
-      const unconfirmedCash=financeCollections.filter(c=>!c.confirmed_at);
-      const masterHeld=sumBy(unconfirmedCash.filter(c=>!c.submitted_at && c.master_user_id===financeMasterId),c=>c.company_amount);
-      const waitingOwner=sumBy(unconfirmedCash.filter(c=>c.submitted_at && c.master_user_id===financeMasterId),c=>c.company_amount);
+      const {
+        relevantOrders,eligible,payments,teamPayments,raulAccrued,timurAccrued,
+        raulPaid,timurPaid,raulDue,timurDue,companyEarned,eligibleGross,
+        bookedPending,unconfirmedCash,masterHeld,waitingOwner
+      }=financeModel.calculateAccruals({
+        orders:getOrders(),operations:financeOperations,
+        collections:financeCollections,masterId:financeMasterId
+      });
       if(!financeMasterId) {
         root.append(make("p","finance-tip","Рауль пока не подключён. Начисления станут доступны после назначения мастера."));
         document.getElementById("financeEntry").hidden=true;
@@ -1954,22 +1651,13 @@
       if(bookedPending.length)root.append(make("p","finance-tip","Ожидают выполнения и/или оплаты: "+bookedPending.length+" заказ(ов). Они не входят в начисления."));
 
       if(isOwner){
-        const receivedOrders=getOrders().filter(o=>o.paid&&o.status!=="Отменён");
-        const cashCollections=new Set(financeCollections.map(c=>String(c.order_id)));
-        // Payments reported by a master are not yet receipts in the company's cash desk.
-        const masterUnallocated=receivedOrders.filter(o=>
-          o.paymentReceivedBy==="master"&&!cashCollections.has(String(o.id)));
-        const directReceipts=sumBy(receivedOrders.filter(o=>
-          !cashCollections.has(String(o.id))&&o.paymentReceivedBy!=="master"),o=>o.price);
-        const confirmedDeposits=sumBy(financeCollections.filter(c=>c.confirmed_at),c=>c.company_amount);
-        const cashIn=roundMoney(directReceipts+confirmedDeposits);
-        const allPayouts=sumBy(payments.filter(o=>(o.kind==="raul_payout"||o.kind==="timur_payout")&&!o.order_id),o=>o.amount);
-        const expenses=sumBy(payments.filter(o=>o.kind==="expense"),o=>o.amount);
-        const notCompletedPaid=sumBy(receivedOrders.filter(o=>o.status!=="Выполнен"),o=>o.price);
-        const cashBalance=roundMoney(cashIn-allPayouts-expenses);
-        const freeBalance=roundMoney(cashBalance-raulDue-timurDue-notCompletedPaid);
+        const {
+          masterUnallocated,directReceipts,confirmedDeposits,allPayouts,
+          expenses,notCompletedPaid,cashBalance,freeBalance,awaiting
+        }=financeModel.calculateCompanyCash({
+          orders:getOrders(),collections:financeCollections,payments,raulDue,timurDue
+        });
         root.append(make("h2","finance-title","Касса компании"));
-        const awaiting=financeCollections.filter(c=>c.submitted_at&&!c.confirmed_at);
         if(awaiting.length){
           root.append(make("h2","finance-title","Подтвердить поступление от Рауля"));
           for(const collection of awaiting){
@@ -2198,12 +1886,16 @@
     function refreshRabotaNotifications(){return window.__rdRefreshMasterNotices?.();}
     async function removePushOnLogout(){await window.__rdDisableMasterPush?.();}
 
-    // Read-only adapter: the lead preview uses existing orders for candidate
-    // windows but does not create any records in the real database.
-    window.__rdLeadContext=()=>({
-      role:currentRole,userId:currentUser?.id||null,
-      orders:getOrders().map(o=>({date:o.date,time:o.time,master:o.master,status:o.status}))
+    // Separate bridge for lead previews, the existing order form, and owner AI navigation.
+    const leadAIBridge=window.__rdCreateLeadAIBridge({
+      getRole:()=>currentRole,getUserId:()=>currentUser?.id||null,
+      getOrders:()=>getOrders(),openForm:()=>openForm(),
+      refreshAvailability:orders=>window.__rdOrderAvailability?.refresh(orders),
+      getCurrentPage:()=>window.__rdCurrentPage,
+      form,formStatus,controls,aiChatLink:document.getElementById("aiChatLink"),
+      hostname:()=>window.location.hostname
     });
+    window.__rdLeadContext=()=>leadAIBridge.context();
     // Phone-call booking: reuse the live calendar checks and the original order editor.
     // Selection only pre-fills an unsaved order. No direct database write.
     window.__rdQuickSlotsSnapshot=()=>{
@@ -2228,11 +1920,10 @@
       return window.__rdQuickSlotsSnapshot();
     };
     window.__rdQuickSlotFill=({date,time,master})=>{
-      if(!["owner","manager"].includes(currentRole)||
-        !/^\d{4}-\d{2}-\d{2}$/.test(date)||
-        !/^([01]\d|2[0-3]):[0-5]\d$/.test(time)||
-        !String(master||"").trim())return false;
-      if(!["available","tight"].includes(window.__rdOrderAvailability?.checkTime(time,date,master)))return false;
+      if(!window.__rdCalendarUtils.canPrefillSlot(
+        {role:currentRole,date,time,master},
+        (slotTime,slotDate,slotMaster)=>window.__rdOrderAvailability?.checkTime(slotTime,slotDate,slotMaster)
+      ))return false;
       openForm();
       controls.date.value=date;
       controls.time.value=time;
@@ -2249,33 +1940,8 @@
       openForm(order.id);
       return true;
     };
-    const leadDemoHost=()=>/^rabota-[a-z0-9]{7,}-sonkort19-6069s-projects\.vercel\.app$/i.test(window.location.hostname);
-    form.addEventListener("submit",event=>{
-      if(form.dataset.leadPreview!=="1")return;
-      event.preventDefault();event.stopImmediatePropagation();
-      formStatus.textContent="Тестовый режим: данные из лида подставлены, но сохранять заказ в общей базе нельзя.";
-    },true);
-    window.__rdLeadOpenOrder=lead=>{
-      if(!["owner","manager"].includes(currentRole)||!lead)return;
-      openForm();
-      if(typeof lead.id==="string"&&/^[a-f0-9-]{36}$/i.test(lead.id))form.dataset.leadId=lead.id;
-      controls.name.value=String(lead.name||"");
-      controls.phone.value=String(lead.phone||"");
-      controls.address.value=String(lead.address||"");
-      controls.type.value=["Алюминиевые","Биметаллические","Чугунные","Другие"].includes(lead.material)?lead.material:"Другие";
-      controls.radiators.value=lead.radiators??"";
-      controls.loops.value=lead.loops??"";
-      controls.price.value=lead.price??"";
-      controls.details.value=String(lead.notes||"").slice(0,1000);
-      // A candidate window is not a confirmed appointment.
-      controls.date.value="";
-      controls.time.value="";
-      window.__rdOrderAvailability?.refresh(getOrders());
-      if(leadDemoHost()){
-        form.dataset.leadPreview="1";
-        formStatus.textContent="Черновик из лида. В Preview запись заказа отключена.";
-      }
-    };
+    form.addEventListener("submit",event=>leadAIBridge.preventPreviewSubmit(event),true);
+    window.__rdLeadOpenOrder=lead=>leadAIBridge.openLeadOrder(lead);
 
     const loginMessage=document.getElementById("authMessage");
     const accessMessage=document.getElementById("accessMessage");
@@ -2465,13 +2131,7 @@
       // Rebuild the responsive navigation for the next account's role.
       window.location.reload();
     }
-    document.getElementById("aiChatLink").addEventListener("click",event=>{
-      // Legacy entry: preserve the current CRM section without trusting external URLs.
-      const allowed=new Set(["home","orders","calendar","leads","clients","finance"]);
-      const current=window.__rdCurrentPage;
-      const origin=allowed.has(current)?current:"home";
-      event.currentTarget.href="/ai.html?"+new URLSearchParams({from:origin}).toString();
-    });
+    document.getElementById("aiChatLink").addEventListener("click",event=>leadAIBridge.prepareChatLink(event));
     // The original logout routine remains the single sign-out path.
     const profileRoot=document.getElementById("rdProfile");
     const profileTrigger=document.getElementById("rdProfileTrigger");
@@ -2500,12 +2160,12 @@
     document.getElementById("accessLogout").addEventListener("click",logout);
     window.addEventListener("focus",async()=>{
       if(!session||document.getElementById("appScreen").hidden)return;
-      try {await reloadOrders();if(currentRole==="owner")await loadTeam();}
+      try {await reloadOrders({background:true});if(currentRole==="owner")await loadTeam();}
       catch(error){reportSync(error);}
     });
     setInterval(async()=>{
       if(!session || document.visibilityState==="hidden" || document.getElementById("appScreen").hidden)return;
-      try{await reloadOrders();if(currentRole==="owner")await loadTeam();}
+      try{await reloadOrders({background:true});if(currentRole==="owner")await loadTeam();}
       catch(error){reportSync(error);}
     },30000);
     initialize();

@@ -1,0 +1,32 @@
+name: Shared services stage 9
+on:
+  push:
+    branches:
+      - feature/stage-09-shared-services-20261114
+  pull_request:
+    paths:
+      - index.html
+      - app-services.js
+      - tests/app-services.test.cjs
+jobs:
+  shared-services:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify Supabase transport and shared helpers
+        run: node --test tests/app-services.test.cjs
+      - name: Verify prior extracted modules
+        run: |
+          node --test tests/order-sync.test.cjs tests/order-model.test.cjs tests/calendar-model.test.cjs tests/finance-model.test.cjs tests/master-ui.test.cjs tests/lead-ai-bridge.test.cjs
+      - name: Verify CSS architecture
+        run: node --test tests/css-stage8-regression.test.cjs
+      - name: Legacy integration smoke tests
+        run: |
+          node --test tests/quick-slots.cjs tests/master-dashboard.cjs tests/master-owner-cards.cjs tests/ui-icon-layout.test.js

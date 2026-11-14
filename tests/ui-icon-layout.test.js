@@ -7,7 +7,9 @@ const assert=require("node:assert/strict");
 const fs=require("node:fs");
 const path=require("node:path");
 const source=fs.readFileSync(path.join(__dirname,"../redesign.js"),"utf8");
-const css=fs.readFileSync(path.join(__dirname,"../ui-alignment.css"),"utf8");
+const alignmentFiles=["ui-alignment.css","ui-alignment-orders.css",
+ "ui-alignment-home-calendar.css","ui-alignment-mobile.css"];
+const css=alignmentFiles.map(file=>fs.readFileSync(path.join(__dirname,"..",file),"utf8")).join("");
 const ordersCSS=fs.readFileSync(path.join(__dirname,"../orders-polish.css"),"utf8");
 const html=fs.readFileSync(path.join(__dirname,"../index.html"),"utf8");
 test("metric icons are adjacent to labels, while values remain a separate column",()=>{
@@ -18,7 +20,11 @@ test("metric icons are adjacent to labels, while values remain a separate column
 });
 test("global alignment stylesheet wins over earlier theme rules",()=>{
  const links=[...html.matchAll(/<link rel="stylesheet" href="([^"]+)"/g)].map(match=>match[1]);
- assert.equal(links.at(-1),"/ui-alignment.css");
+ const i=links.indexOf("/ui-alignment.css");
+ assert.ok(i>=0);
+ assert.deepEqual(links.slice(i,i+alignmentFiles.length),
+   alignmentFiles.map(file=>"/"+file+(file==="ui-alignment.css"?"":"?v=20261113-stage8")));
+ assert.match(links.at(-1),/^\/money-workspace\.css/);
  assert.ok(css.includes(".rd-stat .rd-stat-body strong.rd-accent"));
  assert.ok(css.includes(".rd-stat .rd-stat-body .rd-stat-hint"));
  assert.ok(css.includes(".rd-nav-btn .rd-icon .rd-svgicon"));

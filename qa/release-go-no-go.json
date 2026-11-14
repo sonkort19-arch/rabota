@@ -1,0 +1,127 @@
+{
+  "schema_version": 1,
+  "project": "CRM Работа / MOBA",
+  "audited_at": "2026-11-14",
+  "repository": "sonkort19-arch/rabota",
+  "current_main_sha_at_audit": "298b12af05cc2bfa8984114d1ad62946cb275cb1",
+  "candidate": {
+    "pr": 74,
+    "sha": "99d2c07b679ecc02a8eb9055a21f3d0c806aa2c5",
+    "branch": "release/consolidated-review-20261114",
+    "note": "Snapshot HEAD at reconciliation; check current PR HEAD and repeat CI before release"
+  },
+  "decision": "NO_GO",
+  "gates": [
+    {
+      "id": "combined_architecture_ci",
+      "title": "Все автоматические проверки интеграционного кандидата",
+      "verified": true,
+      "evidence": "https://github.com/sonkort19-arch/rabota/actions/runs/43523511140",
+      "note": "Статус success; реальные Auth/JWT не проверены"
+    },
+    {
+      "id": "synthetic_backup_restore",
+      "title": "Восстановление вымышленных финансов в PostgreSQL 17",
+      "verified": true,
+      "evidence": "https://github.com/sonkort19-arch/rabota/actions/runs/43523511170",
+      "note": "Не заменяет копию настоящего проекта"
+    },
+    {
+      "id": "production_backup_restore",
+      "title": "Реальная резервная копия общей Supabase и восстановление в отдельную среду",
+      "verified": false,
+      "evidence": null,
+      "note": "Организация Supabase на Free: автоматические ежедневные backup недоступны по правилам тарифа. Реальный ручной экспорт и восстановление не подтверждены. См. qa/FREE_PLAN_BACKUP_OWNER_GUIDE.md."
+    },
+    {
+      "id": "finance_historical_reconciliation",
+      "title": "Подтверждены исторические оплаты, выплаты и кассовые расхождения",
+      "verified": false,
+      "evidence": null,
+      "note": "20 старых оплат и связанные ручные/автоматические выплаты ещё требуют проверки по документам"
+    },
+    {
+      "id": "staging_auth_rls",
+      "title": "Отдельная Supabase с настоящими Auth/JWT и ролями owner/manager/master",
+      "verified": false,
+      "evidence": null,
+      "note": "Одноразовый PostgreSQL не воспроизводит весь Supabase Auth/PostgREST"
+    },
+    {
+      "id": "physical_iphone_pwa",
+      "title": "Проверка на настоящем iPhone владельца и Рауля",
+      "verified": false,
+      "evidence": null,
+      "note": "WebKit CI не заменяет проверку PWA, клавиатуры и фона на устройстве"
+    },
+    {
+      "id": "vercel_target_verified",
+      "title": "Установлена точная production-привязка CRM Работа в Vercel и предыдущий deployment",
+      "verified": false,
+      "evidence": null,
+      "note": "Owner screenshot showed rabota Production Ready main 298b12a, and GitHub Vercel status success. API connector still sees only grafik and cannot inspect rabota; direct deployment control unverified."
+    },
+    {
+      "id": "migration_approval_and_drift",
+      "title": "Независимый SQL-review и сверка исходных RPC-хешей в момент выпуска",
+      "verified": false,
+      "evidence": null,
+      "note": "SQL 008/009/010 are draft-only and not installed. Source MD5s of financial/payment/master provisioning RPCs matched 2026-11-14 read-only snapshot. SQL 010 now protects historical paid order assignment; real Supabase JWT staging and independent SQL review still mandatory."
+    },
+    {
+      "id": "protected_release_path",
+      "title": "Подтверждены защита main, ревью и запрет самопубликации при push",
+      "verified": false,
+      "evidence": null,
+      "note": "GitHub сообщает protected=false для main"
+    },
+    {
+      "id": "final_main_comparison",
+      "title": "Подготовлен один финальный PR к main без дублирования стековых веток",
+      "verified": true,
+      "evidence": "https://github.com/sonkort19-arch/rabota/pull/74",
+      "note": "Single draft PR targets current main, GitHub mergeable=true, 79 diff files; main reconciliation preserves owner + Заказ. This proves PR preparation, NOT independent diff review or production permission."
+    },
+    {
+      "id": "rollback_and_monitoring",
+      "title": "Реальные точки восстановления, план совместимого отката и мониторинг",
+      "verified": false,
+      "evidence": null,
+      "note": "Полный PITR общей базы затрагивает другие приложения"
+    },
+    {
+      "id": "explicit_production_approval",
+      "title": "Владелец явно разрешил выпуск командой «на основную» после прохождения проверок",
+      "verified": false,
+      "evidence": null,
+      "note": "Команда «Делай следующий этап» не означает разрешение на production"
+    }
+  ],
+  "additional_observations": {
+    "supabase_organization_plan": "free",
+    "managed_daily_backup_confirmed": false,
+    "planned_backup_method": "manual Supabase CLI export on owner's trusted device, encrypted off-repository; independent restore mandatory",
+    "guide": "qa/FREE_PLAN_BACKUP_OWNER_GUIDE.md",
+    "supabase_readonly_inventory": {
+      "public_tables": 57,
+      "rabota_tables": 11,
+      "auth_users": 2,
+      "storage_buckets": 1,
+      "storage_objects": 0
+    },
+    "repository_homepage_url": "https://rabota-rust.vercel.app",
+    "repository_homepage_is_verified_live": false,
+    "connected_vercel_projects": [
+      "grafik"
+    ],
+    "correct_vercel_project_verified": false,
+    "production_screenshot_seen": true,
+    "github_vercel_status_url": "https://vercel.com/sonkort19-6069s-projects/rabota/JAheWzykPPG681mzwjvD1QHcLyRR",
+    "github_candidate_pr": 74,
+    "snapshot_utc": "2026-11-14T00:52:33Z",
+    "production_paid_guard_active": false,
+    "production_finance_rpc_drift_at_snapshot": false,
+    "master_provisioning_sql_010_staging_only": true,
+    "master_provisioning_md5_verified_at_snapshot": true
+  }
+}

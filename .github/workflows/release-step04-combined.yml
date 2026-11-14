@@ -1,0 +1,116 @@
+name: Safe release step 4 — combined integration
+on:
+  push:
+    branches:
+      - audit/release-step04-full-integration-20261114
+  pull_request:
+    paths:
+      - 'sql/**'
+      - 'money-workspace.js'
+      - 'tests/**'
+      - '.github/workflows/release-step04-combined.yml'
+permissions:
+  contents: read
+jobs:
+  architecture:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 16
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Prove all frontend modules and finance guards are present together
+        run: node --test tests/release-step04-combined.test.cjs tests/stage10-contracts.test.cjs
+      - name: Existing extracted modules and UI checks
+        run: |
+          node --test tests/app-services.test.cjs tests/order-sync.test.cjs tests/order-model.test.cjs tests/calendar-model.test.cjs tests/finance-model.test.cjs tests/master-ui.test.cjs tests/lead-ai-bridge.test.cjs
+          node --test tests/css-stage8-regression.test.cjs tests/quick-slots.cjs tests/master-dashboard.cjs tests/master-owner-cards.cjs tests/ui-icon-layout.test.js
+      - name: Finance role, paid guard, and read-only reconciliation contracts
+        run: node --test tests/paid-order-guard.test.cjs tests/roles-stage3.test.cjs tests/finance-reconciliation-readonly.test.cjs tests/master-provisioning-contract.test.cjs
+      - name: Previous mobile forms, orders and finance preview
+        run: |
+          node --test tests/owner-order-deletion.cjs tests/order-notes.test.js
+          node tests/mobile-order-form.js
+          node tests/finance-payroll-preview.js
+          node tests/orders-compact-list.js
+  postgres-17:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 17
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: disposable-ci-only
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s --health-timeout 3s --health-retries 15
+    env:
+      PGHOST: 127.0.0.1
+      PGPORT: '5432'
+      PGUSER: postgres
+      PGPASSWORD: disposable-ci-only
+      PGDATABASE: postgres
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Install psql client
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq postgresql-client
+      - name: Create fictional users and historical orders only
+        run: psql -X -v ON_ERROR_STOP=1 -f tests/sql/roles-stage3-fixture.sql
+      - name: Load live-equivalent master RPCs against synthetic data only
+        run: psql -X -v ON_ERROR_STOP=1 -f tests/sql/master-provisioning-fixture.sql
+      - name: Install audited financial and master migration candidates in disposable DB only
+        run: |
+          psql -X -v ON_ERROR_STOP=1 -f sql/008-protect-paid-orders.sql
+          psql -X -v ON_ERROR_STOP=1 -f sql/009-owner-only-salary-payout.sql
+          psql -X -v ON_ERROR_STOP=1 -f sql/010-master-provisioning-paid-order-compat.sql
+      - name: Cross-check paid orders, legacy receipts and roles
+        run: |
+          psql -X -v ON_ERROR_STOP=1 -f tests/sql/paid-guard-scenarios.sql
+          psql -X -v ON_ERROR_STOP=1 -f tests/sql/roles-stage3-scenarios.sql
+          psql -X -v ON_ERROR_STOP=1 -f tests/sql/master-provisioning-scenarios.sql
+      - name: Verify owner, manager, Raul and anon RLS scopes on fake orders
+        run: psql -X -v ON_ERROR_STOP=1 -f tests/sql/step04-rls-scopes.sql
+      - name: Parallel double-payment, salary and cash distribution prevention
+        run: bash tests/step04-concurrency.sh
+      - name: Run finance reconciliation safely on fake data
+        run: |
+          psql -X -v ON_ERROR_STOP=1 -c "CREATE TABLE public.rabota_cashbook_entries (id uuid PRIMARY KEY,amount numeric,kind text)"
+          psql -X -v ON_ERROR_STOP=1 -f qa/finance_reconciliation_readonly.sql > /tmp/finance-stage4-audit.log
+          grep -q 'raul_recorded_due' /tmp/finance-stage4-audit.log
+          grep -q 'ROLLBACK' /tmp/finance-stage4-audit.log
+  browser:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install Chromium and Safari WebKit test engines
+        run: |
+          npm install --no-save --ignore-scripts playwright@1.56.1
+          npx playwright install --with-deps chromium webkit
+      - name: Raul compact cards in WebKit
+        run: node tests/master-dense-layout.cjs
+      - name: Navigation for iPhone-sized mocked screens
+        run: |
+          TEST_BROWSER=chromium node tests/mobile-nav-stability.cjs
+          TEST_BROWSER=webkit node tests/mobile-nav-stability.cjs
+      - name: Calendar, order filters, and unsubmitted WhatsApp drafts
+        run: |
+          CHROMIUM_PATH="$(node -p "require('playwright').chromium.executablePath()")" node tests/calendar-date-width.cjs
+          CHROMIUM_PATH="$(node -p "require('playwright').chromium.executablePath()")" node tests/order-filters-mobile.cjs
+          CHROMIUM_PATH="$(node -p "require('playwright').chromium.executablePath()")" node tests/whatsapp-raul-browser.cjs
