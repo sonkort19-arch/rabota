@@ -3,10 +3,10 @@
   "project": "CRM Работа / MOBA",
   "plan": "qa/AUTONOMOUS_IMPROVEMENT_ROADMAP.md",
   "created_at_utc": "2026-11-14",
-  "last_verified_main_sha": "ba83af7c2d775d923bd483c15f6b9b70d625e22c",
-  "completed": 1,
+  "last_verified_main_sha": "dbb3752efc72bd8a7e6d4d9c337e23f2f08b2f84",
+  "completed": 2,
   "total": 10,
-  "next_phase": 2,
+  "next_phase": 3,
   "baseline": {
     "repo": "sonkort19-arch/rabota",
     "files": 159,
@@ -54,7 +54,7 @@
     {
       "number": 2,
       "title": "Автоматические проверки и защита от регрессий",
-      "status": "in_progress",
+      "status": "done",
       "evidence": [
         "https://github.com/sonkort19-arch/rabota/pull/78",
         "https://github.com/sonkort19-arch/rabota/pull/81",
@@ -62,14 +62,17 @@
         "https://github.com/sonkort19-arch/rabota/pull/86",
         "https://github.com/sonkort19-arch/rabota/pull/87",
         "https://github.com/sonkort19-arch/rabota/actions/runs/43635419255",
-        "https://github.com/sonkort19-arch/rabota/commit/ba83af7c2d775d923bd483c15f6b9b70d625e22c"
+        "https://github.com/sonkort19-arch/rabota/commit/ba83af7c2d775d923bd483c15f6b9b70d625e22c",
+        "https://github.com/sonkort19-arch/rabota/actions/runs/43647897084",
+        "https://github.com/sonkort19-arch/rabota/commit/dbb3752efc72bd8a7e6d4d9c337e23f2f08b2f84",
+        "https://vercel.com/sonkort19-6069s-projects/rabota/AVPWF3q6VeTF3fe8oP1EGV4U24Wg"
       ],
       "blockers": []
     },
     {
       "number": 3,
       "title": "Контроль PR, релизов и rollback",
-      "status": "pending",
+      "status": "in_progress",
       "evidence": [],
       "blockers": []
     },
@@ -141,6 +144,10 @@
     {
       "at_utc": "2026-11-14",
       "event": "Этап 2: PR #78/#81/#85/#86/#87 усилили регрессионный CI; #87 merged ba83af7c2d775d923bd483c15f6b9b70d625e22c после architecture/browser success на f62a194ad6b6c65b5d78a710bee87c87e29897b3, Vercel success на PR head. Post-merge Vercel pending при проверке; этап 2 пока in_progress."
+    },
+    {
+      "at_utc": "2026-11-15",
+      "event": "Этап 2 завершён: на main dbb3752 оба CI jobs architecture/browser success (run 43647897084), Vercel commit status success для rabota; проверки включают Node, Chromium, WebKit и регрессии заказов, ролей, оплаты, уведомлений. Физический iPhone и восстановление production backup этим не подтверждены. Этап 3 начат."
     }
   ]
 }
