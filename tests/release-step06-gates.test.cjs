@@ -64,7 +64,8 @@ test("the preflight SQL is READ ONLY and returns no customer rows",()=>{
 });
 
 test("runbook defines safe migration order and non-destructive rollback",()=>{
- assert.match(runbook,/008.*009/);
+ assert.match(runbook,/008.*009.*010/);
+ assert.match(runbook,/master-provisioning-paid-order-compat/);
  assert.match(runbook,/NO-GO/);
  assert.match(runbook,/полный PITR/i);
  assert.match(runbook,/на основную/);

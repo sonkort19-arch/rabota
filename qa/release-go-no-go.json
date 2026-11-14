@@ -66,7 +66,7 @@
       "title": "Независимый SQL-review и сверка исходных RPC-хешей в момент выпуска",
       "verified": false,
       "evidence": null,
-      "note": "В production SQL 008/009 не применены; source hashes совпали в предварительном read-only аудите"
+      "note": "SQL 008/009/010 are draft-only and not installed. Source MD5s of financial/payment/master provisioning RPCs matched 2026-11-14 read-only snapshot. SQL 010 now protects historical paid order assignment; real Supabase JWT staging and independent SQL review still mandatory."
     },
     {
       "id": "protected_release_path",
@@ -120,6 +120,8 @@
     "github_candidate_pr": 74,
     "snapshot_utc": "2026-11-14T00:52:33Z",
     "production_paid_guard_active": false,
-    "production_finance_rpc_drift_at_snapshot": false
+    "production_finance_rpc_drift_at_snapshot": false,
+    "master_provisioning_sql_010_staging_only": true,
+    "master_provisioning_md5_verified_at_snapshot": true
   }
 }
