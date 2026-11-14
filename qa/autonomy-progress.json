@@ -1,0 +1,124 @@
+{
+  "schema_version": 1,
+  "project": "CRM Работа / MOBA",
+  "plan": "qa/AUTONOMOUS_IMPROVEMENT_ROADMAP.md",
+  "created_at_utc": "2026-11-14",
+  "last_verified_main_sha": "0fe93ddee619a7e3de484f524f1e0c7b12183979",
+  "completed": 0,
+  "total": 10,
+  "next_phase": 1,
+  "baseline": {
+    "repo": "sonkort19-arch/rabota",
+    "files": 159,
+    "html": 2,
+    "js_cjs": 60,
+    "css": 24,
+    "sql": 25,
+    "test_files": 53,
+    "live_orders_at_baseline": 41,
+    "live_paid_at_baseline": 29,
+    "supabase_project": "yedzfmibceboncrytbqz",
+    "production_migrations": [
+      "20261114090014 rabota_008_protect_paid_orders_20261114",
+      "20261114090049 rabota_009_owner_only_salary_payout_20261114",
+      "20261114090119 rabota_010_master_provisioning_paid_order_compat_20261114"
+    ],
+    "paid_guard": true,
+    "cash_guard": true,
+    "main_protected": false,
+    "vercel_status": "success"
+  },
+  "safety": {
+    "production_backup_verified": false,
+    "production_restore_verified": false,
+    "user_declined_backup": true,
+    "allow_production_sql_writes": false,
+    "allow_paid_resources": false,
+    "allow_real_client_messages": false,
+    "allow_finance_writes": false
+  },
+  "phases": [
+    {
+      "number": 1,
+      "title": "Текущее состояние, история выпуска и план",
+      "status": "in_progress",
+      "evidence": [],
+      "blockers": []
+    },
+    {
+      "number": 2,
+      "title": "Автоматические проверки и защита от регрессий",
+      "status": "pending",
+      "evidence": [],
+      "blockers": []
+    },
+    {
+      "number": 3,
+      "title": "Контроль PR, релизов и rollback",
+      "status": "pending",
+      "evidence": [],
+      "blockers": []
+    },
+    {
+      "number": 4,
+      "title": "Постепенная модульность JavaScript",
+      "status": "pending",
+      "evidence": [],
+      "blockers": []
+    },
+    {
+      "number": 5,
+      "title": "CSS и проверка адаптивности",
+      "status": "pending",
+      "evidence": [],
+      "blockers": []
+    },
+    {
+      "number": 6,
+      "title": "Измеримая оптимизация скорости",
+      "status": "pending",
+      "evidence": [],
+      "blockers": []
+    },
+    {
+      "number": 7,
+      "title": "Рабочие экраны владельца, менеджера, мастера",
+      "status": "pending",
+      "evidence": [],
+      "blockers": []
+    },
+    {
+      "number": 8,
+      "title": "Безопасность RLS/RPC и финансов",
+      "status": "pending",
+      "evidence": [],
+      "blockers": []
+    },
+    {
+      "number": 9,
+      "title": "ИИ, лиды, PWA и уведомления",
+      "status": "pending",
+      "evidence": [],
+      "blockers": []
+    },
+    {
+      "number": 10,
+      "title": "Итоговая стабилизация и выпуск",
+      "status": "pending",
+      "evidence": [],
+      "blockers": []
+    }
+  ],
+  "notes": [
+    "План новый; он не изменяет статус уже выполненного SQL-релиза.",
+    "Этап 1 завершать только после размещения этих файлов в main и повторной проверки.",
+    "Метки pending/blocked не равны выполнено. Только объективные свидетельства.",
+    "Старые QA-документы описывают свои даты, часть предупреждений о SQL устарела."
+  ],
+  "history": [
+    {
+      "at_utc": "2026-11-14",
+      "event": "Создан план и начат этап 1; отправка в review-PR, production приложения и БД не менялись."
+    }
+  ]
+}
