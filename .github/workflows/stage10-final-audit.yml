@@ -42,6 +42,10 @@ jobs:
           node tests/mobile-order-form.js
           node tests/finance-payroll-preview.js
           node tests/orders-compact-list.js
+      - name: Push bell, splash, and read-only finance audit contracts
+        run: |
+          node tests/master-notifications.js
+          node --test tests/startup-splash.test.cjs tests/finance-reconciliation-readonly.test.cjs tests/master-provisioning-contract.test.cjs
   browser:
     runs-on: ubuntu-24.04
     timeout-minutes: 22
