@@ -49,6 +49,9 @@ test("abort before writes when audited RPC code or original cash guard drift",()
  assert.match(sql,/d44bada20981d77a9922fe28f383ab10/);
  assert.match(sql,/75dbf74b2e70cfc6d3b73012ae66baaf/);
  assert.match(sql,/Original cash guard missing or disabled/);
+ assert.match(sql,/Original cash guard source changed since audit: STOP/);
+ assert.match(sql,/27e721f9909f2ab0e7d08dcea1a3225c/);
+ assert.match(sql,/'private\.rabota_cash_order_guard\(\)'::pg_catalog\.regprocedure/);
  assert.match(sql,/Paid guard already exists/);
  assert.match(sql,/Expected PostgreSQL 17/);
 });
