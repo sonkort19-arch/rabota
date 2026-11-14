@@ -391,6 +391,41 @@
       body.rd #appScreen.rd-master.master-mode #calendarPanel.master-calendar-compact .week{gap:3px}
     }
   </style>
+  <!-- Raul's account photo: one tappable round button, existing profile menu unchanged. -->
+  <style id="raul-round-profile-photo-20261114">
+    body.rd #rdProfileTrigger > .rd-profile-photo{display:none}
+    body.rd #appScreen.rd-master.master-mode .master-header-actions #rdProfileTrigger.rd-profile-trigger{
+      position:relative;
+      box-sizing:border-box;
+      width:45px;min-width:45px;height:45px;min-height:45px;
+      margin:0;padding:0;
+      overflow:hidden;
+      border:1px solid #eaf0ff;
+      border-radius:50%;
+      background:linear-gradient(140deg,#528dff,#3552ed);
+      box-shadow:0 5px 14px rgba(56,89,212,.22);
+      isolation:isolate;
+    }
+    body.rd #appScreen.rd-master.master-mode .master-header-actions #rdProfileTrigger > .rd-profile-photo{
+      display:block;
+      position:absolute;
+      inset:0;
+      z-index:1;
+      width:100%;height:100%;
+      max-width:none;
+      margin:0;padding:0;
+      border:0;border-radius:50%;
+      object-fit:cover;object-position:center;
+      pointer-events:none;
+    }
+    @media(max-width:790px){
+      body.rd #appScreen.rd-master.master-mode > header .master-header-actions #rdProfileTrigger.rd-profile-trigger{
+        box-sizing:border-box;
+        width:44px;min-width:44px;height:44px;min-height:44px;
+        border-radius:50%;
+      }
+    }
+  </style>
 </head>
 <body>
 
@@ -497,6 +532,7 @@
           <svg viewBox="0 0 24 24" width="23" height="23" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <circle cx="12" cy="8" r="3.7"/><path d="M4.5 20v-1.6a7.5 7.5 0 0 1 15 0V20H4.5Z"/>
           </svg>
+          <img class="rd-profile-photo" src="/icons/raul-profile-avatar-20261114.jpg" width="104" height="104" alt="" aria-hidden="true" decoding="async">
         </button>
         <div class="rd-profile-menu" id="rdProfileMenu" hidden aria-label="Меню профиля">
           <div class="rd-profile-identity">
