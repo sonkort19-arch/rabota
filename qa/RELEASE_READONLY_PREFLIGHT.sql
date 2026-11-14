@@ -76,6 +76,15 @@ WHERE p.oid IN (
 )
 ORDER BY p.proname;
 
+-- Confirm the existing cash guard source has not changed since the audited snapshot.
+SELECT p.oid::pg_catalog.regprocedure::text AS guard_rpc,
+       pg_catalog.md5(p.prosrc) AS source_md5,
+       '27e721f9909f2ab0e7d08dcea1a3225c'::text AS expected_md5,
+       p.prosecdef AS security_definer,
+       pg_catalog.pg_get_userbyid(p.proowner) AS function_owner
+FROM pg_catalog.pg_proc p
+WHERE p.oid='private.rabota_cash_order_guard()'::pg_catalog.regprocedure;
+
 -- Paid history is reported only as aggregate counts; do not auto-reassign.
 SELECT count(*) FILTER (WHERE paid) AS paid_orders,
        count(*) FILTER (WHERE paid AND assigned_user_id IS NULL) AS paid_unassigned,
