@@ -11,24 +11,27 @@ const preflight=read("qa/RELEASE_READONLY_PREFLIGHT.sql");
 const runbook=read("qa/RELEASE_RUNBOOK_STAGE6.md");
 const gateScript=path.join(root,"scripts","release-go-no-go.cjs");
 
-test("candidate is the audited integration branch, not main or production",()=>{
+test("candidate points to one consolidated draft PR against current main",()=>{
  assert.equal(manifest.repository,"sonkort19-arch/rabota");
- assert.equal(manifest.current_main_sha_at_audit,"3c3e037b9a97ba74544af2fe337e09175cb603d7");
- assert.equal(manifest.candidate.pr,72);
- assert.equal(manifest.candidate.sha,"499baf79e65614d6eb6877f8c6baba0e8aba6fb2");
- assert.match(manifest.candidate.branch,/^audit\//);
+ assert.equal(manifest.current_main_sha_at_audit,"298b12af05cc2bfa8984114d1ad62946cb275cb1");
+ assert.equal(manifest.candidate.pr,74);
+ assert.match(manifest.candidate.sha,/^[a-f0-9]{40}$/);
+ assert.equal(manifest.candidate.branch,"release/consolidated-review-20261114");
 });
 
 test("the release is explicitly blocked until each human gate is evidenced",()=>{
  assert.equal(manifest.decision,"NO_GO");
  assert.equal(manifest.gates.length,12);
- assert.equal(manifest.gates.filter(x=>x.verified).length,2);
- assert.equal(manifest.gates.filter(x=>!x.verified).length,10);
+ assert.equal(manifest.gates.filter(x=>x.verified).length,3);
+ assert.equal(manifest.gates.filter(x=>!x.verified).length,9);
  assert.equal(manifest.gates.find(x=>x.id==="explicit_production_approval").verified,false);
+ const prepared=manifest.gates.find(x=>x.id==="final_main_comparison");
+ assert.equal(prepared.verified,true);
+ assert.match(prepared.evidence,/github\.com\/sonkort19-arch\/rabota\/pull\/74/);
  const ids=new Set(manifest.gates.map(x=>x.id));
  for(const id of ["production_backup_restore","finance_historical_reconciliation",
  "staging_auth_rls","physical_iphone_pwa","vercel_target_verified",
- "migration_approval_and_drift","protected_release_path","final_main_comparison",
+ "migration_approval_and_drift","protected_release_path",
  "rollback_and_monitoring","explicit_production_approval"]){
    assert.ok(ids.has(id),id);
    assert.equal(manifest.gates.find(x=>x.id===id).verified,false,id);
@@ -39,8 +42,8 @@ test("the informational command reports NO_GO without an exception",()=>{
  const p=cp.spawnSync(process.execPath,[gateScript,"--status"],{encoding:"utf8",cwd:root});
  assert.equal(p.status,0,p.stderr);
  assert.match(p.stdout,/Release decision: NO_GO/);
- assert.match(p.stdout,/Confirmed gates: 2\/12/);
- assert.match(p.stdout,/Remaining: 10/);
+ assert.match(p.stdout,/Confirmed gates: 3\/12/);
+ assert.match(p.stdout,/Remaining: 9/);
 });
 
 test("strict release gate fails closed with code 3",()=>{
