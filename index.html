@@ -225,6 +225,61 @@
   <link rel="stylesheet" href="/master-dense.css?v=20261113-stage8">
   <link rel="stylesheet" href="/master-dense-enhancements.css?v=20261113-stage8">
   <link rel="stylesheet" href="/money-workspace.css?v=20261113-header-safe-shield-v2">
+  <!-- Owner mobile create-order action mirrors Raul's floating button.
+       The owner has a bottom navigation bar, so the button sits above it. -->
+  <style id="owner-mobile-order-fab">
+    @media (max-width:790px) {
+      body.rd #appScreen.rd-owner.rd-view-orders {
+        padding-bottom:calc(168px + env(safe-area-inset-bottom));
+      }
+      body.rd #appScreen.rd-owner.rd-view-orders #ordersArea > #newOrderBtn {
+        position:fixed;
+        z-index:27;
+        right:max(14px, calc((100vw - 670px) / 2 + 16px));
+        bottom:calc(82px + env(safe-area-inset-bottom));
+        left:auto;
+        display:inline-flex;
+        align-items:center;
+        justify-content:center;
+        gap:5px;
+        box-sizing:border-box;
+        width:auto;
+        max-width:calc(100vw - 28px);
+        min-height:48px;
+        margin:0;
+        padding:0 17px;
+        border:0;
+        border-radius:999px;
+        background:linear-gradient(112deg,#4468f5,#5937ef 100%);
+        color:#fff;
+        font-size:14px;
+        font-weight:800;
+        line-height:1.15;
+        letter-spacing:0;
+        white-space:nowrap;
+        box-shadow:0 7px 19px rgba(61,72,192,.28);
+        -webkit-tap-highlight-color:transparent;
+        touch-action:manipulation;
+      }
+      body.rd #appScreen.rd-owner.rd-view-orders #ordersArea > #newOrderBtn .plus {
+        font-size:23px;
+        line-height:1;
+        font-weight:400;
+        margin-right:1px;
+        vertical-align:middle;
+      }
+      body.rd #appScreen.rd-owner.rd-view-orders #ordersArea > #newOrderBtn:active {
+        transform:translateY(1px);
+      }
+      body.rd #appScreen.rd-owner.rd-view-orders #ordersArea > #newOrderBtn:focus-visible {
+        outline:3px solid #a6c8ff;
+        outline-offset:3px;
+      }
+      body.rd #appScreen.rd-owner.rd-view-orders #ordersArea > #newOrderBtn[hidden] {
+        display:none!important;
+      }
+    }
+  </style>
 </head>
 <body>
 
@@ -1920,12 +1975,13 @@
       document.querySelector('[data-tab="all"]').textContent=currentRole==="master"?"Расписание":"Все заказы";
       document.querySelector('[data-tab="calendar"]').textContent="По дням";
       document.getElementById("appScreen").classList.toggle("master-mode",currentRole==="master");
+      document.getElementById("appScreen").classList.toggle("rd-owner",currentRole==="owner");
       document.getElementById("masterBrand").hidden=currentRole!=="master";
       document.getElementById("masterPushPanel").hidden=currentRole!=="master";
       // Only the master's floating button uses the short visible label.
       // The accessible name continues to describe the full action.
       document.querySelector("#newOrderBtn .new-order-label").textContent=
-        currentRole==="master"?"Заказ":"Новый заказ";
+        (currentRole==="master"||currentRole==="owner")?"Заказ":"Новый заказ";
       document.getElementById("newOrderBtn").hidden=!canCreateOrder();
       document.getElementById("aiChatLink").hidden=currentRole!=="owner";
       if (currentRole==="master") { currentTab="all"; selectedDate=masterClock().date; }
