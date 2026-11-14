@@ -67,3 +67,44 @@ test("index.html wires background reads without weakening deliberate full refres
   assert.ok(inline,"inline app script is present");
   assert.doesNotThrow(()=>new Function(inline[1]));
 });
+
+
+test("exact 1000-row page requests the next page before trusting unchanged data",async()=>{
+  const large=Array.from({length:1000},(_,i)=>({id:"id-"+i,updated_at:"v1"}));
+  const checker=make();checker.rememberFull(large);
+  const offsets=[];
+  assert.equal(await checker.isUnchanged((offset,limit)=>{
+    offsets.push(offset);return large.slice(offset,offset+limit);
+  }),true);
+  assert.deepEqual(offsets,[0,1000]);
+});
+test("order reordering does not cause unnecessary full refresh",async()=>{
+  const checker=make();checker.rememberFull(rows);
+  assert.equal(await checker.isUnchanged(()=>rows.slice().reverse()),true);
+});
+test("clock moving backwards forces full refresh without reading headers",async()=>{
+  let clock=1000000;
+  const checker=make(()=>clock);checker.rememberFull(rows);
+  clock-=1000;
+  assert.equal(await checker.isUnchanged(()=>{throw Error("unexpected headers");}),false);
+});
+test("network failure never becomes a false unchanged result",async()=>{
+  const checker=make();checker.rememberFull(rows);
+  await assert.rejects(checker.isUnchanged(()=>Promise.reject(new Error("network offline"))),/network offline/);
+});
+test("duplicate or removed metadata ID forces complete refresh",async()=>{
+  const checker=make();checker.rememberFull(rows);
+  assert.equal(await checker.isUnchanged(()=>[
+    rows[0],{id:rows[0].id,updated_at:rows[1].updated_at}
+  ]),false);
+});
+test("large collection over maximum metadata scan is never trusted as unchanged",async()=>{
+  const large=Array.from({length:100001},(_,i)=>({id:"id-"+i,updated_at:"v1"}));
+  const checker=make();checker.rememberFull(large);
+  const offsets=[];
+  assert.equal(await checker.isUnchanged((offset,limit)=>{
+    offsets.push(offset);return large.slice(offset,offset+limit);
+  }),false);
+  assert.equal(offsets.length,100);
+  assert.equal(offsets.at(-1),99000);
+});
