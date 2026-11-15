@@ -107,6 +107,33 @@ test("schedule sorts future first, old orders last",()=>{
   const sorted=rows.slice().sort((a,b)=>ui.masterScheduleSort(a,b,"2099-11-18"));
   assert.deepEqual(sorted.map(x=>x.id),["soon","future","old","none"]);
 });
+test("Raul list shows the next appointment before older orders and closed history",()=>{
+  const {ui}=setup();
+  const rows=[
+    newOrder("tomorrow",{date:"2026-11-17",time:"10:00"}),
+    newOrder("past-today",{date:"2026-11-16",time:"09:00"}),
+    newOrder("later-today",{date:"2026-11-16",time:"15:00"}),
+    newOrder("earliest-today",{date:"2026-11-16",time:"12:00"}),
+    newOrder("older",{date:"2026-11-15",time:"18:00"}),
+    newOrder("done",{date:"2026-11-16",time:"16:00",status:"Выполнен"}),
+    newOrder("cancelled",{date:"2026-11-18",time:"08:00",status:"Отменён"}),
+    newOrder("undated",{date:""}),
+  ];
+  const sorted=rows.slice().sort((a,b)=>ui.masterScheduleSort(a,b,"2026-11-16",11*60));
+  assert.deepEqual(sorted.map(o=>o.id),[
+    "earliest-today","later-today","tomorrow","past-today","older",
+    "cancelled","done","undated"
+  ]);
+});
+test("Raul main list passes Moscow clock to the schedule comparator",()=>{
+  const html=fs.readFileSync(path.join(__dirname,"..","index.html"),"utf8");
+  const masterBlock=html.slice(
+    html.indexOf('if(currentRole==="master") {\n          shown=getOrders()'),
+    html.indexOf('} else {\n          shown=getOrders()',html.indexOf('if(currentRole==="master") {\n          shown=getOrders()'))
+  );
+  assert.match(masterBlock,/const now=masterClock\(\);/);
+  assert.match(masterBlock,/shown\.sort\(\(a,b\)=>masterScheduleSort\(a,b,now\.date,now\.minutes\)\);/);
+});
 test("master card preserves compact layout, dataset and action",()=>{
   const order=newOrder("a",{radiators:3,floorLoops:1,price:12500});
   const x=setup({rows:[order]}),card=x.ui.makeMasterScheduleRow(order,true);
@@ -183,8 +210,8 @@ test("finance refresh does not unnecessarily replace unchanged overview",()=>{
 });
 test("master module loaded before inline use, payment RPCs unchanged",()=>{
   const html=fs.readFileSync(path.join(__dirname,"..","index.html"),"utf8");
-  assert.match(html,/src="\/master-ui\.js\?v=20261113-stage6"/);
-  assert.ok(html.indexOf('src="/master-ui.js?v=20261113-stage6"')<
+  assert.match(html,/src="\/master-ui\.js\?v=20261116-nearest-orders-v1"/);
+  assert.ok(html.indexOf('src="/master-ui.js?v=20261116-nearest-orders-v1"')<
     html.indexOf("const masterUI=window.__rdCreateMasterUI"));
   assert.match(html,/masterUI\.resetReviewOpen\(\)/);
   for(const name of ["masterClock","makeMasterScheduleRow","renderMasterOverview","renderMasterSchedule"]){

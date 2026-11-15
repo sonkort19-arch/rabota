@@ -792,7 +792,7 @@
   <script src="/order-model.js?v=20261113-stage3"></script>
   <script src="/calendar-model.js?v=20261113-stage4"></script>
   <script src="/finance-model.js?v=20261113-stage5"></script>
-  <script src="/master-ui.js?v=20261113-stage6"></script>
+  <script src="/master-ui.js?v=20261116-nearest-orders-v1"></script>
   <script src="/lead-ai-bridge.js?v=20261113-stage7"></script>
   <script src="/app-services.js?v=20261114-stage9"></script>
   <script>
@@ -1445,8 +1445,8 @@
       } else if (currentTab==="all") {
         if(currentRole==="master") {
           shown=getOrders().filter(o=>o.assignedUserId===currentUser?.id);
-          shown.sort((a,b)=>String(b.date||"").localeCompare(String(a.date||""))||
-            String(b.time||"").localeCompare(String(a.time||"")));
+          const now=masterClock();
+          shown.sort((a,b)=>masterScheduleSort(a,b,now.date,now.minutes));
         } else {
           shown=getOrders();
           shown.sort((a,b)=>String(b.date||"").localeCompare(String(a.date||"")) ||
