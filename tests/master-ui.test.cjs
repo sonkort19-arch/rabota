@@ -210,7 +210,7 @@ test("finance refresh does not unnecessarily replace unchanged overview",()=>{
 });
 test("master module loaded before inline use, payment RPCs unchanged",()=>{
   const html=fs.readFileSync(path.join(__dirname,"..","index.html"),"utf8");
-  assert.match(html,/src="\/master-ui\.js\?v=20261113-stage6"/);
+  assert.match(html,/src="\/master-ui\.js\?v=20261116-nearest-orders-v1"/);
   assert.ok(html.indexOf('src="/master-ui.js?v=20261116-nearest-orders-v1"')<
     html.indexOf("const masterUI=window.__rdCreateMasterUI"));
   assert.match(html,/masterUI\.resetReviewOpen\(\)/);
