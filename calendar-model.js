@@ -69,12 +69,15 @@
       const {monday,sunday,days}=weekDates(selectedDate);
       ordersDayDateLabel.textContent=parseDate(monday).getDate()+"–"+
         parseDate(sunday).toLocaleDateString("ru-RU",{day:"numeric",month:"short"});
-      const orders=getOrders();
+      const occupiedDates=new Set();
+      for(const order of getOrders()){
+        if(order.status!=="Отменён")occupiedDates.add(order.date);
+      }
       weekDays.replaceChildren();
       ordersWeekDays.replaceChildren();
       for(const date of days){
         const dateObj=parseDate(date);
-        const hasOrders=orders.some(o=>o.date===date&&o.status!=="Отменён");
+        const hasOrders=occupiedDates.has(date);
         const btn=make("button","day"+(date===selectedDate?" active":"")+
           (hasOrders?" has-orders":""));
         btn.type="button";
