@@ -3,7 +3,7 @@
   "project": "CRM Работа / MOBA",
   "plan": "qa/AUTONOMOUS_IMPROVEMENT_ROADMAP.md",
   "created_at_utc": "2026-11-14",
-  "last_verified_main_sha": "dbb3752efc72bd8a7e6d4d9c337e23f2f08b2f84",
+  "last_verified_main_sha": "c40e7f3c9313e99eed6485ebc0de27fe80a3fade",
   "completed": 2,
   "total": 10,
   "next_phase": 3,
@@ -73,8 +73,12 @@
       "number": 3,
       "title": "Контроль PR, релизов и rollback",
       "status": "in_progress",
-      "evidence": [],
-      "blockers": []
+      "evidence": [
+        "https://github.com/sonkort19-arch/rabota/pull/90"
+      ],
+      "blockers": [
+        "GitHub main protected=false; настройка обязательных checks/review требует admin и отдельного разрешения. PR #90 должен пройти architecture/browser на точном HEAD; Vercel success не заменяет CI."
+      ]
     },
     {
       "number": 4,
@@ -148,6 +152,10 @@
     {
       "at_utc": "2026-11-15",
       "event": "Этап 2 завершён: на main dbb3752 оба CI jobs architecture/browser success (run 43647897084), Vercel commit status success для rabota; проверки включают Node, Chromium, WebKit и регрессии заказов, ролей, оплаты, уведомлений. Физический iPhone и восстановление production backup этим не подтверждены. Этап 3 начат."
+    },
+    {
+      "at_utc": "2026-11-15",
+      "event": "Этап 3: подготовлен runbook PR #90. Обнаружено: path filter пропускает новый qa/PHASE3_RELEASE_CONTROL_20261115.md, поэтому добавлено содержательное обновление qa/autonomy-progress.json в ту же ветку для запуска штатного CI без изменения workflow. До успешного CI PR остаётся draft."
     }
   ]
 }
