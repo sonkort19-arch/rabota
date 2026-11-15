@@ -92,7 +92,7 @@ function findTightBookings(date,time,master,excludeId) {
       const minutes=t=>{
         const value=String(t||"");
         // Reject impossible times instead of interpreting 12:60 as 13:00.
-        if(!/^([01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d)?$/.test(value))return NaN;
+        if(!/^([01]\d|2[0-3]):[0-5]\d(?::[0-5]\d)?$/.test(value))return NaN;
         const [hours,mins]=value.split(":").map(Number);
         return hours*60+mins;
       };
