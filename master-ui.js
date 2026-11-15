@@ -47,12 +47,25 @@ function masterDayLabel(day) {
       }).sort((a,b)=>String(b.date||"").localeCompare(String(a.date||""))||
         String(b.time||"").localeCompare(String(a.time||"")));
     }
-    function masterScheduleSort(a,b,today) {
-      // Сегодня и будущие заказы первыми; старые записи на проверку — внизу.
-      const orderRank=o=>!o.date?3:o.date<today?2:0;
-      return orderRank(a)-orderRank(b)||
-        String(a.date||"").localeCompare(String(b.date||""))||
-        String(a.time||"").localeCompare(String(b.time||""));
+    function masterScheduleSort(a,b,today,minutes=-1) {
+      // Ближайшие предстоящие выезды первыми; прошедшие и закрытые — ниже.
+      const orderRank=o=>{
+        if(!o.date)return 4;
+        if(o.status==="Выполнен"||o.status==="Отменён")return 3;
+        if(o.date<today)return 2;
+        const start=masterTimeMinutes(o.time);
+        if(o.date===today&&minutes>=0&&start>=0&&start<minutes)return 1;
+        return 0;
+      };
+      const rankA=orderRank(a),rankB=orderRank(b);
+      const dateDiff=String(a.date||"").localeCompare(String(b.date||""));
+      const timeValue=o=>{
+        const time=masterTimeMinutes(o.time);
+        return time<0?1440:time;
+      };
+      const direction=rankA===0?1:-1;
+      return rankA-rankB||direction*dateDiff||
+        direction*(timeValue(a)-timeValue(b));
     }
     function masterOrderCount(n) {
       const ending=n%10,group=n%100;
