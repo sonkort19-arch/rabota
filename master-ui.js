@@ -79,11 +79,11 @@ function masterDayLabel(day) {
         root.hidden=true;masterOverviewSignature="";return;
       }
       const now=masterClock(),today=rows.filter(o=>o.date===now.date);
-      const schedule=rows.filter(o=>(o.status==="Записан"||o.status==="Новый")&&
+      const schedule=rows.filter(o=>o.status==="Записан"&&
         (o.date>now.date||(o.date===now.date&&masterTimeMinutes(o.time)>=now.minutes)))
         .sort((a,b)=>masterScheduleSort(a,b,now.date));
       const next=schedule[0];
-      const toReview=rows.filter(o=>(o.status==="Записан"||o.status==="Новый")&&
+      const toReview=rows.filter(o=>o.status==="Записан"&&
         (o.date<now.date||(o.date===now.date&&masterTimeMinutes(o.time)>=0&&
           masterTimeMinutes(o.time)<now.minutes)));
       const signature=JSON.stringify([now.date,today.map(o=>[o.id,o.status]),
@@ -151,7 +151,7 @@ function makeMasterScheduleRow(order,isNext=false) {
       const id=String(order.id);
       const article=make("article","master-schedule-card"+(isNext?" is-next":""));
       article.dataset.orderId=id;
-      article.dataset.status=order.status||"Новый";
+      article.dataset.status=order.status||"Записан";
       article.dataset.search=[order.name,order.phone,order.address,order.date,
         order.time,order.status,order.radiatorType].join(" ").toLocaleLowerCase("ru");
       const toggle=make("button","master-schedule-toggle");
@@ -179,8 +179,8 @@ function makeMasterScheduleRow(order,isNext=false) {
       if(order.floorLoops!==""&&order.floorLoops!=null&&Number(order.floorLoops)>0)
         work.push("Тёплый пол: "+order.floorLoops+" конт.");
       const workNode=make("span","master-schedule-work",work.join(" · "));
-      const state=STATUSES.includes(order.status)?order.status:"Новый";
-      const classes={"Новый":"s-new","Записан":"s-booked","В работе":"s-progress","Выполнен":"s-done","Отменён":"s-cancelled"};
+      const state=STATUSES.includes(order.status)?order.status:"Записан";
+      const classes={"Записан":"s-booked","В работе":"s-progress","Выполнен":"s-done","Отменён":"s-cancelled"};
       const meta=make("span","master-schedule-meta");
       meta.append(make("span","status-badge "+classes[state],state));
       const priceText=order.price==null||order.price===""?
@@ -205,7 +205,7 @@ function makeMasterScheduleRow(order,isNext=false) {
         if(!grouped.has(date)) grouped.set(date,[]);
         grouped.get(date).push(order);
       });
-      const next=rows.filter(o=>(o.status==="Записан"||o.status==="Новый")&&
+      const next=rows.filter(o=>o.status==="Записан"&&
         (o.date>today||(o.date===today&&masterTimeMinutes(o.time)>=masterClock().minutes)))
         .sort((a,b)=>masterScheduleSort(a,b,today))[0];
       grouped.forEach((items,date)=>{
