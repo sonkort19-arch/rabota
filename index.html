@@ -57,7 +57,6 @@
     .muted {color:#6b788b;font-size:13px}
     .info {margin:9px 0;font-size:14px;color:#39485c;overflow-wrap:anywhere;white-space:pre-wrap}
     .status-badge {display:inline-block;font-size:12px;font-weight:700;border-radius:7px;padding:5px 8px;background:#edf1f7;color:#42526b;margin-top:9px}
-    .s-new {background:#fff4d5;color:#855700}
     .s-booked {background:#e7f0ff;color:#1f59c3}
     .s-progress {background:#f1e9ff;color:#7041bf}
     .s-done {background:#e4f8e9;color:#19713b}
@@ -763,7 +762,7 @@
                 </div>
                 <div class="field"><label for="orderStatus">Статус</label>
                   <select id="orderStatus" name="orderStatus">
-                    <option>Новый</option><option>Записан</option><option>В работе</option><option>Выполнен</option><option>Отменён</option>
+                    <option>Записан</option><option>В работе</option><option>Выполнен</option><option>Отменён</option>
                   </select>
                 </div>
               </div>
@@ -789,10 +788,10 @@
 
   <script src="/order-notes.js?v=20261111-notes1"></script>
   <script src="/order-sync.js?v=20261113-stage2"></script>
-  <script src="/order-model.js?v=20261113-stage3"></script>
+  <script src="/order-model.js?v=20261116-status-v1"></script>
   <script src="/calendar-model.js?v=20261113-stage4"></script>
   <script src="/finance-model.js?v=20261113-stage5"></script>
-  <script src="/master-ui.js?v=20261116-nearest-orders-v1"></script>
+  <script src="/master-ui.js?v=20261116-status-v1"></script>
   <script src="/lead-ai-bridge.js?v=20261113-stage7"></script>
   <script src="/app-services.js?v=20261114-stage9"></script>
   <script>
@@ -804,7 +803,7 @@
     const PUSH_PUBLIC_KEY = "BH-gBzO9XGdqdohLPkgetTaPYfxctPqp8A2ba2_TCxNqHbWi11FlxRt_N3xWzbRSRFW_RpBTJ8a2TRFvr29LihI";
     const STORAGE_KEY = "rabota-orders-v1";
     const AUTH_KEY = "rabota-auth-session-v1";
-    const STATUSES = ["Новый", "Записан", "В работе", "Выполнен", "Отменён"];
+    const STATUSES = ["Записан", "В работе", "Выполнен", "Отменён"];
     const overlay = document.getElementById("orderOverlay");
     const form = document.getElementById("orderForm");
     const formStatus = document.getElementById("formStatus");
@@ -1177,8 +1176,8 @@
       top.append(make("div","client",order.name || "Без имени"));
       top.append(make("div","date-pill",order.date ? formatDate(order.date) + (order.time ? " · " + order.time : "") : "Без даты"));
       card.append(top);
-      const state = STATUSES.includes(order.status) ? order.status : "Новый";
-      const css = {"Новый":"s-new","Записан":"s-booked","В работе":"s-progress","Выполнен":"s-done","Отменён":"s-cancelled"};
+      const state = STATUSES.includes(order.status) ? order.status : "Записан";
+      const css = {"Записан":"s-booked","В работе":"s-progress","Выполнен":"s-done","Отменён":"s-cancelled"};
       card.append(make("span","status-badge " + css[state],state));
       if (currentRole === "master" && phoneForDisplay(order.phone)) info(card,"Телефон: ",phoneForDisplay(order.phone));
       info(card,"Адрес: ",order.address);
@@ -1245,7 +1244,7 @@
       }
       card.append(actions);
       if (currentRole === "master") {
-        const action = (state === "Новый" || state === "Записан") ? "accept" :
+        const action = state === "Записан" ? "accept" :
                        state === "В работе" ? "complete" : null;
         if (action) {
           const btn=make("button","primary master-action",action==="accept"?"Принять заказ":"Заказ выполнен");
@@ -1360,7 +1359,7 @@
       if(!name||!subtitle||!body)return;
       name.textContent=order.name||"Без имени";
       subtitle.textContent=(order.date?formatDate(order.date):"Без даты")+
-        (order.time?" · "+order.time:"")+" · "+(order.status||"Новый");
+        (order.time?" · "+order.time:"")+" · "+(order.status||"Записан");
       // Financial/status refresh must not jump to the top of the open order sheet.
       const scrollTop=body.scrollTop;
       body.replaceChildren(makeCard(order));
@@ -1501,7 +1500,7 @@
         controls.date.value=existing.date||"";
         controls.time.value=existing.time||"";
         controls.price.value=existing.price??"";
-        controls.status.value=STATUSES.includes(existing.status)?existing.status:"Новый";
+        controls.status.value=STATUSES.includes(existing.status)?existing.status:"Записан";
         controls.paid.checked=Boolean(existing.paid);
         const noteParts=window.__rdOrderNotes.parse(existing.details);
         controls.masterNote.value=noteParts.master;
@@ -2384,11 +2383,11 @@
   <script src="/order-availability.js"></script>
   <script src="/quick-slots.js"></script>
   <script src="/whatsapp-order.js?v=20261111-master-notes"></script>
-  <script src="/redesign.js"></script>
+  <script src="/redesign.js?v=20261116-status-v1"></script>
   <script src="/master-notifications.js"></script>
-  <script src="/orders-list.js"></script>
+  <script src="/orders-list.js?v=20261116-status-v1"></script>
   <script src="/finance-payroll.js"></script>
-  <script src="/money-workspace.js?v=20261116-minimal-orders-v4"></script>
+  <script src="/money-workspace.js?v=20261116-status-v1"></script>
   <script src="/lead-assistant.js"></script>
 </body>
 </html>
