@@ -19,7 +19,7 @@ const fixture=[
 '<button class="push-bell" aria-label="Уведомления">☼</button></section><button class="secondary" id="logoutBtn">Выйти</button></div></header>',
 '<div class="sync-note" id="syncStatus">Обновлено 17:33</div><div id="ordersArea">',
 '<section class="mw-master-filterbar"><input class="mw-filter-search" placeholder="Поиск по заказам"><div class="mw-status-filters">',
-...["Все","Новые","Записаны","В работе","Выполнены","Отменены"].map(label=>'<button type="button" class="mw-filter-chip" aria-label="Фильтр: '+label+'"><span class="mw-filter-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="22" height="22"><circle cx="12" cy="12" r="9"></circle></svg></span></button>'),
+...["Все","Записаны","В работе","Выполнены","Отменены"].map(label=>'<button type="button" class="mw-filter-chip" aria-label="Фильтр: '+label+'"><span class="mw-filter-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="22" height="22"><circle cx="12" cy="12" r="9"></circle></svg></span></button>'),
 '</div></section>',
 '<button class="primary new-order" id="newOrderBtn"><span class="plus">+</span>Новый заказ</button>',
 '<nav class="tabs"><button class="tab">По дням</button><button class="tab active">Расписание</button><button class="tab">История</button></nav>',
@@ -93,7 +93,7 @@ try{
   });
   assert.ok(result.scroll<=result.width+1,"horizontal overflow at "+width+" "+JSON.stringify(result));
   const filters=result.filterLayout;
-  assert.equal(filters.buttonWidths.length,6,"all status filters render at "+width);
+  assert.equal(filters.buttonWidths.length,5,"all status filters render at "+width);
   assert.ok(filters.buttonWidths.every(w=>Math.abs(w-filters.buttonWidths[0])<1),
     "filter buttons have equal width at "+width+": "+JSON.stringify(filters));
   assert.ok(Math.abs(filters.firstLeft-filters.left)<1.5&&Math.abs(filters.lastRight-filters.right)<1.5,
