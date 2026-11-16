@@ -18,6 +18,9 @@ const fixture=[
 '<div class="master-header-actions"><section id="masterPushPanel" class="push-panel push-compact">',
 '<button class="push-bell" aria-label="Уведомления">☼</button></section><button class="secondary" id="logoutBtn">Выйти</button></div></header>',
 '<div class="sync-note" id="syncStatus">Обновлено 17:33</div><div id="ordersArea">',
+'<section class="mw-master-filterbar"><input class="mw-filter-search" placeholder="Поиск по заказам"><div class="mw-status-filters">',
+...["Все","Новые","Записаны","В работе","Выполнены","Отменены"].map(label=>'<button type="button" class="mw-filter-chip" aria-label="Фильтр: '+label+'"><span class="mw-filter-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="22" height="22"><circle cx="12" cy="12" r="9"></circle></svg></span></button>'),
+'</div></section>',
 '<button class="primary new-order" id="newOrderBtn"><span class="plus">+</span>Новый заказ</button>',
 '<nav class="tabs"><button class="tab">По дням</button><button class="tab active">Расписание</button><button class="tab">История</button></nav>',
 '<section class="panel" id="calendarPanel"><div class="panel-top"><h2>Календарь</h2><div class="nav"><button class="secondary" id="prevWeek">‹</button><button class="secondary" id="goToday">Сегодня</button><button class="secondary" id="nextWeek">›</button></div></div>',
@@ -71,6 +74,15 @@ try{
     calendarDay:dim("#weekDays .day"),calendarToday:dim("#goToday"),
     calendarPrevious:dim("#prevWeek"),calendarNext:dim("#nextWeek"),
     logo:dim(".master-brand-icon"),
+    filterLayout:(()=>{
+      const parent=document.querySelector(".mw-status-filters");
+      const buttons=[...parent.querySelectorAll(".mw-filter-chip")];
+      const r=parent.getBoundingClientRect();
+      const boxes=buttons.map(button=>button.getBoundingClientRect());
+      return {parentWidth:r.width,buttonWidths:boxes.map(b=>b.width),
+        firstLeft:boxes[0].left,lastRight:boxes.at(-1).right,right:r.right,left:r.left,
+        gap:parseFloat(getComputedStyle(parent).gap),overflow:parent.scrollWidth>parent.clientWidth};
+    })(),
     headerOverlap:(()=>{
       const a=document.querySelector(".master-balance-quick").getBoundingClientRect();
       const b=document.querySelector(".push-bell").getBoundingClientRect();
@@ -80,6 +92,14 @@ try{
     })()};
   });
   assert.ok(result.scroll<=result.width+1,"horizontal overflow at "+width+" "+JSON.stringify(result));
+  const filters=result.filterLayout;
+  assert.equal(filters.buttonWidths.length,6,"all status filters render at "+width);
+  assert.ok(filters.buttonWidths.every(w=>Math.abs(w-filters.buttonWidths[0])<1),
+    "filter buttons have equal width at "+width+": "+JSON.stringify(filters));
+  assert.ok(Math.abs(filters.firstLeft-filters.left)<1.5&&Math.abs(filters.lastRight-filters.right)<1.5,
+    "filter row fills available width at "+width+": "+JSON.stringify(filters));
+  assert.equal(filters.overflow,false,"filter bar does not scroll sideways at "+width);
+  assert.ok(filters.buttonWidths[0]>=40,"status filter remains tappable at "+width);
   for(const key of ["newOrder","bell","logout","tab","next"])
    assert.ok(result[key].height>=43.5,key+" tap target at "+width+" height "+result[key].height);
   assert.ok(result.time.size<=19.1,"time font "+width);
