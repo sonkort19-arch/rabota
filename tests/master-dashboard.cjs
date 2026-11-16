@@ -162,6 +162,23 @@ test("status review lists all past unfinished bookings",()=>{
  toggler.events.click();
  assert.equal(f.summary.children.some(x=>x.className==="master-review-list"),false);
 });
+test("Raul status filters use six compact accessible icons without changing status values",()=>{
+ const script=fs.readFileSync(path.join(root,"money-workspace.js"),"utf8");
+ const styles=fs.readFileSync(path.join(root,"money-workspace.css"),"utf8");
+ assert.match(script,/\["all","Все"\],\["Новый","Новые"\],\["Записан","Записаны"\]/);
+ assert.match(script,/\["В работе","В работе"\],\["Выполнен","Выполнены"\],\["Отменён","Отменены"\]/);
+ for(const status of ["all","Новый","Записан","В работе","Выполнен","Отменён"])
+   assert.ok(script.includes(status+":" )||script.includes('"'+status+'"'+":"),status+" icon available");
+ assert.match(script,/chip\.append\(statusIcon\(value\),el\("span","mw-filter-caption",label\)\)/);
+ assert.match(script,/chip\.setAttribute\("aria-label","Фильтр: "\+label\)/);
+ assert.match(script,/chip\.dataset\.status=value;filters\.append\(chip\)/);
+ assert.match(script,/chip\.classList\.toggle\("active",active\);chip\.setAttribute\("aria-pressed",String\(active\)\)/);
+ assert.match(script,/const statusMatch=orderStatus==="all"\|\|element\.dataset\.status===orderStatus/);
+ assert.match(styles,/\.mw-status-filters \.mw-filter-chip\{/);
+ assert.match(styles,/height:49px;min-height:49px/);
+ assert.match(styles,/\.mw-filter-chip:focus-visible/);
+ assert.match(styles,/\.mw-status-filters \.mw-filter-caption/);
+});
 test("master brand uses inline vector, not an unloaded PNG",()=>{
  assert.match(html,/class="master-brand-icon"/);
  assert.match(html,/<linearGradient id="master-brand-gradient"/);
