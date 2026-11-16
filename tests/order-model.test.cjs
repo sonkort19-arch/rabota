@@ -65,6 +65,23 @@ test("unsupported status falls back to confirmed booking",()=>{
  const record=model.serializeOrder({...model.readOrder(base),status:"неизвестный"});
  assert.equal(record.status,"Записан");
 });
+test("only confirmed order statuses are exposed; lead statuses stay separate",()=>{
+ const html=fs.readFileSync(path.join(__dirname,"..","index.html"),"utf8");
+ const master=fs.readFileSync(path.join(__dirname,"..","master-ui.js"),"utf8");
+ const filters=fs.readFileSync(path.join(__dirname,"..","money-workspace.js"),"utf8");
+ const desktop=fs.readFileSync(path.join(__dirname,"..","redesign.js"),"utf8");
+ const migration=fs.readFileSync(path.join(__dirname,"..","sql/011-retire-unused-new-order-status.sql"),"utf8");
+ assert.deepEqual(STATUSES,["Записан","В работе","Выполнен","Отменён"]);
+ assert.doesNotMatch(html,/<option>Новый<\/option>/);
+ assert.doesNotMatch(html,/const STATUSES\s*=\s*\["Новый"/);
+ assert.doesNotMatch(filters,/\["Новый","Новые"\]/);
+ assert.match(filters,/\["all","Все"\],\["Записан","Записаны"\]/);
+ assert.doesNotMatch(desktop,/\["Новый","Новый"\]/);
+ assert.doesNotMatch(master,/status==="Новый"/);
+ assert.match(migration,/ALTER COLUMN status SET DEFAULT 'Записан'/);
+ assert.match(migration,/CHECK \(status IN \('Записан', 'В работе', 'Выполнен', 'Отменён'\)\)/);
+ assert.match(migration,/current_status = 'Записан'/);
+});
 test("active slot conflict is found only for same master and time",()=>{
  const orders=[
   {id:"1",date:"2026-11-15",time:"12:00",master:"Рауль",status:"Записан"},
