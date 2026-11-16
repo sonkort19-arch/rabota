@@ -35,7 +35,7 @@ CREATE TABLE public.rabota_orders (
  radiator_type text NOT NULL DEFAULT '',radiators integer,floor_loops integer,
  master text NOT NULL DEFAULT '',appointment_date date,appointment_time time,
  price numeric,paid boolean NOT NULL DEFAULT false,
- status text NOT NULL DEFAULT 'Новый',details text NOT NULL DEFAULT '',
+ status text NOT NULL DEFAULT 'Записан',details text NOT NULL DEFAULT '',
  legacy_id text, created_by uuid DEFAULT auth.uid(), completed_at timestamptz,
  created_at timestamptz NOT NULL DEFAULT now(),updated_at timestamptz NOT NULL DEFAULT now(),
  assigned_user_id uuid, payment_method text,payment_amount numeric,
