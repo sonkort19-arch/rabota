@@ -12,7 +12,7 @@ assert.deepEqual(links.slice(i,i+2),["master-dense.css","master-dense-enhancemen
 const styles=[inline,...links.map(file=>fs.readFileSync(path.join(root,file),"utf8"))].join("\n");
 const fixture=[
 '<main id="appScreen" class="rd-master master-mode">',
-'<div class="master-brand"><svg class="master-brand-icon" width="38" height="38" viewBox="0 0 48 48"><rect width="48" height="48" rx="12" fill="#5367e8"/></svg><div class="master-brand-text"><strong>Работа</strong><span>Сервис промывки отопления</span></div></div>',
+'<div id="masterBrand" class="master-brand"><svg class="master-brand-icon" width="38" height="38" viewBox="0 0 48 48"><rect width="48" height="48" rx="12" fill="#5367e8"/></svg><div class="master-brand-text"><strong>Работа</strong><span>Сервис промывки отопления</span></div></div>',
 '<header><div class="master-header-info"><h1>Мои заказы</h1><div class="master-header-meta"><span class="muted" id="roleName">Рауль</span>',
 '<button id="masterBalanceQuick" class="master-balance-quick"><span class="balance-label">К выплате</span><strong class="balance-amount">20 250 ₽</strong><span class="balance-arrow">›</span></button></div></div>',
 '<div class="master-header-actions"><section id="masterPushPanel" class="push-panel push-compact">',
@@ -28,7 +28,7 @@ const fixture=[
 ...Array.from({length:7},(_,i)=>'<button class="day'+(i===3?' active':i===4?' has-orders':'')+'" type="button"><span class="weekday">'+['Пн','Вт','Ср','Чт','Пт','Сб','Вс'][i]+'</span><strong>'+(i+9)+'</strong></button>'),'</div></section>',
 '<section class="master-today-summary"><div class="master-today-top"><strong class="master-today-title">Сегодня · 12 нояб.</strong><span class="master-today-count">1 заказ</span></div>',
 '<button class="master-next-jump"><span class="master-next-caption">Ближайший выезд</span><strong class="master-next-value">Сегодня · 18:00 · Давид</strong></button></section>',
-'<div class="list-head"><h2>Моё расписание</h2><span class="count" id="orderCount">9 шт.</span></div><div id="orders">',
+'<div class="list-head"><h2 id="listTitle">Моё расписание</h2><span class="count" id="orderCount">9 шт.</span></div><div id="orders">',
 '<div class="master-day-heading"><h3>Сегодня · 12 нояб.</h3><span class="muted">1 заказ</span></div>',
 '<article class="master-schedule-card is-next"><button class="master-schedule-toggle">',
 '<span class="master-schedule-main"><span class="master-schedule-avatar">Д</span><span class="master-schedule-identity">',
@@ -116,6 +116,33 @@ try{
   assert.ok(result.calendarWeek.height<=55,"week row must remain one row at "+width+": "+result.calendarWeek.height);
   for(const key of ["calendarDate","calendarDay","calendarToday","calendarPrevious","calendarNext"])
     assert.ok(result[key].height>=43.5,key+" usable touch target at "+width+": "+result[key].height);
+
+  // Orders-only treatment: sticky iPhone header holds profile/notifications,
+  // but the brand, redundant titles and their reserved vertical space vanish.
+  await page.evaluate(()=>{
+    document.documentElement.classList.add("rd-master-scroll-locked");
+    document.querySelector("#appScreen").classList.add("mw-orders-minimal-header");
+  });
+  const clean=await page.evaluate(()=>{
+    const r=selector=>document.querySelector(selector).getBoundingClientRect();
+    const display=selector=>getComputedStyle(document.querySelector(selector)).display;
+    const view=r("#appScreen"),topbar=r("#appScreen > header"),search=r(".mw-filter-search");
+    return {brand:display("#masterBrand"),title:display(".master-header-info"),
+      listTitle:display("#listTitle"),count:display("#orderCount"),
+      toolbar:topbar.height,searchTop:search.top,headerBottom:topbar.bottom,
+      bell:r(".push-bell").height,logout:r("#logoutBtn").height,
+      appWidth:view.width,scrollWidth:document.documentElement.scrollWidth,
+      viewportWidth:document.documentElement.clientWidth};
+  });
+  assert.equal(clean.brand,"none","orders remove branding at "+width);
+  assert.equal(clean.title,"none","orders remove upper heading at "+width);
+  assert.equal(clean.listTitle,"none","orders hide duplicate list heading at "+width);
+  assert.notEqual(clean.count,"none","order counter stays visible at "+width);
+  assert.ok(clean.toolbar>=53&&clean.toolbar<=57,"single-row fixed header at "+width+": "+clean.toolbar);
+  assert.ok(clean.searchTop>=clean.headerBottom-1&&clean.searchTop-clean.headerBottom<35,
+    "no redundant header gap above search at "+width+": "+JSON.stringify(clean));
+  assert.ok(clean.bell>=43.5&&clean.logout>=43.5,"alerts and profile remain tappable at "+width);
+  assert.ok(clean.scrollWidth<=clean.viewportWidth+1,"no horizontal overflow with clean header at "+width);
 
   await page.close();
  }
