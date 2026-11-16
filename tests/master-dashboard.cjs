@@ -169,15 +169,17 @@ test("Raul status filters use six compact accessible icons without changing stat
  assert.match(script,/\["В работе","В работе"\],\["Выполнен","Выполнены"\],\["Отменён","Отменены"\]/);
  for(const status of ["all","Новый","Записан","В работе","Выполнен","Отменён"])
    assert.ok(script.includes(status+":" )||script.includes('"'+status+'"'+":"),status+" icon available");
- assert.match(script,/chip\.append\(statusIcon\(value\),el\("span","mw-filter-caption",label\)\)/);
+ assert.match(script,/chip\.append\(statusIcon\(value\)\)/);
  assert.match(script,/chip\.setAttribute\("aria-label","Фильтр: "\+label\)/);
  assert.match(script,/chip\.dataset\.status=value;filters\.append\(chip\)/);
  assert.match(script,/chip\.classList\.toggle\("active",active\);chip\.setAttribute\("aria-pressed",String\(active\)\)/);
  assert.match(script,/const statusMatch=orderStatus==="all"\|\|element\.dataset\.status===orderStatus/);
  assert.match(styles,/\.mw-status-filters \.mw-filter-chip\{/);
- assert.match(styles,/height:49px;min-height:49px/);
+ assert.match(styles,/height:48px;min-height:48px/);
  assert.match(styles,/\.mw-filter-chip:focus-visible/);
- assert.match(styles,/\.mw-status-filters \.mw-filter-caption/);
+ assert.match(styles,/flex:0 0 50px;width:50px;min-width:50px/);
+ assert.doesNotMatch(script,/chip\.append\(statusIcon\(value\),el\("span","mw-filter-caption",label\)\)/);
+ assert.doesNotMatch(styles,/\.mw-status-filters \.mw-filter-caption/);
 });
 test("master brand uses inline vector, not an unloaded PNG",()=>{
  assert.match(html,/class="master-brand-icon"/);
