@@ -60,7 +60,7 @@
     };
     const icon=el("span","mw-filter-icon");
     icon.setAttribute("aria-hidden","true");
-    icon.innerHTML='<svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">'+shapes[value]+'</svg>';
+    icon.innerHTML='<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">'+shapes[value]+'</svg>';
     return icon;
   }
   function setupMaster(){
@@ -83,7 +83,7 @@
         orderStatus=value;syncFilterChips(filters);filterRows();
       });
       chip.setAttribute("aria-label","Фильтр: "+label);
-      chip.append(statusIcon(value),el("span","mw-filter-caption",label));
+      chip.append(statusIcon(value));
       chip.dataset.status=value;filters.append(chip);
     }
     toolbar.append(search,filters);
