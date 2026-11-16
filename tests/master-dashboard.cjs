@@ -182,6 +182,20 @@ test("Raul status filters use six compact accessible icons without changing stat
  assert.doesNotMatch(script,/chip\.append\(statusIcon\(value\),el\("span","mw-filter-caption",label\)\)/);
  assert.doesNotMatch(styles,/\.mw-status-filters \.mw-filter-caption/);
 });
+test("Raul orders use minimal header only on the orders page, preserving other sections",()=>{
+ const script=fs.readFileSync(path.join(root,"money-workspace.js"),"utf8");
+ const styles=fs.readFileSync(path.join(root,"money-workspace.css"),"utf8");
+ assert.match(script,/classList\.toggle\("mw-orders-minimal-header",[\s\S]*?page==="orders"&&api\(\)\?\.snapshot\(\)\?\.role==="master"/);
+ assert.match(script,/classList\.remove\("mw-orders-minimal-header"\)/);
+ assert.match(styles,/#masterBrand\.master-brand/);
+ assert.match(styles,/\.mw-orders-minimal-header > header \.master-header-info/);
+ assert.match(styles,/#ordersArea > \.list-head #listTitle/);
+ assert.match(styles,/--master-brand-height:0px/);
+ assert.match(styles,/--master-heading-height:55px/);
+ assert.match(styles,/\.mw-orders-minimal-header > header \.master-header-actions/);
+ assert.match(html,/money-workspace\.css\?v=20261116-minimal-orders-v4/);
+ assert.match(html,/money-workspace\.js\?v=20261116-minimal-orders-v4/);
+});
 test("master brand uses inline vector, not an unloaded PNG",()=>{
  assert.match(html,/class="master-brand-icon"/);
  assert.match(html,/<linearGradient id="master-brand-gradient"/);

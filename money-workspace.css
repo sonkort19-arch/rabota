@@ -453,3 +453,35 @@ body.rd #appScreen.rd-master.master-mode #orders .mw-filter-empty{
     z-index:135;
   }
 }
+
+/* Raul orders: remove redundant branding/headlines without disturbing other pages.
+   Preserve the fixed notification/profile controls and make the sticky iOS shield
+   match the single remaining header row (no blank brand/heading spacer). */
+@media(max-width:790px){
+  body.rd #appScreen.rd-master.master-mode.mw-orders-minimal-header > #masterBrand.master-brand,
+  body.rd #appScreen.rd-master.master-mode.mw-orders-minimal-header > header .master-header-info{
+    display:none!important;
+  }
+  body.rd #appScreen.rd-master.master-mode.mw-orders-minimal-header > header{
+    display:block;
+    box-sizing:border-box;
+    height:55px;
+    min-height:55px;
+    margin:0 0 8px;
+  }
+  body.rd #appScreen.rd-master.master-mode.mw-orders-minimal-header > header .master-header-actions{
+    top:4px;right:10px;
+  }
+  body.rd #appScreen.rd-master.master-mode.mw-orders-minimal-header #ordersArea > .list-head{
+    justify-content:flex-end;
+    min-height:18px;
+    margin:9px 1px 8px;
+  }
+  body.rd #appScreen.rd-master.master-mode.mw-orders-minimal-header #ordersArea > .list-head #listTitle{
+    display:none!important;
+  }
+  html.rd-master-scroll-locked body.rd #appScreen.rd-master.master-mode.mw-orders-minimal-header{
+    --master-brand-height:0px;
+    --master-heading-height:55px;
+  }
+}
