@@ -48,6 +48,21 @@
     span.innerHTML='<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'+shapes[name]+'</svg>';
     return span;
   }
+  function statusIcon(value){
+    // Static SVG glyphs: status values and filter behavior remain unchanged.
+    const shapes={
+      all:'<path d="M4 7h16M4 12h16M4 17h16"/>',
+      "Новый":'<circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/>',
+      "Записан":'<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M7 3v4M17 3v4M3 10h18m5 5 2 2 4-4"/>',
+      "В работе":'<path d="M14.7 6.3a6 6 0 0 0-8 8l-4 4a2 2 0 0 0 2.8 2.8l4-4a6 6 0 0 0 8-8l-3.2 3.2-3-3z"/>',
+      "Выполнен":'<circle cx="12" cy="12" r="9"/><path d="m7.5 12 3 3 6-6"/>',
+      "Отменён":'<circle cx="12" cy="12" r="9"/><path d="m9 9 6 6m0-6-6 6"/>'
+    };
+    const icon=el("span","mw-filter-icon");
+    icon.setAttribute("aria-hidden","true");
+    icon.innerHTML='<svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">'+shapes[value]+'</svg>';
+    return icon;
+  }
   function setupMaster(){
     if(masterReady||api()?.snapshot()?.role!=="master")return;
     const app=$("appScreen"),orders=$("ordersArea"),finance=$("financePanel");
@@ -64,9 +79,11 @@
     search.addEventListener("input",()=>{orderQuery=search.value.trim().toLocaleLowerCase("ru");filterRows()});
     const filters=el("div","mw-status-filters");
     for(const [value,label] of statusOptions){
-      const chip=btn(label,"mw-filter-chip",()=>{
+      const chip=btn("","mw-filter-chip",()=>{
         orderStatus=value;syncFilterChips(filters);filterRows();
       });
+      chip.setAttribute("aria-label","Фильтр: "+label);
+      chip.append(statusIcon(value),el("span","mw-filter-caption",label));
       chip.dataset.status=value;filters.append(chip);
     }
     toolbar.append(search,filters);
