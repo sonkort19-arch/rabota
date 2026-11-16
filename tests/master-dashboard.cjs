@@ -177,7 +177,8 @@ test("Raul status filters use six compact accessible icons without changing stat
  assert.match(styles,/\.mw-status-filters \.mw-filter-chip\{/);
  assert.match(styles,/height:48px;min-height:48px/);
  assert.match(styles,/\.mw-filter-chip:focus-visible/);
- assert.match(styles,/flex:0 0 50px;width:50px;min-width:50px/);
+ assert.match(styles,/flex:1 1 0;width:0;min-width:0/);
+ assert.match(styles,/@media\(max-width:360px\)/);
  assert.doesNotMatch(script,/chip\.append\(statusIcon\(value\),el\("span","mw-filter-caption",label\)\)/);
  assert.doesNotMatch(styles,/\.mw-status-filters \.mw-filter-caption/);
 });

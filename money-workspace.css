@@ -180,11 +180,14 @@ body.rd #appScreen.rd-master.master-mode .mw-master-payments[hidden] {display:no
   white-space:nowrap;
 }
 .mw-filter-chip.active{background:#eaf0ff;color:#3462cf;border-color:#aec4fb}
-/* Raul's icon-only order status filters; payment chips keep their text labels. */
+/* Raul: six equal-width icon filters fill the entire row on iPhone. */
 body.rd #appScreen.rd-master.master-mode .mw-status-filters .mw-filter-chip{
-  box-sizing:border-box;flex:0 0 50px;width:50px;min-width:50px;
+  box-sizing:border-box;flex:1 1 0;width:0;min-width:0;
   height:48px;min-height:48px;padding:0;
   flex-direction:row;gap:0;border-radius:12px;
+}
+@media(max-width:360px){
+  body.rd #appScreen.rd-master.master-mode .mw-status-filters{gap:3px}
 }
 .mw-status-filters .mw-filter-icon{
   display:flex;align-items:center;justify-content:center;
