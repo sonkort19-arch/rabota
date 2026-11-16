@@ -13,7 +13,7 @@ BEGIN
   IF (SELECT price FROM public.rabota_orders WHERE id='10000000-0000-4000-8000-000000000001')<>10500 THEN
     RAISE EXCEPTION 'FAIL: normal unpaid edit';
   END IF;
-  INSERT INTO public.rabota_orders(name,phone,status,paid) VALUES('Обычная запись','100','Новый',false);
+  INSERT INTO public.rabota_orders(name,phone,status,paid) VALUES('Обычная запись','100','Записан',false);
   BEGIN
     INSERT INTO public.rabota_orders(name,phone,paid,status)
     VALUES('Попытка оплатить INSERT','100',true,'Выполнен');
