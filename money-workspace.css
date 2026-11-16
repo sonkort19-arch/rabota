@@ -180,6 +180,24 @@ body.rd #appScreen.rd-master.master-mode .mw-master-payments[hidden] {display:no
   white-space:nowrap;
 }
 .mw-filter-chip.active{background:#eaf0ff;color:#3462cf;border-color:#aec4fb}
+/* Raul's compact icon-first status filters; payment chips retain their original layout. */
+body.rd #appScreen.rd-master.master-mode .mw-status-filters .mw-filter-chip{
+  box-sizing:border-box;flex:0 0 72px;width:72px;min-width:72px;
+  height:49px;min-height:49px;padding:5px 3px;gap:2px;
+  flex-direction:column;border-radius:12px;
+}
+.mw-status-filters .mw-filter-icon{
+  display:flex;align-items:center;justify-content:center;
+  width:19px;height:19px;flex:none;
+}
+.mw-status-filters .mw-filter-icon svg{display:block}
+.mw-status-filters .mw-filter-caption{
+  display:block;font-size:10px;font-weight:700;line-height:1.1;
+  white-space:nowrap;
+}
+.mw-status-filters .mw-filter-chip:focus-visible{
+  outline:2px solid #4776e9;outline-offset:2px;
+}
 body.rd #appScreen.rd-master.master-mode #orders .master-schedule-card[hidden],
 body.rd #appScreen.rd-master.master-mode #orders .master-day-heading[hidden]{
   display:none!important;
