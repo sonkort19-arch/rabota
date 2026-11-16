@@ -140,6 +140,9 @@
     }else empty?.remove();
   }
   function updateNav(){
+    // Only Raul's order list uses the simplified header. Restore headings on other pages.
+    $("appScreen")?.classList.toggle("mw-orders-minimal-header",
+      page==="orders"&&api()?.snapshot()?.role==="master");
     const nav=$("mwMasterNav");if(!nav)return;
     for(const b of nav.querySelectorAll("button")){
       const active=b.dataset.mwPage===page;
@@ -456,6 +459,7 @@
       const filters=$("mwMasterFilterbar");if(filters)filters.hidden=false;
       updateNav();filterRows();
     }else{
+      $("appScreen")?.classList.remove("mw-orders-minimal-header");
       const nav=$("mwMasterNav"),reports=$("mwMasterReports"),
         payments=$("mwMasterPayments");
       if(nav)nav.hidden=true;
