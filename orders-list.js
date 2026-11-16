@@ -81,7 +81,7 @@
     activeDialog.querySelector(".rd-order-subtitle").textContent=
       (order.date?compactDate(order.date):"Без даты")+(order.time?" · "+order.time:"")+
       (order.master?" · "+order.master:"");
-    const state=text("span",order.status||"Новый","rd-order-state "+(colorByStatus[order.status]||"s-new"));
+    const state=text("span",order.status||"Записан","rd-order-state "+(colorByStatus[order.status]||"s-booked"));
     const price=text("strong",formatMoney(order.price),"rd-order-total");
     const heading=text("div","","rd-order-summary");
     heading.append(state,price);
@@ -139,7 +139,7 @@
     const select=payload?.controls?.querySelector("select.compact-select");
     let ctaLabel=null,newStatus=null,existingButton=null;
     if(order.status==="В работе"&&!order.paid){ctaLabel="Завершить заказ";newStatus="Выполнен";}
-    else if(["Записан","Новый"].includes(order.status)){ctaLabel="Начать работу";newStatus="В работе";}
+    else if(order.status==="Записан"){ctaLabel="Начать работу";newStatus="В работе";}
     else if(order.status==="Выполнен"&&!order.paid){
       ctaLabel="Принять оплату";
       existingButton=payload?.controls?.querySelector("button.payment");
@@ -250,7 +250,7 @@
     return new Intl.DateTimeFormat("ru-RU",{timeZone:"UTC",day:"numeric",month:"short",year:"numeric"}).format(date);
   }
   const colorByStatus={
-    "Новый":"s-new","Записан":"s-booked","В работе":"s-progress",
+    "Записан":"s-booked","В работе":"s-progress",
     "Выполнен":"s-done","Отменён":"s-cancelled"
   };
   window.__rdDecorateOrder=(card,order)=>{
@@ -272,8 +272,8 @@
     const cost=cell("price",text("small","Стоимость"),text("strong",formatMoney(order.price)));
     const meta=cell("meta",
       text("span",(order.master||"Не назначен")+" · "+formatMoney(order.price),"rd-list-meta-text"));
-    const state=cell("state",text("span",order.status||"Новый",
-      "rd-list-status "+(colorByStatus[order.status]||"s-new")));
+    const state=cell("state",text("span",order.status||"Записан",
+      "rd-list-status "+(colorByStatus[order.status]||"s-booked")));
     const paymentLabel=order.status==="Выполнен"?
       (order.paid?"Оплачено":"Ждём оплату"):"";
     const paid=cell("paid",text("span",paymentLabel,
