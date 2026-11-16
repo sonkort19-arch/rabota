@@ -323,7 +323,7 @@ function build(){
  calendarMasterSelect.addEventListener("change",()=>{calendarMaster=calendarMasterSelect.value;drawCalendar()});
  const calendarStatusSelect=makeNode("select");calendarStatusSelect.id="rdCalendarStatus";
  calendarStatusSelect.setAttribute("aria-label","Фильтр календаря по статусу");
- [["","Все статусы"],["Новый","Новый"],["Записан","Записан"],["В работе","В работе"],["Выполнен","Выполнен"]].forEach(([value,label])=>{
+ [["","Все статусы"],["Записан","Записан"],["В работе","В работе"],["Выполнен","Выполнен"]].forEach(([value,label])=>{
   const o=makeNode("option","",label);o.value=value;calendarStatusSelect.append(o)
  });
  calendarStatusSelect.addEventListener("change",()=>{calendarStatus=calendarStatusSelect.value;drawCalendar()});
@@ -407,7 +407,7 @@ function build(){
  const dateWrap=makeNode("label","rd-date-filter");dateWrap.append(boxText("span","Дата"),orderDate);
  const masterSelect=makeNode("select");masterSelect.id="rdMasterFilter";masterSelect.setAttribute("aria-label","Фильтр по мастеру");masterSelect.addEventListener("change",()=>{if(filterDialog.open)return;clearQuickFilter();filterCards()});
  const statusSelect=makeNode("select");statusSelect.id="rdStatusFilter";statusSelect.setAttribute("aria-label","Фильтр по статусу");
- [["","Все статусы"],["Новый","Новый"],["Записан","Записан"],["В работе","В работе"],["Выполнен","Выполнен"],["Отменён","Отменён"],["unpaid","Ожидают оплаты"]].forEach(([value,label])=>{const opt=makeNode("option","",label);opt.value=value;statusSelect.append(opt)});
+ [["","Все статусы"],["Записан","Записан"],["В работе","В работе"],["Выполнен","Выполнен"],["Отменён","Отменён"],["unpaid","Ожидают оплаты"]].forEach(([value,label])=>{const opt=makeNode("option","",label);opt.value=value;statusSelect.append(opt)});
  statusSelect.addEventListener("change",()=>{if(filterDialog.open)return;clearQuickFilter();filterCards()});
  const clear=makeNode("button","secondary","Сбросить");clear.type="button";clear.addEventListener("click",()=>{
   if(filterDialog.open){
@@ -897,7 +897,7 @@ function drawHome(){
 function drawOrderSummary(){
  if(!ready)return;
  const el=$("rdOrderStats");el.replaceChildren();
- const active=getOrders().filter(o=>!["Отменён","Выполнен"].includes(o.status)),newOrders=active.filter(o=>o.status==="Новый");
+ const active=getOrders().filter(o=>!["Отменён","Выполнен"].includes(o.status));
  const inProgress=active.filter(o=>o.status==="В работе");
  // Payment is due only for completed, unpaid jobs; booked jobs are not debts.
  const unpaid=getOrders().filter(o=>o.status==="Выполнен"&&!o.paid);
@@ -971,7 +971,7 @@ function drawCalendar(){
  const rebuildDetail=detailKey!==calendarDetailCache||!detail.children.length;
  const byTime=(a,b)=>String(a.time||"").localeCompare(String(b.time||""));
  const statusClass=o=>o.status==="Выполнен"?"is-done":o.status==="В работе"?"is-progress":"is-booked";
- const statusName=o=>o.status||"Новый";
+ const statusName=o=>o.status||"Записан";
  const amount=o=>o.price!=null&&o.price!==""&&Number.isFinite(Number(o.price))?cash(o.price):null;
  const dayCount=n=>n+" "+(n%10===1&&n%100!==11?"запись":n%10>=2&&n%10<=4&&(n%100<12||n%100>14)?"записи":"записей");
  const selectDay=date=>selectCalendarDate(date,true);
@@ -1126,7 +1126,7 @@ function drawClients(){
   for(const o of entries){
    const card=makeNode("article","rd-history-row");
    card.append(boxText("strong",(o.date?dateLong(o.date):"Без даты")+(o.time?" · "+o.time:"")),
-     boxText("span",(o.status||"Новый")+(o.master?" · "+o.master:"")),
+     boxText("span",(o.status||"Записан")+(o.master?" · "+o.master:"")),
      boxText("span",o.address||"Адрес не указан"),
      boxText("span",(o.price==null?"Стоимость не указана":cash(o.price))+" · "+(o.paid?"Оплачено":"Не оплачено")));
    if(currentRole==="owner"||currentRole==="manager"){
