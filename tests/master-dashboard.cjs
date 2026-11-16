@@ -58,7 +58,7 @@ function fixture(role="master",tab="calendar"){
   },formatDate:d=>d==="2026-11-12"?"12 ноя":d,
   getOrders:()=>records,collectionForOrder:id=>collections[id]||null,
   getCurrentRole:()=>role,getCurrentTab:()=>tab,
-  doc:document,ordersNode:element("section"),STATUSES:["Новый","Записан","В работе","Выполнен","Отменён"],
+  doc:document,ordersNode:element("section"),STATUSES:["Записан","В работе","Выполнен","Отменён"],
   openMasterOrderDialog:()=>{},DateImpl:fixedDate
  });
  return {...api,summary};
@@ -162,12 +162,12 @@ test("status review lists all past unfinished bookings",()=>{
  toggler.events.click();
  assert.equal(f.summary.children.some(x=>x.className==="master-review-list"),false);
 });
-test("Raul status filters use six compact accessible icons without changing status values",()=>{
+test("Raul status filters use five compact accessible icons without changing status values",()=>{
  const script=fs.readFileSync(path.join(root,"money-workspace.js"),"utf8");
  const styles=fs.readFileSync(path.join(root,"money-workspace.css"),"utf8");
- assert.match(script,/\["all","Все"\],\["Новый","Новые"\],\["Записан","Записаны"\]/);
+ assert.match(script,/\["all","Все"\],\["Записан","Записаны"\]/);
  assert.match(script,/\["В работе","В работе"\],\["Выполнен","Выполнены"\],\["Отменён","Отменены"\]/);
- for(const status of ["all","Новый","Записан","В работе","Выполнен","Отменён"])
+ for(const status of ["all","Записан","В работе","Выполнен","Отменён"])
    assert.ok(script.includes(status+":" )||script.includes('"'+status+'"'+":"),status+" icon available");
  assert.match(script,/chip\.append\(statusIcon\(value\)\)/);
  assert.match(script,/chip\.setAttribute\("aria-label","Фильтр: "\+label\)/);
@@ -194,7 +194,7 @@ test("Raul orders use minimal header only on the orders page, preserving other s
  assert.match(styles,/--master-heading-height:55px/);
  assert.match(styles,/\.mw-orders-minimal-header > header \.master-header-actions/);
  assert.match(html,/money-workspace\.css\?v=20261116-minimal-orders-v4/);
- assert.match(html,/money-workspace\.js\?v=20261116-minimal-orders-v4/);
+ assert.match(html,/money-workspace\.js\?v=20261116-status-v1/);
 });
 test("master brand uses inline vector, not an unloaded PNG",()=>{
  assert.match(html,/class="master-brand-icon"/);

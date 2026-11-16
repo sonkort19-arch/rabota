@@ -37,7 +37,7 @@ function fixture({tab="all",rows=[],collections={}}={}){
     getCurrentRole:()=>"master",getCurrentTab:()=>tab,
     doc:{getElementById:()=>make("div"),querySelectorAll:()=>[]},
     ordersNode,openMasterOrderDialog:order=>opened.push(order.id),
-    STATUSES:["Новый","Записан","В работе","Выполнен","Отменён"]
+    STATUSES:["Записан","В работе","Выполнен","Отменён"]
   });
   return {ui,ordersNode,opened};
 }

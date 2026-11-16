@@ -35,7 +35,7 @@
   let page="orders",step="menu",salaryTab="accruals",masterReady=false;
   let orderQuery="",orderStatus="all",paymentMethod="all";
   const scrollPositions=new Map();
-  const statusOptions=[["all","Все"],["Новый","Новые"],["Записан","Записаны"],
+  const statusOptions=[["all","Все"],["Записан","Записаны"],
     ["В работе","В работе"],["Выполнен","Выполнены"],["Отменён","Отменены"]];
   function navIcon(name){
     const span=el("span","mw-icon");
@@ -52,7 +52,6 @@
     // Static SVG glyphs: status values and filter behavior remain unchanged.
     const shapes={
       all:'<path d="M4 7h16M4 12h16M4 17h16"/>',
-      "Новый":'<circle cx="12" cy="12" r="9"/><path d="M12 8v8M8 12h8"/>',
       "Записан":'<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M7 3v4M17 3v4M3 10h18M8 15l2 2 4-4"/>',
       "В работе":'<path d="M14.7 6.3a6 6 0 0 0-8 8l-4 4a2 2 0 0 0 2.8 2.8l4-4a6 6 0 0 0 8-8l-3.2 3.2-3-3z"/>',
       "Выполнен":'<circle cx="12" cy="12" r="9"/><path d="m7.5 12 3 3 6-6"/>',

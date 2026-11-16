@@ -23,7 +23,7 @@ const make=(tag,css,content)=>new FakeNode(tag,css,content);
 const parseDate=s=>{const p=s.split("-").map(Number);return new Date(p[0],p[1]-1,p[2],12);};
 const formatDate=s=>!s||!/^\d{4}-\d{2}-\d{2}$/.test(s)?"Дата не указана":
   parseDate(s).toLocaleDateString("ru-RU",{day:"numeric",month:"short"});
-const STATUSES=["Новый","Записан","В работе","Выполнен","Отменён"];
+const STATUSES=["Записан","В работе","Выполнен","Отменён"];
 const newOrder=(id,overrides={})=>({
   id,date:"2099-11-15",time:"12:00",name:"Иван",address:"Ул. Мира",
   phone:"+79001234567",status:"Записан",radiators:5,floorLoops:2,
@@ -210,8 +210,8 @@ test("finance refresh does not unnecessarily replace unchanged overview",()=>{
 });
 test("master module loaded before inline use, payment RPCs unchanged",()=>{
   const html=fs.readFileSync(path.join(__dirname,"..","index.html"),"utf8");
-  assert.match(html,/src="\/master-ui\.js\?v=20261116-nearest-orders-v1"/);
-  assert.ok(html.indexOf('src="/master-ui.js?v=20261116-nearest-orders-v1"')<
+  assert.match(html,/src="\/master-ui\.js\?v=20261116-status-v1"/);
+  assert.ok(html.indexOf('src="/master-ui.js?v=20261116-status-v1"')<
     html.indexOf("const masterUI=window.__rdCreateMasterUI"));
   assert.match(html,/masterUI\.resetReviewOpen\(\)/);
   for(const name of ["masterClock","makeMasterScheduleRow","renderMasterOverview","renderMasterSchedule"]){

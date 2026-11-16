@@ -6,7 +6,7 @@ const {createOrdersModel}=require("../order-model.js");
 function harness({orders=[],request=async()=>[{id:"saved"}],reload=async()=>{}}={}){
   const calls=[];
   const model=createOrdersModel({
-    statuses:["Новый","Записан","В работе","Выполнен","Отменён"],
+    statuses:["Записан","В работе","Выполнен","Отменён"],
     dbRequest:async(...args)=>{calls.push(args);return request(...args);},
     reloadOrders:reload,getOrders:()=>orders,getCurrentUserId:()=>"owner-test",
     getFinanceOperations:()=>[],getFinanceCollections:()=>[]

@@ -5,7 +5,7 @@ const fs=require("node:fs");
 const path=require("node:path");
 const {createOrdersModel}=require("../order-model.js");
 
-const STATUSES=["Новый","Записан","В работе","Выполнен","Отменён"];
+const STATUSES=["Записан","В работе","Выполнен","Отменён"];
 const base={
  id:"111",name:"Иван",phone:"+7 900 000 00 00",address:"Владикавказ",
  radiator_type:"Биметаллические",radiators:5,floor_loops:2,
@@ -60,10 +60,27 @@ test("unpaid order does not manufacture payment metadata",()=>{
  assert.ok(!Object.hasOwn(record,"payment_method"));
  assert.ok(!Object.hasOwn(record,"paid_at"));
 });
-test("unsupported status falls back to Новый",()=>{
+test("unsupported status falls back to confirmed booking",()=>{
  const {model}=setup();
  const record=model.serializeOrder({...model.readOrder(base),status:"неизвестный"});
- assert.equal(record.status,"Новый");
+ assert.equal(record.status,"Записан");
+});
+test("only confirmed order statuses are exposed; lead statuses stay separate",()=>{
+ const html=fs.readFileSync(path.join(__dirname,"..","index.html"),"utf8");
+ const master=fs.readFileSync(path.join(__dirname,"..","master-ui.js"),"utf8");
+ const filters=fs.readFileSync(path.join(__dirname,"..","money-workspace.js"),"utf8");
+ const desktop=fs.readFileSync(path.join(__dirname,"..","redesign.js"),"utf8");
+ const migration=fs.readFileSync(path.join(__dirname,"..","sql/011-retire-unused-new-order-status.sql"),"utf8");
+ assert.deepEqual(STATUSES,["Записан","В работе","Выполнен","Отменён"]);
+ assert.doesNotMatch(html,/<option>Новый<\/option>/);
+ assert.doesNotMatch(html,/const STATUSES\s*=\s*\["Новый"/);
+ assert.doesNotMatch(filters,/\["Новый","Новые"\]/);
+ assert.match(filters,/\["all","Все"\],\["Записан","Записаны"\]/);
+ assert.doesNotMatch(desktop,/\["Новый","Новый"\]/);
+ assert.doesNotMatch(master,/status==="Новый"/);
+ assert.match(migration,/ALTER COLUMN status SET DEFAULT 'Записан'/);
+ assert.match(migration,/CHECK \(status IN \('Записан', 'В работе', 'Выполнен', 'Отменён'\)\)/);
+ assert.match(migration,/current_status = 'Записан'/);
 });
 test("active slot conflict is found only for same master and time",()=>{
  const orders=[
@@ -117,8 +134,8 @@ test("database failure preserves old behavior: no success refresh",async()=>{
 });
 test("index references module before inline application and keeps adapters",()=>{
  const html=fs.readFileSync(path.join(__dirname,"..","index.html"),"utf8");
- assert.match(html,/src="\/order-model\.js\?v=20261113-stage3"/);
- assert.ok(html.indexOf('src="/order-model.js?v=20261113-stage3"')<
+ assert.match(html,/src="\/order-model\.js\?v=20261116-status-v1"/);
+ assert.ok(html.indexOf('src="/order-model.js?v=20261116-status-v1"')<
    html.indexOf("const orderModel=window.__rdCreateOrdersModel"));
  for (const method of ["readOrder","serializeOrder","persistOrder","hasConflict","findTightBookings","orderHasFinancialHistory"])
    assert.ok(html.includes("orderModel."+method+"("),method);

@@ -29,7 +29,7 @@ function readOrder(row) {
         master:row.master || "",date:row.appointment_date || "",
         time:row.appointment_time ? row.appointment_time.slice(0,5) : "",
         price:row.price == null ? null : Number(row.price),assignedUserId:row.assigned_user_id || null,
-        paid:Boolean(row.paid),status:row.status || "Новый",details:row.details || "",
+        paid:Boolean(row.paid),status:row.status || "Записан",details:row.details || "",
         paymentMethod:row.payment_method||"",paymentAmount:row.payment_amount==null?null:Number(row.payment_amount),
         paymentReceivedBy:row.payment_received_by||"",paidAt:row.paid_at||null,paidBy:row.paid_by||null
       };
@@ -44,7 +44,7 @@ function serializeOrder(order) {
         master:order.master || "", appointment_date:order.date || null,
         appointment_time:order.time || null,
         price:order.price === "" || order.price == null ? null : Number(order.price),
-        paid:Boolean(order.paid),status:STATUSES.includes(order.status) ? order.status : "Новый",
+        paid:Boolean(order.paid),status:STATUSES.includes(order.status) ? order.status : "Записан",
         details:order.details || "",completed_at:order.completedAt || null,
         updated_at:new Date().toISOString()
       };
