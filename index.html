@@ -1118,6 +1118,26 @@
       names.forEach(name => {const opt = document.createElement("option");opt.value = name;list.append(opt);});
     }
 
+    // WhatsApp only opens a draft; the operator presses Send in the app.
+    // No changes to order or payment state are inferred from this navigation.
+    function openClientDraft(order,kind) {
+      try {
+        const client=window.__rdClientWhatsApp;
+        if(!client)throw new Error("Модуль WhatsApp не загружен.");
+        const url=kind==="review"?client.reviewLink(order):client.bookingLink(order);
+        // Use same-tab navigation: iOS Safari/PWA can block async popup windows.
+        window.location.assign(url);
+      }catch(error){
+        alert("Заказ сохранён, но WhatsApp не открылся: "+error.message+
+          "\nОткройте заказ и свяжитесь с клиентом вручную.");
+      }
+    }
+    function openCompletedClientDraft(previousOrder) {
+      const updated=getOrders().find(o=>String(o.id)===String(previousOrder.id));
+      // Payment RPC may not complete a job; never send a completion draft prematurely.
+      if(updated?.status==="Выполнен" && previousOrder.status!=="Выполнен")
+        openClientDraft(updated,"review");
+    }
     // One confirmation replaces the separate "paid" toggle, without recording payouts.
     async function openPaymentForOrder(order) {
       if(typeof window.__rdPaymentPrompt!=="function") {
@@ -1142,6 +1162,7 @@
           await persistOrder({...order,status:"Выполнен",paid:false,completedAt:order.completedAt||new Date().toISOString()});
         }
       }
+      if(complete)openCompletedClientDraft(order);
       return true;
     }
     function collectionForOrder(orderId) {
@@ -1311,6 +1332,7 @@
                 if(action==="complete"&&!confirm("Подтвердить выполнение заказа?")){btn.disabled=false;return;}
                 await dbRequest("rpc/rabota_master_action","POST",{p_order_id:order.id,p_action:action});
                 await reloadOrders();
+                if(action==="complete")openCompletedClientDraft(order);
               }
             }catch(error){alert(friendlyError(error));btn.disabled=false;}
           });
@@ -1350,6 +1372,8 @@
             const next={...order,status:select.value,completedAt:select.value==="Выполнен"?
               (order.completedAt||new Date().toISOString()):null};
             await persistOrder(next);
+            if(state!=="Выполнен" && next.status==="Выполнен")
+              openCompletedClientDraft(order);
           }
         }catch(error){alert(friendlyError(error));select.value=state;}
         finally{select.disabled=false;}
@@ -1902,6 +1926,9 @@
         selectedDate=date;
         currentTab=raulCreating?"all":status==="Выполнен"?"history":status==="Отменён"?"all":"calendar";
         closeForm(true);render();
+        if(!existing && order.status==="Записан")openClientDraft(order,"booking");
+        else if(existing && existing.status!=="Выполнен" && order.status==="Выполнен")
+          openCompletedClientDraft(existing);
       } catch(error) {formStatus.classList.remove("is-saving");formStatus.textContent=friendlyError(error);}
       finally {orderSaving=false;saveBtn.disabled=false;saveBtn.textContent="Сохранить заказ";formStatus.classList.remove("is-saving");}
     });
@@ -2579,6 +2606,7 @@
   <script src="/master-quick-order.js?v=20261117-mock-v1"></script>
   <script src="/quick-slots.js"></script>
   <script src="/whatsapp-order.js?v=20261111-master-notes"></script>
+  <script src="/whatsapp-client.js?v=20261118-manual-client-v1"></script>
   <script src="/redesign.js?v=20261117-seq5-v1"></script>
   <script src="/master-notifications.js?v=20261117-review-v1"></script>
   <script src="/orders-list.js?v=20261117-seq5-v1"></script>
