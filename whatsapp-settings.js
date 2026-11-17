@@ -22,8 +22,10 @@
     const editor=create("section","wa-settings-editor");
     editor.id="wa-settings-editor-"+id;editor.hidden=true;
     entry.setAttribute("aria-controls",editor.id);
-    const back=create("button","wa-settings-back","‹ Назад к настройкам");back.type="button";
-    editor.append(back,create("h2","wa-settings-heading","WhatsApp · сообщения клиентам"),
+    const back=create("button","wa-settings-back","← Настройки");back.type="button";
+    const heading=create("h2","wa-settings-heading","WhatsApp · сообщения клиентам");
+    heading.tabIndex=-1;
+    editor.append(back,heading,
       create("p","wa-settings-intro",
         "Измени текст один раз. При создании и закрытии заказа он подставится в WhatsApp автоматически. Отправка остаётся ручной."));
     const tokenNames={имя:"Имя",дата:"Дата",время:"Время",мастер:"Мастер",адрес:"Адрес",ссылка:"Ссылка на отзыв"};
@@ -135,10 +137,12 @@
       editor.hidden=true;entry.hidden=false;entry.setAttribute("aria-expanded","false");
       entry.focus({preventScroll:true});
     }
-    entry.addEventListener("click",()=>{
+    entry.addEventListener("click",(event)=>{
       setValues(wa().getSettings());status.textContent="";
       editor.hidden=false;entry.hidden=true;entry.setAttribute("aria-expanded","true");
-      back.focus({preventScroll:true});
+      // Keep the keyboard path accessible without forcing a focus ring on touch users.
+      if(event.detail===0)back.focus({preventScroll:true});
+      else heading.focus({preventScroll:true});
     });
     back.addEventListener("click",closeEditor);
     save.addEventListener("click",()=>{
