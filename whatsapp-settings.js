@@ -153,7 +153,7 @@
       if(!root.confirm("Вернуть стандартные тексты? Сохранённые ссылки на отзывы останутся без изменений."))return;
       try{
         // Never wipe the owner's painstakingly configured review URLs.
-        const current=wa().getSettings();
+        const current=values();
         const original=wa().saveSettings({
           ...current,booking:wa().DEFAULT_TEMPLATES.booking,review:wa().DEFAULT_TEMPLATES.review
         });
