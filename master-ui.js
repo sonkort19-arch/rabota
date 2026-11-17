@@ -182,7 +182,7 @@ function makeMasterScheduleRow(order,isNext=false) {
       if(!rows.length)ordersNode.append(make("div","empty",getCurrentTab()==="history"?"Выполненных заказов нет":"Рабочих заказов нет"));
     }
 
-    function resetReviewOpen(){masterReviewOpen=false;}
+    function resetReviewOpen(){} // Kept for legacy tab callbacks.
     return {masterDayLabel,masterClock,masterTimeMinutes,masterWorkingOrders,
       masterSettlementOrders,masterScheduleSort,masterOrderCount,
       renderMasterOverview,masterOrdersToReview,makeMasterScheduleRow,renderMasterSchedule,resetReviewOpen};
