@@ -11,7 +11,7 @@ const css=fs.readFileSync(path.join(__dirname,"..","master-notifications.css"),"
 assert.doesNotThrow(()=>new Function(src));
 assert(html.includes('id="pushUnreadCount"')&&html.includes('id="pushPopover"'));
 assert(html.includes('id="pushToggle" type="checkbox" role="switch"'));
-assert(html.includes('src="/master-notifications.js"'));
+assert(html.includes('src="/master-notifications.js?v=20261117-review-v1"'));
 assert(html.indexOf('id="masterPushPanel"')>html.indexOf('<main id="appScreen"'));
 assert(html.indexOf('id="masterPushPanel"')<html.indexOf('</header>'),"bell stays in header");
 assert(html.indexOf('id="pushToggle"')>html.indexOf('id="pushPopover"'),"push toggle inside popup");
@@ -31,7 +31,7 @@ class Element{
   contains(){return true;}
 }
 async function run(){
-  const ids=["masterPushPanel","pushBellBtn","pushPopover","pushToggle","pushUnreadCount","recentNotificationList","testPushBtn","pushToggleText","pushStatus","closePushPopover"];
+  const ids=["masterPushPanel","pushBellBtn","pushPopover","pushToggle","pushUnreadCount","recentNotificationList","testPushBtn","pushToggleText","pushStatus","closePushPopover","masterStatusReviewList"];
   const els=Object.fromEntries(ids.map(id=>[id,new Element(id)]));
   const doc={getElementById:id=>els[id],addEventListener(){}};
   let messages=[
@@ -40,6 +40,11 @@ async function run(){
     {id:3,client_name:"Клиент 3",visit_date:"2026-11-03",visit_time:"11:00:00"}
   ];
   let subscriptionActive=true,serverActive=true,deletes=0,subscribes=0,reads=0;
+  let openedOrder=null;
+  let reviews=[
+    {id:"past-a",name:"Просроченный A",date:"2026-11-01",time:"09:00",status:"Записан"},
+    {id:"past-b",name:"Просроченный B",date:"2026-11-02",time:"11:00",status:"Записан"}
+  ];
   const subscription={endpoint:"https://test.invalid/push",toJSON(){return {endpoint:this.endpoint}},async unsubscribe(){subscriptionActive=false;return true;}};
   const reg={pushManager:{
     getSubscription:async()=>subscriptionActive?subscription:null,
@@ -60,6 +65,8 @@ async function run(){
     throw new Error("Unexpected fake DB request "+request);
   };
   const make=(_,className,text)=>{const node=new Element();node.className=className;node.textContent=text;return node;};
+  window.__rdMasterStatusReview=()=>reviews;
+  window.__rdOpenMasterOrder=id=>{openedOrder=id;};
   const vars={
     document:doc,window,navigator,currentRole:"master",currentUser:{id:"master1"},dbRequest,make,
     formatDate:value=>value,friendlyError:err=>String(err.message||err),
@@ -70,14 +77,22 @@ async function run(){
   };
   new Function(...Object.keys(vars),src)(...Object.values(vars));
   await window.__rdRefreshMasterNotices();
-  assert.equal(els.pushUnreadCount.textContent,"3");
+  assert.equal(els.pushUnreadCount.textContent,"5","3 new + 2 overdue");
+  assert.equal(els.masterStatusReviewList.hidden,false);
+  assert.equal(els.masterStatusReviewList.children.length,3);
+  await els.masterStatusReviewList.children[1].fire("click");
+  assert.equal(openedOrder,"past-b");
+  reviews=reviews.slice(0,1);
+  await window.__rdRefreshMasterNotices();
+  assert.equal(els.pushUnreadCount.textContent,"4");
+  assert.equal(els.masterStatusReviewList.children.length,2);
   await els.pushBellBtn.fire("click");
   assert.equal(els.pushPopover.hidden,false);
   assert.equal(els.recentNotificationList.children.length,3);
   const markRead=els.recentNotificationList.children[0].children[2];
   await markRead.fire("click");
   assert.equal(reads,1);
-  assert.equal(els.pushUnreadCount.textContent,"2");
+  assert.equal(els.pushUnreadCount.textContent,"3","2 new + 1 overdue");
   // Allow the initial asynchronous subscription state lookup to finish.
   await Promise.resolve();await Promise.resolve();
   assert.equal(els.pushToggle.checked,true);
