@@ -46,7 +46,7 @@ test("four time suggestions for Raul are still checked, others unchanged",()=>{
   assert.match(availability,/const state=timeState\(time,date,master\)/);
   assert.match(availability,/button\.disabled=!selectable/);
   assert.match(availability,/timeInput\.dispatchEvent\(new Event\("change"/);
-  assert.match(html,/src="\/order-availability\.js\?v=20261117-busy-strip-v1"/);
+  assert.match(html,/src="\/order-availability\.js\?v=20261118-inline-busy-v1"/);
   assert.match(html,/src="\/master-quick-order\.js\?v=20261117-mock-v1"/);
   assert.match(css,/grid-template-columns:repeat\(4,minmax\(0,1fr\)\)/);
 });
@@ -105,23 +105,28 @@ test("compact Raul form has dense 16px text inputs and accessible touch targets"
   assert.match(css,/\.oa-week-day\{min-height:56px/);
   assert.match(css,/\.oa-slot\{min-height:54px/);
   assert.match(css,/\.order-submit-bar \.save\{min-height:49px/);
-  assert.match(availability,/raulQuick\?\s*"Красный — занято по расчёту/);
+  assert.match(availability,/raulQuick\?\s*"Окончание примерное/);
   for(const id of ["clientName","clientPhone","clientAddress","radiators","floorLoops","price","orderTime"])
     assert.equal((html.match(new RegExp('id="'+id+'"',"g"))||[]).length,1,id);
   assert.match(html,/id="oaWeekStrip"/);
   assert.match(html,/id="formStatus" role="status" aria-live="polite"/);
 });
 
-test("Raul's estimated red timeline is visible above slots without weakening booking guards",()=>{
-  assert.match(html,/id="oaBusyTimeline" class="oa-busy-timeline" hidden/);
+test("one unified time row replaces double red-green timeline",()=>{
+  assert.doesNotMatch(html,/id="oaBusyTimeline"/);
+  assert.match(html,/id="oaSlotSuggestions" class="oa-slots"/);
   assert.match(html,/src="\/booking-timeline\.js\?v=20261117-v1"/);
-  assert.match(html,/const overlap=window\.__rdBookingTimeline\?\.findAt/);
-  assert.match(availability,/function renderBusyTimeline\(stats,master\)/);
-  assert.match(availability,/if\(raulQuick\)renderBusyTimeline\(stats,master\)/);
-  assert.match(availability,/const estimatedBusy=raulQuick\?/);
+  assert.match(html,/src="\/order-availability\.js\?v=20261118-inline-busy-v1"/);
+  assert.match(html,/master-quick-order\.css\?v=20261118-inline-busy-v1/);
+  assert.match(availability,/function renderBusySummary\(stats,master\)/);
+  assert.match(availability,/const summary=renderBusySummary\(stats,master\)/);
+  assert.match(availability,/slots\.append\(summary\)/);
+  assert.doesNotMatch(availability,/oa-timeline-track|oa-timeline-block|renderBusyTimeline/);
+  assert.match(css,/\.oa-busy-summary\{/);
+  assert.match(css,/grid-column:1\/-1/);
+  assert.doesNotMatch(css,/\.oa-timeline-track\{/);
   assert.match(availability,/const selectable=!estimatedBusy&&/);
-  assert.match(css,/\.oa-timeline-track\{/);
-  assert.match(css,/\.oa-timeline-block\{/);
-  assert.match(html,/const busy=findTightBookings/);
+  assert.match(html,/const overlap=window\.__rdBookingTimeline\?\.findAt/);
   assert.match(html,/if\(status!=="Отменён"&&hasConflict/);
+  assert.match(html,/const busy=findTightBookings/);
 });

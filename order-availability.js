@@ -164,49 +164,27 @@
     }
     grid.replaceChildren(frag);
   }
-  // The timeline reuses the workload estimator (20 min per radiator,
-  // 10 min per floor loop, plus estimated travel). It is NOT a measured end.
-  function renderBusyTimeline(stats,master){
-    const target=$("oaBusyTimeline");
-    if(!target)return;
-    target.replaceChildren();
-    target.hidden=true;
+  // Compact occupancy note inside the *single* time-selection group.
+  // Finish times remain estimated from scope and travel; do not imply certainty.
+  function renderBusySummary(stats,master){
     const helper=window.__rdBookingTimeline;
-    if(!helper||!stats||!stats.others.length)return;
+    if(!helper||!stats||!stats.others.length)return null;
     const blocks=helper.forDay(stats.others,dayInput.value,master,null,
       window.__rdCalendarLoad?.travelMinutes);
-    if(!blocks.length)return;
-    const heading=el("div","oa-timeline-heading","Занятость мастера");
-    const caption=el("div","oa-timeline-list");
+    if(!blocks.length)return null;
+    const summary=el("div","oa-busy-summary");
+    summary.setAttribute("aria-label","Занятость мастера. Время окончания примерное.");
+    summary.append(el("strong","oa-busy-prefix","Занято:"));
     for(const block of blocks){
-      const item=el("div","oa-timeline-item");
-      const when=block.end===null?"с "+helper.format(block.start)+" · окончание уточняется":
+      const entry=el("span","oa-busy-entry");
+      const time=block.end===null?
+        "с "+helper.format(block.start)+" · конец уточняется":
         "≈ "+helper.format(block.start)+"–"+helper.format(block.end);
-      item.append(el("strong","",when),el("span","",block.name+" · Промывка"));
-      caption.append(item);
+      entry.append(el("span","oa-busy-person",block.name+" ·"),
+        el("span","oa-busy-time",time));
+      summary.append(entry);
     }
-    const start=Math.floor(Math.min(600,...blocks.map(b=>b.start))/60)*60;
-    const end=Math.ceil(Math.max(1080,...blocks.map(b=>Math.min(1440,b.end??b.start)))/60)*60;
-    const span=Math.max(60,end-start);
-    const track=el("div","oa-timeline-track");
-    const legends=blocks.map(block=>block.name+" "+helper.format(block.start)+
-      "–"+(block.end===null?"время окончания неизвестно":helper.format(block.end)));
-    track.setAttribute("role","img");
-    track.setAttribute("aria-label","Оценка занятости: "+legends.join("; "));
-    for(const block of blocks){
-      const busyStart=Math.max(start,block.start);
-      const busyEnd=Math.min(end,block.end??block.start+7);
-      if(busyEnd<=busyStart)continue;
-      const segment=el("span","oa-timeline-block"+(block.end===null?" is-unknown":""));
-      segment.style.left=((busyStart-start)/span*100).toFixed(2)+"%";
-      segment.style.width=(Math.max(1,(busyEnd-busyStart)/span*100)).toFixed(2)+"%";
-      track.append(segment);
-    }
-    const axis=el("div","oa-timeline-axis");
-    axis.append(el("span","",helper.format(start)),el("span","",helper.format(end)));
-    target.append(heading,caption,track,axis,
-      el("div","oa-timeline-disclaimer","Время окончания примерное — по объёму работ и дороге."));
-    target.hidden=false;
+    return summary;
   }
   function renderDay(){
     const date=dayInput.value;
@@ -214,8 +192,6 @@
     const stats=availability(date,master);
     const existing=$("oaExistingBookings"),slots=$("oaSlotSuggestions");
     existing.replaceChildren();slots.replaceChildren();
-    const timeline=$("oaBusyTimeline");
-    if(timeline){timeline.replaceChildren();timeline.hidden=true;}
     message.className="oa-message";
     if(!parseDay(date)){
       message.textContent="Выберите день в календаре.";
@@ -234,7 +210,6 @@
       message.textContent="Записей пока нет. Выберите удобное время.";
     }
     const raulQuick=document.getElementById("orderOverlay")?.classList.contains("master-quick");
-    if(raulQuick)renderBusyTimeline(stats,master);
     if(stats.all.length&&!raulQuick){
       existing.append(el("div","oa-subtitle","Занято:"));
       for(const order of stats.all){
@@ -246,6 +221,10 @@
       }
     }
     slots.append(el("div","oa-subtitle","Выберите время"));
+    if(raulQuick){
+      const summary=renderBusySummary(stats,master);
+      if(summary)slots.append(summary);
+    }
     let available=0;
     // The four compact suggestions are exclusive to Raul's quick form.
     // Each time still goes through the same busy/tight/available checks.
@@ -279,7 +258,7 @@
     if(!available)
       slots.append(el("p","oa-no-slots","На стандартных часах есть совпадения или неизвестная занятость. Уточните время вручную."));
     slots.append(el("p","oa-slot-note",raulQuick?
-      "Красный — занято по расчёту. Жёлтый — запись рядом, требуется подтверждение.":
+      "Окончание примерное (работа + дорога). Жёлтый — запись рядом, проверьте время.":
       "Точное совпадение времени запрещено. Плотная запись допускается после подтверждения; проверка повторится при сохранении."));
   }
   function renderSlots(){
