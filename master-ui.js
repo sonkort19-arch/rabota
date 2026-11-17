@@ -95,7 +95,9 @@ function masterDayLabel(day) {
         root.hidden=true;root.replaceChildren();masterOverviewSignature="";
         return;
       }
-      const signature=JSON.stringify([next.id,next.date,next.time,next.name]);
+      // Include today's Moscow date so "Сегодня" refreshes across midnight,
+      // even if the next booking itself has not changed.
+      const signature=JSON.stringify([next.id,next.date,next.time,next.name,now.date,next.updatedAt||""]);
       if(!root.hidden&&signature===masterOverviewSignature)return;
       masterOverviewSignature=signature;
       root.hidden=false;root.replaceChildren();
