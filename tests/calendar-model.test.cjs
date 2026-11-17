@@ -172,7 +172,7 @@ test("quick-slot validation rejects invalid roles, times, and unavailable slots"
 test("app loads calendar before use while preserving availability scripts",()=>{
   const html=fs.readFileSync(path.join(__dirname,"..","index.html"),"utf8");
   assert.match(html,/src="\/calendar-model\.js\?v=20261117-load-v1"/);
-  assert.match(html,/src="\/order-availability\.js"/);
+  assert.match(html,/src="\/order-availability\.js(?:\?[^"]*)?"/);
   assert.match(html,/src="\/quick-slots\.js"/);
   assert.match(html,/calendarModule\.renderCalendar\(\)/);
   assert.match(html,/calendarModule\.bindNavigation\(\)/);

@@ -167,7 +167,11 @@
     }
     slots.append(el("div","oa-subtitle","Выберите время"));
     let available=0;
-    for(const time of suggestedTimes){
+    // The four compact suggestions are exclusive to Raul's quick form.
+    // Each time still goes through the same busy/tight/available checks.
+    const raulQuick=document.getElementById("orderOverlay")?.classList.contains("master-quick");
+    const times=raulQuick?["10:00","12:30","15:00","18:00"]:suggestedTimes;
+    for(const time of times){
       const state=timeState(time,date,master);
       const label=state==="busy"?"Занято":state==="tight"?"Плотная запись":
         state==="unknown"?"Уточнить":"Свободно";

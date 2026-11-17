@@ -284,6 +284,7 @@
   <link rel="stylesheet" href="/master-dense-enhancements.css?v=20261117-compact-v1">
   <link rel="stylesheet" href="/money-workspace.css?v=20261117-ref-v1">
   <link rel="stylesheet" href="/master-order-sheet.css?v=20261117-icon-align-v2">
+  <link rel="stylesheet" href="/master-quick-order.css?v=20261117-mock-v1">
   <!-- Owner mobile create-order action mirrors Raul's floating button.
        The owner has a bottom navigation bar, so the button sits above it. -->
   <style id="owner-mobile-order-fab">
@@ -698,21 +699,56 @@
       </div>
       <form id="orderForm">
         <div class="order-form-scroll" id="orderFormScroll" tabindex="0" role="region" aria-label="Поля заказа">
-          <label for="clientName">Имя клиента *</label>
-          <input id="clientName" name="name" type="text" maxlength="100" autocomplete="name" required>
-          <label for="clientPhone">Номер телефона *</label>
-          <input id="clientPhone" name="phone" type="tel" inputmode="tel" autocomplete="tel" maxlength="30" required>
-          <label for="clientAddress">Адрес</label>
-          <input id="clientAddress" name="address" type="text" maxlength="240">
-          <div class="form-title">Система отопления</div>
+          <div class="mq-section-heading mq-master-only mq-client-heading"><span class="mq-heading-icon mq-icon-people" aria-hidden="true"></span>Клиент</div>
+          <div class="mq-client-fields">
+            <div class="mq-client-field mq-client-name">
+              <span class="mq-field-icon mq-icon-person mq-master-only" aria-hidden="true"></span>
+              <label for="clientName">Имя клиента *</label>
+              <input id="clientName" name="name" type="text" maxlength="100" autocomplete="name" placeholder="Введите имя" required>
+            </div>
+            <div class="mq-client-field mq-client-phone">
+              <span class="mq-field-icon mq-icon-phone mq-master-only" aria-hidden="true"></span>
+              <label for="clientPhone">Номер телефона *</label>
+              <input id="clientPhone" name="phone" type="tel" inputmode="tel" autocomplete="tel" maxlength="30" placeholder="8 9XX XXX-XX-XX" required>
+              <span class="mq-trailing-icon mq-icon-phone mq-master-only" aria-hidden="true"></span>
+            </div>
+            <div class="mq-client-field mq-client-address">
+              <span class="mq-field-icon mq-icon-pin mq-master-only" aria-hidden="true"></span>
+              <label for="clientAddress">Адрес</label>
+              <input id="clientAddress" name="address" type="text" maxlength="240" placeholder="Улица, дом, квартира">
+              <span class="mq-trailing-icon mq-icon-pin mq-master-only" aria-hidden="true"></span>
+            </div>
+          </div>
+          <div class="form-title mq-section-heading mq-work-heading"><span class="mq-heading-icon mq-icon-work mq-master-only" aria-hidden="true"></span><span class="mq-master-only">Работы</span><span class="mq-owner-only">Система отопления</span></div>
           <div class="form-grid order-core-grid">
-            <div class="field"><label for="radiators">Радиаторы (шт.)</label><input id="radiators" name="radiators" type="number" min="0" step="1"></div>
-            <div class="field"><label for="floorLoops">Тёплый пол (контуры)</label><input id="floorLoops" name="floorLoops" type="number" min="0" step="1"></div>
+            <div class="field mq-quantity-field">
+              <div class="mq-quantity-caption"><span class="mq-quantity-icon mq-icon-radiator mq-master-only" aria-hidden="true"></span><label for="radiators">Радиаторы (шт.)</label></div>
+              <div class="mq-number-controls">
+                <button class="mq-step mq-master-only" type="button" data-mq-step="-1" data-mq-target="radiators" aria-label="Уменьшить количество радиаторов">−</button>
+                <input id="radiators" name="radiators" type="number" min="0" step="1" inputmode="numeric" placeholder="0">
+                <button class="mq-step mq-master-only" type="button" data-mq-step="1" data-mq-target="radiators" aria-label="Увеличить количество радиаторов">+</button>
+              </div>
+            </div>
+            <div class="field mq-quantity-field">
+              <div class="mq-quantity-caption"><span class="mq-quantity-icon mq-icon-floor mq-master-only" aria-hidden="true"></span><label for="floorLoops">Тёплый пол (контуры)</label></div>
+              <div class="mq-number-controls">
+                <button class="mq-step mq-master-only" type="button" data-mq-step="-1" data-mq-target="floorLoops" aria-label="Уменьшить количество контуров">−</button>
+                <input id="floorLoops" name="floorLoops" type="number" min="0" step="1" inputmode="numeric" placeholder="0">
+                <button class="mq-step mq-master-only" type="button" data-mq-step="1" data-mq-target="floorLoops" aria-label="Увеличить количество контуров">+</button>
+              </div>
+            </div>
             <div class="field" id="orderMasterField"><label for="master">Мастер</label><input id="master" name="master" type="text" maxlength="100" list="masterNames"></div>
-            <div class="field" id="orderPriceField"><label for="price">Стоимость (₽)</label><input id="price" name="price" type="number" min="0" step="1"></div>
+            <div class="field mq-price-field" id="orderPriceField">
+              <div class="mq-price-wrap">
+                <span class="mq-price-icon mq-icon-coins mq-master-only" aria-hidden="true"></span>
+                <label for="price">Стоимость (₽)</label>
+                <input id="price" name="price" type="number" min="0" step="1" inputmode="numeric" placeholder="0">
+                <span class="mq-price-ruble mq-master-only" aria-hidden="true">₽</span>
+              </div>
+            </div>
           </div>
           <datalist id="masterNames"></datalist>
-          <div class="form-title">Запись</div>
+          <div class="form-title mq-section-heading mq-booking-heading"><span class="mq-heading-icon mq-icon-calendar mq-master-only" aria-hidden="true"></span>Запись</div>
           <input id="orderDate" name="orderDate" type="hidden">
           <section id="oaCalendar" class="oa-calendar" aria-label="Выбор даты и занятость мастера">
             <div class="oa-top">
@@ -751,7 +787,7 @@
           <div class="order-time-field">
             <label for="orderTime">Время *</label>
             <input id="orderTime" name="orderTime" type="time" required>
-            <p class="oa-time-hint">Время можно выбрать выше или указать вручную. Ориентир: работа около 3 часов и 20 минут на дорогу.</p>
+            <p class="oa-time-hint">Выберите время выше или укажите своё. Длительность промывки зависит от числа радиаторов, контуров и дороги.</p>
           </div>
           <details class="order-advanced" id="orderAdvanced">
             <summary>Дополнительные параметры <span>Тип радиаторов, статус, оплата, комментарии</span></summary>
@@ -2510,7 +2546,8 @@
 
   </script>
   <script src="/order-payment.js"></script>
-  <script src="/order-availability.js"></script>
+  <script src="/order-availability.js?v=20261117-raul4-v1"></script>
+  <script src="/master-quick-order.js?v=20261117-mock-v1"></script>
   <script src="/quick-slots.js"></script>
   <script src="/whatsapp-order.js?v=20261111-master-notes"></script>
   <script src="/redesign.js?v=20261117-seq5-v1"></script>
