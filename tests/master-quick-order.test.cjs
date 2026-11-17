@@ -46,7 +46,7 @@ test("four time suggestions for Raul are still checked, others unchanged",()=>{
   assert.match(availability,/const state=timeState\(time,date,master\)/);
   assert.match(availability,/button\.disabled=!selectable/);
   assert.match(availability,/timeInput\.dispatchEvent\(new Event\("change"/);
-  assert.match(html,/src="\/order-availability\.js\?v=20261118-inline-busy-v1"/);
+  assert.match(html,/src="\/order-availability\.js\?v=20261118-premium-compact-v1"/);
   assert.match(html,/src="\/master-quick-order\.js\?v=20261117-mock-v1"/);
   assert.match(css,/grid-template-columns:repeat\(4,minmax\(0,1fr\)\)/);
 });
@@ -116,7 +116,7 @@ test("one unified time row replaces double red-green timeline",()=>{
   assert.doesNotMatch(html,/id="oaBusyTimeline"/);
   assert.match(html,/id="oaSlotSuggestions" class="oa-slots"/);
   assert.match(html,/src="\/booking-timeline\.js\?v=20261117-v1"/);
-  assert.match(html,/src="\/order-availability\.js\?v=20261118-inline-busy-v1"/);
+  assert.match(html,/src="\/order-availability\.js\?v=20261118-premium-compact-v1"/);
   assert.match(html,/master-quick-order\.css\?v=20261118-inline-busy-v1/);
   assert.match(availability,/function renderBusySummary\(stats,master\)/);
   assert.match(availability,/const summary=renderBusySummary\(stats,master\)/);
@@ -129,4 +129,27 @@ test("one unified time row replaces double red-green timeline",()=>{
   assert.match(html,/const overlap=window\.__rdBookingTimeline\?\.findAt/);
   assert.match(html,/if\(status!=="Отменён"&&hasConflict/);
   assert.match(html,/const busy=findTightBookings/);
+});
+
+test("Raul compact redesign keeps real input fields, no fake mockup values or changed saving logic",()=>{
+  const premium=fs.readFileSync(path.join(root,"master-quick-premium.css"),"utf8");
+  assert.match(html,/master-quick-premium\.css\?v=20261118-v1/);
+  assert.match(premium,/\.mq-client-fields\{\s*display:grid;grid-template-columns:minmax\(0,\.86fr\) minmax\(0,1\.14fr\)/);
+  assert.match(premium,/\.mq-client-address\{grid-column:1\/-1\}/);
+  assert.match(premium,/\.mq-number-controls \.mq-step\{\s*width:44px;height:44px;min-height:44px/);
+  assert.match(premium,/\.oa-week-day\{\s*min-height:48px/);
+  assert.match(premium,/\.oa-slot-note\{display:none\}/);
+  assert.match(premium,/content:"\+ Другое время"/);
+  assert.match(html,/<label for="orderTime">Время \*<\/label>/);
+  assert.match(html,/id="orderTime"[^>]*required/);
+  assert.match(html,/id="clientName"[^>]*required/);
+  assert.match(html,/id="clientPhone"[^>]*required/);
+  assert.match(availability,/raulQuick\?"Время":"Выберите время"/);
+  assert.match(availability,/raulQuick\?"Рядом":"Рядом с заказом"/);
+  assert.match(availability,/уточните время перед записью/);
+  assert.match(html,/order-availability\.js\?v=20261118-premium-compact-v1/);
+  assert.match(html,/const overlap=window\.__rdBookingTimeline\?\.findAt/);
+  assert.match(html,/const busy=findTightBookings/);
+  for(const id of ["clientName","clientPhone","clientAddress","radiators","floorLoops","price","orderTime"])
+    assert.equal((html.match(new RegExp('id="'+id+'"',"g"))||[]).length,1,id);
 });

@@ -220,7 +220,7 @@
         existing.append(row);
       }
     }
-    slots.append(el("div","oa-subtitle","Выберите время"));
+    slots.append(el("div","oa-subtitle",raulQuick?"Время":"Выберите время"));
     if(raulQuick){
       const summary=renderBusySummary(stats,master);
       if(summary)slots.append(summary);
@@ -234,17 +234,19 @@
       const estimatedBusy=raulQuick?window.__rdBookingTimeline?.findAt(
         stats.others,time,date,master,null,window.__rdCalendarLoad?.travelMinutes):null;
       const displayState=estimatedBusy?"busy":state;
-      const label=estimatedBusy?"≈ Занят":
-        displayState==="busy"?"Занято":displayState==="tight"?"Рядом с заказом":
+      const label=estimatedBusy?(raulQuick?"Занято":"≈ Занят"):
+        displayState==="busy"?"Занято":displayState==="tight"?(raulQuick?"Рядом":"Рядом с заказом"):
         displayState==="unknown"?"Уточнить":"Свободно";
       const selectable=!estimatedBusy&&(state==="available"||state==="tight");
       const button=el("button","oa-slot oa-slot-"+displayState+(selectable&&timeInput.value===time?" is-selected":""));
       button.type="button";
       button.disabled=!selectable;
-      button.setAttribute("aria-label",time+": "+label);
+      button.setAttribute("aria-label",time+": "+(raulQuick&&displayState==="tight"?
+        "Рядом с заказом, уточните время перед записью":
+        raulQuick&&estimatedBusy?"Занято по расчёту, окончание примерное":label));
       button.setAttribute("aria-pressed",String(timeInput.value===time));
       button.dataset.baseLabel=label;
-      button.append(el("strong","",time),el("small","",timeInput.value===time&&selectable?(state==="tight"?"Выбрано · плотно":"Выбрано"):label));
+      button.append(el("strong","",time),el("small","",timeInput.value===time&&selectable?(state==="tight"?(raulQuick?"Выбрано":"Выбрано · плотно"):"Выбрано"):label));
       if(!button.disabled){
         available++;
         button.addEventListener("click",()=>{
@@ -267,7 +269,9 @@
       button.classList.toggle("is-selected",selected);
       button.setAttribute("aria-pressed",String(selected));
       const caption=button.querySelector("small");
-      if(caption)caption.textContent=selected?(button.classList.contains("oa-slot-tight")?"Выбрано · плотно":"Выбрано"):button.dataset.baseLabel||"";
+      if(caption)caption.textContent=selected?(button.classList.contains("oa-slot-tight")&&
+        !document.getElementById("orderOverlay")?.classList.contains("master-quick")?
+        "Выбрано · плотно":"Выбрано"):button.dataset.baseLabel||"";
     }
   }
   function render(){
