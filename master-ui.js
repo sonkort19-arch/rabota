@@ -72,79 +72,39 @@ function masterDayLabel(day) {
       return n+" "+(group>=11&&group<=14?"заказов":ending===1?"заказ":ending>=2&&ending<=4?"заказа":"заказов");
     }
     let masterOverviewSignature="";
-    let masterReviewOpen=false;
+    function masterOrdersToReview(rows=masterWorkingOrders()){
+      const now=masterClock();
+      return rows.filter(o=>o.status==="Записан"&&
+        (o.date<now.date||(o.date===now.date&&masterTimeMinutes(o.time)>=0&&
+          masterTimeMinutes(o.time)<now.minutes)));
+    }
     function renderMasterOverview(rows) {
       const root=doc.getElementById("masterTodaySummary");
       if(getCurrentRole()!=="master"||getCurrentTab()!=="calendar"){
         root.hidden=true;masterOverviewSignature="";return;
       }
-      const now=masterClock(),today=rows.filter(o=>o.date===now.date);
+      const now=masterClock();
       const schedule=rows.filter(o=>o.status==="Записан"&&
         (o.date>now.date||(o.date===now.date&&masterTimeMinutes(o.time)>=now.minutes)))
         .sort((a,b)=>masterScheduleSort(a,b,now.date));
       const next=schedule[0];
-      const toReview=rows.filter(o=>o.status==="Записан"&&
-        (o.date<now.date||(o.date===now.date&&masterTimeMinutes(o.time)>=0&&
-          masterTimeMinutes(o.time)<now.minutes)));
-      const signature=JSON.stringify([now.date,today.map(o=>[o.id,o.status]),
-        next?[next.id,next.date,next.time,next.name]:null,
-        toReview.map(o=>[o.id,o.status]),masterReviewOpen]);
-      // Опрос финансов не должен сбрасывать фокус кнопки «Ближайший выезд».
+      if(!next){
+        root.hidden=true;root.replaceChildren();masterOverviewSignature="";
+        return;
+      }
+      const signature=JSON.stringify([next.id,next.date,next.time,next.name]);
       if(!root.hidden&&signature===masterOverviewSignature)return;
       masterOverviewSignature=signature;
       root.hidden=false;root.replaceChildren();
-      const top=make("div","master-today-top");
-      top.append(make("strong","master-today-title","Сегодня · "+formatDate(now.date)));
-      top.append(make("span","master-today-count",masterOrderCount(today.length)));
-      root.append(top);
-      if(next){
-        const jump=make("button","master-next-jump");
-        jump.type="button";
-        jump.append(make("span","master-next-caption","Ближайший выезд"),
-          make("strong","master-next-value",(next.date===now.date?"Сегодня":formatDate(next.date))+
-            " · "+(next.time||"Без времени")+" · "+(next.name||"Клиент")));
-        jump.addEventListener("click",()=>{
-          const row=[...doc.querySelectorAll("#orders .master-schedule-card")]
-            .find(element=>element.dataset.orderId===String(next.id));
-          if(!row)return;
-          const toggle=row.querySelector(".master-schedule-toggle");
-          if(toggle)toggle.click();
-          row.scrollIntoView({behavior:"smooth",block:"center"});
-        });
-        root.append(jump);
-      }else{
-        root.append(make("p","master-no-next","Ближайших новых выездов пока нет."));
-      }
-      if(toReview.length){
-        const note=make("button","master-review-note master-review-jump","Проверить статус · "+masterOrderCount(toReview.length));
-        note.type="button";
-        note.setAttribute("aria-label","Проверить незавершённые заказы, время записи которых прошло");
-        note.setAttribute("aria-controls","masterReviewList");
-        note.setAttribute("aria-expanded",String(masterReviewOpen));
-        note.addEventListener("click",()=>{masterReviewOpen=!masterReviewOpen;renderMasterOverview(rows);});
-        root.append(note);
-        if(masterReviewOpen){
-          const list=make("div","master-review-list");
-          list.id="masterReviewList";
-          [...toReview].sort((a,b)=>String(b.date||"").localeCompare(String(a.date||""))||
-            String(b.time||"").localeCompare(String(a.time||""))).forEach(order=>{
-            const item=make("button","master-review-item",
-              (order.date?formatDate(order.date):"Без даты")+" · "+
-              (order.time||"Без времени")+" · "+(order.name||"Без имени"));
-            item.type="button";
-            item.addEventListener("click",()=>{
-              const row=[...doc.querySelectorAll("#orders .master-schedule-card")]
-                .find(element=>element.dataset.orderId===String(order.id));
-              if(!row)return;
-              const toggle=row.querySelector(".master-schedule-toggle");
-              if(toggle)toggle.click();
-              row.scrollIntoView({behavior:"smooth",block:"center"});
-            });
-            list.append(item);
-          });
-          root.append(list);
-        }
-      }
+      const when=(next.date===now.date?"Сегодня":formatDate(next.date))+
+        " · "+(next.time||"Без времени")+" · "+(next.name||"Клиент");
+      const jump=make("button","master-next-jump master-next-compact");
+      jump.type="button";
+      jump.setAttribute("aria-label","Ближайший выезд: "+when+". Открыть заказ");
+      jump.append(make("span","master-next-caption","Ближайший"),
+        make("strong","master-next-value",when));
+      jump.addEventListener("click",()=>openMasterOrderDialog(next));
+      root.append(jump);
     }
 
 function makeMasterScheduleRow(order,isNext=false) {
@@ -225,7 +185,7 @@ function makeMasterScheduleRow(order,isNext=false) {
     function resetReviewOpen(){masterReviewOpen=false;}
     return {masterDayLabel,masterClock,masterTimeMinutes,masterWorkingOrders,
       masterSettlementOrders,masterScheduleSort,masterOrderCount,
-      renderMasterOverview,makeMasterScheduleRow,renderMasterSchedule,resetReviewOpen};
+      renderMasterOverview,masterOrdersToReview,makeMasterScheduleRow,renderMasterSchedule,resetReviewOpen};
   }
   if(root)root.__rdCreateMasterUI=createMasterUI;
   if(typeof module!=="undefined"&&module.exports)module.exports={createMasterUI};
