@@ -283,6 +283,7 @@
   <link rel="stylesheet" href="/master-dense.css?v=20261113-stage8">
   <link rel="stylesheet" href="/master-dense-enhancements.css?v=20261117-compact-v1">
   <link rel="stylesheet" href="/money-workspace.css?v=20261117-ref-v1">
+  <link rel="stylesheet" href="/master-order-sheet.css?v=20261117-reference-v1">
   <!-- Owner mobile create-order action mirrors Raul's floating button.
        The owner has a bottom navigation bar, so the button sits above it. -->
   <style id="owner-mobile-order-fab">
@@ -1441,33 +1442,55 @@
       if(!order){closeMasterOrderDialog();return;}
       const name=masterOrderDialog.querySelector(".mw-order-modal-title"),
         subtitle=masterOrderDialog.querySelector(".mw-order-modal-subtitle"),
-        body=masterOrderDialog.querySelector(".mw-order-modal-body");
-      if(!name||!subtitle||!body)return;
+        status=masterOrderDialog.querySelector(".master-sheet-status"),
+        body=masterOrderDialog.querySelector(".mw-order-modal-body"),
+        footer=masterOrderDialog.querySelector(".master-sheet-footer");
+      if(!name||!subtitle||!status||!body||!footer)return;
       name.textContent=order.name||"Без имени";
       subtitle.textContent=(order.date?formatDate(order.date):"Без даты")+
-        (order.time?" · "+order.time:"")+" · "+(order.status||"Записан");
-      // Financial/status refresh must not jump to the top of the open order sheet.
+        (order.time?" · "+order.time:"");
+      status.textContent=order.status||"Записан";
+      status.className="master-sheet-status master-sheet-status-"+(
+        order.status==="В работе"?"progress":
+        order.status==="Выполнен"?"done":
+        order.status==="Отменён"?"cancelled":"booked");
+      // Reuse the original live handlers and preserve scroll on background refresh.
       const scrollTop=body.scrollTop;
-      body.replaceChildren(makeCard(order));
+      const parts=buildMasterSheetParts(order);
+      body.replaceChildren(parts.details);
+      footer.replaceChildren(parts.footer);
       body.scrollTop=scrollTop;
     }
     function openMasterOrderDialog(order){
       if(currentRole!=="master"||!order||order.assignedUserId!==currentUser?.id)return;
       closeMasterOrderDialog();
       masterDialogFocus=document.activeElement;masterOrderDialogId=String(order.id);
-      const backdrop=make("div","mw-order-modal-backdrop");
-      const sheet=make("section","mw-order-modal");
+      const backdrop=make("div","mw-order-modal-backdrop master-sheet-backdrop");
+      const sheet=make("section","mw-order-modal master-order-sheet");
       sheet.setAttribute("role","dialog");sheet.setAttribute("aria-modal","true");
       sheet.setAttribute("aria-label","Заказ "+(order.name||"Без имени"));
       const header=make("div","mw-order-modal-head"),copy=make("div","mw-order-modal-headtext"),
         close=make("button","mw-order-modal-close","×");
-      copy.append(make("h2","mw-order-modal-title"),make("p","mw-order-modal-subtitle"));
+      const meta=make("div","master-sheet-meta");
+      meta.append(make("span","mw-order-modal-subtitle"),make("span","master-sheet-status"));
+      copy.append(make("h2","mw-order-modal-title"),meta);
       const referenceRow=window.__rdOrderReference?.createRow(order.orderNumber,document);
-      if(referenceRow)copy.append(referenceRow);
+      if(referenceRow){
+        const label=referenceRow.querySelector(".rd-order-reference-value");
+        if(label)label.textContent="Заказ "+(order.referenceCode||"");
+        const copyBtn=referenceRow.querySelector(".rd-order-reference-copy");
+        if(copyBtn){
+          copyBtn.classList.add("master-sheet-copy-icon");
+          copyBtn.title="Копировать номер заказа";
+          copyBtn.setAttribute("aria-live","polite");
+        }
+        copy.append(referenceRow);
+      }
       close.type="button";close.setAttribute("aria-label","Закрыть заказ");
       close.addEventListener("click",closeMasterOrderDialog);
       header.append(copy,close);
-      sheet.append(header,make("div","mw-order-modal-body"));
+      sheet.append(header,make("div","mw-order-modal-body"),
+        make("div","master-sheet-footer"));
       backdrop.append(sheet);backdrop.addEventListener("click",e=>{
         if(e.target===backdrop)closeMasterOrderDialog();
       });
