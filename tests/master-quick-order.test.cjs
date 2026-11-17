@@ -46,7 +46,7 @@ test("four time suggestions for Raul are still checked, others unchanged",()=>{
   assert.match(availability,/const state=timeState\(time,date,master\)/);
   assert.match(availability,/button\.disabled=!selectable/);
   assert.match(availability,/timeInput\.dispatchEvent\(new Event\("change"/);
-  assert.match(html,/src="\/order-availability\.js\?v=20261117-weekload-v1"/);
+  assert.match(html,/src="\/order-availability\.js\?v=20261117-compact-copy-v1"/);
   assert.match(html,/src="\/master-quick-order\.js\?v=20261117-mock-v1"/);
   assert.match(css,/grid-template-columns:repeat\(4,minmax\(0,1fr\)\)/);
 });
@@ -94,4 +94,20 @@ test("new order has a clickable seven-day strip using existing master workload c
   assert.match(availability,/window\.__rdCalendarLoad\?\.estimateDay\(stats\.all,date\)/);
   assert.match(availability,/button\.addEventListener\("click",\(\)=>selectDate\(date\)\)/);
   assert.match(availability,/renderMonth\(\);\s*renderWeek\(\);\s*renderDay\(\)/);
+});
+
+test("compact Raul form has dense 16px text inputs and accessible touch targets",()=>{
+  assert.match(css,/Raul compact order editor, v2/);
+  assert.match(css,/\.mq-client-field\{height:54px/);
+  assert.match(css,/\.mq-client-field input\{height:52px;min-height:52px/);
+  assert.match(css,/border-radius:12px;font-size:16px/);
+  assert.match(css,/\.mq-step\{box-sizing:border-box;width:44px;height:44px;min-height:44px/);
+  assert.match(css,/\.oa-week-day\{min-height:56px/);
+  assert.match(css,/\.oa-slot\{min-height:54px/);
+  assert.match(css,/\.order-submit-bar \.save\{min-height:49px/);
+  assert.match(availability,/raulQuick\?\s*"Занятое время недоступно/);
+  for(const id of ["clientName","clientPhone","clientAddress","radiators","floorLoops","price","orderTime"])
+    assert.equal((html.match(new RegExp('id="'+id+'"',"g"))||[]).length,1,id);
+  assert.match(html,/id="oaWeekStrip"/);
+  assert.match(html,/id="formStatus" role="status" aria-live="polite"/);
 });

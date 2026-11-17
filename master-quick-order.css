@@ -299,3 +299,63 @@ body.rd #orderOverlay.master-quick #orderForm .oa-slot:focus-visible{
 @media(prefers-reduced-motion:reduce){
   body.rd #orderOverlay.master-quick #orderForm *{transition:none}
 }
+
+/* Raul compact order editor, v2: visual density only; keep native 16px input text and >=44px primary touch targets. */
+body.rd #orderOverlay.master-quick > .sheet::before{margin-top:7px}
+body.rd #orderOverlay.master-quick .sheet-head{min-height:52px;padding:7px 15px 9px}
+body.rd #orderOverlay.master-quick .sheet-head h2{font-size:22px;line-height:1.2;letter-spacing:-.35px}
+body.rd #orderOverlay.master-quick .sheet-head .close{width:44px;min-width:44px;height:44px;min-height:44px;flex-basis:44px;border-radius:12px}
+body.rd #orderOverlay.master-quick #orderForm .order-form-scroll{padding:5px 14px 13px;scroll-padding-block:12px 18px}
+body.rd #orderOverlay.master-quick #orderForm .order-form-scroll .mq-section-heading{min-height:21px;gap:7px;margin:9px 0 6px;font-size:15px;line-height:1.2}
+body.rd #orderOverlay.master-quick #orderForm .order-form-scroll .mq-client-heading{margin-top:6px}
+body.rd #orderOverlay.master-quick #orderForm .order-form-scroll .mq-work-heading,
+body.rd #orderOverlay.master-quick #orderForm .order-form-scroll .mq-booking-heading{padding-top:9px;margin-top:10px}
+body.rd #orderOverlay.master-quick #orderForm .mq-heading-icon{flex-basis:20px;width:20px;height:20px}
+body.rd #orderOverlay.master-quick #orderForm .mq-client-fields{gap:6px}
+body.rd #orderOverlay.master-quick #orderForm .mq-client-field{height:54px;border-radius:12px}
+body.rd #orderOverlay.master-quick #orderForm .mq-client-field .mq-field-icon{left:13px;width:20px;height:20px}
+body.rd #orderOverlay.master-quick #orderForm .mq-client-field .mq-trailing-icon{right:8px;width:30px;height:30px;border-radius:9px;background-size:17px 17px}
+body.rd #orderOverlay.master-quick #orderForm .order-form-scroll .mq-client-field label{left:46px;top:6px;font-size:11px;line-height:1.2}
+body.rd #orderOverlay.master-quick #orderForm .order-form-scroll .mq-client-field input{height:52px;min-height:52px;padding:19px 43px 5px 46px;border-radius:12px;font-size:16px;line-height:1.2}
+body.rd #orderOverlay.master-quick #orderForm .order-core-grid{gap:6px}
+body.rd #orderOverlay.master-quick #orderForm .mq-quantity-field{gap:3px;padding:6px 6px 5px;border-radius:12px}
+body.rd #orderOverlay.master-quick #orderForm .mq-quantity-caption{gap:4px;min-height:18px}
+body.rd #orderOverlay.master-quick #orderForm .mq-quantity-caption .mq-quantity-icon{flex-basis:18px;width:18px;height:18px}
+body.rd #orderOverlay.master-quick #orderForm .order-form-scroll .mq-quantity-caption label{font-size:11px;line-height:1.2}
+body.rd #orderOverlay.master-quick #orderForm .mq-number-controls{grid-template-columns:44px minmax(0,1fr) 44px;gap:2px}
+body.rd #orderOverlay.master-quick #orderForm .mq-number-controls .mq-step{box-sizing:border-box;width:44px;height:44px;min-height:44px;border-radius:10px;font-size:23px}
+body.rd #orderOverlay.master-quick #orderForm .order-form-scroll .mq-number-controls input{height:44px;min-height:44px;font-size:17px}
+body.rd #orderOverlay.master-quick #orderForm .mq-price-field{margin-top:0}
+body.rd #orderOverlay.master-quick #orderForm .mq-price-wrap{height:54px;border-radius:12px}
+body.rd #orderOverlay.master-quick #orderForm .mq-price-icon{left:13px;width:20px;height:20px}
+body.rd #orderOverlay.master-quick #orderForm .order-form-scroll .mq-price-wrap label{left:46px;top:6px;font-size:11px}
+body.rd #orderOverlay.master-quick #orderForm .order-form-scroll .mq-price-wrap input{height:52px;min-height:52px;padding:19px 34px 5px 46px;border-radius:12px;font-size:19px}
+body.rd #orderOverlay.master-quick #orderForm .mq-price-ruble{right:14px;bottom:8px;font-size:19px}
+body.rd #orderOverlay.master-quick #orderForm #oaToggle{min-height:52px;padding:7px 10px;border-radius:12px}
+body.rd #orderOverlay.master-quick #orderForm .oa-day-summary{padding-top:5px}
+body.rd #orderOverlay.master-quick #orderForm .oa-week-strip{gap:4px;margin:7px 0 4px}
+body.rd #orderOverlay.master-quick #orderForm .oa-week-day{min-height:56px;padding:6px 1px;border-radius:10px;gap:3px}
+body.rd #orderOverlay.master-quick #orderForm .oa-week-name{font-size:11px}
+body.rd #orderOverlay.master-quick #orderForm .oa-week-number{font-size:17px}
+body.rd #orderOverlay.master-quick #orderForm .oa-existing{margin-bottom:5px;padding:5px 8px;border-radius:9px}
+body.rd #orderOverlay.master-quick #orderForm .oa-slots{gap:5px;margin-top:4px}
+body.rd #orderOverlay.master-quick #orderForm .oa-slots .oa-subtitle{font-size:12px;margin:0}
+body.rd #orderOverlay.master-quick #orderForm .oa-slot{min-height:54px;padding:6px 2px;gap:2px;border-radius:10px}
+body.rd #orderOverlay.master-quick #orderForm .oa-slot strong{font-size:14px}
+body.rd #orderOverlay.master-quick #orderForm .oa-slot small{font-size:10px;line-height:1.12}
+body.rd #orderOverlay.master-quick #orderForm .oa-slot-note{margin:4px 0 0;font-size:10px;line-height:1.25}
+body.rd #orderOverlay.master-quick #orderForm .order-time-field{margin-top:8px;grid-template-columns:minmax(0,1fr) 128px;gap:6px}
+body.rd #orderOverlay.master-quick #orderForm .order-form-scroll .order-time-field input[type="time"]{height:44px;min-height:44px;padding:7px 9px;border-radius:10px;font-size:16px}
+body.rd #orderOverlay.master-quick #orderForm .order-time-field .oa-time-hint{display:none}
+body.rd #orderOverlay.master-quick #orderForm #orderAdvanced{margin-top:9px;border-radius:12px}
+body.rd #orderOverlay.master-quick #orderForm #orderAdvanced > summary{min-height:44px;padding:9px 12px;font-size:14px}
+body.rd #orderOverlay.master-quick #orderForm .order-submit-bar{padding:8px 14px calc(9px + env(safe-area-inset-bottom))}
+body.rd #orderOverlay.master-quick #orderForm .order-submit-bar .save{min-height:49px;padding:10px 14px;border-radius:13px;font-size:16px}
+@media(max-width:360px){
+body.rd #orderOverlay.master-quick #orderForm .order-form-scroll{padding-inline:11px}
+body.rd #orderOverlay.master-quick #orderForm .mq-quantity-field{padding-inline:4px}
+body.rd #orderOverlay.master-quick #orderForm .mq-number-controls{grid-template-columns:40px minmax(0,1fr) 40px}
+body.rd #orderOverlay.master-quick #orderForm .mq-number-controls .mq-step{width:40px;height:44px;min-height:44px}
+body.rd #orderOverlay.master-quick #orderForm .oa-week-strip{gap:3px}
+body.rd #orderOverlay.master-quick #orderForm .order-time-field{grid-template-columns:minmax(0,1fr) 112px}
+}
