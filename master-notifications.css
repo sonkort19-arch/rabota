@@ -246,3 +246,24 @@ body.rd #masterPushPanel.push-compact {
   #masterPushPanel .push-toggle input,
   #masterPushPanel .push-toggle input:before { transition: none; }
 }
+
+/* Status checks in existing bell: local reminders, no push registration. */
+#masterPushPanel #masterStatusReviewList[hidden]{display:none!important}
+#masterPushPanel #masterStatusReviewList{
+  flex:0 1 auto;min-height:0;max-height:min(30dvh,240px);
+  overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;
+  border-bottom:1px solid #e8edf6;
+}
+#masterPushPanel .push-review-heading{padding:12px 15px 7px;color:#995319}
+#masterPushPanel .push-review-order{
+  display:flex;flex-direction:column;align-items:flex-start;gap:3px;
+  width:100%;min-height:48px;padding:10px 15px;
+  border:0;border-bottom:1px solid #f5e8d7;border-radius:0;
+  background:#fff9f1;color:#283950;text-align:left;
+  font:inherit;font-size:12px;cursor:pointer;touch-action:manipulation;
+}
+#masterPushPanel .push-review-order strong{font-size:13px;font-weight:700}
+#masterPushPanel .push-review-order span{font-size:12px;color:#806544}
+#masterPushPanel .push-review-order:focus-visible{
+  outline:2px solid #5679dd;outline-offset:-3px;
+}
