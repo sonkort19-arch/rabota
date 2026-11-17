@@ -1,0 +1,25 @@
+/* Order source: compact, accessible selector in the client block. */
+#orderOverlay #orderForm .mq-client-source{
+  display:flex;flex-direction:column;gap:5px;min-width:0;margin:7px 0 2px;
+}
+#orderOverlay #orderForm .mq-client-source label{
+  display:block;margin:0;color:#5c6d88;font-size:12px;font-weight:690;
+}
+#orderOverlay #orderForm .mq-client-source select{
+  box-sizing:border-box;display:block;width:100%;min-width:0;min-height:45px;
+  padding:10px 34px 10px 12px;background:#fff;color:#243653;
+  border:1px solid #d5e0ef;border-radius:12px;font-size:15px;font-weight:580;
+}
+#orderOverlay #orderForm .mq-client-source select:focus-visible{
+  outline:2px solid #6a96e8;outline-offset:1px;
+}
+body.rd #orderOverlay.master-quick #orderForm .mq-client-source{
+  grid-column:1/-1;margin:0;gap:3px;
+}
+body.rd #orderOverlay.master-quick #orderForm .mq-client-source label{
+  font-size:11px;font-weight:680;
+}
+body.rd #orderOverlay.master-quick #orderForm .mq-client-source select{
+  height:44px;min-height:44px;padding:8px 31px 8px 11px;font-size:15px;
+  background:#f9fbff;border-color:#cfdbf5;
+}

@@ -4,17 +4,21 @@ on:
     branches:
       - feature/whatsapp-client-manual-preview-20261118
       - feature/whatsapp-message-settings-20261118
+      - feature/review-links-by-client-source-20261118
   pull_request:
     paths:
       - index.html
       - whatsapp-client.js
       - whatsapp-settings.js
       - whatsapp-settings.css
+      - client-source.css
+      - order-model.js
       - money-workspace.js
       - redesign.js
       - tests/whatsapp-client.test.cjs
       - tests/whatsapp-client-flow.test.cjs
       - tests/whatsapp-settings.test.cjs
+      - tests/client-source-review.test.cjs
       - .github/workflows/whatsapp-client-manual.yml
 permissions:
   contents: read
@@ -31,5 +35,6 @@ jobs:
           node --check whatsapp-settings.js
           node --check money-workspace.js
           node --check redesign.js
+          node --check order-model.js
       - name: Targeted client message and integration tests
-        run: node --test tests/whatsapp-client.test.cjs tests/whatsapp-client-flow.test.cjs tests/whatsapp-settings.test.cjs
+        run: node --test tests/whatsapp-client.test.cjs tests/whatsapp-client-flow.test.cjs tests/whatsapp-settings.test.cjs tests/client-source-review.test.cjs

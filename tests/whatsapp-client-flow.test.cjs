@@ -10,7 +10,7 @@ function between(begin,end){
   return html.slice(a,b);
 }
 test("Client WhatsApp draft module is loaded by CRM",()=>{
-  assert.match(html,/<script src="\/whatsapp-client\.js\?v=20261118-templates-v1"><\/script>/);
+  assert.match(html,/<script src="\/whatsapp-client\.js\?v=20261118-source-v1"><\/script>/);
 });
 test("New order draft only opens after successful database save and not for edits",()=>{
   const block=between('form.addEventListener("submit",async event => {','function updateImportButton()');
