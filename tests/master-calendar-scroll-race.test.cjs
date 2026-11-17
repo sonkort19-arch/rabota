@@ -4,7 +4,7 @@ const assert=require("node:assert/strict");
 const {createCalendarModule}=require("../calendar-model.js");
 
 function element(className="",text=""){
-  return {className,textContent:String(text),children:[],attrs:{},listeners:{},
+  return {className,textContent:String(text),children:[],attrs:{},listeners:{},dataset:{},
     append(...nodes){this.children.push(...nodes);},
     replaceChildren(){this.children=[];},
     setAttribute(name,value){this.attrs[name]=value;},
@@ -30,8 +30,8 @@ function setup(){
 }
 test("rapid master day changes restore scroll only for the latest selected date",()=>{
   const app=setup();
-  app.elements.weekDays.children[1].click();
-  app.elements.weekDays.children[2].click();
+  app.elements.weekDays.children.find(x=>x.dataset.date==="2026-11-10").click();
+  app.elements.weekDays.children.find(x=>x.dataset.date==="2026-11-11").click();
   assert.equal(app.getDate(),"2026-11-11");
   assert.equal(app.frames.length,2);
   assert.deepEqual(app.restores,[320,320]);
@@ -43,14 +43,14 @@ test("rapid master day changes restore scroll only for the latest selected date"
 });
 test("master scroll callback does not restore after switching tabs",()=>{
   const app=setup();
-  app.elements.weekDays.children[4].click();
+  app.elements.weekDays.children.find(x=>x.dataset.date==="2026-11-13").click();
   app.setTab("finance");
   app.frames.shift()();
   assert.deepEqual(app.restores,[320]);
 });
 test("master scroll callback does not restore after role changes",()=>{
   const app=setup();
-  app.elements.weekDays.children[5].click();
+  app.elements.weekDays.children.find(x=>x.dataset.date==="2026-11-14").click();
   app.setRole("owner");
   app.frames.shift()();
   assert.deepEqual(app.restores,[320]);

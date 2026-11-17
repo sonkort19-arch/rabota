@@ -9,10 +9,16 @@ class Node {
   constructor(tag="",className="",content=null) {
     this.tag=tag;this.className=className;this.children=[];
     this.textContent=content==null?"":String(content);
+    this.dataset={};this.scrollLeft=0;this.clientWidth=0;
     this.attrs={};this.listeners={};this.value="";this.type="";
   }
   replaceChildren(){this.children=[];}
-  append(...children){this.children.push(...children);}
+  append(...children){for(const child of children)child.parent=this;this.children.push(...children);}
+  prepend(...children){for(const child of children)child.parent=this;this.children.unshift(...children);}
+  get firstElementChild(){return this.children[0];}
+  get offsetLeft(){return this.parent?this.parent.children.indexOf(this)*50:0;}
+  get offsetWidth(){return 47;}
+  get scrollWidth(){return this.children.length*50;}
   setAttribute(k,v){this.attrs[k]=v;}
   addEventListener(k,fn){this.listeners[k]=fn;}
   fire(k){assert.equal(typeof this.listeners[k],"function");this.listeners[k]();}
@@ -95,15 +101,17 @@ test("Raul's existing date tiles are colored, selected and accessible without ne
   ]});
   app.module.renderCalendar();
   const cells=app.elements.weekDays.children;
-  assert.equal(cells.length,7);
-  assert.ok(cells[0].className.includes("workload-free"),"cancelled is not load");
-  assert.ok(cells[1].className.includes("workload-light"));
-  assert.ok(cells[2].className.includes("workload-busy"));
-  assert.ok(cells[4].className.includes("workload-full"));
-  assert.ok(cells[4].className.includes("active"),"the selected day is still selected");
-  assert.match(cells[4].attrs["aria-label"],/Высокая загрузка/);
-  assert.ok(cells[4].attrs.title,"tooltip describes load for non-color accessibility");
-  assert.equal(cells[4].children.length,2,"no extra badge or legend");
+  assert.ok(cells.length>7,"native strip buffers adjacent days for smooth drag");
+  const day=date=>cells.find(node=>node.dataset.date===date);
+  assert.ok(day("2026-11-09").className.includes("workload-free"),"cancelled is not load");
+  assert.ok(day("2026-11-10").className.includes("workload-light"));
+  assert.ok(day("2026-11-11").className.includes("workload-busy"));
+  assert.ok(day("2026-11-13").className.includes("workload-full"));
+  assert.ok(day("2026-11-13").className.includes("active"));
+  assert.match(day("2026-11-13").attrs["aria-label"],/Высокая загрузка/);
+  assert.ok(day("2026-11-13").attrs.title);
+  assert.equal(day("2026-11-13").children.length,2,"no extra badges");
+
 });
 test("owner calendar keeps its original date classes and labels",()=>{
   const app=build({role:"owner",orders:[{date:"2026-11-13",status:"Записан",radiators:22}]});
@@ -124,7 +132,7 @@ test("owner changing day updates date and redraws once",()=>{
 });
 test("master day switch preserves mobile scroll after animation frame",()=>{
   const app=build({role:"master"});app.module.renderCalendar();
-  app.elements.weekDays.children[5].fire("click");
+  app.elements.weekDays.children.find(x=>x.dataset.date==="2026-11-14").fire("click");
   assert.equal(app.getSelected(),"2026-11-14");
   assert.deepEqual(app.restores,[380]);
   app.runFrames();assert.deepEqual(app.restores,[380,380]);
@@ -171,13 +179,13 @@ test("quick-slot validation rejects invalid roles, times, and unavailable slots"
 });
 test("app loads calendar before use while preserving availability scripts",()=>{
   const html=fs.readFileSync(path.join(__dirname,"..","index.html"),"utf8");
-  assert.match(html,/src="\/calendar-model\.js\?v=20261117-master-swipe-v1"/);
+  assert.match(html,/src="\/calendar-model\.js\?v=20261117-day-carousel-v1"/);
   assert.match(html,/src="\/order-availability\.js(?:\?[^"]*)?"/);
   assert.match(html,/src="\/quick-slots\.js"/);
   assert.match(html,/calendarModule\.renderCalendar\(\)/);
   assert.match(html,/calendarModule\.bindNavigation\(\)/);
   assert.match(html,/__rdCalendarUtils\.canPrefillSlot/);
-  assert.ok(html.indexOf('src="/calendar-model.js?v=20261117-master-swipe-v1"')<
+  assert.ok(html.indexOf('src="/calendar-model.js?v=20261117-day-carousel-v1"')<
     html.indexOf("const calendarModule=window.__rdCreateCalendarModule"));
   const inline=html.split("<script>\n").at(-1).split("</script>")[0];
   assert.doesNotThrow(()=>new Function(inline));
@@ -204,47 +212,59 @@ test("master calendar title stays the Today action without a separate row",()=>{
   assert.equal(app.getRenders(),1);
 });
 
-test("master can swipe the colored week without affecting vertical scrolling or tapping",()=>{
+
+test("master week strip is a continuous native-scroll carousel, not a seven-day swipe handler",()=>{
   const app=build({role:"master",date:"2026-11-17"});
   app.module.bindNavigation();
-  const strip=app.elements.weekDays;
-  const start=(x,y)=>strip.listeners.touchstart({touches:[{clientX:x,clientY:y}]});
-  const end=(x,y)=>{
-    let cancelled=false;
-    strip.listeners.touchend({changedTouches:[{clientX:x,clientY:y}],
-      cancelable:true,preventDefault(){cancelled=true;}});
-    return cancelled;
-  };
-  start(240,300);
-  assert.equal(end(130,305),true,"left swipe must suppress generated click");
-  assert.equal(app.getSelected(),"2026-11-24","left advances one week");
-  assert.deepEqual(app.restores,[380],"master scroll preserved");
-  app.runFrames();
-  assert.deepEqual(app.restores,[380,380]);
-  start(120,300);
-  assert.equal(end(240,305),true);
-  assert.equal(app.getSelected(),"2026-11-17","right returns one week");
-  start(230,300);
-  assert.equal(end(205,300),false,"short movements do not turn the week");
-  start(230,300);
-  assert.equal(end(140,470),false,"vertical scrolling does not turn the week");
-  assert.equal(app.getSelected(),"2026-11-17");
-  start(230,300);
-  strip.listeners.touchcancel();
-  assert.equal(end(90,302),false,"cancelled gestures do nothing");
-  assert.equal(app.getSelected(),"2026-11-17");
-  assert.equal(app.getRenders(),2,"only two valid swipes trigger rerenders");
+  app.module.renderCalendar();
+  const all=app.elements.weekDays.children;
+  assert.ok(all.length>=90,"both previous and future dates are buffered");
+  assert.equal(all.filter(x=>x.attrs["aria-pressed"]==="true").length,1);
+  assert.ok(all.find(x=>x.dataset.date==="2026-11-16"));
+  assert.ok(all.find(x=>x.dataset.date==="2026-11-23"));
+  assert.equal(app.elements.weekDays.listeners.touchend,undefined,
+    "JavaScript no longer jumps seven days on finger release");
+  assert.equal(typeof app.elements.weekDays.listeners.scroll,"function");
+  all.find(x=>x.dataset.date==="2026-11-18").fire("click");
+  assert.equal(app.getSelected(),"2026-11-18","tapping visible day selects exact date");
 });
-test("week swipe is disabled outside the master's calendar and works across a year boundary",()=>{
-  const app=build({role:"master",date:"2026-12-31"});
+test("calendar arrows and date picker keep selecting exact dates outside carousel window",()=>{
+  const app=build({role:"master",date:"2026-11-17"});
   app.module.bindNavigation();
-  const strip=app.elements.weekDays;
-  const swipe=()=>{
-    strip.listeners.touchstart({touches:[{clientX:220,clientY:100}]});
-    strip.listeners.touchend({changedTouches:[{clientX:100,clientY:100}],
-      cancelable:true,preventDefault(){}});
-  };
-  swipe();assert.equal(app.getSelected(),"2027-01-07");
-  app.setRole("owner");
-  swipe();assert.equal(app.getSelected(),"2027-01-07");
+  app.buttons.nextWeek.fire("click");
+  assert.equal(app.getSelected(),"2026-11-24");
+  app.elements.calendarDate.value="2027-05-04";
+  app.elements.calendarDate.fire("change");
+  assert.equal(app.getSelected(),"2027-05-04");
+  app.module.renderCalendar();
+  assert.ok(app.elements.weekDays.children.some(x=>x.dataset.date==="2027-05-04"));
+});
+
+test("iPhone day carousel aligns the chosen week after a hidden panel becomes visible",()=>{
+  const app=build({role:"master",date:"2026-11-17"});
+  app.module.renderCalendar();
+  assert.equal(app.elements.weekDays.scrollLeft,0,"hidden panel cannot measure tiles");
+  app.elements.weekDays.clientWidth=350;
+  app.runFrames();
+  assert.equal(app.elements.weekDays.scrollLeft,28*50,"starts on Monday 16 November");
+  app.elements.weekDays.scrollLeft+=100;
+  app.module.renderCalendar();
+  assert.equal(app.elements.weekDays.scrollLeft,28*50+100,
+    "a new render cannot reset the finger's horizontal scroll");
+});
+test("carousel grows smoothly in both directions and leaves date unselected until tap",()=>{
+  const app=build({role:"master",date:"2026-11-17"});
+  app.elements.weekDays.clientWidth=350;
+  app.module.bindNavigation();
+  app.module.renderCalendar();
+  const bar=app.elements.weekDays;
+  const before=bar.children.length;
+  bar.scrollLeft=100;
+  bar.listeners.scroll();
+  assert.equal(bar.children.length,before+28);
+  assert.equal(bar.scrollLeft,100+28*50,"prepended days preserve the viewport");
+  bar.scrollLeft=bar.scrollWidth-bar.clientWidth-5;
+  bar.listeners.scroll();
+  assert.equal(bar.children.length,before+56);
+  assert.equal(app.getSelected(),"2026-11-17","dragging does not select another appointment");
 });

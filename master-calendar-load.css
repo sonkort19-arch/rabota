@@ -35,8 +35,26 @@ body.rd #appScreen.rd-master.master-mode #calendarPanel.master-calendar-compact 
   }
 }
 
-/* Allow horizontal week gestures without hijacking vertical iPhone scrolling. */
+/* Native iOS horizontal day carousel: seven tiles visible, individual-day snapping.
+   The platform handles touch movement and momentum; vertical scrolling remains native. */
 body.rd #appScreen.rd-master.master-mode #calendarPanel.master-calendar-compact #weekDays{
-  touch-action:pan-y;
+  display:flex!important;
+  gap:3px!important;
+  overflow-x:auto;
+  overflow-y:hidden;
+  scrollbar-width:none;
+  -webkit-overflow-scrolling:touch;
+  scroll-snap-type:x mandatory;
   overscroll-behavior-x:contain;
+  touch-action:auto;
+  overflow-anchor:none;
+}
+body.rd #appScreen.rd-master.master-mode #calendarPanel.master-calendar-compact #weekDays::-webkit-scrollbar{
+  display:none;
+}
+body.rd #appScreen.rd-master.master-mode #calendarPanel.master-calendar-compact #weekDays>.day{
+  box-sizing:border-box;
+  flex:0 0 calc((100% - 18px)/7);
+  min-width:0;
+  scroll-snap-align:start;
 }

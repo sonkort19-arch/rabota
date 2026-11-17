@@ -43,6 +43,65 @@
       throw new TypeError("Элементы календаря не найдены");
     const {make,getOrders,getSelectedDate,setSelectedDate,getCurrentRole,
       getCurrentTab,setCurrentTab,render}=deps;
+    // Keep a wide native-scroll window, extending it when the finger approaches an edge.
+    // Horizontal scrolling never changes the selected order/date until a tile is tapped.
+    let stripStart=null,stripEnd=null,stripReady=false,stripTarget=null;
+    const EXTEND_DAYS=28;
+    const stripStep=()=>{
+      const first=weekDays.firstElementChild;
+      return first?.offsetWidth?first.offsetWidth+3:0;
+    };
+    function pixelForDate(date){
+      const first=weekDays.firstElementChild;
+      const tile=Array.from(weekDays.children||[]).find(node=>node.dataset?.date===date);
+      return first&&tile&&Number.isFinite(tile.offsetLeft)&&Number.isFinite(first.offsetLeft)
+        ?tile.offsetLeft-first.offsetLeft:null;
+    }
+    function requestStripDate(date){
+      if(getCurrentRole()==="master")stripTarget=date;
+    }
+    function createMasterTile(date,selectedDate,orders){
+      const day=parseDate(date);
+      const hasOrders=orders.some(o=>o.date===date&&o.status!=="Отменён");
+      const load=typeof deps.estimateDayLoad==="function"
+        ?deps.estimateDayLoad(orders,date):null;
+      const button=make("button","day"+(date===selectedDate?" active":"")+
+        (hasOrders?" has-orders":"")+(load?" workload-"+load.level:""));
+      button.type="button";
+      button.dataset.date=date;
+      const accessible=load?day.toLocaleDateString("ru-RU")+". "+load.label:
+        day.toLocaleDateString("ru-RU");
+      button.setAttribute("aria-label",accessible);
+      if(load)button.setAttribute("title",accessible);
+      button.setAttribute("aria-pressed",String(date===selectedDate));
+      button.append(make("span","weekday",day.toLocaleDateString("ru-RU",{weekday:"short"})));
+      button.append(make("strong","",day.getDate()));
+      button.addEventListener("click",()=>selectDay(date,true));
+      return button;
+    }
+    function extendStrip(){
+      if(getCurrentRole()!=="master"||getCurrentTab()!=="calendar"||
+         !stripReady||!weekDays.clientWidth||!stripStep())return;
+      const edge=stripStep()*10,orders=getOrders();
+      const selected=getSelectedDate();
+      if(weekDays.scrollLeft<edge){
+        const oldFirst=weekDays.firstElementChild;
+        const before=oldFirst?.offsetLeft??0;
+        const nodes=[];
+        for(let i=EXTEND_DAYS;i>=1;i--)
+          nodes.push(createMasterTile(addDays(stripStart,-i),selected,orders));
+        weekDays.prepend(...nodes);
+        stripStart=addDays(stripStart,-EXTEND_DAYS);
+        const offset=oldFirst.offsetLeft-before;
+        if(Number.isFinite(offset))weekDays.scrollLeft+=offset;
+      }else if(weekDays.scrollLeft+weekDays.clientWidth>weekDays.scrollWidth-edge){
+        const nodes=[];
+        for(let i=1;i<=EXTEND_DAYS;i++)
+          nodes.push(createMasterTile(addDays(stripEnd,i),selected,orders));
+        weekDays.append(...nodes);
+        stripEnd=addDays(stripEnd,EXTEND_DAYS);
+      }
+    }
     function selectDay(date,preserveMasterScroll){
       if(!preserveMasterScroll||getCurrentRole()!=="master"){
         setSelectedDate(date);setCurrentTab("calendar");render();return;
@@ -70,34 +129,61 @@
       ordersDayDateLabel.textContent=parseDate(monday).getDate()+"–"+
         parseDate(sunday).toLocaleDateString("ru-RU",{day:"numeric",month:"short"});
       const orders=getOrders();
-      weekDays.replaceChildren();
+      const isMaster=getCurrentRole()==="master";
+      const previousOffset=Number(weekDays.scrollLeft)||0;
+      if(isMaster){
+        if(!stripStart||selectedDate<stripStart||selectedDate>stripEnd){
+          stripStart=addDays(monday,-EXTEND_DAYS);
+          stripEnd=addDays(monday,70);
+          stripReady=false;
+          stripTarget=monday;
+        }
+        weekDays.replaceChildren();
+        for(let date=stripStart;date<=stripEnd;date=addDays(date,1))
+          weekDays.append(createMasterTile(date,selectedDate,orders));
+        // Initial view starts with Monday, but users can scroll one date at a time.
+        if(stripTarget||!stripReady){
+          const target=stripTarget||monday;
+          const alignWhenVisible=()=>{
+            // Calendar render runs before its panel is unhidden; wait for the next paint.
+            if(getCurrentRole()!=="master"||stripTarget!==target)return;
+            const x=pixelForDate(target);
+            if(x!==null&&weekDays.clientWidth){
+              weekDays.scrollLeft=x;
+              stripReady=true;
+              stripTarget=null;
+            }
+          };
+          alignWhenVisible();
+          if(!stripReady&&typeof deps.requestAnimationFrame==="function")
+            deps.requestAnimationFrame(alignWhenVisible);
+        }else weekDays.scrollLeft=previousOffset;
+      }else{
+        stripStart=null;stripEnd=null;stripReady=false;stripTarget=null;
+        weekDays.replaceChildren();
+      }
       ordersWeekDays.replaceChildren();
       for(const date of days){
-        const dateObj=parseDate(date);
+        const day=parseDate(date);
         const hasOrders=orders.some(o=>o.date===date&&o.status!=="Отменён");
-        // Only Raul's day buttons receive workload colors. No new rows or dots.
-        const load=getCurrentRole()==="master"&&typeof deps.estimateDayLoad==="function"
-          ?deps.estimateDayLoad(orders,date):null;
-        const workloadClass=load?" workload-"+load.level:"";
-        const btn=make("button","day"+(date===selectedDate?" active":"")+
-          (hasOrders?" has-orders":"")+workloadClass);
-        btn.type="button";
-        const dayLabel=dateObj.toLocaleDateString("ru-RU");
-        const accessibleLabel=load?dayLabel+". "+load.label:dayLabel;
-        btn.setAttribute("aria-label",accessibleLabel);
-        if(load)btn.setAttribute("title",accessibleLabel);
-        btn.setAttribute("aria-pressed",String(date===selectedDate));
-        btn.append(make("span","weekday",dateObj.toLocaleDateString("ru-RU",{weekday:"short"})));
-        btn.append(make("strong","",dateObj.getDate()));
-        btn.addEventListener("click",()=>selectDay(date,true));
-        weekDays.append(btn);
+        if(!isMaster){
+          const btn=make("button","day"+(date===selectedDate?" active":"")+
+            (hasOrders?" has-orders":""));
+          btn.type="button";
+          btn.setAttribute("aria-label",day.toLocaleDateString("ru-RU"));
+          btn.setAttribute("aria-pressed",String(date===selectedDate));
+          btn.append(make("span","weekday",day.toLocaleDateString("ru-RU",{weekday:"short"})));
+          btn.append(make("strong","",day.getDate()));
+          btn.addEventListener("click",()=>selectDay(date,true));
+          weekDays.append(btn);
+        }
         const chip=make("button","rd-orders-weekday"+(date===selectedDate?" is-selected":"")+
           (hasOrders?" has-orders":""));
         chip.type="button";
-        chip.setAttribute("aria-label",dateObj.toLocaleDateString("ru-RU"));
+        chip.setAttribute("aria-label",day.toLocaleDateString("ru-RU"));
         chip.setAttribute("aria-pressed",String(date===selectedDate));
-        chip.append(make("span","",dateObj.toLocaleDateString("ru-RU",{weekday:"short"})));
-        chip.append(make("strong","",dateObj.getDate()));
+        chip.append(make("span","",day.toLocaleDateString("ru-RU",{weekday:"short"})));
+        chip.append(make("strong","",day.getDate()));
         chip.addEventListener("click",()=>selectDay(date,false));
         ordersWeekDays.append(chip);
       }
@@ -109,42 +195,27 @@
         if(!node)throw new TypeError("Кнопка календаря не найдена: "+id);
         node.addEventListener("click",fn);
       };
-      const shift=days=>{setSelectedDate(addDays(getSelectedDate(),days));setCurrentTab("calendar");render();};
-      const today=()=>{setSelectedDate(getCurrentRole()==="master"?deps.masterClock().date:localDate(new Date()));setCurrentTab("calendar");render();};
+      const shift=days=>{
+        const date=addDays(getSelectedDate(),days);
+        requestStripDate(weekDates(date).monday);
+        setSelectedDate(date);setCurrentTab("calendar");render();
+      };
+      const today=()=>{
+        const date=getCurrentRole()==="master"?deps.masterClock().date:localDate(new Date());
+        requestStripDate(weekDates(date).monday);
+        setSelectedDate(date);setCurrentTab("calendar");render();
+      };
       onClick("prevWeek",()=>shift(-7));
       onClick("nextWeek",()=>shift(7));
       onClick("goToday",today);
       calendarDate.addEventListener("change",()=>{
-        if(calendarDate.value){setSelectedDate(calendarDate.value);render();}
+        if(calendarDate.value){requestStripDate(weekDates(calendarDate.value).monday);setSelectedDate(calendarDate.value);render();}
       });
       onClick("rdOrdersPrevWeek",()=>shift(-7));
       onClick("rdOrdersNextWeek",()=>shift(7));
       onClick("rdOrdersToday",today);
-      // Swipe only on Raul's colored seven-day strip. Native vertical scrolling stays active.
-      // Left advances seven days; right returns seven days, matching the arrow buttons.
-      let touchOrigin=null;
-      weekDays.addEventListener("touchstart",event=>{
-        if(getCurrentRole()!=="master"||getCurrentTab()!=="calendar"||
-           event.touches?.length!==1){touchOrigin=null;return;}
-        const touch=event.touches[0];
-        touchOrigin={x:touch.clientX,y:touch.clientY};
-      },{passive:true});
-      weekDays.addEventListener("touchmove",event=>{
-        if(event.touches?.length!==1)touchOrigin=null;
-      },{passive:true});
-      weekDays.addEventListener("touchcancel",()=>{touchOrigin=null;});
-      weekDays.addEventListener("touchend",event=>{
-        const origin=touchOrigin;
-        touchOrigin=null;
-        if(!origin||getCurrentRole()!=="master"||getCurrentTab()!=="calendar"||
-           event.changedTouches?.length!==1)return;
-        const touch=event.changedTouches[0];
-        const dx=touch.clientX-origin.x,dy=touch.clientY-origin.y;
-        if(Math.abs(dx)<48||Math.abs(dx)<Math.abs(dy)*1.35)return;
-        // Prevent a synthetic click on a date tile after a recognized horizontal swipe.
-        if(event.cancelable)event.preventDefault();
-        selectDay(addDays(getSelectedDate(),dx<0?7:-7),true);
-      },{passive:false});
+      // Let iOS handle drag and inertia; scroll-snap aligns to the nearest day.
+      weekDays.addEventListener("scroll",extendStrip,{passive:true});
 
     }
     return {renderCalendar,bindNavigation};
