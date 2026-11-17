@@ -14,6 +14,21 @@
     review:"Здравствуйте, {имя}!\n\nСпасибо, что выбрали MOBA! Работа по промывке системы отопления завершена.\n\nБудем благодарны, если вы оставите отзыв о нашей работе ответным сообщением.\n\nС уважением, команда MOBA."
   });
   const TOKENS=Object.freeze(["имя","дата","время","мастер","адрес","ссылка"]);
+  // Shared stable values: stored in order.client_source, not the display text.
+  const CLIENT_SOURCES=Object.freeze([
+    {value:"avito",label:"Авито"},{value:"instagram",label:"Instagram"},
+    {value:"2gis",label:"2ГИС"},{value:"yandex",label:"Яндекс Карты"},
+    {value:"google",label:"Google Карты"},{value:"vk",label:"ВКонтакте"},
+    {value:"telegram",label:"Telegram"},{value:"website",label:"Сайт"},
+    {value:"recommendation",label:"По рекомендации"},
+    {value:"walk_in",label:"Мимо проходил"},
+    {value:"regular",label:"Постоянный клиент"},
+    {value:"other",label:"Другое"},{value:"unknown",label:"Неизвестно"}
+  ]);
+  const REVIEW_SOURCE_KEYS=Object.freeze(["avito","instagram","2gis","yandex","google","vk","telegram","website"]);
+  const sourceLabel=key=>CLIENT_SOURCES.find(item=>item.value===key)?.label||"";
+  const validSource=value=>CLIENT_SOURCES.some(item=>item.value===value)?value:"";
+  const emptyReviewUrls=()=>Object.fromEntries(REVIEW_SOURCE_KEYS.map(key=>[key,""]));
   const clean=value=>String(value??"").trim().replace(/\s+/g," ");
   function normalizePhone(value){
     let digits=String(value??"").replace(/\D/g,"");
@@ -55,13 +70,16 @@
       return parsed.href;
     }catch(_){throw new Error("Ссылка на отзывы должна начинаться с https://");}
   }
-  function defaults(){return {...DEFAULT_TEMPLATES,reviewUrl:""};}
+  function defaults(){return {...DEFAULT_TEMPLATES,reviewUrl:"",reviewUrls:emptyReviewUrls()};}
   function validateSettings(data){
     if(!data||typeof data!=="object")throw new Error("Настройки не распознаны.");
     return {
       booking:validateTemplate(data.booking,"После записи"),
       review:validateTemplate(data.review,"После завершения"),
-      reviewUrl:validateReviewUrl(data.reviewUrl||"")
+      reviewUrl:validateReviewUrl(data.reviewUrl||""),
+      reviewUrls:Object.fromEntries(REVIEW_SOURCE_KEYS.map(key=>[
+        key,validateReviewUrl(data.reviewUrls?.[key]||"")
+      ]))
     };
   }
   function getSettings(){
@@ -98,12 +116,23 @@
     prettyDate(order.date);prettyTime(order.time);
     return renderTemplate(getSettings().booking,order);
   }
-  function reviewText(order,reviewUrl){
+  function sourceReviewUrl(order,settings){
+    const source=validSource(order?.clientSource);
+    if(source)return REVIEW_SOURCE_KEYS.includes(source)?settings.reviewUrls[source]||"":"";
+    // Preserve the previously configured generic URL for old orders with no source.
+    return settings.reviewUrl||"";
+  }
+  function reviewText(order,reviewUrl,settingsOverride){
     if(!normalizePhone(order?.phone))throw new Error("Укажите номер клиента в формате +7.");
-    const settings=getSettings();
-    const url=validateReviewUrl(reviewUrl===undefined?settings.reviewUrl:reviewUrl);
+    const settings=settingsOverride?validateSettings(settingsOverride):getSettings();
+    const url=validateReviewUrl(reviewUrl===undefined?sourceReviewUrl(order,settings):reviewUrl);
     let message=renderTemplate(settings.review,order,url);
-    if(url&&!settings.review.includes("{ссылка}"))message+="\n\n"+url;
+    if(url&&!settings.review.includes("{ссылка}")){
+      if(message.includes("ответным сообщением."))
+        message=message.replace("ответным сообщением.","по ссылке ниже.");
+      const source=validSource(order?.clientSource);
+      message+="\n\n"+(sourceLabel(source)?"Оставить отзыв — "+sourceLabel(source)+":\n":"")+url;
+    }
     return message;
   }
   function link(phone,text){
@@ -114,6 +143,7 @@
   }
   function bookingLink(order){return link(order.phone,bookingText(order));}
   function reviewLink(order,reviewUrl){return link(order.phone,reviewText(order,reviewUrl));}
-  return {normalizePhone,prettyDate,prettyTime,DEFAULT_TEMPLATES,TOKENS,defaults,getSettings,saveSettings,
-    validateSettings,renderTemplate,bookingText,reviewText,link,bookingLink,reviewLink};
+  return {normalizePhone,prettyDate,prettyTime,DEFAULT_TEMPLATES,TOKENS,CLIENT_SOURCES,REVIEW_SOURCE_KEYS,
+    sourceLabel,validSource,defaults,getSettings,saveSettings,validateSettings,renderTemplate,
+    sourceReviewUrl,bookingText,reviewText,link,bookingLink,reviewLink};
 });
