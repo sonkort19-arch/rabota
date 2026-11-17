@@ -6,6 +6,7 @@ on:
       - feature/whatsapp-message-settings-20261118
       - feature/review-links-by-client-source-20261118
       - feature/polish-client-whatsapp-texts-20261118
+      - fix/whatsapp-settings-retry-and-safety-20261118
   pull_request:
     paths:
       - index.html
@@ -19,8 +20,9 @@ on:
       - tests/whatsapp-client.test.cjs
       - tests/whatsapp-client-flow.test.cjs
       - tests/whatsapp-settings.test.cjs
-      - tests/client-source-review.test.cjs tests/whatsapp-copy-polish.test.cjs
+      - tests/client-source-review.test.cjs
       - tests/whatsapp-copy-polish.test.cjs
+      - tests/whatsapp-safety-regression.test.cjs
       - .github/workflows/whatsapp-client-manual.yml
 permissions:
   contents: read
@@ -39,4 +41,4 @@ jobs:
           node --check redesign.js
           node --check order-model.js
       - name: Targeted client message and integration tests
-        run: node --test tests/whatsapp-client.test.cjs tests/whatsapp-client-flow.test.cjs tests/whatsapp-settings.test.cjs tests/client-source-review.test.cjs
+        run: node --test tests/whatsapp-client.test.cjs tests/whatsapp-client-flow.test.cjs tests/whatsapp-settings.test.cjs tests/client-source-review.test.cjs tests/whatsapp-copy-polish.test.cjs tests/whatsapp-safety-regression.test.cjs
