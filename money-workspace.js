@@ -32,7 +32,7 @@
   const api=()=>window.__rdMoneyUi;
   const token=()=>{if(typeof window.crypto?.randomUUID!=="function")throw Error("Браузер не поддерживает безопасный идентификатор операции");return window.crypto.randomUUID()};
   const isPreview=()=>/^rabota-[a-z0-9]{7,}-sonkort19-6069s-projects\.vercel\.app$/i.test(String(window.location?.hostname||""));
-  let page="orders",step="menu",salaryTab="accruals",masterReady=false;
+  let page="day",step="menu",salaryTab="accruals",masterReady=false;
   let orderQuery="",orderStatus="all",paymentMethod="all";
   const scrollPositions=new Map();
   const statusOptions=[["all","Все"],["Записан","Записаны"],
@@ -170,6 +170,7 @@
       // Legacy tab handlers remain for calendar calculations, but tabs are not visible to master.
       if(!finance.hidden)$("masterFinanceBack")?.click();
       orders.hidden=false;finance.hidden=true;
+      if(which==="day")window.__rdSyncMasterToday?.();
       const tab=orders.querySelector('.tab[data-tab="'+(which==="day"?"calendar":"all")+'"]');
       tab?.click();
       if(which==="orders")filterRows();
@@ -452,11 +453,8 @@
     if(isMaster){
       setupMaster();
       const nav=$("mwMasterNav");if(nav)nav.hidden=false;
-      page="orders";step="menu";
-      const reports=$("mwMasterReports"),payments=$("mwMasterPayments");
-      if(reports)reports.hidden=true;if(payments)payments.hidden=true;
-      const filters=$("mwMasterFilterbar");if(filters)filters.hidden=false;
-      updateNav();filterRows();
+      page="day";step="menu";
+      switchPage("day",false);
     }else{
       $("appScreen")?.classList.remove("mw-orders-minimal-header");
       const nav=$("mwMasterNav"),reports=$("mwMasterReports"),

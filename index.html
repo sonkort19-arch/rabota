@@ -831,6 +831,7 @@
     let previousFocus = null;
     let orderSaving = false;
     let selectedDate = localDate(new Date());
+    let masterFollowsToday = true;
     let cloudOrders = [];
     let ordersLoaded = false;
     let session = null;
@@ -862,7 +863,10 @@
     const calendarModule=window.__rdCreateCalendarModule({
       elements:{calendarDate,weekDays,ordersWeekDays,ordersDayDateLabel},
       make,getOrders:()=>getOrders(),
-      getSelectedDate:()=>selectedDate,setSelectedDate:date=>{selectedDate=date;},
+      getSelectedDate:()=>selectedDate,setSelectedDate:date=>{
+         selectedDate=date;
+         if(currentRole==="master")masterFollowsToday=(date===masterClock().date);
+       },
       getCurrentRole:()=>currentRole,getCurrentTab:()=>currentTab,
       setCurrentTab:tab=>{currentTab=tab;},render:()=>render(),
       verticalScrollPosition:()=>verticalScrollPosition(),
@@ -1335,6 +1339,15 @@
     });
     function masterDayLabel(day){return masterUI.masterDayLabel(day);}
     function masterClock(){return masterUI.masterClock();}
+    function syncMasterToday(){
+      if(currentRole!=="master"||!masterFollowsToday)return;
+      const today=masterClock().date;
+      if(selectedDate===today)return;
+      selectedDate=today;
+      const area=document.getElementById("ordersArea");
+      if(currentTab==="calendar"&&area&&!area.hidden)render();
+    }
+    window.__rdSyncMasterToday=syncMasterToday;
     function masterTimeMinutes(value){return masterUI.masterTimeMinutes(value);}
     function masterWorkingOrders(){return masterUI.masterWorkingOrders();}
     function masterSettlementOrders(){return masterUI.masterSettlementOrders();}
@@ -2192,7 +2205,7 @@
         (currentRole==="master"||currentRole==="owner")?"Заказ":"Новый заказ";
       document.getElementById("newOrderBtn").hidden=!canCreateOrder();
       document.getElementById("aiChatLink").hidden=currentRole!=="owner";
-      if (currentRole==="master") { currentTab="all"; selectedDate=masterClock().date; }
+      if (currentRole==="master") { currentTab="calendar"; selectedDate=masterClock().date; masterFollowsToday=true; }
       financeActive=false;
       financeVisible();
       await reloadOrders();
@@ -2368,11 +2381,16 @@
     document.getElementById("accessLogout").addEventListener("click",logout);
     window.addEventListener("focus",async()=>{
       if(!session||document.getElementById("appScreen").hidden)return;
+      syncMasterToday();
       try {await reloadOrders({background:true});if(currentRole==="owner")await loadTeam();}
       catch(error){reportSync(error);}
     });
+    document.addEventListener("visibilitychange",()=>{
+      if(document.visibilityState==="visible"&&!document.getElementById("appScreen").hidden)syncMasterToday();
+    });
     setInterval(async()=>{
       if(!session || document.visibilityState==="hidden" || document.getElementById("appScreen").hidden)return;
+      syncMasterToday();
       try{await reloadOrders({background:true});if(currentRole==="owner")await loadTeam();}
       catch(error){reportSync(error);}
     },30000);
@@ -2387,7 +2405,7 @@
   <script src="/master-notifications.js"></script>
   <script src="/orders-list.js?v=20261116-status-v1"></script>
   <script src="/finance-payroll.js"></script>
-  <script src="/money-workspace.js?v=20261116-status-v1"></script>
+  <script src="/money-workspace.js?v=20261117-master-home-v1"></script>
   <script src="/lead-assistant.js"></script>
 </body>
 </html>
