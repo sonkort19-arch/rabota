@@ -282,7 +282,7 @@
   <link rel="stylesheet" href="/master-dashboard.css?v=20261113-finance-clean-v3">
   <link rel="stylesheet" href="/master-dense.css?v=20261113-stage8">
   <link rel="stylesheet" href="/master-dense-enhancements.css?v=20261117-compact-v1">
-  <link rel="stylesheet" href="/money-workspace.css?v=20261116-minimal-orders-v4">
+  <link rel="stylesheet" href="/money-workspace.css?v=20261117-ref-v1">
   <!-- Owner mobile create-order action mirrors Raul's floating button.
        The owner has a bottom navigation bar, so the button sits above it. -->
   <style id="owner-mobile-order-fab">
@@ -789,10 +789,10 @@
 
   <script src="/order-notes.js?v=20261111-notes1"></script>
   <script src="/order-sync.js?v=20261113-stage2"></script>
-  <script src="/order-model.js?v=20261116-status-v1"></script>
+  <script src="/order-model.js?v=20261117-ref-v1"></script>
   <script src="/calendar-model.js?v=20261113-stage4"></script>
   <script src="/finance-model.js?v=20261113-stage5"></script>
-  <script src="/master-ui.js?v=20261117-compact-v1"></script>
+  <script src="/master-ui.js?v=20261117-ref-v1"></script>
   <script src="/lead-ai-bridge.js?v=20261113-stage7"></script>
   <script src="/app-services.js?v=20261114-stage9"></script>
   <script>
@@ -1398,6 +1398,8 @@
       const header=make("div","mw-order-modal-head"),copy=make("div","mw-order-modal-headtext"),
         close=make("button","mw-order-modal-close","×");
       copy.append(make("h2","mw-order-modal-title"),make("p","mw-order-modal-subtitle"));
+      const referenceRow=window.__rdOrderReference?.createRow(order.id,document);
+      if(referenceRow)copy.append(referenceRow);
       close.type="button";close.setAttribute("aria-label","Закрыть заказ");
       close.addEventListener("click",closeMasterOrderDialog);
       header.append(copy,close);
@@ -1485,7 +1487,7 @@
       renderMasterOverview(currentTab==="calendar"&&currentRole==="master"?masterWorkingOrders():[]);
       if(currentRole==="master") renderMasterSchedule(shown);
       else if(!shown.length) ordersNode.append(make("div","empty",currentTab==="history"?"Выполненных заказов нет":"Заказов нет"));
-      else shown.forEach(o=>{const card=makeCard(o);window.__rdDecorateOrder?.(card,o);card.dataset.search=(o.name+' '+o.phone+' '+o.address+' '+o.master).toLocaleLowerCase('ru');card.dataset.date=o.date||'';card.dataset.master=o.master||'';card.dataset.status=o.status||'';card.dataset.unpaid=String(o.status==='Выполнен'&&!o.paid);card.dataset.pendingPayment=String(o.status==="Выполнен"&&!o.paid);ordersNode.append(card);});
+      else shown.forEach(o=>{const card=makeCard(o);window.__rdDecorateOrder?.(card,o);card.dataset.search=(o.name+' '+o.phone+' '+o.address+' '+o.master+' '+(o.referenceCode||'')+' '+(o.id||'')).toLocaleLowerCase('ru');card.dataset.date=o.date||'';card.dataset.master=o.master||'';card.dataset.status=o.status||'';card.dataset.unpaid=String(o.status==='Выполнен'&&!o.paid);card.dataset.pendingPayment=String(o.status==="Выполнен"&&!o.paid);ordersNode.append(card);});
       renderMasterSettlements();
       window.__rdMasterOrdersRefresh?.();
       refreshMasterOrderDialog();
@@ -2410,11 +2412,11 @@
   <script src="/order-availability.js"></script>
   <script src="/quick-slots.js"></script>
   <script src="/whatsapp-order.js?v=20261111-master-notes"></script>
-  <script src="/redesign.js?v=20261116-status-v1"></script>
+  <script src="/redesign.js?v=20261117-ref-v1"></script>
   <script src="/master-notifications.js?v=20261117-review-v1"></script>
-  <script src="/orders-list.js?v=20261116-status-v1"></script>
+  <script src="/orders-list.js?v=20261117-ref-v1"></script>
   <script src="/finance-payroll.js"></script>
-  <script src="/money-workspace.js?v=20261117-master-home-v1"></script>
+  <script src="/money-workspace.js?v=20261117-ref-v1"></script>
   <script src="/lead-assistant.js"></script>
 </body>
 </html>
