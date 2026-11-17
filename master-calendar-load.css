@@ -28,7 +28,9 @@ body.rd #appScreen.rd-master.master-mode #calendarPanel.master-calendar-compact 
   color:#4b401d;
 }
 body.rd #appScreen.rd-master.master-mode #calendarPanel.master-calendar-compact .week .day.active[class*="workload-"]{
-  box-shadow:inset 0 0 0 2px #fff, 0 0 0 2px #294ed6;
+  /* One clean blue selection stroke; keep each day's workload fill unchanged. */
+  border:2px solid #3154d4;
+  box-shadow:none;
 }
 body.rd #appScreen.rd-master.master-mode #calendarPanel.master-calendar-compact .week .day.has-orders::after{
   display:none!important;content:none!important;
