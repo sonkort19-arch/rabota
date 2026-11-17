@@ -71,6 +71,9 @@ function masterDayLabel(day) {
       const ending=n%10,group=n%100;
       return n+" "+(group>=11&&group<=14?"заказов":ending===1?"заказ":ending>=2&&ending<=4?"заказа":"заказов");
     }
+    // Only a single selected day can have its completed section expanded.
+    // Day changes close it; data refreshes retain the open state.
+    let completedDayDate=null,completedOpenDate=null;
     let masterOverviewSignature="";
     function masterOrdersToReview(rows=masterWorkingOrders()){
       const now=masterClock();
@@ -158,7 +161,7 @@ function makeMasterScheduleRow(order,isNext=false) {
       article.append(toggle);
       return article;
     }
-    function renderMasterSchedule(rows) {
+    function renderMasterSchedule(rows,{compactEmpty=false}={}) {
       const grouped=new Map(),today=masterClock().date;
       rows.forEach(order=>{
         const date=order.date||"";
@@ -179,13 +182,55 @@ function makeMasterScheduleRow(order,isNext=false) {
         }
         items.forEach(order=>ordersNode.append(makeMasterScheduleRow(order,String(order.id)===String(next?.id))));
       });
-      if(!rows.length)ordersNode.append(make("div","empty",getCurrentTab()==="history"?"Выполненных заказов нет":"Рабочих заказов нет"));
+      if(!rows.length)ordersNode.append(make("div",compactEmpty?"master-active-empty":"empty",
+        compactEmpty?"Активных заказов нет":getCurrentTab()==="history"?"Выполненных заказов нет":"Рабочих заказов нет"));
     }
 
-    function resetReviewOpen(){} // Kept for legacy tab callbacks.
+    function renderMasterCompletedDay(rows,date){
+      if(getCurrentRole()!=="master"||getCurrentTab()!=="calendar")return;
+      if(completedDayDate!==date){
+        completedDayDate=date;completedOpenDate=null;
+      }
+      const items=(Array.isArray(rows)?rows:[]).filter(order=>
+        order?.date===date&&order.status==="Выполнен")
+        .sort((a,b)=>String(a.time||"").localeCompare(String(b.time||"")));
+      if(!items.length)return;
+      const section=make("section","master-completed-day");
+      section.setAttribute("aria-label","Выполненные заказы за "+formatDate(date));
+      const button=make("button","master-completed-toggle");
+      button.type="button";
+      button.setAttribute("aria-expanded",String(completedOpenDate===date));
+      button.setAttribute("aria-controls","masterCompletedOrders");
+      const title=make("span","master-completed-caption","Выполненные");
+      const count=make("span","master-completed-count",String(items.length));
+      const arrow=make("span","master-completed-chevron","⌄");
+      arrow.setAttribute("aria-hidden","true");
+      button.append(title,count,arrow);
+      const list=make("div","master-completed-list");
+      list.id="masterCompletedOrders";
+      list.hidden=completedOpenDate!==date;
+      const fill=()=>{
+        if(!list.children.length)
+          items.forEach(order=>list.append(makeMasterScheduleRow(order)));
+      };
+      if(!list.hidden)fill();
+      button.addEventListener("click",()=>{
+        const expand=list.hidden;
+        if(expand)fill();
+        list.hidden=!expand;
+        completedOpenDate=expand?date:null;
+        button.setAttribute("aria-expanded",String(expand));
+        section.classList.toggle("is-open",expand);
+      });
+      if(!list.hidden)section.classList.add("is-open");
+      section.append(button,list);
+      ordersNode.append(section);
+    }
+
+    function resetReviewOpen(){completedOpenDate=null;completedDayDate=null;}
     return {masterDayLabel,masterClock,masterTimeMinutes,masterWorkingOrders,
       masterSettlementOrders,masterScheduleSort,masterOrderCount,
-      renderMasterOverview,masterOrdersToReview,makeMasterScheduleRow,renderMasterSchedule,resetReviewOpen};
+      renderMasterOverview,masterOrdersToReview,makeMasterScheduleRow,renderMasterSchedule,renderMasterCompletedDay,resetReviewOpen};
   }
   if(root)root.__rdCreateMasterUI=createMasterUI;
   if(typeof module!=="undefined"&&module.exports)module.exports={createMasterUI};

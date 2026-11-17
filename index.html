@@ -282,6 +282,7 @@
   <link rel="stylesheet" href="/master-dashboard.css?v=20261113-finance-clean-v3">
   <link rel="stylesheet" href="/master-dense.css?v=20261113-stage8">
   <link rel="stylesheet" href="/master-dense-enhancements.css?v=20261117-compact-v1">
+  <link rel="stylesheet" href="/master-completed-day.css?v=20261117-v1">
   <link rel="stylesheet" href="/money-workspace.css?v=20261117-ref-v1">
   <link rel="stylesheet" href="/master-order-sheet.css?v=20261117-icon-align-v2">
   <link rel="stylesheet" href="/master-quick-order.css?v=20261117-mock-v1">
@@ -832,7 +833,7 @@
   <script src="/calendar-load.js?v=20261117-completed-v1"></script>
    <script src="/calendar-model.js?v=20261117-month-view-v1"></script>
   <script src="/finance-model.js?v=20261113-stage5"></script>
-  <script src="/master-ui.js?v=20261117-ref-v1"></script>
+  <script src="/master-ui.js?v=20261117-completed-day-v1"></script>
   <script src="/lead-ai-bridge.js?v=20261113-stage7"></script>
   <script src="/app-services.js?v=20261114-stage9"></script>
   <script>
@@ -1558,7 +1559,7 @@
       if(e.key==="Escape"&&masterOrderDialog)closeMasterOrderDialog();
     });
     function makeMasterScheduleRow(order,isNext=false){return masterUI.makeMasterScheduleRow(order,isNext);}
-    function renderMasterSchedule(rows){return masterUI.renderMasterSchedule(rows);}
+    function renderMasterSchedule(rows,options){return masterUI.renderMasterSchedule(rows,options);}
     let masterSettlementsSignature="";
     function renderMasterSettlements() {
       const section=document.getElementById("masterPendingSettlements");
@@ -1620,10 +1621,22 @@
         shown.sort((a,b)=>String(a.time||"").localeCompare(String(b.time||"")));
         document.getElementById("listTitle").textContent="Заказы · "+formatDate(selectedDate);
       }
-      document.getElementById("orderCount").textContent=shown.length+" шт.";
+      // Raul sees the active queue first and a separate collapsed history
+      // for the selected day. Completed orders stay hidden in other views.
+      const completedForDay=currentRole==="master"&&currentTab==="calendar"?
+        getOrders().filter(o=>o.date===selectedDate&&o.status==="Выполнен"&&
+          o.assignedUserId===currentUser?.id):[];
+      // Count active and completed jobs for Raul's selected day, even when
+      // the completed section is folded; other screens keep their old counts.
+      const visibleDayCount=shown.length+completedForDay.length;
+      document.getElementById("orderCount").textContent=
+        (currentRole==="master"&&currentTab==="calendar"?visibleDayCount:shown.length)+" шт.";
       ordersNode.replaceChildren();
       renderMasterOverview(currentTab==="calendar"&&currentRole==="master"?masterWorkingOrders():[]);
-      if(currentRole==="master") renderMasterSchedule(shown);
+      if(currentRole==="master"){
+        renderMasterSchedule(shown,{compactEmpty:completedForDay.length>0});
+        if(currentTab==="calendar")masterUI.renderMasterCompletedDay(completedForDay,selectedDate);
+      }
       else if(!shown.length) ordersNode.append(make("div","empty",currentTab==="history"?"Выполненных заказов нет":"Заказов нет"));
       else shown.forEach(o=>{const card=makeCard(o);window.__rdDecorateOrder?.(card,o);card.dataset.search=(o.name+' '+o.phone+' '+o.address+' '+o.master+' '+(o.referenceCode||'')+' '+(o.id||'')).toLocaleLowerCase('ru');card.dataset.date=o.date||'';card.dataset.master=o.master||'';card.dataset.status=o.status||'';card.dataset.unpaid=String(o.status==='Выполнен'&&!o.paid);card.dataset.pendingPayment=String(o.status==="Выполнен"&&!o.paid);ordersNode.append(card);});
       renderMasterSettlements();
