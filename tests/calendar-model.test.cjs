@@ -171,13 +171,13 @@ test("quick-slot validation rejects invalid roles, times, and unavailable slots"
 });
 test("app loads calendar before use while preserving availability scripts",()=>{
   const html=fs.readFileSync(path.join(__dirname,"..","index.html"),"utf8");
-  assert.match(html,/src="\/calendar-model\.js\?v=20261117-load-v1"/);
+  assert.match(html,/src="\/calendar-model\.js\?v=20261117-master-swipe-v1"/);
   assert.match(html,/src="\/order-availability\.js(?:\?[^"]*)?"/);
   assert.match(html,/src="\/quick-slots\.js"/);
   assert.match(html,/calendarModule\.renderCalendar\(\)/);
   assert.match(html,/calendarModule\.bindNavigation\(\)/);
   assert.match(html,/__rdCalendarUtils\.canPrefillSlot/);
-  assert.ok(html.indexOf('src="/calendar-model.js?v=20261117-load-v1"')<
+  assert.ok(html.indexOf('src="/calendar-model.js?v=20261117-master-swipe-v1"')<
     html.indexOf("const calendarModule=window.__rdCreateCalendarModule"));
   const inline=html.split("<script>\n").at(-1).split("</script>")[0];
   assert.doesNotThrow(()=>new Function(inline));
@@ -202,4 +202,49 @@ test("master calendar title stays the Today action without a separate row",()=>{
   app.buttons.goToday.fire("click");
   assert.equal(app.getSelected(),"2026-11-14");
   assert.equal(app.getRenders(),1);
+});
+
+test("master can swipe the colored week without affecting vertical scrolling or tapping",()=>{
+  const app=build({role:"master",date:"2026-11-17"});
+  app.module.bindNavigation();
+  const strip=app.elements.weekDays;
+  const start=(x,y)=>strip.listeners.touchstart({touches:[{clientX:x,clientY:y}]});
+  const end=(x,y)=>{
+    let cancelled=false;
+    strip.listeners.touchend({changedTouches:[{clientX:x,clientY:y}],
+      cancelable:true,preventDefault(){cancelled=true;}});
+    return cancelled;
+  };
+  start(240,300);
+  assert.equal(end(130,305),true,"left swipe must suppress generated click");
+  assert.equal(app.getSelected(),"2026-11-24","left advances one week");
+  assert.deepEqual(app.restores,[380],"master scroll preserved");
+  app.runFrames();
+  assert.deepEqual(app.restores,[380,380]);
+  start(120,300);
+  assert.equal(end(240,305),true);
+  assert.equal(app.getSelected(),"2026-11-17","right returns one week");
+  start(230,300);
+  assert.equal(end(205,300),false,"short movements do not turn the week");
+  start(230,300);
+  assert.equal(end(140,470),false,"vertical scrolling does not turn the week");
+  assert.equal(app.getSelected(),"2026-11-17");
+  start(230,300);
+  strip.listeners.touchcancel();
+  assert.equal(end(90,302),false,"cancelled gestures do nothing");
+  assert.equal(app.getSelected(),"2026-11-17");
+  assert.equal(app.getRenders(),2,"only two valid swipes trigger rerenders");
+});
+test("week swipe is disabled outside the master's calendar and works across a year boundary",()=>{
+  const app=build({role:"master",date:"2026-12-31"});
+  app.module.bindNavigation();
+  const strip=app.elements.weekDays;
+  const swipe=()=>{
+    strip.listeners.touchstart({touches:[{clientX:220,clientY:100}]});
+    strip.listeners.touchend({changedTouches:[{clientX:100,clientY:100}],
+      cancelable:true,preventDefault(){}});
+  };
+  swipe();assert.equal(app.getSelected(),"2027-01-07");
+  app.setRole("owner");
+  swipe();assert.equal(app.getSelected(),"2027-01-07");
 });

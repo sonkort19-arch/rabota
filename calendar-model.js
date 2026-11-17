@@ -120,6 +120,32 @@
       onClick("rdOrdersPrevWeek",()=>shift(-7));
       onClick("rdOrdersNextWeek",()=>shift(7));
       onClick("rdOrdersToday",today);
+      // Swipe only on Raul's colored seven-day strip. Native vertical scrolling stays active.
+      // Left advances seven days; right returns seven days, matching the arrow buttons.
+      let touchOrigin=null;
+      weekDays.addEventListener("touchstart",event=>{
+        if(getCurrentRole()!=="master"||getCurrentTab()!=="calendar"||
+           event.touches?.length!==1){touchOrigin=null;return;}
+        const touch=event.touches[0];
+        touchOrigin={x:touch.clientX,y:touch.clientY};
+      },{passive:true});
+      weekDays.addEventListener("touchmove",event=>{
+        if(event.touches?.length!==1)touchOrigin=null;
+      },{passive:true});
+      weekDays.addEventListener("touchcancel",()=>{touchOrigin=null;});
+      weekDays.addEventListener("touchend",event=>{
+        const origin=touchOrigin;
+        touchOrigin=null;
+        if(!origin||getCurrentRole()!=="master"||getCurrentTab()!=="calendar"||
+           event.changedTouches?.length!==1)return;
+        const touch=event.changedTouches[0];
+        const dx=touch.clientX-origin.x,dy=touch.clientY-origin.y;
+        if(Math.abs(dx)<48||Math.abs(dx)<Math.abs(dy)*1.35)return;
+        // Prevent a synthetic click on a date tile after a recognized horizontal swipe.
+        if(event.cancelable)event.preventDefault();
+        selectDay(addDays(getSelectedDate(),dx<0?7:-7),true);
+      },{passive:false});
+
     }
     return {renderCalendar,bindNavigation};
   }

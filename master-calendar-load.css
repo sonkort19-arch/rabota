@@ -34,3 +34,9 @@ body.rd #appScreen.rd-master.master-mode #calendarPanel.master-calendar-compact 
     transition:none;
   }
 }
+
+/* Allow horizontal week gestures without hijacking vertical iPhone scrolling. */
+body.rd #appScreen.rd-master.master-mode #calendarPanel.master-calendar-compact #weekDays{
+  touch-action:pan-y;
+  overscroll-behavior-x:contain;
+}
