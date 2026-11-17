@@ -9,9 +9,15 @@
 })(typeof window!=="undefined"?window:globalThis,function(root){
   "use strict";
   const STORAGE_KEY="rd-client-wa-message-templates-v1";
-  const DEFAULT_TEMPLATES=Object.freeze({
+  // Keep legacy defaults so previously saved links survive a text upgrade.
+  // User-edited copy is never overwritten.
+  const LEGACY_TEMPLATES=Object.freeze({
     booking:"Здравствуйте, {имя}!\n\nВы записаны на промывку системы отопления MOBA.\nДата: {дата}\nВремя: {время} (МСК)\nМастер: {мастер}\n\nПожалуйста, ожидайте мастера в согласованное время.\nЕсли планы изменились, напишите нам в этот чат.",
     review:"Здравствуйте, {имя}!\n\nСпасибо, что выбрали MOBA! Работа по промывке системы отопления завершена.\n\nБудем благодарны, если вы оставите отзыв о нашей работе ответным сообщением.\n\nС уважением, команда MOBA."
+  });
+  const DEFAULT_TEMPLATES=Object.freeze({
+    booking:"Здравствуйте, {имя}!\n\nВы записаны на промывку системы отопления MOBA.\n\nДата: {дата}\nВремя: {время} (МСК)\nМастер: {мастер}\n\nЕсли понадобится перенести запись, напишите нам в этот чат.",
+    review:"Здравствуйте, {имя}!\n\nСпасибо, что выбрали MOBA! Работа по промывке системы отопления завершена.\n\nБудем благодарны за честный отзыв о нашей работе — это помогает другим клиентам сделать выбор.\n\nС уважением, команда MOBA."
   });
   const TOKENS=Object.freeze(["имя","дата","время","мастер","адрес","ссылка"]);
   // Shared stable values: stored in order.client_source, not the display text.
@@ -85,7 +91,11 @@
   function getSettings(){
     try{
       const saved=root?.localStorage?.getItem(STORAGE_KEY);
-      return saved?validateSettings({...defaults(),...JSON.parse(saved)}):defaults();
+      if(!saved)return defaults();
+      const parsed={...defaults(),...JSON.parse(saved)};
+      if(parsed.booking===LEGACY_TEMPLATES.booking)parsed.booking=DEFAULT_TEMPLATES.booking;
+      if(parsed.review===LEGACY_TEMPLATES.review)parsed.review=DEFAULT_TEMPLATES.review;
+      return validateSettings(parsed);
     }catch(_){return defaults();}
   }
   function saveSettings(data){
@@ -127,11 +137,15 @@
     const settings=settingsOverride?validateSettings(settingsOverride):getSettings();
     const url=validateReviewUrl(reviewUrl===undefined?sourceReviewUrl(order,settings):reviewUrl);
     let message=renderTemplate(settings.review,order,url);
-    if(url&&!settings.review.includes("{ссылка}")){
+    if(url&&!/\{\s*ссылка\s*\}/i.test(settings.review)){
+      // Place the review action BEFORE the signature, not after it.
       if(message.includes("ответным сообщением."))
         message=message.replace("ответным сообщением.","по ссылке ниже.");
       const source=validSource(order?.clientSource);
-      message+="\n\n"+(sourceLabel(source)?"Оставить отзыв — "+sourceLabel(source)+":\n":"")+url;
+      const action=(sourceLabel(source)?"Оставить отзыв — "+sourceLabel(source):"Оставить отзыв")+":\n"+url;
+      const signature="\n\nС уважением, команда MOBA.";
+      const index=message.lastIndexOf(signature);
+      message=index>=0?message.slice(0,index)+"\n\n"+action+message.slice(index):message+"\n\n"+action;
     }
     return message;
   }
