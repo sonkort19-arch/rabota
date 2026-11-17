@@ -1372,14 +1372,24 @@
       masterDialogFocus?.focus?.({preventScroll:true});masterDialogFocus=null;
     }
     // Raul's sheet reuses the original card's live status, payment and contact handlers.
+    function masterSheetCount(value,forms){
+      const count=Number(value),n=Math.abs(count),last=n%10,lastTwo=n%100;
+      const ending=Number.isInteger(count)&&lastTwo>=11&&lastTwo<=14?forms[2]:
+        last===1?forms[0]:last>=2&&last<=4?forms[1]:forms[2];
+      return String(value)+" "+ending;
+    }
     function buildMasterSheetParts(order){
       const original=makeCard(order);
       const details=make("div","master-sheet-details");
       const contact=make("div","master-sheet-contact");
       const phone=String(order.phone||"").trim();
       if(phone){
+        const digits=phone.replace(/\D/g,"");
+        const shown=digits.length===11&&/^[78]/.test(digits)
+          ?digits[0]+" "+digits.slice(1,4)+" "+digits.slice(4,7)+"-"+digits.slice(7,9)+"-"+digits.slice(9)
+          :phoneForDisplay(phone)||phone;
         const row=make("div","master-sheet-fact master-sheet-fact-phone");
-        row.append(make("span","master-sheet-fact-icon"),make("strong","master-sheet-fact-text",phoneForDisplay(phone)||phone));
+        row.append(make("span","master-sheet-fact-icon"),make("strong","master-sheet-fact-text",shown));
         contact.append(row);
       }
       const address=String(order.address||"").trim();
@@ -1395,7 +1405,7 @@
         const specs=make("div","master-sheet-specs");
         if(hasRadiators||order.radiatorType){
           const radiator=make("div","master-sheet-spec master-sheet-spec-radiators");
-          const count=hasRadiators?String(order.radiators)+" радиаторов":"Радиаторы";
+          const count=hasRadiators?masterSheetCount(order.radiators,["радиатор","радиатора","радиаторов"]):"Радиаторы";
           radiator.append(make("span","master-sheet-spec-icon"),make("span","master-sheet-spec-name",count));
           if(order.radiatorType)radiator.append(make("small","master-sheet-spec-type",order.radiatorType));
           specs.append(radiator);
@@ -1403,7 +1413,7 @@
         if(hasLoops){
           const floor=make("div","master-sheet-spec master-sheet-spec-floor");
           floor.append(make("span","master-sheet-spec-icon"),
-            make("span","master-sheet-spec-name",String(order.floorLoops)+" контуров пола"));
+            make("span","master-sheet-spec-name",masterSheetCount(order.floorLoops,["контур пола","контура пола","контуров пола"])));
           specs.append(floor);
         }
         details.append(specs);
