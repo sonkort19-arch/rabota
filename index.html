@@ -489,7 +489,8 @@
     }
   </style>
   <link rel="stylesheet" href="/master-calendar-load.css?v=20261117-single-outline-v1">
-  <link rel="stylesheet" href="/whatsapp-settings.css?v=20261118-v1">
+  <link rel="stylesheet" href="/whatsapp-settings.css?v=20261118-source-v1">
+  <link rel="stylesheet" href="/client-source.css?v=20261118-v1">
 </head>
 <body>
 
@@ -721,6 +722,25 @@
               <input id="clientAddress" name="address" type="text" maxlength="240" placeholder="Улица, дом, квартира">
               <span class="mq-trailing-icon mq-icon-pin mq-master-only" aria-hidden="true"></span>
             </div>
+            <div class="mq-client-source">
+              <label for="clientSource">Откуда узнали о нас</label>
+              <select id="clientSource" name="clientSource">
+                <option value="">Выберите источник</option>
+                <option value="avito">Авито</option>
+                <option value="instagram">Instagram</option>
+                <option value="2gis">2ГИС</option>
+                <option value="yandex">Яндекс Карты</option>
+                <option value="google">Google Карты</option>
+                <option value="vk">ВКонтакте</option>
+                <option value="telegram">Telegram</option>
+                <option value="website">Сайт</option>
+                <option value="recommendation">По рекомендации</option>
+                <option value="walk_in">Мимо проходил</option>
+                <option value="regular">Постоянный клиент</option>
+                <option value="other">Другое</option>
+                <option value="unknown">Неизвестно</option>
+              </select>
+            </div>
           </div>
           <div class="form-title mq-section-heading mq-work-heading"><span class="mq-heading-icon mq-icon-work mq-master-only" aria-hidden="true"></span><span class="mq-master-only">Работы</span><span class="mq-owner-only">Система отопления</span></div>
           <div class="form-grid order-core-grid">
@@ -860,7 +880,8 @@
     const ordersWeekDays = document.getElementById("rdOrdersWeekDays");
     const controls = {
       name: document.getElementById("clientName"), phone: document.getElementById("clientPhone"),
-      address: document.getElementById("clientAddress"), type: document.getElementById("radiatorType"),
+      address: document.getElementById("clientAddress"), source: document.getElementById("clientSource"),
+      type: document.getElementById("radiatorType"),
       radiators: document.getElementById("radiators"), loops: document.getElementById("floorLoops"),
       master: document.getElementById("master"), date: document.getElementById("orderDate"),
       time: document.getElementById("orderTime"), price: document.getElementById("price"),
@@ -1255,6 +1276,8 @@
       card.append(make("span","status-badge " + css[state],state));
       if (currentRole === "master" && phoneForDisplay(order.phone)) info(card,"Телефон: ",phoneForDisplay(order.phone));
       info(card,"Адрес: ",order.address);
+      if(order.clientSource)info(card,"Источник: ",
+        window.__rdClientWhatsApp?.sourceLabel(order.clientSource)||order.clientSource);
       info(card,"Радиаторы: ",order.radiatorType ? order.radiatorType +
         (order.radiators !== "" && order.radiators !== undefined ? ", " + order.radiators + " шт." : "") :
         (order.radiators !== "" && order.radiators !== undefined ? order.radiators + " шт." : ""));
@@ -1684,6 +1707,7 @@
       editingId=id===undefined?null:String(id);
       updateMasters();
       const existing=editingId===null?null:getOrders().find(x=>String(x.id)===editingId);
+      controls.source.required=!existing;
       advanced.open=Boolean(existing);
       deleteOrderBtn.hidden=currentRole!=="owner"||!existing;
       deleteOrderBtn.disabled=orderHasFinancialHistory(existing);
@@ -1694,6 +1718,7 @@
         controls.name.value=existing.name||"";
         controls.phone.value=existing.phone||"";
         controls.address.value=existing.address||"";
+        controls.source.value=existing.clientSource||"";
         controls.type.value=existing.radiatorType||"";
         controls.radiators.value=existing.radiators??"";
         controls.loops.value=existing.floorLoops??"";
@@ -1845,6 +1870,10 @@
       if(!name||!phone||!date||!time||!STATUSES.includes(status)) {
         formStatus.textContent="Заполните обязательные поля.";return;
       }
+      if(editingId===null && !controls.source.value){
+        formStatus.textContent="Выберите, откуда клиент узнал о нас (или «Неизвестно»).";
+        controls.source.focus();return;
+      }
       if(!normalizePhone(phone)) {
         formStatus.textContent="Укажи правильный номер телефона клиента (10–11 цифр).";
         controls.phone.focus();return;
@@ -1901,7 +1930,7 @@
         id:existing?existing.id:null,createdAt:existing?existing.createdAt:now,
         legacyId:existing?existing.legacyId:null,
         leadId:existing?existing.leadId:(status!=="Отменён"?form.dataset.leadId||null:null),
-        name,phone,address:controls.address.value.trim(),
+        name,phone,address:controls.address.value.trim(),clientSource:controls.source.value,
         radiatorType:controls.type.value,radiators:controls.radiators.value,
         floorLoops:controls.loops.value,master:raulCreating?currentMasterName.trim():controls.master.value.trim(),
         date,time,price:controls.price.value===""?null:Number(controls.price.value),
@@ -2607,8 +2636,8 @@
   <script src="/master-quick-order.js?v=20261117-mock-v1"></script>
   <script src="/quick-slots.js"></script>
   <script src="/whatsapp-order.js?v=20261111-master-notes"></script>
-  <script src="/whatsapp-client.js?v=20261118-templates-v1"></script>
-  <script src="/whatsapp-settings.js?v=20261118-v1"></script>
+  <script src="/whatsapp-client.js?v=20261118-source-v1"></script>
+  <script src="/whatsapp-settings.js?v=20261118-source-v1"></script>
   <script src="/redesign.js?v=20261118-settings-v1"></script>
   <script src="/master-notifications.js?v=20261117-review-v1"></script>
   <script src="/orders-list.js?v=20261117-seq5-v1"></script>
