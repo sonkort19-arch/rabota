@@ -1,4 +1,4 @@
-/* Raul only: paint existing 7 date tiles, without dots, legends or extra height.
+/* Raul only: paint the same seven visible date tiles, without dots or legends.
    The blue inset ring keeps the selected date visible in every load state. */
 body.rd #appScreen.rd-master.master-mode #calendarPanel.master-calendar-compact .week .day.workload-free{
   background:#24b36b;border-color:#15965a;color:#fff;
@@ -44,7 +44,7 @@ body.rd #appScreen.rd-master.master-mode #calendarPanel.master-calendar-compact 
   overflow-y:hidden;
   scrollbar-width:none;
   -webkit-overflow-scrolling:touch;
-  scroll-snap-type:x mandatory;
+  scroll-snap-type:x proximity;
   overscroll-behavior-x:contain;
   touch-action:auto;
   overflow-anchor:none;

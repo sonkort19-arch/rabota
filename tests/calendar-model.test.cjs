@@ -16,10 +16,14 @@ class Node {
   append(...children){for(const child of children)child.parent=this;this.children.push(...children);}
   prepend(...children){for(const child of children)child.parent=this;this.children.unshift(...children);}
   get firstElementChild(){return this.children[0];}
+  get lastElementChild(){return this.children.at(-1);}
+  remove(){if(this.parent){this.parent.children.splice(this.parent.children.indexOf(this),1);this.parent=null;}}
   get offsetLeft(){return this.parent?this.parent.children.indexOf(this)*50:0;}
   get offsetWidth(){return 47;}
   get scrollWidth(){return this.children.length*50;}
   setAttribute(k,v){this.attrs[k]=v;}
+  getAttribute(k){return this.attrs[k]??null;}
+  removeAttribute(k){delete this.attrs[k];}
   addEventListener(k,fn){this.listeners[k]=fn;}
   fire(k){assert.equal(typeof this.listeners[k],"function");this.listeners[k]();}
 }
@@ -35,10 +39,12 @@ function build({date="2026-11-13",role="owner",orders=[]}={}){
   ].map(id=>[id,new Node()]));
   let selectedDate=date,currentTab="calendar",currentRole=role,renderCount=0;
   let scroll=380;const restores=[];let queued=[];
+  let revision=0;let currentOrders=orders;
+  const observers=[];
   const module=createCalendarModule({
     elements,
     make:(tag,css,text)=>new Node(tag,css,text),
-    getOrders:()=>orders,
+    getOrders:()=>currentOrders,getOrdersRevision:()=>revision,
     getSelectedDate:()=>selectedDate,
     setSelectedDate:date=>{selectedDate=date;},
     getCurrentRole:()=>currentRole,getCurrentTab:()=>currentTab,
@@ -48,13 +54,17 @@ function build({date="2026-11-13",role="owner",orders=[]}={}){
     verticalScrollPosition:()=>scroll,
     restoreVerticalScroll:y=>{restores.push(y);},
     requestAnimationFrame:fn=>{queued.push(fn);},
+    ResizeObserver:class {constructor(cb){this.cb=cb;observers.push(this);}observe(){}},
     getElement:id=>buttons[id],
     masterClock:()=>({date:"2026-11-14"})
   });
   return {
     module,elements,buttons,restores,
     getSelected:()=>selectedDate,getTab:()=>currentTab,getRenders:()=>renderCount,
-    setRole:x=>{currentRole=x;},runFrames:()=>{queued.splice(0).forEach(fn=>fn());}
+    setRole:x=>{currentRole=x;},setTab:x=>{currentTab=x;},
+    setOrders:x=>{currentOrders=x;revision++;},
+    triggerResize:()=>{observers.forEach(observer=>observer.cb());},
+    runFrames:()=>{queued.splice(0).forEach(fn=>fn());}
   };
 }
 test("Monday-first weeks include all seven dates at boundaries",()=>{
@@ -179,13 +189,13 @@ test("quick-slot validation rejects invalid roles, times, and unavailable slots"
 });
 test("app loads calendar before use while preserving availability scripts",()=>{
   const html=fs.readFileSync(path.join(__dirname,"..","index.html"),"utf8");
-  assert.match(html,/src="\/calendar-model\.js\?v=20261117-day-carousel-v1"/);
+  assert.match(html,/src="\/calendar-model\.js\?v=20261117-stable-scroll-v1"/);
   assert.match(html,/src="\/order-availability\.js(?:\?[^"]*)?"/);
   assert.match(html,/src="\/quick-slots\.js"/);
   assert.match(html,/calendarModule\.renderCalendar\(\)/);
   assert.match(html,/calendarModule\.bindNavigation\(\)/);
   assert.match(html,/__rdCalendarUtils\.canPrefillSlot/);
-  assert.ok(html.indexOf('src="/calendar-model.js?v=20261117-day-carousel-v1"')<
+  assert.ok(html.indexOf('src="/calendar-model.js?v=20261117-stable-scroll-v1"')<
     html.indexOf("const calendarModule=window.__rdCreateCalendarModule"));
   const inline=html.split("<script>\n").at(-1).split("</script>")[0];
   assert.doesNotThrow(()=>new Function(inline));
@@ -242,10 +252,11 @@ test("calendar arrows and date picker keep selecting exact dates outside carouse
 
 test("iPhone day carousel aligns the chosen week after a hidden panel becomes visible",()=>{
   const app=build({role:"master",date:"2026-11-17"});
+  app.module.bindNavigation();
   app.module.renderCalendar();
   assert.equal(app.elements.weekDays.scrollLeft,0,"hidden panel cannot measure tiles");
   app.elements.weekDays.clientWidth=350;
-  app.runFrames();
+  app.triggerResize();
   assert.equal(app.elements.weekDays.scrollLeft,28*50,"starts on Monday 16 November");
   app.elements.weekDays.scrollLeft+=100;
   app.module.renderCalendar();
@@ -265,6 +276,50 @@ test("carousel grows smoothly in both directions and leaves date unselected unti
   assert.equal(bar.scrollLeft,100+28*50,"prepended days preserve the viewport");
   bar.scrollLeft=bar.scrollWidth-bar.clientWidth-5;
   bar.listeners.scroll();
-  assert.equal(bar.children.length,before+56);
+  assert.equal(bar.children.length,before+28,"buffer is capped after the second extension");
   assert.equal(app.getSelected(),"2026-11-17","dragging does not select another appointment");
+});
+
+test("native strip reuses DOM nodes during background updates and keeps the offset",()=>{
+  const app=build({role:"master",date:"2026-11-17",orders:[]});
+  const bar=app.elements.weekDays;
+  bar.clientWidth=350;
+  app.module.renderCalendar();
+  const first=bar.children[0],selected=bar.children.find(x=>x.dataset.date==="2026-11-17");
+  bar.scrollLeft+=150;
+  const offset=bar.scrollLeft;
+  app.setOrders([{date:"2026-11-17",radiators:25,time:"10:00",status:"Записан"}]);
+  app.module.renderCalendar();
+  assert.equal(bar.children[0],first,"existing buttons are retained");
+  assert.equal(bar.children.find(x=>x.dataset.date==="2026-11-17"),selected);
+  assert.equal(bar.scrollLeft,offset,"an updated order does not scroll the carousel");
+  assert.ok(selected.className.includes("workload-full"),"load colours reflect new data");
+});
+test("ResizeObserver aligns a hidden initial calendar when it becomes visible",()=>{
+  const app=build({role:"master",date:"2026-11-17"});
+  const bar=app.elements.weekDays;
+  app.module.bindNavigation();
+  app.module.renderCalendar();
+  app.runFrames();
+  assert.equal(bar.scrollLeft,0);
+  bar.clientWidth=350;
+  app.triggerResize();
+  assert.equal(bar.scrollLeft,28*50,"today is in the initial week");
+  assert.equal(bar.children.find(x=>x.dataset.date==="2026-11-17").attrs["aria-pressed"],"true");
+  bar.scrollLeft+=200;
+  app.triggerResize();
+  assert.equal(bar.scrollLeft,28*50+200,"returning to calendar must not reset position");
+});
+test("native carousel keeps only bounded tiles after many swipes",()=>{
+  const app=build({role:"master",date:"2026-11-17"});
+  const bar=app.elements.weekDays;
+  bar.clientWidth=350;
+  app.module.bindNavigation();
+  app.module.renderCalendar();
+  for(let n=0;n<9;n++){
+    bar.scrollLeft=bar.scrollWidth-bar.clientWidth-5;
+    bar.listeners.scroll();
+    assert.ok(bar.children.length<=140,"native scrolling must not leak day buttons");
+  }
+  assert.equal(app.getSelected(),"2026-11-17","scroll never changes booking date");
 });

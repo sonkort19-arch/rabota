@@ -486,7 +486,7 @@
       }
     }
   </style>
-  <link rel="stylesheet" href="/master-calendar-load.css?v=20261117-day-carousel-v1">
+  <link rel="stylesheet" href="/master-calendar-load.css?v=20261117-stable-scroll-v1">
 </head>
 <body>
 
@@ -830,7 +830,7 @@
   <script src="/order-sync.js?v=20261113-stage2"></script>
   <script src="/order-model.js?v=20261117-seq5-v1"></script>
   <script src="/calendar-load.js?v=20261117-v1"></script>
-   <script src="/calendar-model.js?v=20261117-day-carousel-v1"></script>
+   <script src="/calendar-model.js?v=20261117-stable-scroll-v1"></script>
   <script src="/finance-model.js?v=20261113-stage5"></script>
   <script src="/master-ui.js?v=20261117-ref-v1"></script>
   <script src="/lead-ai-bridge.js?v=20261113-stage7"></script>
@@ -903,7 +903,7 @@
     function formatDate(value) {return window.__rdCalendarUtils.formatDate(value);}
     const calendarModule=window.__rdCreateCalendarModule({
       elements:{calendarDate,weekDays,ordersWeekDays,ordersDayDateLabel},
-      make,getOrders:()=>getOrders(),
+      make,getOrders:()=>getOrders(),getOrdersRevision:()=>window.__rdOrdersRevision||0,
       getSelectedDate:()=>selectedDate,setSelectedDate:date=>{
          selectedDate=date;
          if(currentRole==="master")masterFollowsToday=(date===masterClock().date);
