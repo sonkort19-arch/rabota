@@ -789,7 +789,7 @@
 
   <script src="/order-notes.js?v=20261111-notes1"></script>
   <script src="/order-sync.js?v=20261113-stage2"></script>
-  <script src="/order-model.js?v=20261117-ref-v1"></script>
+  <script src="/order-model.js?v=20261117-seq5-v1"></script>
   <script src="/calendar-model.js?v=20261113-stage4"></script>
   <script src="/finance-model.js?v=20261113-stage5"></script>
   <script src="/master-ui.js?v=20261117-ref-v1"></script>
@@ -1398,7 +1398,7 @@
       const header=make("div","mw-order-modal-head"),copy=make("div","mw-order-modal-headtext"),
         close=make("button","mw-order-modal-close","×");
       copy.append(make("h2","mw-order-modal-title"),make("p","mw-order-modal-subtitle"));
-      const referenceRow=window.__rdOrderReference?.createRow(order.id,document);
+      const referenceRow=window.__rdOrderReference?.createRow(order.orderNumber,document);
       if(referenceRow)copy.append(referenceRow);
       close.type="button";close.setAttribute("aria-label","Закрыть заказ");
       close.addEventListener("click",closeMasterOrderDialog);
@@ -2412,9 +2412,9 @@
   <script src="/order-availability.js"></script>
   <script src="/quick-slots.js"></script>
   <script src="/whatsapp-order.js?v=20261111-master-notes"></script>
-  <script src="/redesign.js?v=20261117-ref-v1"></script>
+  <script src="/redesign.js?v=20261117-seq5-v1"></script>
   <script src="/master-notifications.js?v=20261117-review-v1"></script>
-  <script src="/orders-list.js?v=20261117-ref-v1"></script>
+  <script src="/orders-list.js?v=20261117-seq5-v1"></script>
   <script src="/finance-payroll.js"></script>
   <script src="/money-workspace.js?v=20261117-ref-v1"></script>
   <script src="/lead-assistant.js"></script>
