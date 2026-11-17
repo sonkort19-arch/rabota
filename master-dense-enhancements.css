@@ -595,3 +595,28 @@ body.rd #appScreen.rd-master.master-mode .master-header-actions .rd-profile-menu
     font-size:11px;
   }
 }
+
+/* Raul's daily schedule: one compact nearest-visit strip. */
+body.rd #appScreen.rd-master.master-mode .master-today-summary{
+  margin:6px 0 7px;padding:0;border:0;border-radius:0;
+  background:transparent;box-shadow:none;
+}
+body.rd #appScreen.rd-master.master-mode .master-next-jump.master-next-compact{
+  display:flex;flex-direction:row;align-items:center;justify-content:flex-start;
+  gap:8px;box-sizing:border-box;width:100%;min-height:44px;height:44px;
+  margin:0;padding:7px 27px 7px 36px;
+  border:0;border-radius:11px;background:#e7efff;text-align:left;
+}
+body.rd #appScreen.rd-master.master-mode .master-next-jump.master-next-compact:before{
+  left:9px;width:19px;height:19px;
+}
+body.rd #appScreen.rd-master.master-mode .master-next-jump.master-next-compact:after{
+  right:9px;font-size:20px;
+}
+body.rd #appScreen.rd-master.master-mode .master-next-compact .master-next-caption{
+  flex:0 0 auto;font-size:11px;line-height:1.2;color:#63748e;
+}
+body.rd #appScreen.rd-master.master-mode .master-next-compact .master-next-value{
+  flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;
+  white-space:nowrap;font-size:12.5px;line-height:1.25;color:#2050aa;
+}
