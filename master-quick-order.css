@@ -1,0 +1,301 @@
+/* Raul's NEW order form. Owner and manager forms retain their original layout.
+   All original IDs and order saving / availability validation remain authoritative. */
+#orderOverlay:not(.master-quick) .mq-master-only{display:none!important}
+#orderOverlay.master-quick .mq-owner-only{display:none!important}
+body.rd #orderOverlay.master-quick{
+  z-index:1800;align-items:flex-end;justify-content:center;
+  padding:0;overflow:hidden;background:rgba(20,34,63,.61);
+}
+body.rd #orderOverlay.master-quick > .sheet{
+  display:flex;flex-direction:column;
+  width:min(100%,620px);max-width:100%;
+  height:min(93dvh,930px);max-height:calc(100dvh - env(safe-area-inset-top) - 8px);
+  min-height:0;margin:0;padding:0;border:0;border-radius:26px 26px 0 0;
+  background:#fff;box-shadow:0 -16px 60px rgba(12,28,58,.23);overflow:hidden;
+}
+body.rd #orderOverlay.master-quick > .sheet::before{
+  content:"";align-self:center;display:block;flex:0 0 auto;
+  width:54px;height:5px;margin:10px 0 0;border-radius:99px;background:#c8d2e8;
+}
+body.rd #orderOverlay.master-quick .sheet-head{
+  min-height:57px;padding:10px 19px 13px;border-bottom:1px solid #e3eaf7;
+  align-items:center;
+}
+body.rd #orderOverlay.master-quick .sheet-head h2{
+  color:#121f3f;font-size:25px;font-weight:850;line-height:1.2;letter-spacing:-.45px;
+}
+body.rd #orderOverlay.master-quick .sheet-head .close{
+  width:44px;height:44px;min-width:44px;min-height:44px;flex-basis:44px;
+  border-radius:14px;background:#eaf0fc;color:#4c628c;font-size:27px;
+}
+body.rd #orderOverlay.master-quick #orderForm .order-form-scroll{
+  padding:8px 18px 18px;scroll-padding-block:15px 22px;
+}
+body.rd #orderOverlay.master-quick #orderForm .order-form-scroll .mq-section-heading{
+  display:flex;align-items:center;gap:9px;min-height:23px;
+  margin:12px 0 9px;color:#132244;
+  font-size:16px;line-height:1.3;font-weight:830;letter-spacing:-.12px;
+}
+body.rd #orderOverlay.master-quick #orderForm .order-form-scroll .mq-client-heading{margin-top:9px}
+body.rd #orderOverlay.master-quick #orderForm .order-form-scroll .mq-work-heading,
+body.rd #orderOverlay.master-quick #orderForm .order-form-scroll .mq-booking-heading{
+  padding-top:13px;margin-top:13px;border-top:1px solid #e8edf7;
+}
+body.rd #orderOverlay.master-quick #orderForm .mq-heading-icon{
+  display:inline-block;flex:0 0 23px;width:23px;height:23px;
+  background-position:center;background-repeat:no-repeat;background-size:contain;
+}
+body.rd #orderOverlay.master-quick #orderForm .mq-icon-people{background-image:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%232465db%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpath%20d%3D%22M16%2021v-2a4%204%200%200%200-4-4H6a4%204%200%200%200-4%204v2%22%2F%3E%3Ccircle%20cx%3D%229%22%20cy%3D%227%22%20r%3D%224%22%2F%3E%3Cpath%20d%3D%22M22%2021v-2a4%204%200%200%200-3-3.9M16%203.1a4%204%200%200%201%200%207.8%22%2F%3E%3C%2Fsvg%3E")}
+body.rd #orderOverlay.master-quick #orderForm .mq-icon-person{background-image:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%232e5db8%22%20stroke-width%3D%221.9%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Ccircle%20cx%3D%2212%22%20cy%3D%227.5%22%20r%3D%224%22%2F%3E%3Cpath%20d%3D%22M4.5%2021v-2.3A6%206%200%200%201%2010.5%2013h3A6%206%200%200%201%2019.5%2018.7V21Z%22%2F%3E%3C%2Fsvg%3E")}
+body.rd #orderOverlay.master-quick #orderForm .mq-icon-phone{background-image:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%232c63d5%22%20stroke-width%3D%221.9%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpath%20d%3D%22M22%2016.8v3a2%202%200%200%201-2.2%202A19.5%2019.5%200%200%201%202.2%204.2%202%202%200%200%201%204.2%202h3a2%202%200%200%201%202%201.7l.5%203a2%202%200%200%201-.6%201.8L7.1%2010a15.4%2015.4%200%200%200%206.9%206.9l1.5-2a2%202%200%200%201%201.8-.6l3%20.5a2%202%200%200%201%201.7%202Z%22%2F%3E%3C%2Fsvg%3E")}
+body.rd #orderOverlay.master-quick #orderForm .mq-icon-pin{background-image:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%232c63d5%22%20stroke-width%3D%221.9%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpath%20d%3D%22M20%2010c0%205-8%2012-8%2012S4%2015%204%2010a8%208%200%200%201%2016%200Z%22%2F%3E%3Ccircle%20cx%3D%2212%22%20cy%3D%2210%22%20r%3D%222.7%22%2F%3E%3C%2Fsvg%3E")}
+body.rd #orderOverlay.master-quick #orderForm .mq-icon-work{background-image:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%232867df%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpath%20d%3D%22m14.7%206%203.3%203.3M3%2021l7.3-7.3M10.7%203a5%205%200%200%200%206.8%206.8l-6.2%206.2L8%2012.7%201.8%2019l3.2%203.2%206.3-6.3%206.2-6.2A5%205%200%200%200%2021%203l-3.8%203.8-3.2-3.2L17.7%200%22%2F%3E%3C%2Fsvg%3E")}
+body.rd #orderOverlay.master-quick #orderForm .mq-icon-radiator{background-image:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%232164dd%22%20stroke-width%3D%221.8%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpath%20d%3D%22M2%208h20M2%2017h20%22%2F%3E%3Crect%20x%3D%224%22%20y%3D%225%22%20width%3D%224%22%20height%3D%2215%22%20rx%3D%221.5%22%2F%3E%3Crect%20x%3D%2210%22%20y%3D%225%22%20width%3D%224%22%20height%3D%2215%22%20rx%3D%221.5%22%2F%3E%3Crect%20x%3D%2216%22%20y%3D%225%22%20width%3D%224%22%20height%3D%2215%22%20rx%3D%221.5%22%2F%3E%3C%2Fsvg%3E")}
+body.rd #orderOverlay.master-quick #orderForm .mq-icon-floor{background-image:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%232164dd%22%20stroke-width%3D%221.9%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cpath%20d%3D%22M3%205h15a3%203%200%200%201%200%206H6a3%203%200%201%200%200%206h15%22%2F%3E%3Cpath%20d%3D%22M3%203v4M21%2015v4M4%2021h16%22%2F%3E%3C%2Fsvg%3E")}
+body.rd #orderOverlay.master-quick #orderForm .mq-icon-coins{background-image:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%232464d5%22%20stroke-width%3D%221.8%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Cellipse%20cx%3D%228%22%20cy%3D%227%22%20rx%3D%226%22%20ry%3D%222.6%22%2F%3E%3Cpath%20d%3D%22M2%207v5c0%201.4%202.7%202.6%206%202.6s6-1.2%206-2.6V7M2%2012v5c0%201.4%202.7%202.6%206%202.6s6-1.2%206-2.6v-5%22%2F%3E%3Cpath%20d%3D%22M14%208.5c.7-.7%202.2-1.1%204-1.1%202.5%200%204.5%201%204.5%202.3S20.5%2012%2018%2012c-1.4%200-2.7-.3-3.5-.8M16%2016.5c.6.1%201.3.2%202%20.2%202.5%200%204.5-1%204.5-2.3V9.7M16%2021.4c.6.1%201.3.2%202%20.2%202.5%200%204.5-1%204.5-2.3v-4.9%22%2F%3E%3C%2Fsvg%3E")}
+body.rd #orderOverlay.master-quick #orderForm .mq-icon-calendar{background-image:url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2024%2024%22%20fill%3D%22none%22%20stroke%3D%22%232467d5%22%20stroke-width%3D%222%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%3E%3Crect%20x%3D%223%22%20y%3D%225%22%20width%3D%2218%22%20height%3D%2216%22%20rx%3D%222%22%2F%3E%3Cpath%20d%3D%22M7%203v4M17%203v4M3%2010h18%22%2F%3E%3C%2Fsvg%3E")}
+body.rd #orderOverlay.master-quick #orderForm .mq-client-fields{
+  display:grid;gap:8px;margin:0;padding:0;
+}
+body.rd #orderOverlay.master-quick #orderForm .mq-client-field{
+  position:relative;display:block;width:100%;height:65px;min-width:0;
+  border:1px solid #cfdbf5;border-radius:14px;background:#f9fbff;
+  transition:border-color .12s,background .12s;
+}
+body.rd #orderOverlay.master-quick #orderForm .mq-client-field:focus-within{
+  border-color:#5279e5;background:#fff;
+  box-shadow:0 0 0 2px #5279e51a;
+}
+body.rd #orderOverlay.master-quick #orderForm .mq-client-field .mq-field-icon{
+  position:absolute;display:block;left:15px;top:50%;transform:translateY(-50%);
+  width:24px;height:24px;background-position:center;background-size:contain;background-repeat:no-repeat;
+  pointer-events:none;
+}
+body.rd #orderOverlay.master-quick #orderForm .mq-client-field .mq-trailing-icon{
+  position:absolute;display:block;top:50%;right:9px;transform:translateY(-50%);
+  width:34px;height:34px;border-radius:10px;background-color:#e8efff;
+  background-position:center;background-size:19px 19px;background-repeat:no-repeat;
+  pointer-events:none;
+}
+body.rd #orderOverlay.master-quick #orderForm .order-form-scroll .mq-client-field label{
+  position:absolute;z-index:1;left:53px;top:8px;
+  width:calc(100% - 100px);margin:0;padding:0;
+  color:#596d91;font-size:11px;line-height:1.2;font-weight:660;
+  pointer-events:none;
+}
+body.rd #orderOverlay.master-quick #orderForm .order-form-scroll .mq-client-field input{
+  display:block;position:relative;width:100%;height:63px;min-height:63px;
+  padding:23px 50px 6px 53px;margin:0;
+  border:0!important;border-radius:14px;background:transparent;
+  color:#162548;font-size:16px;line-height:1.3;font-weight:680;
+  outline:0;box-shadow:none;
+}
+body.rd #orderOverlay.master-quick #orderForm .mq-client-field input::placeholder{
+  color:#98a7c1;font-weight:450;opacity:1;
+}
+body.rd #orderOverlay.master-quick #orderForm .mq-client-field input:focus-visible{
+  outline:none;box-shadow:none;
+}
+body.rd #orderOverlay.master-quick #orderForm .order-core-grid{
+  display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;
+}
+body.rd #orderOverlay.master-quick #orderForm .mq-quantity-field{
+  min-width:0;display:flex;flex-direction:column;gap:5px;
+  padding:9px 7px 8px;border:1px solid #cfdbf5;border-radius:14px;background:#fff;
+}
+body.rd #orderOverlay.master-quick #orderForm .mq-quantity-caption{
+  display:flex;align-items:center;justify-content:center;gap:5px;min-width:0;min-height:21px;
+}
+body.rd #orderOverlay.master-quick #orderForm .mq-quantity-caption .mq-quantity-icon{
+  display:block;flex:0 0 21px;width:21px;height:21px;background-position:center;background-size:contain;background-repeat:no-repeat;
+}
+body.rd #orderOverlay.master-quick #orderForm .order-form-scroll .mq-quantity-caption label{
+  display:block;min-width:0;margin:0;padding:0;overflow-wrap:anywhere;
+  font-size:11.5px;line-height:1.2;font-weight:700;color:#53698d;
+}
+body.rd #orderOverlay.master-quick #orderForm .mq-number-controls{
+  display:grid;grid-template-columns:34px minmax(0,1fr) 34px;gap:4px;
+  align-items:center;min-width:0;
+}
+body.rd #orderOverlay.master-quick #orderForm .mq-number-controls .mq-step{
+  display:grid;place-items:center;box-sizing:border-box;
+  width:34px;height:36px;min-height:36px;max-width:100%;
+  margin:0;padding:0;border:0;border-radius:10px;
+  background:#eaf0ff;color:#2562e4;font-size:24px;font-weight:600;line-height:1;
+  touch-action:manipulation;
+}
+body.rd #orderOverlay.master-quick #orderForm .mq-number-controls .mq-step:active{
+  background:#d8e6ff;
+}
+body.rd #orderOverlay.master-quick #orderForm .order-form-scroll .mq-number-controls input{
+  display:block;box-sizing:border-box;min-width:0;width:100%;height:36px;min-height:36px;
+  margin:0;padding:3px 0;border:0;box-shadow:none;background:transparent;
+  border-radius:0;text-align:center;color:#18274a;font-size:17px;font-weight:800;
+  appearance:textfield;-moz-appearance:textfield;
+}
+body.rd #orderOverlay.master-quick #orderForm .mq-number-controls input::-webkit-outer-spin-button,
+body.rd #orderOverlay.master-quick #orderForm .mq-number-controls input::-webkit-inner-spin-button{
+  -webkit-appearance:none;margin:0;
+}
+body.rd #orderOverlay.master-quick #orderForm .mq-price-field{
+  grid-column:1/-1;min-width:0;margin-top:1px;
+}
+body.rd #orderOverlay.master-quick #orderForm .mq-price-wrap{
+  position:relative;display:block;height:65px;min-width:0;
+  border:1px solid #c9d7f6;border-radius:14px;background:#f6f9ff;
+}
+body.rd #orderOverlay.master-quick #orderForm .mq-price-wrap:focus-within{
+  border-color:#5279e5;background:#fff;box-shadow:0 0 0 2px #5279e51a;
+}
+body.rd #orderOverlay.master-quick #orderForm .mq-price-icon{
+  position:absolute;display:block;width:25px;height:25px;left:15px;top:50%;transform:translateY(-50%);
+  background-position:center;background-size:contain;background-repeat:no-repeat;pointer-events:none;
+}
+body.rd #orderOverlay.master-quick #orderForm .order-form-scroll .mq-price-wrap label{
+  position:absolute;left:53px;top:7px;margin:0;
+  color:#576f91;font-size:11px;font-weight:660;line-height:1.2;pointer-events:none;
+}
+body.rd #orderOverlay.master-quick #orderForm .order-form-scroll .mq-price-wrap input{
+  display:block;box-sizing:border-box;width:100%;height:63px;min-height:63px;
+  margin:0;padding:22px 39px 7px 53px;border:0!important;border-radius:14px;
+  outline:0;background:transparent;color:#14223f;font-size:21px;font-weight:830;
+  box-shadow:none;
+}
+body.rd #orderOverlay.master-quick #orderForm .mq-price-ruble{
+  position:absolute;display:block;right:17px;bottom:11px;
+  color:#182744;font-size:20px;font-weight:820;pointer-events:none;
+}
+body.rd #orderOverlay.master-quick #orderForm #oaCalendar{
+  margin:0;border:0;border-radius:0;background:transparent;box-shadow:none;overflow:visible;
+}
+body.rd #orderOverlay.master-quick #orderForm #oaToggle{
+  min-height:60px;padding:9px 12px;border:1px solid #cddbf7;border-radius:14px;
+  background:#f5f8ff;box-shadow:none;
+}
+body.rd #orderOverlay.master-quick #orderForm #oaToggle .oa-date-label strong{
+  color:#172748;font-size:15px;line-height:1.2;font-weight:800;
+}
+body.rd #orderOverlay.master-quick #orderForm #oaToggle .oa-date-label span{
+  color:#697c9a;font-size:11px;
+}
+body.rd #orderOverlay.master-quick #orderForm .oa-day-summary{
+  padding:7px 0 0;margin:0;background:transparent;
+}
+body.rd #orderOverlay.master-quick #orderForm .oa-existing{
+  display:flex;gap:6px;align-items:center;margin:0 0 7px;padding:6px 8px;
+  border-radius:10px;background:#edf2fc;color:#314768;
+}
+body.rd #orderOverlay.master-quick #orderForm .oa-existing:empty{display:none}
+body.rd #orderOverlay.master-quick #orderForm .oa-booking-row{
+  display:flex;gap:4px;align-items:center;flex-wrap:wrap;
+  min-width:0;margin:0;padding:0;font-size:11px;
+}
+body.rd #orderOverlay.master-quick #orderForm .oa-booking-row strong{
+  color:#28417b;font-size:12px;
+}
+body.rd #orderOverlay.master-quick #orderForm .oa-slots{
+  display:grid;grid-template-columns:repeat(4,minmax(0,1fr));
+  gap:6px;margin:5px 0 0;
+}
+body.rd #orderOverlay.master-quick #orderForm .oa-slots .oa-subtitle{
+  grid-column:1/-1;font-weight:760;font-size:12px;color:#4b638a;margin:0;
+}
+body.rd #orderOverlay.master-quick #orderForm .oa-slot{
+  min-width:0;width:100%;min-height:64px;margin:0;padding:8px 3px;gap:3px;
+  border-radius:12px;border:1px solid #cdd8ee;background:#edf8f2;
+  line-height:1.2;box-shadow:none;
+}
+body.rd #orderOverlay.master-quick #orderForm .oa-slot strong{
+  font-size:15px;font-weight:830;line-height:1.1;
+}
+body.rd #orderOverlay.master-quick #orderForm .oa-slot small{
+  font-size:10px;font-weight:620;line-height:1.13;overflow-wrap:anywhere;
+}
+body.rd #orderOverlay.master-quick #orderForm .oa-slot.oa-slot-available{
+  background:#e9f8ef;border-color:#91d7ac;color:#187246;
+}
+body.rd #orderOverlay.master-quick #orderForm .oa-slot.oa-slot-busy,
+body.rd #orderOverlay.master-quick #orderForm .oa-slot.oa-slot-full{
+  background:#fff0f1;border-color:#f0b9bc;color:#a3434a;
+}
+body.rd #orderOverlay.master-quick #orderForm .oa-slot.oa-slot-tight,
+body.rd #orderOverlay.master-quick #orderForm .oa-slot.oa-slot-unknown{
+  background:#fff5e6;border-color:#edce98;color:#946120;
+}
+body.rd #orderOverlay.master-quick #orderForm .oa-slot.oa-slot-available.is-selected{
+  border-color:#2b65ed;background:linear-gradient(135deg,#2877ff,#3153e9);color:#fff;
+  outline:2px solid #7f9cfe;outline-offset:-2px;
+}
+body.rd #orderOverlay.master-quick #orderForm .oa-slot.oa-slot-tight.is-selected{
+  border-color:#ce9a3f;background:#fff0ce;color:#86530b;
+  outline:2px solid #ce9a3f;outline-offset:-2px;
+}
+body.rd #orderOverlay.master-quick #orderForm .oa-slot:disabled{
+  cursor:not-allowed;opacity:1;
+}
+body.rd #orderOverlay.master-quick #orderForm .oa-slot-note{
+  grid-column:1/-1;margin:5px 0 0;color:#7e8eab;font-size:10px;line-height:1.3;
+}
+body.rd #orderOverlay.master-quick #orderForm .order-time-field{
+  display:grid;grid-template-columns:minmax(0,1fr) 150px;gap:7px 10px;
+  align-items:center;margin:9px 0 0;
+}
+body.rd #orderOverlay.master-quick #orderForm .order-form-scroll .order-time-field label{
+  display:block;margin:0;color:#566c90;font-size:12px;font-weight:690;
+}
+body.rd #orderOverlay.master-quick #orderForm .order-form-scroll .order-time-field input[type="time"]{
+  box-sizing:border-box;display:block;width:100%;height:45px;min-height:45px;
+  margin:0;padding:8px 10px;border:1px solid #d4def0;border-radius:11px;background:#fff;
+  color:#152642;font-size:16px;
+}
+body.rd #orderOverlay.master-quick #orderForm .order-time-field .oa-time-hint{
+  grid-column:1/-1;margin:0;color:#8797b2;font-size:10px;line-height:1.3;
+}
+body.rd #orderOverlay.master-quick #orderForm #orderAdvanced{
+  margin-top:13px;border:1px solid #cbd9f5;border-radius:13px;background:#f7f9ff;
+}
+body.rd #orderOverlay.master-quick #orderForm #orderAdvanced > summary{
+  min-height:46px;padding:10px 13px;font-size:15px;color:#1e3158;
+}
+body.rd #orderOverlay.master-quick #orderForm #orderAdvanced[open] > summary{
+  border-bottom:1px solid #e2eafa;
+}
+body.rd #orderOverlay.master-quick #orderForm .order-submit-bar{
+  flex:0 0 auto;box-sizing:border-box;margin:0;
+  padding:11px 18px calc(11px + env(safe-area-inset-bottom));
+  border-top:1px solid #e4ebf6;background:#fff;box-shadow:0 -7px 16px #1529500e;
+}
+body.rd #orderOverlay.master-quick #orderForm .order-submit-bar .save{
+  display:flex;align-items:center;justify-content:center;gap:8px;
+  min-height:55px;margin:0;padding:12px 15px;
+  border:0;border-radius:15px;
+  background:linear-gradient(105deg,#2879ff 0%,#385cf2 55%,#7228ee 100%);
+  color:#fff;font-size:17px;font-weight:820;line-height:1.2;
+  box-shadow:0 8px 18px #3b66e324;
+}
+body.rd #orderOverlay.master-quick #orderForm .mq-step:focus-visible,
+body.rd #orderOverlay.master-quick #orderForm .oa-slot:focus-visible{
+  outline:3px solid #93affb;outline-offset:2px;
+}
+@media(max-width:350px){
+  body.rd #orderOverlay.master-quick #orderForm .order-form-scroll{padding-inline:12px}
+  body.rd #orderOverlay.master-quick #orderForm .mq-number-controls{
+    grid-template-columns:30px minmax(0,1fr) 30px;gap:2px;
+  }
+  body.rd #orderOverlay.master-quick #orderForm .mq-number-controls .mq-step{
+    width:30px;height:34px;
+  }
+  body.rd #orderOverlay.master-quick #orderForm .mq-quantity-caption .mq-quantity-icon{flex-basis:18px;width:18px;height:18px}
+  body.rd #orderOverlay.master-quick #orderForm .order-form-scroll .mq-quantity-caption label{font-size:10.5px}
+  body.rd #orderOverlay.master-quick #orderForm .oa-slot strong{font-size:13px}
+  body.rd #orderOverlay.master-quick #orderForm .oa-slot small{font-size:9px}
+  body.rd #orderOverlay.master-quick #orderForm .order-time-field{grid-template-columns:minmax(0,1fr) 130px}
+  body.rd #orderOverlay.master-quick #orderForm .order-submit-bar{padding-inline:12px}
+}
+@media(max-height:630px){
+  body.rd #orderOverlay.master-quick > .sheet{height:98dvh;max-height:calc(100dvh - env(safe-area-inset-top))}
+  body.rd #orderOverlay.master-quick #orderForm .order-form-scroll{padding-bottom:13px}
+}
+@media(prefers-reduced-motion:reduce){
+  body.rd #orderOverlay.master-quick #orderForm *{transition:none}
+}
