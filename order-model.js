@@ -4,19 +4,20 @@
  */
 "use strict";
 (function(root){
-  // Display-only code derived from the immutable UUID, not a database sequence.
-  // Never use this shortened code for RPCs, payments or authorization.
+  // Display-only rendering of the database-assigned unique order_number.
+  // UUID remains the relational key for RPCs, payments and authorization.
   const orderReference={
-    code(id){
-      const raw=String(id||"").trim();
-      if(!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(raw))return "";
-      return "№"+raw.replace(/-/g,"").slice(0,12).toUpperCase();
+    code(orderNumber){
+      if(orderNumber==null||orderNumber==="")return "";
+      const number=Number(orderNumber);
+      if(!Number.isSafeInteger(number)||number<1||number>99999)return "";
+      return "№"+String(number).padStart(5,"0");
     },
     normalize(query){
       return String(query||"").trim().replace(/^[№#]\s*/,"").toLocaleLowerCase("ru-RU");
     },
-    createRow(id,doc){
-      const code=this.code(id);
+    createRow(orderNumber,doc){
+      const code=this.code(orderNumber);
       if(!code||!doc)return null;
       const row=doc.createElement("div");
       row.className="rd-order-reference-row";
@@ -60,7 +61,8 @@
 
 function readOrder(row) {
       return {
-        id: row.id, referenceCode:orderReference.code(row.id), createdAt: row.created_at, leadId:row.lead_id||null,
+        id: row.id, orderNumber:row.order_number??null,
+         referenceCode:orderReference.code(row.order_number), createdAt: row.created_at, leadId:row.lead_id||null,
         completedAt: row.completed_at, legacyId: row.legacy_id,
         name:row.name || "",phone:row.phone || "",address:row.address || "",
         radiatorType:row.radiator_type || "",radiators:row.radiators == null ? "" : row.radiators,
