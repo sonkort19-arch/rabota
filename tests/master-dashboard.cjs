@@ -190,8 +190,8 @@ test("Raul orders use minimal header only on the orders page, preserving other s
  assert.match(styles,/--master-brand-height:0px/);
  assert.match(styles,/--master-heading-height:55px/);
  assert.match(styles,/\.mw-orders-minimal-header > header \.master-header-actions/);
- assert.match(html,/money-workspace\.css\?v=20261116-minimal-orders-v4/);
- assert.match(html,/money-workspace\.js\?v=20261117-master-home-v1/);
+ assert.match(html,/money-workspace\.css\?v=20261117-ref-v1/);
+ assert.match(html,/money-workspace\.js\?v=20261117-ref-v1/);
 });
 test("master brand uses inline vector, not an unloaded PNG",()=>{
  assert.match(html,/class="master-brand-icon"/);

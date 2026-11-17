@@ -75,7 +75,7 @@
     const search=el("input","mw-filter-search");search.type="search";
     search.placeholder="Поиск по заказам";search.autocomplete="off";
     search.setAttribute("aria-label","Поиск по имени, адресу, телефону, дате");
-    search.addEventListener("input",()=>{orderQuery=search.value.trim().toLocaleLowerCase("ru");filterRows()});
+    search.addEventListener("input",()=>{orderQuery=window.__rdOrderReference.normalize(search.value);filterRows()});
     const filters=el("div","mw-status-filters");
     for(const [value,label] of statusOptions){
       const chip=btn("","mw-filter-chip",()=>{

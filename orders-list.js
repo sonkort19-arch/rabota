@@ -81,6 +81,12 @@
     activeDialog.querySelector(".rd-order-subtitle").textContent=
       (order.date?compactDate(order.date):"Без даты")+(order.time?" · "+order.time:"")+
       (order.master?" · "+order.master:"");
+    const referenceSlot=activeDialog.querySelector(".rd-order-reference-slot");
+    if(referenceSlot){
+      referenceSlot.replaceChildren();
+      const referenceRow=window.__rdOrderReference?.createRow(order.id,document);
+      if(referenceRow)referenceSlot.append(referenceRow);
+    }
     const state=text("span",order.status||"Записан","rd-order-state "+(colorByStatus[order.status]||"s-booked"));
     const price=text("strong",formatMoney(order.price),"rd-order-total");
     const heading=text("div","","rd-order-summary");
@@ -203,7 +209,7 @@
     const heading=text("div","","rd-order-heading");
     const title=text("h2","","rd-order-title");
     title.id="rdOrderDialogTitle";
-    heading.append(title,text("p","","rd-order-subtitle"));
+    heading.append(title,text("p","","rd-order-subtitle"),text("div","","rd-order-reference-slot"));
     const nav=text("div","","rd-order-navigation");
     const prev=text("button","‹","rd-order-prev");
     const next=text("button","›","rd-order-next");

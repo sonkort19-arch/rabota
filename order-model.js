@@ -4,6 +4,45 @@
  */
 "use strict";
 (function(root){
+  // Display-only code derived from the immutable UUID, not a database sequence.
+  // Never use this shortened code for RPCs, payments or authorization.
+  const orderReference={
+    code(id){
+      const raw=String(id||"").trim();
+      if(!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(raw))return "";
+      return "№"+raw.replace(/-/g,"").slice(0,12).toUpperCase();
+    },
+    normalize(query){
+      return String(query||"").trim().replace(/^[№#]\s*/,"").toLocaleLowerCase("ru-RU");
+    },
+    createRow(id,doc){
+      const code=this.code(id);
+      if(!code||!doc)return null;
+      const row=doc.createElement("div");
+      row.className="rd-order-reference-row";
+      const value=doc.createElement("span");
+      value.className="rd-order-reference-value";
+      value.textContent="Код заказа "+code;
+      const copy=doc.createElement("button");
+      copy.type="button";
+      copy.className="rd-order-reference-copy";
+      copy.textContent="Копировать";
+      copy.setAttribute("aria-label","Скопировать код заказа "+code);
+      copy.addEventListener("click",async()=>{
+        if(copy.disabled)return;
+        copy.disabled=true;
+        try{
+          if(!navigator.clipboard?.writeText)throw new Error("Clipboard unavailable");
+          await navigator.clipboard.writeText(code);
+          copy.textContent="Скопировано";
+        }catch(error){
+          copy.textContent="Не удалось скопировать";
+        }finally{copy.disabled=false;}
+      });
+      row.append(value,copy);
+      return row;
+    }
+  };
   function createOrdersModel(deps){
     if(!deps||!Array.isArray(deps.statuses)||
        typeof deps.dbRequest!=="function"||typeof deps.reloadOrders!=="function"||
@@ -21,7 +60,7 @@
 
 function readOrder(row) {
       return {
-        id: row.id, createdAt: row.created_at, leadId:row.lead_id||null,
+        id: row.id, referenceCode:orderReference.code(row.id), createdAt: row.created_at, leadId:row.lead_id||null,
         completedAt: row.completed_at, legacyId: row.legacy_id,
         name:row.name || "",phone:row.phone || "",address:row.address || "",
         radiatorType:row.radiator_type || "",radiators:row.radiators == null ? "" : row.radiators,
@@ -104,6 +143,6 @@ function findTightBookings(date,time,master,excludeId) {
     return {readOrder,serializeOrder,orderHasFinancialHistory,persistOrder,hasConflict,findTightBookings};
   }
 
-  if(root)root.__rdCreateOrdersModel=createOrdersModel;
-  if(typeof module!=="undefined"&&module.exports)module.exports={createOrdersModel};
+  if(root){root.__rdCreateOrdersModel=createOrdersModel;root.__rdOrderReference=orderReference;}
+  if(typeof module!=="undefined"&&module.exports)module.exports={createOrdersModel,orderReference};
 })(typeof window!=="undefined"?window:null);

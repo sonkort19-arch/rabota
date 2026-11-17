@@ -3,7 +3,7 @@ const test=require("node:test");
 const assert=require("node:assert/strict");
 const fs=require("node:fs");
 const path=require("node:path");
-const {createOrdersModel}=require("../order-model.js");
+const {createOrdersModel,orderReference}=require("../order-model.js");
 
 const STATUSES=["Записан","В работе","Выполнен","Отменён"];
 const base={
@@ -26,6 +26,24 @@ function setup({orders=[],operations=[],collections=[],onRequest=async()=>[{id:"
  });
  return {model,calls,reloads:()=>reloads};
 }
+
+test("order reference is a stable display code derived from the stored UUID",()=>{
+  const uuid="9d202814-33aa-4fb6-8aa3-003284bcf2d1";
+  const code="№9D20281433AA";
+  assert.equal(orderReference.code(uuid),code);
+  assert.equal(orderReference.code(uuid.toUpperCase()),code);
+  assert.equal(orderReference.code(""),"");
+  assert.equal(orderReference.code("not-a-uuid"),"");
+  assert.equal(orderReference.normalize("  № 9D20281433AA "),"9d20281433aa");
+  assert.equal(orderReference.normalize("  #9D20281433AA "),"9d20281433aa");
+  assert.equal(orderReference.normalize("  Иван "),"иван");
+  const model=setup().model;
+  const order=model.readOrder({...base,id:uuid});
+  assert.equal(order.referenceCode,code);
+  const serialized=model.serializeOrder(order);
+  assert.equal(Object.hasOwn(serialized,"referenceCode"),false);
+});
+
 test("database row maps to UI model with numeric price and HH:MM time",()=>{
  const {model}=setup();
  const value=model.readOrder(base);
@@ -134,8 +152,8 @@ test("database failure preserves old behavior: no success refresh",async()=>{
 });
 test("index references module before inline application and keeps adapters",()=>{
  const html=fs.readFileSync(path.join(__dirname,"..","index.html"),"utf8");
- assert.match(html,/src="\/order-model\.js\?v=20261116-status-v1"/);
- assert.ok(html.indexOf('src="/order-model.js?v=20261116-status-v1"')<
+ assert.match(html,/src="\/order-model\.js\?v=20261117-ref-v1"/);
+ assert.ok(html.indexOf('src="/order-model.js?v=20261117-ref-v1"')<
    html.indexOf("const orderModel=window.__rdCreateOrdersModel"));
  for (const method of ["readOrder","serializeOrder","persistOrder","hasConflict","findTightBookings","orderHasFinancialHistory"])
    assert.ok(html.includes("orderModel."+method+"("),method);

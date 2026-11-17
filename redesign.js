@@ -207,7 +207,7 @@ function build(){
  search.addEventListener("input",()=>{
  if(activePage==="leads"){window.__rdLeadsSearch?.(search.value);return}
  if(activePage==="orders")clearQuickFilter();
- rdSearchTerm=search.value.toLocaleLowerCase("ru").trim();
+ rdSearchTerm=window.__rdOrderReference.normalize(search.value);
  if(activePage==="clients"){selectedClientKey=null;drawClients();return}
  if(rdSearchTerm&&activePage!=="orders"){
   const intendedSearch=rdSearchTerm;
@@ -1060,6 +1060,8 @@ function drawCalendar(){
   chevron.setAttribute("aria-hidden","true");
   summary.append(summaryContent,chevron);
   const expanded=makeNode("div","rd-cal-expanded");
+  const referenceRow=window.__rdOrderReference?.createRow(o.id,document);
+  if(referenceRow)expanded.append(referenceRow);
   if(smText(o.address))expanded.append(boxText("div",o.address,"rd-cal-expanded-address"));
   const specs=[];
   if(o.radiators!==""&&o.radiators!=null)specs.push("Радиаторы: "+o.radiators+" шт.");
