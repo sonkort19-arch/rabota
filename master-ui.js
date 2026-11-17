@@ -71,8 +71,8 @@ function masterDayLabel(day) {
       const ending=n%10,group=n%100;
       return n+" "+(group>=11&&group<=14?"заказов":ending===1?"заказ":ending>=2&&ending<=4?"заказа":"заказов");
     }
-    // Only a single selected day can have its completed section expanded.
-    // Day changes close it; data refreshes retain the open state.
+    // Completed orders are visible by default on each selected day.
+    // A manual collapse survives refreshes, but changing the day opens its history.
     let completedDayDate=null,completedOpenDate=null;
     let masterOverviewSignature="";
     function masterOrdersToReview(rows=masterWorkingOrders()){
@@ -182,14 +182,14 @@ function makeMasterScheduleRow(order,isNext=false) {
         }
         items.forEach(order=>ordersNode.append(makeMasterScheduleRow(order,String(order.id)===String(next?.id))));
       });
-      if(!rows.length)ordersNode.append(make("div",compactEmpty?"master-active-empty":"empty",
-        compactEmpty?"Активных заказов нет":getCurrentTab()==="history"?"Выполненных заказов нет":"Рабочих заказов нет"));
+      if(!rows.length&&!compactEmpty)ordersNode.append(make("div","empty",
+        getCurrentTab()==="history"?"Выполненных заказов нет":"Рабочих заказов нет"));
     }
 
     function renderMasterCompletedDay(rows,date){
       if(getCurrentRole()!=="master"||getCurrentTab()!=="calendar")return;
       if(completedDayDate!==date){
-        completedDayDate=date;completedOpenDate=null;
+        completedDayDate=date;completedOpenDate=date;
       }
       const items=(Array.isArray(rows)?rows:[]).filter(order=>
         order?.date===date&&order.status==="Выполнен")

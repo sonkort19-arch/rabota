@@ -47,39 +47,43 @@ test("completed section shows only genuine finished orders for chosen day",()=>{
   f.ui.renderMasterCompletedDay(rows,"2026-11-16");
   assert.equal(f.ordersNode.children.length,1);
   const root=f.ordersNode.children[0],toggle=root.children[0],list=root.children[1];
-  assert.equal(toggle.attrs["aria-expanded"],"false");
+  assert.equal(toggle.attrs["aria-expanded"],"true");
   assert.equal(toggle.children[0].textContent,"Выполненные");
   assert.equal(toggle.children[1].textContent,"1");
-  assert.equal(list.hidden,true);
-  assert.equal(list.children.length,0,"closed section does not construct hidden cards");
-  toggle.click();
-  assert.equal(toggle.attrs["aria-expanded"],"true");
-  assert.equal(list.hidden,false);
+  assert.equal(list.hidden,false,"completed work must be visible without an extra tap");
   assert.equal(list.children.length,1);
   assert.equal(list.children[0].dataset.orderId,"done");
   list.children[0].children[0].click();
   assert.deepEqual(f.opened,["done"],"uses existing order detail action");
   toggle.click();
+  assert.equal(toggle.attrs["aria-expanded"],"false");
   assert.equal(list.hidden,true);
+  toggle.click();
+  assert.equal(list.hidden,false,"manual disclosure still works");
 });
-test("open state survives background rerender of same day",()=>{
+test("manual collapse survives background rerender of the same day",()=>{
   const f=fixture(),rows=[row("done")];
   f.ui.renderMasterCompletedDay(rows,"2026-11-16");
+  f.ordersNode.children[0].children[0].click();
+  f.ordersNode.replaceChildren();
+  f.ui.renderMasterCompletedDay(rows,"2026-11-16");
+  assert.equal(f.ordersNode.children[0].children[1].hidden,true,
+    "manually folded history stays folded during refresh");
   f.ordersNode.children[0].children[0].click();
   f.ordersNode.replaceChildren();
   f.ui.renderMasterCompletedDay(rows,"2026-11-16");
   assert.equal(f.ordersNode.children[0].children[1].hidden,false);
   assert.equal(f.ordersNode.children[0].children[1].children.length,1);
 });
-test("changing the selected day closes completed history",()=>{
+test("changing the selected day reopens completed history automatically",()=>{
   const f=fixture(),rows=[row("first","Выполнен","2026-11-16"),
     row("second","Выполнен","2026-11-17")];
   f.ui.renderMasterCompletedDay(rows,"2026-11-16");
   f.ordersNode.children[0].children[0].click();
   f.ordersNode.replaceChildren();
   f.ui.renderMasterCompletedDay(rows,"2026-11-17");
-  assert.equal(f.ordersNode.children[0].children[0].attrs["aria-expanded"],"false");
-  assert.equal(f.ordersNode.children[0].children[1].hidden,true);
+  assert.equal(f.ordersNode.children[0].children[0].attrs["aria-expanded"],"true");
+  assert.equal(f.ordersNode.children[0].children[1].hidden,false);
 });
 test("owners, other tabs, and days without completed work have no block",()=>{
   for(const [role,tab] of [["owner","calendar"],["manager","calendar"],["master","all"],["master","history"]]){
@@ -90,10 +94,12 @@ test("owners, other tabs, and days without completed work have no block",()=>{
   f.ui.renderMasterCompletedDay([row("cancel","Отменён")],"2026-11-16");
   assert.equal(f.ordersNode.children.length,0);
 });
-test("days with only completed jobs use a compact active empty state",()=>{
+test("days with only completed jobs skip the empty active section",()=>{
   const f=fixture();f.ui.renderMasterSchedule([],{compactEmpty:true});
-  assert.equal(f.ordersNode.children[0].className,"master-active-empty");
-  assert.equal(f.ordersNode.children[0].textContent,"Активных заказов нет");
+  assert.equal(f.ordersNode.children.length,0);
+  f.ui.renderMasterCompletedDay([row("done")],"2026-11-16");
+  assert.equal(f.ordersNode.children.length,1);
+  assert.equal(f.ordersNode.children[0].children[1].hidden,false);
   const g=fixture();g.ui.renderMasterSchedule([]);
   assert.equal(g.ordersNode.children[0].className,"empty",
     "days with no completed jobs preserve previous empty-state UI");
@@ -101,7 +107,7 @@ test("days with only completed jobs use a compact active empty state",()=>{
 test("integration restricts completed history to Raul's selected date and assigned jobs",()=>{
   const html=fs.readFileSync(path.join(__dirname,"..","index.html"),"utf8");
   const css=fs.readFileSync(path.join(__dirname,"..","master-completed-day.css"),"utf8");
-  assert.match(html,/src="\/master-ui\.js\?v=20261117-completed-day-v1"/);
+  assert.match(html,/src="\/master-ui\.js\?v=20261117-completed-visible-v1"/);
   assert.match(html,/masterUI\.renderMasterCompletedDay\(completedForDay,selectedDate\)/);
   assert.match(html,/o\.date===selectedDate&&o\.status==="Выполнен"/);
   assert.match(html,/o\.assignedUserId===currentUser\?\.id/);
@@ -111,4 +117,15 @@ test("integration restricts completed history to Raul's selected date and assign
   assert.match(css,/master-completed-list\[hidden\]/);
   const inline=html.split("<script>\n").at(-1).split("</script>")[0];
   assert.doesNotThrow(()=>new Function(inline));
+});
+
+test("each day with completed bookings starts open even if previous day was manually folded",()=>{
+  const f=fixture(),rows=[row("one","Выполнен","2026-11-16"),row("two","Выполнен","2026-11-17")];
+  f.ui.renderMasterCompletedDay(rows,"2026-11-16");
+  f.ordersNode.children[0].children[0].click();
+  assert.equal(f.ordersNode.children[0].children[1].hidden,true);
+  f.ordersNode.replaceChildren();
+  f.ui.renderMasterCompletedDay(rows,"2026-11-17");
+  assert.equal(f.ordersNode.children[0].children[1].hidden,false);
+  assert.equal(f.ordersNode.children[0].children[1].children[0].dataset.orderId,"two");
 });
