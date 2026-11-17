@@ -1,0 +1,25 @@
+name: Client WhatsApp manual draft checks
+on:
+  push:
+    branches:
+      - feature/whatsapp-client-manual-preview-20261118
+  pull_request:
+    paths:
+      - index.html
+      - whatsapp-client.js
+      - tests/whatsapp-client.test.cjs
+      - tests/whatsapp-client-flow.test.cjs
+      - .github/workflows/whatsapp-client-manual.yml
+permissions:
+  contents: read
+jobs:
+  manual-client-whatsapp:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: JavaScript syntax
+        run: node --check whatsapp-client.js
+      - name: Targeted client message and integration tests
+        run: node --test tests/whatsapp-client.test.cjs tests/whatsapp-client-flow.test.cjs
