@@ -47,3 +47,12 @@ body.rd #appScreen.rd-master.master-mode .mw-master-settings{
   .mw-nav-btn{font-size:10px;gap:2px}
   .wa-template-card{padding:11px}
   .wa-settings-entry{padding:13px 10px}}
+
+/* Platform-specific review links: two compact columns on larger screens. */
+.wa-review-links-heading{font-size:16px;margin:22px 0 7px;color:#223554}
+.wa-review-links{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:2px 12px}
+.wa-review-link-field{min-width:0}
+.wa-review-links .wa-settings-label{margin-top:11px}
+.wa-review-links .wa-settings-url{height:43px;min-height:43px;font-size:14px}
+select.wa-settings-url{appearance:auto;padding-right:28px}
+@media(max-width:520px){.wa-review-links{grid-template-columns:minmax(0,1fr);gap:0}}
