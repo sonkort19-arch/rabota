@@ -75,10 +75,17 @@
       for(const date of days){
         const dateObj=parseDate(date);
         const hasOrders=orders.some(o=>o.date===date&&o.status!=="Отменён");
+        // Only Raul's day buttons receive workload colors. No new rows or dots.
+        const load=getCurrentRole()==="master"&&typeof deps.estimateDayLoad==="function"
+          ?deps.estimateDayLoad(orders,date):null;
+        const workloadClass=load?" workload-"+load.level:"";
         const btn=make("button","day"+(date===selectedDate?" active":"")+
-          (hasOrders?" has-orders":""));
+          (hasOrders?" has-orders":"")+workloadClass);
         btn.type="button";
-        btn.setAttribute("aria-label",dateObj.toLocaleDateString("ru-RU"));
+        const dayLabel=dateObj.toLocaleDateString("ru-RU");
+        const accessibleLabel=load?dayLabel+". "+load.label:dayLabel;
+        btn.setAttribute("aria-label",accessibleLabel);
+        if(load)btn.setAttribute("title",accessibleLabel);
         btn.setAttribute("aria-pressed",String(date===selectedDate));
         btn.append(make("span","weekday",dateObj.toLocaleDateString("ru-RU",{weekday:"short"})));
         btn.append(make("strong","",dateObj.getDate()));

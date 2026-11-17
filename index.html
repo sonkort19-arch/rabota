@@ -485,6 +485,7 @@
       }
     }
   </style>
+  <link rel="stylesheet" href="/master-calendar-load.css?v=20261117-v1">
 </head>
 <body>
 
@@ -791,7 +792,8 @@
   <script src="/order-notes.js?v=20261111-notes1"></script>
   <script src="/order-sync.js?v=20261113-stage2"></script>
   <script src="/order-model.js?v=20261117-seq5-v1"></script>
-  <script src="/calendar-model.js?v=20261113-stage4"></script>
+  <script src="/calendar-load.js?v=20261117-v1"></script>
+   <script src="/calendar-model.js?v=20261117-load-v1"></script>
   <script src="/finance-model.js?v=20261113-stage5"></script>
   <script src="/master-ui.js?v=20261117-ref-v1"></script>
   <script src="/lead-ai-bridge.js?v=20261113-stage7"></script>
@@ -870,6 +872,8 @@
          if(currentRole==="master")masterFollowsToday=(date===masterClock().date);
        },
       getCurrentRole:()=>currentRole,getCurrentTab:()=>currentTab,
+      estimateDayLoad:(orders,day)=>window.__rdCalendarLoad.estimateDay(
+        orders.filter(order=>currentUser?.id&&order.assignedUserId===currentUser.id),day),
       setCurrentTab:tab=>{currentTab=tab;},render:()=>render(),
       verticalScrollPosition:()=>verticalScrollPosition(),
       restoreVerticalScroll:value=>restoreVerticalScroll(value),

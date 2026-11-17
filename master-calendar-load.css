@@ -1,0 +1,36 @@
+/* Raul only: paint existing 7 date tiles, without dots, legends or extra height.
+   The blue inset ring keeps the selected date visible in every load state. */
+body.rd #appScreen.rd-master.master-mode #calendarPanel.master-calendar-compact .week .day.workload-free{
+  background:#24b36b;border-color:#15965a;color:#fff;
+}
+body.rd #appScreen.rd-master.master-mode #calendarPanel.master-calendar-compact .week .day.workload-light{
+  background:#f6ca39;border-color:#d9a819;color:#302b18;
+}
+body.rd #appScreen.rd-master.master-mode #calendarPanel.master-calendar-compact .week .day.workload-busy{
+  background:#ee8a2b;border-color:#d16d12;color:#fff;
+}
+body.rd #appScreen.rd-master.master-mode #calendarPanel.master-calendar-compact .week .day.workload-full{
+  background:#dd4d4d;border-color:#bd3737;color:#fff;
+}
+body.rd #appScreen.rd-master.master-mode #calendarPanel.master-calendar-compact .week .day.workload-free .weekday,
+body.rd #appScreen.rd-master.master-mode #calendarPanel.master-calendar-compact .week .day.workload-busy .weekday,
+body.rd #appScreen.rd-master.master-mode #calendarPanel.master-calendar-compact .week .day.workload-full .weekday{
+  color:#fff;
+}
+body.rd #appScreen.rd-master.master-mode #calendarPanel.master-calendar-compact .week .day.workload-light .weekday{
+  color:#4b401d;
+}
+body.rd #appScreen.rd-master.master-mode #calendarPanel.master-calendar-compact .week .day.active[class*="workload-"]{
+  box-shadow:inset 0 0 0 2px #fff, 0 0 0 2px #294ed6;
+}
+body.rd #appScreen.rd-master.master-mode #calendarPanel.master-calendar-compact .week .day.has-orders::after{
+  display:none!important;content:none!important;
+}
+body.rd #appScreen.rd-master.master-mode #calendarPanel.master-calendar-compact .week .day:focus-visible{
+  outline:3px solid #1d3ca6;outline-offset:1px;
+}
+@media(prefers-reduced-motion:reduce){
+  body.rd #appScreen.rd-master.master-mode #calendarPanel.master-calendar-compact .week .day{
+    transition:none;
+  }
+}

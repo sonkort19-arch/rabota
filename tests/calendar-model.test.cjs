@@ -36,6 +36,7 @@ function build({date="2026-11-13",role="owner",orders=[]}={}){
     getSelectedDate:()=>selectedDate,
     setSelectedDate:date=>{selectedDate=date;},
     getCurrentRole:()=>currentRole,getCurrentTab:()=>currentTab,
+    estimateDayLoad:(rows,day)=>require("../calendar-load.js").estimateDay(rows,day),
     setCurrentTab:tab=>{currentTab=tab;},
     render:()=>{renderCount++;},
     verticalScrollPosition:()=>scroll,
@@ -84,6 +85,35 @@ test("active orders mark days; cancelled orders do not",()=>{
   assert.ok(app.elements.weekDays.children[3].className.includes("has-orders"));
   assert.ok(app.elements.ordersWeekDays.children[6].className.includes("has-orders"));
 });
+test("Raul's existing date tiles are colored, selected and accessible without new UI",()=>{
+  const app=build({role:"master",orders:[
+    {date:"2026-11-09",status:"Отменён",radiators:25,time:"10:00"},
+    {date:"2026-11-10",status:"Записан",radiators:5,time:"10:00",address:"Владикавказ"},
+    {date:"2026-11-11",status:"Записан",radiators:4,time:"10:00"},
+    {date:"2026-11-11",status:"Записан",radiators:4,time:"13:00"},
+    {date:"2026-11-13",status:"Записан",radiators:25,time:"10:00"}
+  ]});
+  app.module.renderCalendar();
+  const cells=app.elements.weekDays.children;
+  assert.equal(cells.length,7);
+  assert.ok(cells[0].className.includes("workload-free"),"cancelled is not load");
+  assert.ok(cells[1].className.includes("workload-light"));
+  assert.ok(cells[2].className.includes("workload-busy"));
+  assert.ok(cells[4].className.includes("workload-full"));
+  assert.ok(cells[4].className.includes("active"),"the selected day is still selected");
+  assert.match(cells[4].attrs["aria-label"],/Высокая загрузка/);
+  assert.ok(cells[4].attrs.title,"tooltip describes load for non-color accessibility");
+  assert.equal(cells[4].children.length,2,"no extra badge or legend");
+});
+test("owner calendar keeps its original date classes and labels",()=>{
+  const app=build({role:"owner",orders:[{date:"2026-11-13",status:"Записан",radiators:22}]});
+  app.module.renderCalendar();
+  const day=app.elements.weekDays.children[4];
+  assert.ok(day.className.includes("has-orders"));
+  assert.ok(!day.className.includes("workload-"));
+  assert.doesNotMatch(day.attrs["aria-label"],/Загрузка|загрузка/);
+});
+
 test("owner changing day updates date and redraws once",()=>{
   const app=build();app.module.renderCalendar();
   app.elements.weekDays.children[1].fire("click");
@@ -141,13 +171,13 @@ test("quick-slot validation rejects invalid roles, times, and unavailable slots"
 });
 test("app loads calendar before use while preserving availability scripts",()=>{
   const html=fs.readFileSync(path.join(__dirname,"..","index.html"),"utf8");
-  assert.match(html,/src="\/calendar-model\.js\?v=20261113-stage4"/);
+  assert.match(html,/src="\/calendar-model\.js\?v=20261117-load-v1"/);
   assert.match(html,/src="\/order-availability\.js"/);
   assert.match(html,/src="\/quick-slots\.js"/);
   assert.match(html,/calendarModule\.renderCalendar\(\)/);
   assert.match(html,/calendarModule\.bindNavigation\(\)/);
   assert.match(html,/__rdCalendarUtils\.canPrefillSlot/);
-  assert.ok(html.indexOf('src="/calendar-model.js?v=20261113-stage4"')<
+  assert.ok(html.indexOf('src="/calendar-model.js?v=20261117-load-v1"')<
     html.indexOf("const calendarModule=window.__rdCreateCalendarModule"));
   const inline=html.split("<script>\n").at(-1).split("</script>")[0];
   assert.doesNotThrow(()=>new Function(inline));
