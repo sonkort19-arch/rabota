@@ -283,6 +283,7 @@
   <link rel="stylesheet" href="/master-dense.css?v=20261113-stage8">
   <link rel="stylesheet" href="/master-dense-enhancements.css?v=20261117-compact-v1">
   <link rel="stylesheet" href="/money-workspace.css?v=20261117-ref-v1">
+  <link rel="stylesheet" href="/master-order-sheet.css?v=20261117-reference-v1">
   <!-- Owner mobile create-order action mirrors Raul's floating button.
        The owner has a bottom navigation bar, so the button sits above it. -->
   <style id="owner-mobile-order-fab">
@@ -1370,6 +1371,80 @@
       document.body.classList.remove("mw-order-modal-open");
       masterDialogFocus?.focus?.({preventScroll:true});masterDialogFocus=null;
     }
+    // Raul's sheet reuses the original card's live status, payment and contact handlers.
+    function masterSheetCount(value,forms){
+      const count=Number(value),n=Math.abs(count),last=n%10,lastTwo=n%100;
+      const ending=Number.isInteger(count)&&lastTwo>=11&&lastTwo<=14?forms[2]:
+        last===1?forms[0]:last>=2&&last<=4?forms[1]:forms[2];
+      return String(value)+" "+ending;
+    }
+    function buildMasterSheetParts(order){
+      const original=makeCard(order);
+      const details=make("div","master-sheet-details");
+      const contact=make("div","master-sheet-contact");
+      const phone=String(order.phone||"").trim();
+      if(phone){
+        const digits=phone.replace(/\D/g,"");
+        const shown=digits.length===11&&/^[78]/.test(digits)
+          ?digits[0]+" "+digits.slice(1,4)+" "+digits.slice(4,7)+"-"+digits.slice(7,9)+"-"+digits.slice(9)
+          :phoneForDisplay(phone)||phone;
+        const row=make("div","master-sheet-fact master-sheet-fact-phone");
+        row.append(make("span","master-sheet-fact-icon"),make("strong","master-sheet-fact-text",shown));
+        contact.append(row);
+      }
+      const address=String(order.address||"").trim();
+      if(address){
+        const row=make("div","master-sheet-fact master-sheet-fact-address");
+        row.append(make("span","master-sheet-fact-icon"),make("strong","master-sheet-fact-text",address));
+        contact.append(row);
+      }
+      if(contact.children.length)details.append(contact);
+      const hasRadiators=order.radiators!==""&&order.radiators!=null;
+      const hasLoops=order.floorLoops!==""&&order.floorLoops!=null;
+      if(hasRadiators||order.radiatorType||hasLoops){
+        const specs=make("div","master-sheet-specs");
+        if(hasRadiators||order.radiatorType){
+          const radiator=make("div","master-sheet-spec master-sheet-spec-radiators");
+          const count=hasRadiators?masterSheetCount(order.radiators,["радиатор","радиатора","радиаторов"]):"Радиаторы";
+          radiator.append(make("span","master-sheet-spec-icon"),make("span","master-sheet-spec-name",count));
+          if(order.radiatorType)radiator.append(make("small","master-sheet-spec-type",order.radiatorType));
+          specs.append(radiator);
+        }
+        if(hasLoops){
+          const floor=make("div","master-sheet-spec master-sheet-spec-floor");
+          floor.append(make("span","master-sheet-spec-icon"),
+            make("span","master-sheet-spec-name",masterSheetCount(order.floorLoops,["контур пола","контура пола","контуров пола"])));
+          specs.append(floor);
+        }
+        details.append(specs);
+      }
+      const price=make("div","master-sheet-price");
+      const sum=order.price==null||order.price===""?"Не указана":Number(order.price).toLocaleString("ru-RU")+" ₽";
+      price.append(make("span","master-sheet-price-label","Стоимость заказа"),
+        make("strong","master-sheet-price-value",sum));
+      details.append(price);
+      const note=window.__rdOrderNotes.display(order.details,currentRole);
+      if(note){
+        const noteRow=make("div","master-sheet-note");
+        noteRow.append(make("span","master-sheet-note-label","Комментарий"),make("span","master-sheet-note-text",note));
+        details.append(noteRow);
+      }
+      const cash=original.querySelector(".cash-share");
+      if(cash)details.append(cash);
+      const footer=make("div","master-sheet-footer-inner");
+      const contacts=original.querySelector(".actions");
+      if(contacts&&contacts.children.length){
+        contacts.classList.add("master-sheet-shortcuts");
+        const wa=contacts.querySelector(".wa"),map=contacts.querySelector(".map-link");
+        if(wa)wa.textContent="WhatsApp";
+        if(map)map.textContent="Маршрут";
+        footer.append(contacts);
+      }
+      const mainAction=original.querySelector(".master-action");
+      if(mainAction)footer.append(mainAction);
+      return {details,footer};
+    }
+
     function refreshMasterOrderDialog(){
       if(!masterOrderDialog||!masterOrderDialogId)return;
       const order=getOrders().find(o=>String(o.id)===masterOrderDialogId &&
@@ -1377,33 +1452,55 @@
       if(!order){closeMasterOrderDialog();return;}
       const name=masterOrderDialog.querySelector(".mw-order-modal-title"),
         subtitle=masterOrderDialog.querySelector(".mw-order-modal-subtitle"),
-        body=masterOrderDialog.querySelector(".mw-order-modal-body");
-      if(!name||!subtitle||!body)return;
+        status=masterOrderDialog.querySelector(".master-sheet-status"),
+        body=masterOrderDialog.querySelector(".mw-order-modal-body"),
+        footer=masterOrderDialog.querySelector(".master-sheet-footer");
+      if(!name||!subtitle||!status||!body||!footer)return;
       name.textContent=order.name||"Без имени";
       subtitle.textContent=(order.date?formatDate(order.date):"Без даты")+
-        (order.time?" · "+order.time:"")+" · "+(order.status||"Записан");
-      // Financial/status refresh must not jump to the top of the open order sheet.
+        (order.time?" · "+order.time:"");
+      status.textContent=order.status||"Записан";
+      status.className="master-sheet-status master-sheet-status-"+(
+        order.status==="В работе"?"progress":
+        order.status==="Выполнен"?"done":
+        order.status==="Отменён"?"cancelled":"booked");
+      // Reuse the original live handlers and preserve scroll on background refresh.
       const scrollTop=body.scrollTop;
-      body.replaceChildren(makeCard(order));
+      const parts=buildMasterSheetParts(order);
+      body.replaceChildren(parts.details);
+      footer.replaceChildren(parts.footer);
       body.scrollTop=scrollTop;
     }
     function openMasterOrderDialog(order){
       if(currentRole!=="master"||!order||order.assignedUserId!==currentUser?.id)return;
       closeMasterOrderDialog();
       masterDialogFocus=document.activeElement;masterOrderDialogId=String(order.id);
-      const backdrop=make("div","mw-order-modal-backdrop");
-      const sheet=make("section","mw-order-modal");
+      const backdrop=make("div","mw-order-modal-backdrop master-sheet-backdrop");
+      const sheet=make("section","mw-order-modal master-order-sheet");
       sheet.setAttribute("role","dialog");sheet.setAttribute("aria-modal","true");
       sheet.setAttribute("aria-label","Заказ "+(order.name||"Без имени"));
       const header=make("div","mw-order-modal-head"),copy=make("div","mw-order-modal-headtext"),
         close=make("button","mw-order-modal-close","×");
-      copy.append(make("h2","mw-order-modal-title"),make("p","mw-order-modal-subtitle"));
+      const meta=make("div","master-sheet-meta");
+      meta.append(make("span","mw-order-modal-subtitle"),make("span","master-sheet-status"));
+      copy.append(make("h2","mw-order-modal-title"),meta);
       const referenceRow=window.__rdOrderReference?.createRow(order.orderNumber,document);
-      if(referenceRow)copy.append(referenceRow);
+      if(referenceRow){
+        const label=referenceRow.querySelector(".rd-order-reference-value");
+        if(label)label.textContent="Заказ "+(order.referenceCode||"");
+        const copyBtn=referenceRow.querySelector(".rd-order-reference-copy");
+        if(copyBtn){
+          copyBtn.classList.add("master-sheet-copy-icon");
+          copyBtn.title="Копировать номер заказа";
+          copyBtn.setAttribute("aria-live","polite");
+        }
+        copy.append(referenceRow);
+      }
       close.type="button";close.setAttribute("aria-label","Закрыть заказ");
       close.addEventListener("click",closeMasterOrderDialog);
       header.append(copy,close);
-      sheet.append(header,make("div","mw-order-modal-body"));
+      sheet.append(header,make("div","mw-order-modal-body"),
+        make("div","master-sheet-footer"));
       backdrop.append(sheet);backdrop.addEventListener("click",e=>{
         if(e.target===backdrop)closeMasterOrderDialog();
       });
