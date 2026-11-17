@@ -141,7 +141,7 @@
       setValues(wa().getSettings());status.textContent="";
       editor.hidden=false;entry.hidden=true;entry.setAttribute("aria-expanded","true");
       // Keep the keyboard path accessible without forcing a focus ring on touch users.
-      if(event.detail===0)back.focus({preventScroll:true});
+      if(!event||event.detail===0)back.focus({preventScroll:true});
       else heading.focus({preventScroll:true});
     });
     back.addEventListener("click",closeEditor);
