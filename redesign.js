@@ -1060,7 +1060,7 @@ function drawCalendar(){
   chevron.setAttribute("aria-hidden","true");
   summary.append(summaryContent,chevron);
   const expanded=makeNode("div","rd-cal-expanded");
-  const referenceRow=window.__rdOrderReference?.createRow(o.id,document);
+  const referenceRow=window.__rdOrderReference?.createRow(o.orderNumber,document);
   if(referenceRow)expanded.append(referenceRow);
   if(smText(o.address))expanded.append(boxText("div",o.address,"rd-cal-expanded-address"));
   const specs=[];

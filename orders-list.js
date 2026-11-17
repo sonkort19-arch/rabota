@@ -84,7 +84,7 @@
     const referenceSlot=activeDialog.querySelector(".rd-order-reference-slot");
     if(referenceSlot){
       referenceSlot.replaceChildren();
-      const referenceRow=window.__rdOrderReference?.createRow(order.id,document);
+      const referenceRow=window.__rdOrderReference?.createRow(order.orderNumber,document);
       if(referenceRow)referenceSlot.append(referenceRow);
     }
     const state=text("span",order.status||"Записан","rd-order-state "+(colorByStatus[order.status]||"s-booked"));

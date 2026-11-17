@@ -27,23 +27,32 @@ function setup({orders=[],operations=[],collections=[],onRequest=async()=>[{id:"
  return {model,calls,reloads:()=>reloads};
 }
 
-test("order reference is a stable display code derived from the stored UUID",()=>{
-  const uuid="9d202814-33aa-4fb6-8aa3-003284bcf2d1";
-  const code="№9D20281433AA";
-  assert.equal(orderReference.code(uuid),code);
-  assert.equal(orderReference.code(uuid.toUpperCase()),code);
-  assert.equal(orderReference.code(""),"");
-  assert.equal(orderReference.code("not-a-uuid"),"");
-  assert.equal(orderReference.normalize("  № 9D20281433AA "),"9d20281433aa");
-  assert.equal(orderReference.normalize("  #9D20281433AA "),"9d20281433aa");
+test("order reference uses assigned five-digit database number, never UUID",()=>{
+  assert.equal(orderReference.code(1),"№00001");
+  assert.equal(orderReference.code(46),"№00046");
+  assert.equal(orderReference.code(1047),"№01047");
+  assert.equal(orderReference.code(99999),"№99999");
+  for(const bad of [null,undefined,"",0,-1,100000,"bad","9d202814-33aa-4fb6-8aa3-003284bcf2d1"])
+    assert.equal(orderReference.code(bad),"",String(bad));
+  assert.equal(orderReference.normalize("  № 01047 "),"01047");
+  assert.equal(orderReference.normalize("  #1047 "),"1047");
   assert.equal(orderReference.normalize("  Иван "),"иван");
   const model=setup().model;
-  const order=model.readOrder({...base,id:uuid});
-  assert.equal(order.referenceCode,code);
+  const order=model.readOrder({...base,id:"9d202814-33aa-4fb6-8aa3-003284bcf2d1",order_number:1047});
+  assert.equal(order.orderNumber,1047);
+  assert.equal(order.referenceCode,"№01047");
+  assert.equal(model.readOrder({...base,order_number:null}).referenceCode,"");
   const serialized=model.serializeOrder(order);
+  assert.equal(Object.hasOwn(serialized,"order_number"),false);
+  assert.equal(Object.hasOwn(serialized,"orderNumber"),false);
   assert.equal(Object.hasOwn(serialized,"referenceCode"),false);
 });
-
+test("copyable reference is searchable with or without leading zeroes",()=>{
+  const code=orderReference.code(1047);
+  const indexed=("Клиент Москва "+code+" 9d202814-33aa-4fb6-8aa3-003284bcf2d1").toLocaleLowerCase("ru");
+  for(const query of ["01047","№01047","1047","#1047"])
+    assert.equal(indexed.includes(orderReference.normalize(query)),true,query);
+});
 test("database row maps to UI model with numeric price and HH:MM time",()=>{
  const {model}=setup();
  const value=model.readOrder(base);
@@ -152,8 +161,8 @@ test("database failure preserves old behavior: no success refresh",async()=>{
 });
 test("index references module before inline application and keeps adapters",()=>{
  const html=fs.readFileSync(path.join(__dirname,"..","index.html"),"utf8");
- assert.match(html,/src="\/order-model\.js\?v=20261117-ref-v1"/);
- assert.ok(html.indexOf('src="/order-model.js?v=20261117-ref-v1"')<
+ assert.match(html,/src="\/order-model\.js\?v=20261117-seq5-v1"/);
+ assert.ok(html.indexOf('src="/order-model.js?v=20261117-seq5-v1"')<
    html.indexOf("const orderModel=window.__rdCreateOrdersModel"));
  for (const method of ["readOrder","serializeOrder","persistOrder","hasConflict","findTightBookings","orderHasFinancialHistory"])
    assert.ok(html.includes("orderModel."+method+"("),method);
