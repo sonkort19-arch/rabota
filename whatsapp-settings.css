@@ -8,7 +8,8 @@
 .wa-settings-entry-copy strong{font-size:16px}
 .wa-settings-entry-copy small{font-size:12px;color:#69788f;line-height:1.35}
 .wa-settings-symbol{display:grid;place-items:center;flex:0 0 42px;height:42px;border-radius:13px;
-  background:#e6faf0;color:#13875a;font-size:23px}
+  background:#25d366;color:#fff}
+.wa-settings-symbol svg{display:block;width:24px;height:24px;flex:none}
 .wa-settings-chevron{font-size:25px;color:#8191ac}
 .wa-settings-editor{display:block;min-width:0}
 .wa-settings-editor[hidden],.mw-master-settings[hidden]{display:none!important}
