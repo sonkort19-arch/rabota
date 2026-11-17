@@ -99,7 +99,7 @@
     urlField.addEventListener("input",refreshPreview);
     const buttons=create("div","wa-settings-actions");
     const save=create("button","wa-settings-save","Сохранить шаблоны");save.type="button";
-    const restore=create("button","wa-settings-restore","Вернуть стандартные");restore.type="button";
+    const restore=create("button","wa-settings-restore","Стандартные тексты");restore.type="button";
     const status=create("div","wa-settings-status");status.setAttribute("role","status");status.setAttribute("aria-live","polite");
     const locality=create("p","wa-settings-locality",
       "Настройки хранятся только на этом устройстве. На другом телефоне их нужно настроить отдельно.");
@@ -150,11 +150,15 @@
       }catch(error){status.classList.add("is-error");status.textContent=error.message;}
     });
     restore.addEventListener("click",()=>{
-      if(!root.confirm("Вернуть стандартные тексты? Твои изменения будут удалены."))return;
+      if(!root.confirm("Вернуть стандартные тексты? Сохранённые ссылки на отзывы останутся без изменений."))return;
       try{
-        const original=wa().saveSettings(wa().defaults());
+        // Never wipe the owner's painstakingly configured review URLs.
+        const current=wa().getSettings();
+        const original=wa().saveSettings({
+          ...current,booking:wa().DEFAULT_TEMPLATES.booking,review:wa().DEFAULT_TEMPLATES.review
+        });
         setValues(original);status.classList.remove("is-error");
-        status.textContent="Стандартные тексты восстановлены.";
+        status.textContent="Тексты восстановлены. Все ссылки на отзывы сохранены.";
       }catch(error){status.classList.add("is-error");status.textContent=error.message;}
     });
     mounted.push({root:rootBox,refresh:()=>{
