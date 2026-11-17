@@ -65,6 +65,7 @@ function readOrder(row) {
          referenceCode:orderReference.code(row.order_number), createdAt: row.created_at, leadId:row.lead_id||null,
         completedAt: row.completed_at, legacyId: row.legacy_id,
         name:row.name || "",phone:row.phone || "",address:row.address || "",
+        clientSource:row.client_source || "",
         radiatorType:row.radiator_type || "",radiators:row.radiators == null ? "" : row.radiators,
         floorLoops:row.floor_loops == null ? "" : row.floor_loops,
         master:row.master || "",date:row.appointment_date || "",
@@ -79,7 +80,8 @@ function readOrder(row) {
 function serializeOrder(order) {
       const obj = {
         name:String(order.name || "").trim(),phone:String(order.phone || "").trim(),
-        address:String(order.address || ""),radiator_type:order.radiatorType || "",
+        address:String(order.address || ""),client_source:String(order.clientSource || "").slice(0,40),
+        radiator_type:order.radiatorType || "",
         radiators:order.radiators === "" || order.radiators == null ? null : Number(order.radiators),
         floor_loops:order.floorLoops === "" || order.floorLoops == null ? null : Number(order.floorLoops),
         master:order.master || "", appointment_date:order.date || null,
