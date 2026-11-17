@@ -1,0 +1,49 @@
+
+/* Compact manual WhatsApp message settings for owner and master. */
+.wa-settings-root{width:100%;max-width:720px;margin:10px 0 24px;min-width:0;color:#27334b}
+.wa-settings-entry{appearance:none;display:flex;align-items:center;gap:12px;width:100%;
+  border:1px solid #dce4f2;border-radius:16px;padding:17px 15px;background:#fff;
+  color:#263750;min-height:74px;text-align:left;box-shadow:0 3px 12px #253b6510}
+.wa-settings-entry-copy{display:flex;flex-direction:column;gap:5px;flex:1;min-width:0}
+.wa-settings-entry-copy strong{font-size:16px}
+.wa-settings-entry-copy small{font-size:12px;color:#69788f;line-height:1.35}
+.wa-settings-symbol{display:grid;place-items:center;flex:0 0 42px;height:42px;border-radius:13px;
+  background:#e6faf0;color:#13875a;font-size:23px}
+.wa-settings-chevron{font-size:25px;color:#8191ac}
+.wa-settings-editor{display:block;min-width:0}
+.wa-settings-editor[hidden],.mw-master-settings[hidden]{display:none!important}
+.wa-settings-back{border:0;background:none;color:#4166bf;font-size:14px;font-weight:750;padding:8px 0;min-height:40px}
+.wa-settings-heading{font-size:21px;color:#253650;margin:8px 0}
+.wa-settings-intro,.wa-settings-hint{font-size:12px;color:#64718a;line-height:1.5;margin:4px 0 11px}
+.wa-template-card{background:#fff;border:1px solid #e0e7f2;border-radius:16px;padding:15px;margin:16px 0}
+.wa-template-card h3{font-size:16px;margin:0 0 5px;color:#223554}
+.wa-settings-label{display:block;font-size:12px;font-weight:750;color:#4a5c7b;margin:14px 0 7px}
+.wa-settings-textarea,.wa-settings-url{display:block;box-sizing:border-box;width:100%;min-width:0;
+  border:1px solid #ced8e9;border-radius:12px;background:#fff;color:#1c2d49;
+  padding:12px;line-height:1.5;font-family:inherit;font-size:16px;outline:0}
+.wa-settings-textarea{resize:vertical;min-height:142px}
+.wa-settings-url{height:48px}
+.wa-settings-textarea:focus,.wa-settings-url:focus{border-color:#5d82e4;box-shadow:0 0 0 3px #6086e41a}
+.wa-template-tokens{display:flex;flex-wrap:wrap;gap:6px;margin:11px 0 15px}
+.wa-template-chip{border:1px solid #dce6f7;border-radius:9px;background:#f1f6ff;color:#355bb4;
+  min-height:34px;padding:7px 10px;font-size:12px;font-weight:750}
+.wa-settings-preview-title{font-size:12px;color:#617086;font-weight:750;margin:3px 0 8px}
+.wa-settings-preview{box-sizing:border-box;white-space:pre-wrap;overflow-wrap:anywhere;
+  font-family:inherit;font-size:13px;font-weight:450;line-height:1.5;color:#214339;background:#e7f7ee;
+  border:1px solid #cce9d7;border-radius:12px;padding:12px;margin:0;max-height:260px;overflow:auto}
+.wa-settings-actions{display:grid;gap:8px;margin-top:19px}
+.wa-settings-save,.wa-settings-restore{border-radius:12px;padding:11px;min-height:47px;
+  font-size:14px;font-weight:750}
+.wa-settings-save{border:0;background:#3864c9;color:#fff}
+.wa-settings-restore{border:1px solid #dce4f1;background:#fff;color:#405773}
+.wa-settings-status{min-height:20px;font-size:13px;color:#19754f;margin:10px 0}
+.wa-settings-status.is-error{color:#bb3232}
+.wa-settings-locality{font-size:12px;color:#64748a;line-height:1.45;margin:12px 0}
+body.rd #appScreen.rd-master.master-mode .mw-master-settings{
+  display:block;padding:5px 0 80px;max-width:740px}
+.mw-settings-title{font-size:20px;margin:8px 0 15px;color:#253551}
+.mw-bottom-nav{grid-template-columns:repeat(5,minmax(0,1fr))}
+@media(max-width:390px){.mw-bottom-nav{padding-left:4px;padding-right:4px}
+  .mw-nav-btn{font-size:10px;gap:2px}
+  .wa-template-card{padding:11px}
+  .wa-settings-entry{padding:13px 10px}}
