@@ -271,7 +271,7 @@
   <link rel="stylesheet" href="/order-availability.css">
   <link rel="stylesheet" href="/quick-slots.css">
   <link rel="stylesheet" href="/order-payment.css">
-  <link rel="stylesheet" href="/master-notifications.css">
+  <link rel="stylesheet" href="/master-notifications.css?v=20261117-review-v1">
   <link rel="stylesheet" href="/orders-list.css">
   <link rel="stylesheet" href="/finance-payroll.css">
   <link rel="stylesheet" href="/lead-assistant.css">
@@ -281,7 +281,7 @@
   <link rel="stylesheet" href="/ui-alignment-mobile.css?v=20261113-stage8">
   <link rel="stylesheet" href="/master-dashboard.css?v=20261113-finance-clean-v3">
   <link rel="stylesheet" href="/master-dense.css?v=20261113-stage8">
-  <link rel="stylesheet" href="/master-dense-enhancements.css?v=20261113-stage8">
+  <link rel="stylesheet" href="/master-dense-enhancements.css?v=20261117-compact-v1">
   <link rel="stylesheet" href="/money-workspace.css?v=20261116-minimal-orders-v4">
   <!-- Owner mobile create-order action mirrors Raul's floating button.
        The owner has a bottom navigation bar, so the button sits above it. -->
@@ -580,6 +580,7 @@
               </label>
             </div>
             <div id="pushStatus" class="push-status" role="status" aria-live="polite"></div>
+            <div id="masterStatusReviewList" class="push-review-list" hidden aria-label="Заказы, требующие проверки статуса"></div>
             <div class="push-list-heading">Новые заявки</div>
             <div id="recentNotificationList"><div class="push-empty">Загрузка…</div></div>
             <button class="secondary" id="testPushBtn" type="button" hidden>Проверить уведомление на телефоне</button>
@@ -791,7 +792,7 @@
   <script src="/order-model.js?v=20261116-status-v1"></script>
   <script src="/calendar-model.js?v=20261113-stage4"></script>
   <script src="/finance-model.js?v=20261113-stage5"></script>
-  <script src="/master-ui.js?v=20261116-status-v1"></script>
+  <script src="/master-ui.js?v=20261117-compact-v1"></script>
   <script src="/lead-ai-bridge.js?v=20261113-stage7"></script>
   <script src="/app-services.js?v=20261114-stage9"></script>
   <script>
@@ -1032,7 +1033,10 @@
         }
       }
       reportSync(syncError,"finance");
-      if(currentRole==="master"){try{await refreshRabotaNotifications();}catch(error){console.warn("Notification reload",error);}}
+      if(currentRole==="master"){
+        if(currentTab==="calendar")renderMasterOverview(masterWorkingOrders());
+        try{await refreshRabotaNotifications();}catch(error){console.warn("Notification reload",error);}
+      }
     }
     function getOrders() {return cloudOrders;}
     // Recheck the authoritative order list before sharing a technician schedule.
@@ -1354,6 +1358,11 @@
     function masterScheduleSort(a,b,today){return masterUI.masterScheduleSort(a,b,today);}
     function masterOrderCount(n){return masterUI.masterOrderCount(n);}
     function renderMasterOverview(rows){return masterUI.renderMasterOverview(rows);}
+    window.__rdMasterStatusReview=()=>{
+      if(currentRole!=="master"||!currentUser?.id)return [];
+      return masterUI.masterOrdersToReview(masterWorkingOrders().filter(
+        order=>order.assignedUserId===currentUser.id));
+    };
     let masterOrderDialog=null,masterOrderDialogId=null,masterDialogFocus=null;
     function closeMasterOrderDialog(){
       if(!masterOrderDialog)return;
@@ -2402,7 +2411,7 @@
   <script src="/quick-slots.js"></script>
   <script src="/whatsapp-order.js?v=20261111-master-notes"></script>
   <script src="/redesign.js?v=20261116-status-v1"></script>
-  <script src="/master-notifications.js"></script>
+  <script src="/master-notifications.js?v=20261117-review-v1"></script>
   <script src="/orders-list.js?v=20261116-status-v1"></script>
   <script src="/finance-payroll.js"></script>
   <script src="/money-workspace.js?v=20261117-master-home-v1"></script>
