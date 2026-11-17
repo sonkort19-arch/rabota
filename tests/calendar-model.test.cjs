@@ -35,7 +35,7 @@ function build({date="2026-11-13",role="owner",orders=[]}={}){
     ordersDayDateLabel:new Node()
   };
   const buttons=Object.fromEntries([
-    "prevWeek","nextWeek","goToday","rdOrdersPrevWeek","rdOrdersNextWeek","rdOrdersToday"
+    "prevWeek","nextWeek","goToday","rdOrdersPrevWeek","rdOrdersNextWeek","rdOrdersToday","masterCalendarDateText"
   ].map(id=>[id,new Node()]));
   let selectedDate=date,currentTab="calendar",currentRole=role,renderCount=0;
   let scroll=380;const restores=[];let queued=[];
@@ -189,13 +189,13 @@ test("quick-slot validation rejects invalid roles, times, and unavailable slots"
 });
 test("app loads calendar before use while preserving availability scripts",()=>{
   const html=fs.readFileSync(path.join(__dirname,"..","index.html"),"utf8");
-  assert.match(html,/src="\/calendar-model\.js\?v=20261117-stable-scroll-v1"/);
+  assert.match(html,/src="\/calendar-model\.js\?v=20261117-month-view-v1"/);
   assert.match(html,/src="\/order-availability\.js(?:\?[^"]*)?"/);
   assert.match(html,/src="\/quick-slots\.js"/);
   assert.match(html,/calendarModule\.renderCalendar\(\)/);
   assert.match(html,/calendarModule\.bindNavigation\(\)/);
   assert.match(html,/__rdCalendarUtils\.canPrefillSlot/);
-  assert.ok(html.indexOf('src="/calendar-model.js?v=20261117-stable-scroll-v1"')<
+  assert.ok(html.indexOf('src="/calendar-model.js?v=20261117-month-view-v1"')<
     html.indexOf("const calendarModule=window.__rdCreateCalendarModule"));
   const inline=html.split("<script>\n").at(-1).split("</script>")[0];
   assert.doesNotThrow(()=>new Function(inline));
@@ -322,4 +322,53 @@ test("native carousel keeps only bounded tiles after many swipes",()=>{
     assert.ok(bar.children.length<=140,"native scrolling must not leak day buttons");
   }
   assert.equal(app.getSelected(),"2026-11-17","scroll never changes booking date");
+});
+
+test("swiping past 30 November updates the viewed month, not the selected booking",()=>{
+  const app=build({role:"master",date:"2026-11-17"});
+  const bar=app.elements.weekDays;
+  bar.clientWidth=350;app.module.bindNavigation();app.module.renderCalendar();
+  assert.equal(app.buttons.masterCalendarDateText.textContent,"Ноябрь 2026");
+  const at=day=>bar.children.find(x=>x.dataset.date===day).offsetLeft-
+    bar.firstElementChild.offsetLeft;
+  bar.scrollLeft=at("2026-11-30");bar.fire("scroll");
+  assert.equal(app.buttons.masterCalendarDateText.textContent,"Ноябрь 2026");
+  bar.scrollLeft=at("2026-12-01");bar.fire("scroll");
+  assert.equal(app.buttons.masterCalendarDateText.textContent,"Декабрь 2026");
+  assert.equal(app.elements.calendarDate.value,"2026-12-01","picker opens in visible month");
+  assert.equal(app.getSelected(),"2026-11-17","scrolled dates cannot select bookings");
+  assert.equal(app.getRenders(),0,"scroll changes heading without full render");
+  bar.scrollLeft=at("2026-11-30");bar.fire("scroll");
+  assert.equal(app.buttons.masterCalendarDateText.textContent,"Ноябрь 2026");
+});
+test("carousel month and year follow the displayed days, while taps still select a date",()=>{
+  const app=build({role:"master",date:"2026-11-17"});
+  const bar=app.elements.weekDays;
+  bar.clientWidth=350;app.module.bindNavigation();app.module.renderCalendar();
+  const at=day=>bar.children.find(x=>x.dataset.date===day).offsetLeft-
+    bar.firstElementChild.offsetLeft;
+  bar.scrollLeft=at("2027-01-01");bar.fire("scroll");
+  assert.equal(app.buttons.masterCalendarDateText.textContent,"Январь 2027");
+  assert.equal(app.getSelected(),"2026-11-17");
+  bar.children.find(x=>x.dataset.date==="2027-01-02").fire("click");
+  assert.equal(app.getSelected(),"2027-01-02");
+  app.module.renderCalendar();
+  assert.equal(app.buttons.masterCalendarDateText.textContent,"Январь 2027");
+  app.buttons.goToday.fire("click");
+  app.module.renderCalendar();
+  assert.equal(app.getSelected(),"2026-11-14","Today follows Moscow clock");
+  assert.equal(app.buttons.masterCalendarDateText.textContent,"Ноябрь 2026");
+});
+test("refreshing orders cannot revert a viewed month to selected day's month",()=>{
+  const app=build({role:"master",date:"2026-11-17"});
+  const bar=app.elements.weekDays;bar.clientWidth=350;
+  app.module.bindNavigation();app.module.renderCalendar();
+  const d=bar.children.find(x=>x.dataset.date==="2026-12-01");
+  bar.scrollLeft=d.offsetLeft-bar.firstElementChild.offsetLeft;
+  bar.fire("scroll");const left=bar.scrollLeft;
+  app.setOrders([{date:"2026-12-01",radiators:4,status:"Записан"}]);
+  app.module.renderCalendar();
+  assert.equal(bar.scrollLeft,left);
+  assert.equal(app.buttons.masterCalendarDateText.textContent,"Декабрь 2026");
+  assert.equal(app.getSelected(),"2026-11-17");
 });

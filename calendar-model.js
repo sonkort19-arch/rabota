@@ -108,6 +108,21 @@
       return first&&tile&&Number.isFinite(first.offsetLeft)&&Number.isFinite(tile.offsetLeft)
         ?tile.offsetLeft-first.offsetLeft:null;
     }
+    function visibleMonthLabel(date){
+      const day=parseDate(date);
+      const month=day.toLocaleDateString("ru-RU",{month:"long"});
+      return month.charAt(0).toLocaleUpperCase("ru-RU")+month.slice(1)+" "+day.getFullYear();
+    }
+    function showVisibleMonth(){
+      if(getCurrentRole()!=="master"||!stripReady||!stripViewportDate)return;
+      const label=deps.getElement?.("masterCalendarDateText");
+      const value=visibleMonthLabel(stripViewportDate);
+      if(label&&label.textContent!==value)label.textContent=value;
+      // The native date picker opens in the viewed month; the appointment
+      // selection remains unchanged until the user actually chooses a date.
+      if(calendarDate.value.slice(0,7)!==stripViewportDate.slice(0,7))
+        calendarDate.value=stripViewportDate;
+    }
     function rememberViewport(){
       const step=tileStep();
       if(!stripReady||!step||!stripStart)return;
@@ -115,6 +130,7 @@
       const whole=Math.floor(dayOffset);
       stripViewportDate=addDays(stripStart,whole);
       stripViewportFraction=dayOffset-whole;
+      showVisibleMonth();
       // Size changes are reconciled by ResizeObserver, not by scroll events.
     }
     function requestStripDate(date){
@@ -172,6 +188,7 @@
       }
       stripRenderedSelection=selectedDate;
       if(stripTarget||!stripReady)alignStrip();
+      else showVisibleMonth();
     }
     function extendStrip(){
       if(extending||!activeMaster()||!stripReady||!weekDays.clientWidth)return;
