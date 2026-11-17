@@ -54,6 +54,6 @@ test("Owner and master both expose settings, master nav has five items",()=>{
  assert.match(owner,/settings:"Настройки"/);
  assert.match(owner,/id="rdSettings"|sectionView\("rdSettings"/);
  assert.match(style,/repeat\(5,minmax\(0,1fr\)\)/);
- assert.match(index,/whatsapp-settings\.js\?v=20261118-source-v1/);
+ assert.match(index,/whatsapp-settings\.js\?v=20261118-safety-fix-v1/);
  assert.match(index,/whatsapp-settings\.css\?v=20261118-source-v1/);
 });

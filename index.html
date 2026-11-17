@@ -855,7 +855,7 @@
   <script src="/calendar-load.js?v=20261117-completed-v1"></script>
    <script src="/calendar-model.js?v=20261117-month-view-v1"></script>
   <script src="/finance-model.js?v=20261113-stage5"></script>
-  <script src="/master-ui.js?v=20261117-completed-visible-v1"></script>
+  <script src="/master-ui.js?v=20261118-day-audit-v1"></script>
   <script src="/lead-ai-bridge.js?v=20261113-stage7"></script>
   <script src="/app-services.js?v=20261114-stage9"></script>
   <script>
@@ -1150,8 +1150,8 @@
         // Use same-tab navigation: iOS Safari/PWA can block async popup windows.
         window.location.assign(url);
       }catch(error){
-        alert("Заказ сохранён, но WhatsApp не открылся: "+error.message+
-          "\nОткройте заказ и свяжитесь с клиентом вручную.");
+        alert("Не удалось открыть готовое сообщение WhatsApp: "+error.message+
+          "\nОткройте карточку заказа и повторите отправку.");
       }
     }
     function openCompletedClientDraft(previousOrder) {
@@ -1307,6 +1307,23 @@
         wa.target = "_blank";
         wa.rel = "noopener noreferrer";
         actions.append(wa);
+        if(state!=="Отменён"){
+          // Recovery after an iPhone handoff was closed without tapping Send:
+          // never mark a WhatsApp draft as sent; keep the retry explicit.
+          const isDone=state==="Выполнен";
+          const retry=make("button","action wa-draft",
+            isDone?"Запросить отзыв":"Текст записи");
+          retry.type="button";
+          retry.title=isDone
+            ?"Повторно открыть просьбу об отзыве в WhatsApp"
+            :"Повторно открыть подтверждение записи в WhatsApp";
+          retry.addEventListener("click",()=>{
+            const fresh=getOrders().find(item=>String(item.id)===String(order.id))||order;
+            if(fresh.status==="Отменён")return;
+            openClientDraft(fresh,fresh.status==="Выполнен"?"review":"booking");
+          });
+          actions.append(retry);
+        }
       }
       if (currentRole === "master" && String(order.address || "").trim()) {
         const map = make("a","action map-link","Открыть адрес на карте");
@@ -1666,7 +1683,9 @@
         document.getElementById("listTitle").textContent=currentRole==="master"?"Все мои заказы":"Все заказы";
       } else {
         shown=getOrders().filter(o=>o.date===selectedDate &&
-          (currentRole!=="master"||(o.status!=="Выполнен"&&o.status!=="Отменён")));
+          (currentRole!=="master"||
+            (o.assignedUserId===currentUser?.id&&
+              o.status!=="Выполнен"&&o.status!=="Отменён")));
         shown.sort((a,b)=>String(a.time||"").localeCompare(String(b.time||"")));
         document.getElementById("listTitle").textContent="Заказы · "+formatDate(selectedDate);
       }
@@ -1681,7 +1700,8 @@
       document.getElementById("orderCount").textContent=
         (currentRole==="master"&&currentTab==="calendar"?visibleDayCount:shown.length)+" шт.";
       ordersNode.replaceChildren();
-      renderMasterOverview(currentTab==="calendar"&&currentRole==="master"?masterWorkingOrders():[]);
+      renderMasterOverview(currentTab==="calendar"&&currentRole==="master"?
+        masterWorkingOrders().filter(o=>o.assignedUserId===currentUser?.id):[]);
       if(currentRole==="master"){
         renderMasterSchedule(shown,{compactEmpty:completedForDay.length>0});
         if(currentTab==="calendar")masterUI.renderMasterCompletedDay(completedForDay,selectedDate);
@@ -2636,8 +2656,8 @@
   <script src="/master-quick-order.js?v=20261117-mock-v1"></script>
   <script src="/quick-slots.js"></script>
   <script src="/whatsapp-order.js?v=20261111-master-notes"></script>
-  <script src="/whatsapp-client.js?v=20261118-polished-copy-v1"></script>
-  <script src="/whatsapp-settings.js?v=20261118-source-v1"></script>
+  <script src="/whatsapp-client.js?v=20261118-safety-fix-v1"></script>
+  <script src="/whatsapp-settings.js?v=20261118-safety-fix-v1"></script>
   <script src="/redesign.js?v=20261118-settings-v1"></script>
   <script src="/master-notifications.js?v=20261117-review-v1"></script>
   <script src="/orders-list.js?v=20261117-seq5-v1"></script>
