@@ -7,9 +7,9 @@ const body=document.body;
 body.classList.add("rd");
 const $=id=>document.getElementById(id);
 const makeNode=(tag,className,text)=>{const n=document.createElement(tag);if(className)n.className=className;if(text!=null)n.textContent=String(text);return n};
-const sections=["home","leads","orders","calendar","clients","finance","ai"];
-const titles={home:"Главная",leads:"Лиды",orders:"Заказы",calendar:"Календарь",clients:"Клиенты",finance:"Финансы",ai:"ИИ-чат"};
-const crmReturnPages=new Set(["home","leads","orders","calendar","clients","finance"]);
+const sections=["home","leads","orders","calendar","clients","finance","settings","ai"];
+const titles={home:"Главная",leads:"Лиды",orders:"Заказы",calendar:"Календарь",clients:"Клиенты",finance:"Финансы",settings:"Настройки",ai:"ИИ-чат"};
+const crmReturnPages=new Set(["home","leads","orders","calendar","clients","finance","settings"]);
 function aiChatUrl(draft){
  const source=crmReturnPages.has(activePage)?activePage:"home";
  const query=new URLSearchParams({from:source});
@@ -26,6 +26,7 @@ const iconPaths={
  clients:'<circle cx="12" cy="8" r="4"/><path d="M4 21v-2a8 8 0 0 1 16 0v2"/>',
  finance:'<path d="M4 20V10h4v10M10 20V4h4v16M16 20v-8h4v8M2 21h20"/>',
  ai:'<path d="m12 2 1.9 6.1L20 10l-6.1 1.9L12 18l-1.9-6.1L4 10l6.1-1.9L12 2ZM19 16l.8 2.2L22 19l-2.2.8L19 22l-.8-2.2L16 19l2.2-.8L19 16Z"/>',
+ settings:'<circle cx="12" cy="12" r="3"/><path d="M12 2v2m0 16v2M4.9 4.9l1.4 1.4m11.4 11.4 1.4 1.4M2 12h2m16 0h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>',
  more:'<circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/>',
  search:'<circle cx="10.8" cy="10.8" r="6.8"/><path d="m16 16 5 5"/>',
  clock:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
@@ -499,6 +500,9 @@ function build(){
   if(filterDialog.open&&window.innerWidth>790)closeMobileOrderFilters();
  });
  const financeTitle=sectionView("rdFinanceIntro","Финансы","Начисления, касса и история операций");
+ const settings=sectionView("rdSettings","Настройки","Сообщения клиентам и параметры приложения");
+ window.__rdWhatsAppSettings?.mount(settings);
+ app.insertBefore(settings,$("ordersArea"));
  app.insertBefore(home,$("ordersArea"));
  app.insertBefore(clients,$("ordersArea"));
  app.insertBefore(leads,$("ordersArea"));
@@ -545,6 +549,7 @@ function navigate(key){
  $("rdHome").hidden=key!=="home";
  $("rdClients").hidden=key!=="clients";
  $("rdLeads").hidden=key!=="leads";
+ $("rdSettings").hidden=key!=="settings";
  $("rdOrdersIntro").hidden=!isOrders;
  $("rdOrderStats").hidden=!isOrders;
  $("rdOrderToolbar").hidden=!isOrders;
@@ -562,7 +567,7 @@ function navigate(key){
  document.querySelectorAll(".rd-nav-btn[data-page]").forEach(btn=>
   btn.setAttribute("aria-current",btn.dataset.page===key?"page":"false"));
  const moreButton=$("rdMobileMoreBtn");
- if(moreButton)moreButton.setAttribute("aria-current",["clients","finance"].includes(key)?"page":"false");
+ if(moreButton)moreButton.setAttribute("aria-current",["clients","finance","settings"].includes(key)?"page":"false");
  if(isOrders||isCalendar){
   currentTab=isCalendar?"calendar":"all";
   if(isOrders)restoreOrderFilters(currentTab);
@@ -570,6 +575,7 @@ function navigate(key){
  }else if(key==="home")drawHome();
  else if(key==="clients")drawClients();
  else if(key==="leads")window.__rdLeadsRender?.();
+ else if(key==="settings")window.__rdWhatsAppSettings?.refresh();
  window.scrollTo({top:0,behavior:"instant"});
 }
 function drawChart(parent,values,month){

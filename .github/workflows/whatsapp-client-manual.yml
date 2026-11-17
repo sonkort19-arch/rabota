@@ -3,12 +3,18 @@ on:
   push:
     branches:
       - feature/whatsapp-client-manual-preview-20261118
+      - feature/whatsapp-message-settings-20261118
   pull_request:
     paths:
       - index.html
       - whatsapp-client.js
+      - whatsapp-settings.js
+      - whatsapp-settings.css
+      - money-workspace.js
+      - redesign.js
       - tests/whatsapp-client.test.cjs
       - tests/whatsapp-client-flow.test.cjs
+      - tests/whatsapp-settings.test.cjs
       - .github/workflows/whatsapp-client-manual.yml
 permissions:
   contents: read
@@ -20,6 +26,10 @@ jobs:
         with:
           persist-credentials: false
       - name: JavaScript syntax
-        run: node --check whatsapp-client.js
+        run: |
+          node --check whatsapp-client.js
+          node --check whatsapp-settings.js
+          node --check money-workspace.js
+          node --check redesign.js
       - name: Targeted client message and integration tests
-        run: node --test tests/whatsapp-client.test.cjs tests/whatsapp-client-flow.test.cjs
+        run: node --test tests/whatsapp-client.test.cjs tests/whatsapp-client-flow.test.cjs tests/whatsapp-settings.test.cjs

@@ -1,12 +1,19 @@
-/* CRM «Работа»: ручные сообщения клиентам через обычную ссылку WhatsApp.
- * Нет API, чтения чатов, автоматической отправки или обращения к Supabase.
+/* CRM «Работа»: вручную открываем WhatsApp с редактируемыми сообщениями.
+ * На устройстве сохраняются только шаблоны, не клиентские данные.
+ * Нет API WhatsApp, автоотправки или изменения заказов.
  */
 (function(root,factory){
-  const api=factory();
+  const api=factory(root);
   if(typeof module==="object"&&module.exports)module.exports=api;
   if(root&&root.document)root.__rdClientWhatsApp=api;
-})(typeof window!=="undefined"?window:globalThis,function(){
+})(typeof window!=="undefined"?window:globalThis,function(root){
   "use strict";
+  const STORAGE_KEY="rd-client-wa-message-templates-v1";
+  const DEFAULT_TEMPLATES=Object.freeze({
+    booking:"Здравствуйте, {имя}!\n\nВы записаны на промывку системы отопления MOBA.\nДата: {дата}\nВремя: {время} (МСК)\nМастер: {мастер}\n\nПожалуйста, ожидайте мастера в согласованное время.\nЕсли планы изменились, напишите нам в этот чат.",
+    review:"Здравствуйте, {имя}!\n\nСпасибо, что выбрали MOBA! Работа по промывке системы отопления завершена.\n\nБудем благодарны, если вы оставите отзыв о нашей работе ответным сообщением.\n\nС уважением, команда MOBA."
+  });
+  const TOKENS=Object.freeze(["имя","дата","время","мастер","адрес","ссылка"]);
   const clean=value=>String(value??"").trim().replace(/\s+/g," ");
   function normalizePhone(value){
     let digits=String(value??"").replace(/\D/g,"");
@@ -29,45 +36,75 @@
       throw new Error("Укажите правильное время.");
     return time;
   }
+  function validateTemplate(value,label){
+    const text=String(value??"").trim();
+    if(!text)throw new Error("Заполните шаблон «"+label+"».");
+    if(text.length>2500)throw new Error("Максимум 2500 символов для шаблона «"+label+"».");
+    for(const match of text.matchAll(/\{([^{}]+)\}/g)){
+      if(!TOKENS.includes(match[1].trim().toLowerCase()))
+        throw new Error("Неизвестное поле {"+match[1]+"} в шаблоне «"+label+"».");
+    }
+    return text;
+  }
+  function validateReviewUrl(value){
+    const url=clean(value);
+    if(!url)return "";
+    try{
+      const parsed=new URL(url);
+      if(parsed.protocol!=="https:")throw new Error();
+      return parsed.href;
+    }catch(_){throw new Error("Ссылка на отзывы должна начинаться с https://");}
+  }
+  function defaults(){return {...DEFAULT_TEMPLATES,reviewUrl:""};}
+  function validateSettings(data){
+    if(!data||typeof data!=="object")throw new Error("Настройки не распознаны.");
+    return {
+      booking:validateTemplate(data.booking,"После записи"),
+      review:validateTemplate(data.review,"После завершения"),
+      reviewUrl:validateReviewUrl(data.reviewUrl||"")
+    };
+  }
+  function getSettings(){
+    try{
+      const saved=root?.localStorage?.getItem(STORAGE_KEY);
+      return saved?validateSettings({...defaults(),...JSON.parse(saved)}):defaults();
+    }catch(_){return defaults();}
+  }
+  function saveSettings(data){
+    const next=validateSettings(data);
+    // Safari can disallow storage; never claim a successful save when it fails.
+    if(!root?.localStorage)throw new Error("Хранилище браузера недоступно.");
+    try{root.localStorage.setItem(STORAGE_KEY,JSON.stringify(next));}
+    catch(_){throw new Error("Не удалось сохранить. Проверьте доступ к памяти браузера.");}
+    return next;
+  }
+  function renderTemplate(template,order,reviewUrl=""){
+    const vars={
+      имя:clean(order?.name)||"клиент",
+      дата:order?.date?prettyDate(order.date):"",
+      время:order?.time?prettyTime(order.time):"",
+      мастер:clean(order?.master)||"уточняется",
+      адрес:clean(order?.address),
+      ссылка:reviewUrl
+    };
+    validateTemplate(template,"Сообщение");
+    let result=template.replace(/\{([^{}]+)\}/g,(_whole,name)=>vars[name.trim().toLowerCase()]??"");
+    // Remove a line containing only a missing optional link.
+    if(!reviewUrl)result=result.replace(/^[ \t]*\n(?=\n)/gm,"");
+    return result.trim();
+  }
   function bookingText(order){
     if(!normalizePhone(order?.phone))throw new Error("Укажите номер клиента в формате +7.");
-    const name=clean(order.name)||"клиент";
-    const date=prettyDate(order.date),time=prettyTime(order.time);
-    const master=clean(order.master);
-    return [
-      "Здравствуйте, "+name+"!",
-      "",
-      "Вы записаны на промывку системы отопления MOBA.",
-      "Дата: "+date,
-      "Время: "+time+" (МСК)",
-      ...(master?["Мастер: "+master]:[]),
-      "",
-      "Пожалуйста, ожидайте мастера в согласованное время.",
-      "Если планы изменились, напишите нам в этот чат."
-    ].join("\n");
+    prettyDate(order.date);prettyTime(order.time);
+    return renderTemplate(getSettings().booking,order);
   }
-  function reviewText(order,reviewUrl=""){
+  function reviewText(order,reviewUrl){
     if(!normalizePhone(order?.phone))throw new Error("Укажите номер клиента в формате +7.");
-    const name=clean(order.name)||"клиент";
-    let url="";
-    if(clean(reviewUrl)){
-      try{
-        const parsed=new URL(clean(reviewUrl));
-        if(parsed.protocol!=="https:")throw new Error();
-        url=parsed.href;
-      }catch(_){throw new Error("Ссылка на отзывы должна начинаться с https://");}
-    }
-    return [
-      "Здравствуйте, "+name+"!",
-      "",
-      "Спасибо, что выбрали MOBA! Работа по промывке системы отопления завершена.",
-      "",
-      "Будем благодарны, если вы оставите отзыв о нашей работе"+
-        (url?":":" ответным сообщением."),
-      ...(url?["",url]:[]),
-      "",
-      "С уважением, команда MOBA."
-    ].join("\n");
+    const settings=getSettings();
+    const url=validateReviewUrl(reviewUrl===undefined?settings.reviewUrl:reviewUrl);
+    let message=renderTemplate(settings.review,order,url);
+    if(url&&!settings.review.includes("{ссылка}"))message+="\n\n"+url;
+    return message;
   }
   function link(phone,text){
     const normalized=normalizePhone(phone);
@@ -76,6 +113,7 @@
     return "https://wa.me/"+normalized+"?text="+encodeURIComponent(String(text));
   }
   function bookingLink(order){return link(order.phone,bookingText(order));}
-  function reviewLink(order,reviewUrl=""){return link(order.phone,reviewText(order,reviewUrl));}
-  return {normalizePhone,prettyDate,prettyTime,bookingText,reviewText,link,bookingLink,reviewLink};
+  function reviewLink(order,reviewUrl){return link(order.phone,reviewText(order,reviewUrl));}
+  return {normalizePhone,prettyDate,prettyTime,DEFAULT_TEMPLATES,TOKENS,defaults,getSettings,saveSettings,
+    validateSettings,renderTemplate,bookingText,reviewText,link,bookingLink,reviewLink};
 });
