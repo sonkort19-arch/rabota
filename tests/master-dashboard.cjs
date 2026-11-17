@@ -87,10 +87,12 @@ test("overview highlights next appointment and status needing review",()=>{
  f.renderMasterOverview(f.masterWorkingOrders());
  const content=collectText(f.summary);
  assert.equal(f.summary.hidden,false);
- assert.match(content,/Сегодня · 12 ноя/);
- assert.match(content,/2 заказа/);
+ assert.doesNotMatch(content,/Сегодня · 12 ноя/);
+ assert.doesNotMatch(content,/Проверить статус/);
+ assert.match(content,/Ближайший/);
  assert.match(content,/18:00 · Следующий/);
- assert.match(content,/Проверить статус · 2 заказа/);
+ assert.equal(f.summary.children.length,1);
+ assert.equal(f.summary.children[0].className,"master-next-jump master-next-compact");
 });
 test("overview stays hidden outside master active schedule",()=>{
  const owner=fixture("owner","all"),history=fixture("master","history");
@@ -144,23 +146,18 @@ test("changed order data restores focus to the same master's order row",()=>{
  assert.match(source,/reportSync\(syncError,"finance"\)/);
 });
 
-test("status review lists all past unfinished bookings",()=>{
- const f=fixture();
- f.renderMasterOverview(f.masterWorkingOrders());
- const review=f.summary.children.find(x=>String(x.className||"").includes("master-review-jump"));
- assert.ok(review);
- assert.equal(review.attrs["aria-expanded"],"false");
- review.events.click();
- const list=f.summary.children.find(x=>x.className==="master-review-list");
- assert.ok(list);
- assert.equal(list.children.length,2);
- const names=list.children.map(x=>x.textContent).join(" ");
- assert.match(names,/Уточнить/);
- assert.match(names,/Старый/);
- const toggler=f.summary.children.find(x=>String(x.className||"").includes("master-review-jump"));
- assert.equal(toggler.attrs["aria-expanded"],"true");
- toggler.events.click();
- assert.equal(f.summary.children.some(x=>x.className==="master-review-list"),false);
+test("overdue booked orders are exposed for the bell, not the daily strip",()=>{
+  const f=fixture();
+  const review=f.masterOrdersToReview(f.masterWorkingOrders());
+  assert.deepEqual(review.map(o=>o.id),["early","old"]);
+  f.renderMasterOverview(f.masterWorkingOrders());
+  assert.equal(f.summary.children.some(x=>String(x.className||"").includes("master-review")),false);
+});
+test("compact next visit has an accessible click action",()=>{
+  const f=fixture();
+  f.renderMasterOverview(f.masterWorkingOrders());
+  assert.match(f.summary.children[0].attrs["aria-label"],/Ближайший выезд:/);
+  assert.equal(typeof f.summary.children[0].events.click,"function");
 });
 test("Raul status filters use five compact accessible icons without changing status values",()=>{
  const script=fs.readFileSync(path.join(root,"money-workspace.js"),"utf8");

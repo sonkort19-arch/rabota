@@ -8,6 +8,7 @@
   const toggle=document.getElementById("pushToggle");
   const counter=document.getElementById("pushUnreadCount");
   const list=document.getElementById("recentNotificationList");
+  const reviewList=document.getElementById("masterStatusReviewList");
   const test=document.getElementById("testPushBtn");
   const toggleText=document.getElementById("pushToggleText");
   const status=document.getElementById("pushStatus");
@@ -38,19 +39,55 @@
     if(event.key==="Escape"&&!popup.hidden){pop(false);bell.focus();}
   });
 
+  let unreadCount=0;
+  function refreshStatusReviews(){
+    const reviews=window.__rdMasterStatusReview?.()||[];
+    reviewList.replaceChildren();
+    reviewList.hidden=reviews.length===0;
+    if(!reviews.length)return 0;
+    reviewList.append(make("div","push-list-heading push-review-heading",
+      "Проверить статус · "+reviews.length));
+    for(const order of [...reviews].sort((a,b)=>
+      String(b.date||"").localeCompare(String(a.date||""))||
+      String(b.time||"").localeCompare(String(a.time||""))).slice(0,30)){
+      const action=make("button","push-review-order");
+      action.type="button";
+      action.append(make("strong","","Проверить: "+(order.name||"Клиент")),
+        make("span","",(order.date?formatDate(order.date):"Без даты")+
+          " · "+(order.time||"Без времени")+" · "+(order.status||"Записан")));
+      action.addEventListener("click",()=>{
+        pop(false);bell.focus({preventScroll:true});
+        window.__rdOpenMasterOrder?.(order.id);
+      });
+      reviewList.append(action);
+    }
+    if(reviews.length>30)reviewList.append(make("div","push-empty","Показаны первые 30 заказов."));
+    return reviews.length;
+  }
+  function updateBadge(){
+    const reviewCount=refreshStatusReviews();
+    const total=unreadCount+reviewCount;
+    counter.textContent=total>99?"99+":String(total);
+    counter.hidden=total===0;
+    const labels=[];
+    if(unreadCount)labels.push("Новых заявок: "+unreadCount);
+    if(reviewCount)labels.push("Проверить статус: "+reviewCount);
+    bell.setAttribute("aria-label",(labels.length?labels.join(". "):"Уведомлений нет")+
+      ". Открыть уведомления");
+  }
   async function loadUnread(){
     if(currentRole!=="master"||!currentUser)return;
+    // Status reviews are derived from orders, not web push records.
+    updateBadge();
     const unread=[];
-    // Server-side unread filter, pagination: badge is not limited by 15 recent rows.
     for(let offset=0;offset<100000;offset+=500){
       const rows=await dbRequest("rabota_order_notifications?select=id,client_name,visit_date,visit_time,created_at&read_at=is.null&order=created_at.desc&limit=500&offset="+offset,"GET");
       if(!Array.isArray(rows))throw new Error("Не удалось загрузить новые заявки.");
       unread.push(...rows);
       if(rows.length<500)break;
     }
-    counter.textContent=unread.length>99?"99+":String(unread.length);
-    counter.hidden=unread.length===0;
-    bell.setAttribute("aria-label",unread.length?"Новых заявок: "+unread.length+". Открыть список":"Новых заявок нет. Открыть уведомления");
+    unreadCount=unread.length;
+    updateBadge();
     list.replaceChildren();
     if(unread.length===0){
       list.append(make("div","push-empty","Новых заявок нет"));
