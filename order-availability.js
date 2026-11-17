@@ -6,6 +6,7 @@
   const grid=$("oaMonthGrid"), dayInput=$("orderDate"), timeInput=$("orderTime");
   const masterInput=$("master"), message=$("oaAvailabilityMessage");
   const toggle=$("oaToggle"), calendarBody=$("oaCalendarBody"), dayLoad=$("oaDayLoad");
+  const weekStrip=$("oaWeekStrip");
   if(!grid||!dayInput||!timeInput||!masterInput||!message||!toggle||!calendarBody||!dayLoad)return;
 
   const ESTIMATED_GAP_MINUTES=200; // 3 hours of work + 20 minutes for travel.
@@ -98,11 +99,42 @@
     if(dayInput.value!==date){
       dayInput.value=date;
       timeInput.value=""; // A time from a different date must never carry over.
+      setMonthFromDate(date); // Week selection can cross into another month.
     }
     render();
     setExpanded(false);
     if(document.activeElement && calendarBody.contains(document.activeElement))
       toggle.focus({preventScroll:true});
+  }
+  // Mirror the master's existing week colours instead of inventing a second workload model.
+  // The date picker stays collapsible; this compact seven-day row is always visible.
+  function renderWeek(){
+    if(!weekStrip)return;
+    const selected=parseDay(dayInput.value);
+    if(!selected){weekStrip.replaceChildren();return;}
+    const monday=new Date(selected.getFullYear(),selected.getMonth(),
+      selected.getDate()-((selected.getDay()+6)%7),12);
+    const names=["Пн","Вт","Ср","Чт","Пт","Сб","Вс"];
+    const fragment=document.createDocumentFragment();
+    for(let i=0;i<7;i++){
+      const day=new Date(monday.getFullYear(),monday.getMonth(),monday.getDate()+i,12);
+      const date=iso(day.getFullYear(),day.getMonth()+1,day.getDate());
+      const stats=availability(date,masterInput.value);
+      const load=stats&&window.__rdCalendarLoad?.estimateDay(stats.all,date);
+      const level=load?.level||"unknown";
+      const button=el("button","oa-week-day oa-week-"+level+
+        (date===dayInput.value?" is-selected":""));
+      button.type="button";
+      button.dataset.date=date;
+      button.setAttribute("aria-pressed",String(date===dayInput.value));
+      button.setAttribute("aria-label",dateText(date)+": "+
+        (load?.label||"Выберите мастера для оценки загруженности"));
+      button.append(el("span","oa-week-name",names[i]),
+        el("strong","oa-week-number",day.getDate()));
+      button.addEventListener("click",()=>selectDate(date));
+      fragment.append(button);
+    }
+    weekStrip.replaceChildren(fragment);
   }
   function renderMonth(){
     const first=new Date(viewYear,viewMonth,1,12);
@@ -211,6 +243,7 @@
     if(!visible)return;
     if(viewYear===null)setMonthFromDate(dayInput.value);
     renderMonth();
+    renderWeek();
     renderDay();
   }
   toggle.addEventListener("click",()=>{

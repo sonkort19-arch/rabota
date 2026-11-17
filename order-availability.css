@@ -334,3 +334,45 @@
 
 /* A selected tight slot must not look like a guaranteed free green slot. */
 #orderForm .oa-slot.oa-slot-tight.is-selected{background:#fff2d7;border-color:#d6a656;color:#895717;outline:2px solid #ce9a3f;outline-offset:-2px}
+
+/* Seven-day booking strip: same four workload colours as Raul's master calendar.
+   Visible without opening the full month picker; no extra form fields. */
+#orderForm .oa-week-strip{
+  display:grid;
+  grid-template-columns:repeat(7,minmax(0,1fr));
+  gap:5px;
+  width:100%;
+  min-width:0;
+  margin:10px 0 6px;
+}
+#orderForm .oa-week-day{
+  display:flex;
+  box-sizing:border-box;
+  min-width:0;
+  min-height:66px;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  gap:3px;
+  padding:7px 1px;
+  border:1px solid transparent;
+  border-radius:11px;
+  background:#eff2f8;
+  color:#546780;
+  cursor:pointer;
+  -webkit-tap-highlight-color:transparent;
+}
+#orderForm .oa-week-name{font-size:12px;line-height:1.1;font-weight:650;color:inherit}
+#orderForm .oa-week-number{font-size:19px;line-height:1.15;font-weight:820;color:inherit;font-variant-numeric:tabular-nums}
+#orderForm .oa-week-day.oa-week-free{background:#24b36b;border-color:#15965a;color:#fff}
+#orderForm .oa-week-day.oa-week-light{background:#f6ca39;border-color:#d9a819;color:#302b18}
+#orderForm .oa-week-day.oa-week-busy{background:#ee8a2b;border-color:#d16d12;color:#fff}
+#orderForm .oa-week-day.oa-week-full{background:#dd4d4d;border-color:#bd3737;color:#fff}
+#orderForm .oa-week-day.is-selected{box-shadow:inset 0 0 0 2px #fff,0 0 0 2px #294ed6}
+#orderForm .oa-week-day:focus-visible{outline:3px solid #1d3ca6;outline-offset:2px}
+@media(max-width:370px){
+  #orderForm .oa-week-strip{gap:4px}
+  #orderForm .oa-week-day{min-height:60px;border-radius:9px}
+  #orderForm .oa-week-name{font-size:11px}
+  #orderForm .oa-week-number{font-size:17px}
+}

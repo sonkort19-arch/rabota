@@ -46,7 +46,7 @@ test("four time suggestions for Raul are still checked, others unchanged",()=>{
   assert.match(availability,/const state=timeState\(time,date,master\)/);
   assert.match(availability,/button\.disabled=!selectable/);
   assert.match(availability,/timeInput\.dispatchEvent\(new Event\("change"/);
-  assert.match(html,/src="\/order-availability\.js\?v=20261117-raul4-v1"/);
+  assert.match(html,/src="\/order-availability\.js\?v=20261117-weekload-v1"/);
   assert.match(html,/src="\/master-quick-order\.js\?v=20261117-mock-v1"/);
   assert.match(css,/grid-template-columns:repeat\(4,minmax\(0,1fr\)\)/);
 });
@@ -85,4 +85,13 @@ test("saving, conflicts, confirmation, finance guard and role restrictions remai
   assert.match(html,/price:controls\.price\.value===""\?null:Number\(controls\.price\.value\)/);
   assert.match(html,/advanced\.open=Boolean\(existing\)/);
   assert.match(html,/controls\.master\.readOnly=raulCreating/);
+});
+
+test("new order has a clickable seven-day strip using existing master workload colours",()=>{
+  assert.match(html,/id="oaWeekStrip" class="oa-week-strip"/);
+  assert.match(html,/id="oaCalendarBody" class="oa-calendar-body" hidden/);
+  assert.match(availability,/const monday=new Date\(selected\.getFullYear\(\)/);
+  assert.match(availability,/window\.__rdCalendarLoad\?\.estimateDay\(stats\.all,date\)/);
+  assert.match(availability,/button\.addEventListener\("click",\(\)=>selectDate\(date\)\)/);
+  assert.match(availability,/renderMonth\(\);\s*renderWeek\(\);\s*renderDay\(\)/);
 });
