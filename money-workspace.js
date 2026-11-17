@@ -43,7 +43,8 @@
       day:'<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M7 3v4M17 3v4M3 10h18"/>',
       orders:'<rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 7h8M8 11h8M8 15h5"/>',
       payments:'<rect x="3" y="5" width="18" height="15" rx="2"/><path d="M3 9h18M16 15h3"/>',
-      reports:'<path d="M4 20V11M10 20V4M16 20v-9M22 20V7M2 21h21"/>'
+      reports:'<path d="M4 20V11M10 20V4M16 20v-9M22 20V7M2 21h21"/>',
+      settings:'<circle cx="12" cy="12" r="3"/><path d="M12 2v2m0 16v2M4.9 4.9l1.4 1.4m11.4 11.4 1.4 1.4M2 12h2m16 0h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>'
     };
     span.innerHTML='<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'+shapes[name]+'</svg>';
     return span;
@@ -70,6 +71,10 @@
     reports.setAttribute("aria-label","Отчёты мастера");
     const payments=el("section","mw-master-payments");payments.id="mwMasterPayments";payments.hidden=true;
     payments.setAttribute("aria-label","Платежи мастера");
+    const settings=el("section","mw-master-settings");settings.id="mwMasterSettings";settings.hidden=true;
+    settings.setAttribute("aria-label","Настройки мастера");
+    settings.append(el("h2","mw-settings-title","Настройки"));
+    window.__rdWhatsAppSettings?.mount(settings);
     const toolbar=el("section","mw-master-filterbar");toolbar.id="mwMasterFilterbar";
     toolbar.setAttribute("aria-label","Фильтры заказов");
     const search=el("input","mw-filter-search");search.type="search";
@@ -87,11 +92,12 @@
     }
     toolbar.append(search,filters);
     orders.insertBefore(toolbar,orders.querySelector(".tabs"));
-    app.insertBefore(reports,finance);app.insertBefore(payments,finance);
+    app.insertBefore(reports,finance);app.insertBefore(payments,finance);app.insertBefore(settings,finance);
     const nav=el("nav","mw-bottom-nav");nav.id="mwMasterNav";
     nav.setAttribute("aria-label","Разделы мастера");
     for(const [key,label,icon] of [["day","По дням","day"],["orders","Заказы","orders"],
-      ["payments","Платежи","payments"],["reports","Отчёты","reports"]]){
+      ["payments","Платежи","payments"],["reports","Отчёты","reports"],
+      ["settings","Настройки","settings"]]){
       const item=btn("","mw-nav-btn",()=>switchPage(key));
       item.dataset.mwPage=key;
       item.append(navIcon(icon),el("span","",label));nav.append(item);
@@ -152,19 +158,22 @@
   function switchPage(which,restore=true){
     if(api()?.snapshot()?.role!=="master")return;
     const reports=$("mwMasterReports"),payments=$("mwMasterPayments"),
-      orders=$("ordersArea"),finance=$("financePanel");
+      settings=$("mwMasterSettings"),orders=$("ordersArea"),finance=$("financePanel");
     if(!reports||!payments||!orders||!finance)return;
     if(restore&&which!==page){
       scrollPositions.set(page,window.__rdMasterViewportScroll?.position?.()??window.scrollY??0);
     }
     page=which;reports.hidden=which!=="reports";payments.hidden=which!=="payments";
+    if(settings)settings.hidden=which!=="settings";
     const filters=$("mwMasterFilterbar");
     if(filters)filters.hidden=which!=="orders";
     const title=$("appTitle");
-    if(which==="reports"||which==="payments"){
+    if(which==="reports"||which==="payments"||which==="settings"){
       orders.hidden=true;finance.hidden=true;
-      if(title)title.textContent=which==="reports"?"Отчёты":"Платежи";
-      if(which==="reports")renderMaster();else renderMasterPayments();
+      if(title)title.textContent=which==="reports"?"Отчёты":which==="payments"?"Платежи":"Настройки";
+      if(which==="reports")renderMaster();
+      else if(which==="payments")renderMasterPayments();
+      else window.__rdWhatsAppSettings?.refresh();
     }else{
       if(title)title.textContent=which==="day"?"По дням":"Мои заказы";
       // Legacy tab handlers remain for calendar calculations, but tabs are not visible to master.
@@ -458,10 +467,11 @@
     }else{
       $("appScreen")?.classList.remove("mw-orders-minimal-header");
       const nav=$("mwMasterNav"),reports=$("mwMasterReports"),
-        payments=$("mwMasterPayments");
+        payments=$("mwMasterPayments"),settings=$("mwMasterSettings");
       if(nav)nav.hidden=true;
       if(reports)reports.hidden=true;
       if(payments)payments.hidden=true;
+      if(settings)settings.hidden=true;
     }
   };
   window.__rdMoneyUpdated=()=>{
