@@ -95,7 +95,22 @@
       const parsed={...defaults(),...JSON.parse(saved)};
       if(parsed.booking===LEGACY_TEMPLATES.booking)parsed.booking=DEFAULT_TEMPLATES.booking;
       if(parsed.review===LEGACY_TEMPLATES.review)parsed.review=DEFAULT_TEMPLATES.review;
-      return validateSettings(parsed);
+      // A single stale or malformed URL should not discard all other saved links
+      // or reset the owner's personal message templates.
+      const safeTemplate=(value,label,fallback)=>{
+        try{return validateTemplate(value,label);}catch(_){return fallback;}
+      };
+      const safeUrl=value=>{
+        try{return validateReviewUrl(value||"");}catch(_){return "";}
+      };
+      return {
+        booking:safeTemplate(parsed.booking,"После записи",DEFAULT_TEMPLATES.booking),
+        review:safeTemplate(parsed.review,"После завершения",DEFAULT_TEMPLATES.review),
+        reviewUrl:safeUrl(parsed.reviewUrl),
+        reviewUrls:Object.fromEntries(REVIEW_SOURCE_KEYS.map(key=>[
+          key,safeUrl(parsed.reviewUrls?.[key])
+        ]))
+      };
     }catch(_){return defaults();}
   }
   function saveSettings(data){
@@ -116,9 +131,16 @@
       ссылка:reviewUrl
     };
     validateTemplate(template,"Сообщение");
-    let result=template.replace(/\{([^{}]+)\}/g,(_whole,name)=>vars[name.trim().toLowerCase()]??"");
-    // Remove a line containing only a missing optional link.
-    if(!reviewUrl)result=result.replace(/^[ \t]*\n(?=\n)/gm,"");
+    let templateText=String(template);
+    // When there is no configured review URL, remove standalone "{ссылка}"
+    // lines (optionally prefixed by a short "Ссылка:" label).
+    if(!reviewUrl){
+      templateText=templateText.replace(
+        /^[ \t]*(?:(?:Ссылка|Ссылка на отзыв|Оставить отзыв)[ \t]*:[ \t]*)?\{[ \t]*ссылка[ \t]*\}[ \t]*$/gim,""
+      );
+    }
+    let result=templateText.replace(/\{([^{}]+)\}/g,(_whole,name)=>vars[name.trim().toLowerCase()]??"");
+    if(!reviewUrl)result=result.replace(/\n{3,}/g,"\n\n");
     return result.trim();
   }
   function bookingText(order){
