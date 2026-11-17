@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#10121a">
+  <title>MOBA — тест WhatsApp</title>
+  <style>
+    :root{color-scheme:dark;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif}
+    *{box-sizing:border-box}
+    body{margin:0;background:#10121a;color:#f8f9fc;padding:24px 16px max(36px,env(safe-area-inset-bottom))}
+    main{max-width:480px;margin:0 auto}
+    header{display:flex;align-items:center;gap:12px;margin-bottom:22px}
+    .symbol{display:grid;place-items:center;width:48px;height:48px;border-radius:16px;background:#19382d;color:#66db9c;font-size:24px;font-weight:750}
+    h1{font-size:22px;line-height:1.14;margin:0}
+    .sub{color:#a8afbf;font-size:12px;margin-top:6px}
+    .notice{background:#282b36;border:1px solid #454958;border-radius:14px;padding:13px 14px;line-height:1.45;font-size:13px;color:#d7d9e4;margin-bottom:16px}
+    .card{background:#1c1f29;border:1px solid #343846;border-radius:20px;padding:18px;margin-bottom:14px}
+    h2{font-size:16px;letter-spacing:-.01em;margin:0 0 14px}
+    label{display:block;color:#c4c9d6;font-size:13px;margin:0 0 6px}
+    input{width:100%;height:46px;background:#11141d;color:#fff;border:1px solid #3a4251;border-radius:12px;padding:0 13px;font-size:16px;outline:none}
+    input:focus{border-color:#5cce97;box-shadow:0 0 0 2px #5cce9725}
+    .field{margin-bottom:14px}
+    .grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+    .grid .field{min-width:0}
+    button,a.action{appearance:none;border:0;font-family:inherit;display:flex;align-items:center;justify-content:center;
+      text-decoration:none;font-size:15px;font-weight:700;min-height:49px;border-radius:13px;padding:10px 14px;cursor:pointer}
+    .primary{background:#56d88f;color:#0e1c15;width:100%}
+    .primary:disabled{background:#3b5547;color:#9db4a8;cursor:not-allowed}
+    .secondary{background:#32394a;color:#f8f9fc;width:100%;margin-top:9px}
+    .muted{color:#a8afbf;font-size:13px;line-height:1.45}
+    .status{background:#152b22;color:#a7e5bd;border:1px solid #285440;border-radius:12px;padding:11px 12px;font-size:13px;margin:0 0 13px}
+    .hidden{display:none!important}
+    .preview{white-space:pre-wrap;overflow-wrap:anywhere;background:#11151c;border-radius:12px;padding:12px;
+      font-size:13px;line-height:1.5;color:#dce5e6;margin:10px 0 13px;max-height:220px;overflow:auto}
+    .error{color:#ffabb0;font-size:13px;margin-top:10px;min-height:0}
+    .hint{font-size:12px;color:#a6adbc;line-height:1.5}
+    .header-row{display:flex;justify-content:space-between;align-items:center;gap:12px}
+    .tag{font-size:11px;color:#9ef2bc;background:#173a29;padding:5px 8px;border-radius:30px}
+  </style>
+</head>
+<body>
+<main>
+  <header>
+    <div class="symbol" aria-hidden="true">M</div>
+    <div><h1>WhatsApp клиенту</h1><div class="sub">CRM «Работа» • отдельная тестовая версия</div></div>
+  </header>
+  <div class="notice"><b>Безопасный тест.</b> Заказы не создаются и не закрываются в рабочей CRM. Данные тестовой записи сохраняются только в этом браузере. Сообщение не отправится, пока вы сами не нажмёте «Отправить» в WhatsApp.</div>
+  <section class="card">
+    <div class="header-row"><h2>1. Тестовая заявка</h2><span class="tag">Демо</span></div>
+    <form id="demoForm" autocomplete="off">
+      <div class="field"><label for="client">Имя клиента</label><input id="client" required maxlength="80" value="Тестовый клиент"></div>
+      <div class="field"><label for="phone">Номер WhatsApp для проверки</label><input id="phone" required type="tel" inputmode="tel" placeholder="+7 9XX XXX-XX-XX"></div>
+      <div class="grid">
+        <div class="field"><label for="date">Дата</label><input id="date" type="date" required></div>
+        <div class="field"><label for="time">Время (МСК)</label><input id="time" type="time" required value="12:00"></div>
+      </div>
+      <div class="field"><label for="master">Мастер</label><input id="master" value="Рауль" maxlength="80"></div>
+      <button type="submit" class="primary">Сохранить → WhatsApp</button>
+      <div class="error" id="error" role="alert"></div>
+    </form>
+  </section>
+  <section class="card hidden" id="savedCard">
+    <h2>2. Тестовая запись сохранена</h2>
+    <div class="status" id="savedStatus"></div>
+    <p class="muted">После возврата из WhatsApp проверьте текст подтверждения. Когда захотите проверить закрытие — нажмите следующую кнопку.</p>
+    <button class="primary" id="complete" type="button">Завершить → WhatsApp</button>
+    <button class="secondary" id="reopen" type="button">Снова открыть подтверждение</button>
+    <button class="secondary hidden" id="reopenReview" type="button">Снова открыть просьбу об отзыве</button>
+    <button class="secondary" id="clear" type="button">Начать тест заново</button>
+  </section>
+  <section class="card">
+    <h2>Текст WhatsApp</h2>
+    <div class="hint">Предпросмотр формируется из полей выше. Никаких клиентских данных из CRM не используется.</div>
+    <div id="messagePreview" class="preview"></div>
+    <div class="hint">Если открылся обычный WhatsApp вместо Business, сообщите об этом. Ссылка wa.me не гарантирует выбор конкретного приложения на iPhone.</div>
+  </section>
+</main>
+<script src="./whatsapp-client.js"></script>
+<script>
+(function(){
+  "use strict";
+  const wa=window.__rdClientWhatsApp;
+  const key="rd-manual-wa-test-20261118-v1";
+  const form=document.getElementById("demoForm");
+  const fields={name:document.getElementById("client"),phone:document.getElementById("phone"),
+    date:document.getElementById("date"),time:document.getElementById("time"),master:document.getElementById("master")};
+  const status=document.getElementById("savedStatus");
+  const savedCard=document.getElementById("savedCard");
+  const error=document.getElementById("error");
+  const preview=document.getElementById("messagePreview");
+  let saved=null;
+  function todayMoscow(){
+    const parts=new Intl.DateTimeFormat("en-CA",{timeZone:"Europe/Moscow",year:"numeric",month:"2-digit",day:"2-digit"}).formatToParts(new Date());
+    const part=t=>parts.find(p=>p.type===t)?.value;
+    return part("year")+"-"+part("month")+"-"+part("day");
+  }
+  function values(){
+    return {name:fields.name.value.trim(),phone:fields.phone.value.trim(),date:fields.date.value,
+      time:fields.time.value,master:fields.master.value.trim()};
+  }
+  function persist(){
+    try{localStorage.setItem(key,JSON.stringify(saved));}catch(_){}
+  }
+  function paint(){
+    savedCard.classList.toggle("hidden",!saved);
+    if(saved){
+      status.textContent=saved.completed?"Заказ завершён в тесте. Отправка сообщения не подтверждена."
+        :"Заказ сохранён в тесте. Отправка сообщения не подтверждена.";
+      document.getElementById("complete").disabled=Boolean(saved.completed);
+      document.getElementById("reopenReview").classList.toggle("hidden",!saved.completed);
+    }
+    try{
+      const order=values();
+      preview.textContent=saved?.completed?wa.reviewText(saved.order):wa.bookingText(order);
+    }catch(_){preview.textContent="Заполните имя, номер телефона, дату и время для предпросмотра.";}
+  }
+  function launch(url){
+    // Open the official click-to-chat address. This never sends automatically.
+    window.location.assign(url);
+  }
+  fields.date.value=todayMoscow();
+  try{
+    const restored=JSON.parse(localStorage.getItem(key)||"null");
+    if(restored?.order?.phone&&restored?.order?.date){
+      saved=restored;
+      for(const id of Object.keys(fields))fields[id].value=saved.order[id]||"";
+    }
+  }catch(_){}
+  form.addEventListener("input",paint);
+  form.addEventListener("submit",event=>{
+    event.preventDefault();error.textContent="";
+    try{
+      const order=values();
+      if(!order.name)throw new Error("Введите имя тестового клиента.");
+      const url=wa.bookingLink(order);
+      saved={order,completed:false};persist();paint();
+      launch(url);
+    }catch(e){error.textContent=e.message;}
+  });
+  document.getElementById("complete").addEventListener("click",()=>{
+    if(!saved||saved.completed)return;
+    try{
+      const url=wa.reviewLink(saved.order);
+      saved.completed=true;persist();paint();
+      launch(url);
+    }catch(e){error.textContent=e.message;}
+  });
+  document.getElementById("reopen").addEventListener("click",()=>{
+    if(saved)launch(wa.bookingLink(saved.order));
+  });
+  document.getElementById("reopenReview").addEventListener("click",()=>{
+    if(saved?.completed)launch(wa.reviewLink(saved.order));
+  });
+  document.getElementById("clear").addEventListener("click",()=>{
+    saved=null;
+    try{localStorage.removeItem(key);}catch(_){}
+    error.textContent="";
+    paint();
+  });
+  paint();
+})();
+</script>
+</body>
+</html>
