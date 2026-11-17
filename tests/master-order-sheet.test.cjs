@@ -67,9 +67,32 @@ test("master-only sheet has accessible copy icon and iOS bottom actions",()=>{
   assert.match(html,/copyBtn\.setAttribute\("aria-live","polite"\)/);
   assert.match(html,/footer\.replaceChildren\(parts\.footer\)/);
   assert.match(html,/makeCard\(order\)/);
-  assert.match(html,/href="\/master-order-sheet\.css\?v=20261117-reference-v1"/);
+  assert.match(html,/href="\/master-order-sheet\.css\?v=20261117-icon-align-v2"/);
   assert.match(css,/\.master-order-sheet \.master-sheet-shortcuts\.actions > a/);
   assert.match(css,/\.master-order-sheet \.master-action\.primary/);
   assert.match(css,/env\(safe-area-inset-bottom\)/);
   assert.doesNotMatch(css,/(^|\n)\.order-card\s*\{/);
+});
+
+test("WhatsApp icon uses a complete brand glyph and stays centered with the other buttons",()=>{
+  const svg=fs.readFileSync(path.join(root,"icons","whatsapp-master.svg"),"utf8");
+  assert.match(svg,/viewBox="0 0 16 16"/);
+  assert.match(svg,/<path fill="#10B956" d="M13\.601 2\.326A7\.85/);
+  assert.match(svg,/<\/svg>/);
+  assert.match(css,/\.master-order-sheet \.master-sheet-shortcuts\.actions > a\.wa::before\{background-image:url\("\/icons\/whatsapp-master\.svg"\)\}/);
+  assert.doesNotMatch(css,/\.master-sheet-shortcuts\.actions > a\.wa::before\{background-image:url\("data:image\/svg\+xml/);
+  assert.match(css,/flex:0 0 28px;width:28px;height:28px;margin:0 auto/);
+  assert.match(css,/background-position:50% 50%;background-size:contain;background-repeat:no-repeat/);
+});
+test("the compact card keeps equal contact buttons, safe-area footer and live actions",()=>{
+  assert.match(css,/grid-template-columns:repeat\(3,minmax\(0,1fr\)\)/);
+  assert.match(css,/justify-content:center;gap:8px;flex:none;min-width:0;width:100%;height:72px/);
+  assert.match(css,/min-height:72px;padding:8px 4px/);
+  assert.match(css,/\.master-order-sheet \.master-sheet-footer\{/);
+  assert.match(css,/env\(safe-area-inset-bottom\)/);
+  const result=factory.buildMasterSheetParts({status:"Записан",phone:"89188228825",address:"Ростовская 38",radiators:7,floorLoops:2,price:16000});
+  assert.deepEqual(textValues(result.footer),["Позвонить","WhatsApp","Маршрут","Принять заказ"]);
+  assert.ok(result.details.querySelector(".master-sheet-price"));
+  assert.ok(result.details.querySelector(".master-sheet-spec-radiators"));
+  assert.ok(result.details.querySelector(".master-sheet-spec-floor"));
 });
