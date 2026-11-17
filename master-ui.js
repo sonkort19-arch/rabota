@@ -113,7 +113,7 @@ function makeMasterScheduleRow(order,isNext=false) {
       article.dataset.orderId=id;
       article.dataset.status=order.status||"Записан";
       article.dataset.search=[order.name,order.phone,order.address,order.date,
-        order.time,order.status,order.radiatorType].join(" ").toLocaleLowerCase("ru");
+        order.time,order.status,order.radiatorType,order.referenceCode,order.id].join(" ").toLocaleLowerCase("ru");
       const toggle=make("button","master-schedule-toggle");
       toggle.type="button";
 
