@@ -28,7 +28,7 @@
         "Измени текст один раз. При создании и закрытии заказа он подставится в WhatsApp автоматически. Отправка остаётся ручной."));
     const tokenNames={имя:"Имя",дата:"Дата",время:"Время",мастер:"Мастер",адрес:"Адрес",ссылка:"Ссылка на отзыв"};
     const sample={name:"Александр",phone:"+7 900 000-00-00",date:"2026-11-20",time:"12:00",master:"Рауль",address:"Владикавказ"};
-    const forms={};
+    const forms={},linkFields={};
     function createTemplate(kind,title,description,keys){
       const area=create("section","wa-template-card");
       const header=create("h3","",title);
@@ -62,13 +62,39 @@
     createTemplate("review","После завершения заказа",
       "Благодарность и просьба оставить отзыв.",
       ["имя","ссылка"]);
+    const linksHeading=create("h3","wa-review-links-heading","Ссылки на отзывы по источникам");
+    const linksNote=create("p","wa-settings-hint",
+      "Для каждого источника можно указать свою ссылку. Если ссылка не задана, клиент получит просьбу об отзыве без ссылки на другую площадку.");
+    const linksArea=create("div","wa-review-links");
+    for(const key of wa().REVIEW_SOURCE_KEYS){
+      const wrapper=create("div","wa-review-link-field");
+      const label=create("label","wa-settings-label",wa().sourceLabel(key));
+      const input=create("input","wa-settings-url");
+      input.type="url";input.inputMode="url";input.autocomplete="off";
+      input.placeholder="https://...";input.id="wa-review-source-"+key+"-"+id;
+      label.htmlFor=input.id;
+      wrapper.append(label,input);linksArea.append(wrapper);
+      linkFields[key]=input;input.addEventListener("input",refreshPreview);
+    }
+    const previewSourceLabel=create("label","wa-settings-label","Источник для предпросмотра");
+    const previewSource=create("select","wa-settings-url");
+    previewSource.id="wa-review-preview-source-"+id;
+    previewSourceLabel.htmlFor=previewSource.id;
+    const missing=create("option","","Источник не указан");missing.value="";previewSource.append(missing);
+    for(const source of wa().CLIENT_SOURCES){
+      const item=create("option","",source.label);item.value=source.value;
+      previewSource.append(item);
+    }
+    previewSource.value="avito";
+    previewSource.addEventListener("change",refreshPreview);
+    editor.append(linksHeading,linksNote,linksArea,previewSourceLabel,previewSource);
     const urlField=create("input","wa-settings-url");
     urlField.id="wa-review-url-"+id;urlField.type="url";urlField.inputMode="url";
     urlField.placeholder="https://...";urlField.autocomplete="off";
-    const urlLabel=create("label","wa-settings-label","Ссылка на отзывы (необязательно)");
+    const urlLabel=create("label","wa-settings-label","Общая ссылка для старых заказов без источника (необязательно)");
     urlLabel.htmlFor=urlField.id;
     const urlNote=create("p","wa-settings-hint",
-      "Если добавишь ссылку, она появится в конце сообщения или вместо поля {ссылка}.");
+      "Для новых заказов с выбранным источником используется только ссылка соответствующей площадки. Общая ссылка остаётся для прежних заказов без источника.");
     editor.append(urlLabel,urlField,urlNote);
     urlField.addEventListener("input",refreshPreview);
     const buttons=create("div","wa-settings-actions");
@@ -81,11 +107,14 @@
     editor.append(buttons,status,locality);
     rootBox.append(entry,editor);target.append(rootBox);
     function values(){return {
-      booking:forms.booking.field.value,review:forms.review.field.value,reviewUrl:urlField.value
+      booking:forms.booking.field.value,review:forms.review.field.value,reviewUrl:urlField.value,
+      reviewUrls:Object.fromEntries(Object.entries(linkFields).map(([key,field])=>[key,field.value]))
     };}
     function setValues(config){
       forms.booking.field.value=config.booking;forms.review.field.value=config.review;
       urlField.value=config.reviewUrl||"";
+      for(const [key,field] of Object.entries(linkFields))
+        field.value=config.reviewUrls?.[key]||"";
       refreshPreview();
     }
     function refreshPreview(){
@@ -93,10 +122,10 @@
       try{forms.booking.preview.textContent=wa().renderTemplate(draft.booking,sample);}
       catch(_){forms.booking.preview.textContent="Проверьте дату и текст сообщения.";}
       try{
-        const url=wa().validateSettings({...wa().defaults(),...draft}).reviewUrl;
-        let message=wa().renderTemplate(draft.review,sample,url);
-        if(url&&!draft.review.includes("{ссылка}"))message+="\n\n"+url;
-        forms.review.preview.textContent=message;
+        const settings=wa().validateSettings({...wa().defaults(),...draft});
+        forms.review.preview.textContent=wa().reviewText(
+          {...sample,clientSource:previewSource.value},undefined,settings
+        );
       }catch(_){forms.review.preview.textContent="Проверьте текст или ссылку.";}
     }
     function closeEditor(){
