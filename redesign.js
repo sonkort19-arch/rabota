@@ -207,7 +207,7 @@ function build(){
  search.addEventListener("input",()=>{
  if(activePage==="leads"){window.__rdLeadsSearch?.(search.value);return}
  if(activePage==="orders")clearQuickFilter();
- rdSearchTerm=search.value.toLocaleLowerCase("ru").trim();
+ rdSearchTerm=window.__rdOrderReference.normalize(search.value);
  if(activePage==="clients"){selectedClientKey=null;drawClients();return}
  if(rdSearchTerm&&activePage!=="orders"){
   const intendedSearch=rdSearchTerm;
