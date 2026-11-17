@@ -64,3 +64,24 @@ test("incomplete order data never masquerades as a free day",()=>{
   assert.equal(quantity(""),null);
   assert.equal(quantity(-5),null);
 });
+
+test("grey only when at least one genuine order exists and all non-cancelled orders are completed",()=>{
+  const completed=order({status:"Выполнен"});
+  assert.equal(estimateDay([completed],date).level,"completed");
+  assert.equal(estimateDay([completed,order({status:"Выполнен",time:"13:00"})],date).level,"completed");
+  assert.equal(estimateDay([completed,order({status:"Отменён"})],date).level,"completed");
+  assert.match(estimateDay([completed],date).label,/Все заказы выполнены/);
+  assert.equal(estimateDay([],date).level,"free");
+  assert.equal(estimateDay([order({status:"Отменён"})],date).level,"free");
+});
+test("an unfinished order keeps the day in the workload palette; completed jobs do not inflate the load",()=>{
+  const finished=order({status:"Выполнен",radiators:25});
+  const active=order({status:"Записан",radiators:5});
+  const mixed=estimateDay([finished,active],date);
+  assert.equal(mixed.level,"light","only active work affects capacity");
+  assert.equal(mixed.count,1);
+  assert.equal(mixed.minutes,130);
+  assert.equal(estimateDay([finished,order({status:"В работе",radiators:5})],date).level,"light");
+  assert.equal(estimateDay([finished,order({status:"Новый",radiators:5})],date).level,"light");
+  assert.equal(estimateDay([finished,order({status:"Записан",radiators:25})],date).level,"full");
+});

@@ -372,3 +372,15 @@ test("refreshing orders cannot revert a viewed month to selected day's month",()
   assert.equal(app.buttons.masterCalendarDateText.textContent,"Декабрь 2026");
   assert.equal(app.getSelected(),"2026-11-17");
 });
+
+test("Raul's weekly color strip renders finished days grey, without changing owner calendar",()=>{
+  const done={date:"2026-11-11",status:"Выполнен",radiators:20,time:"10:00"};
+  const app=build({date:"2026-11-13",role:"master",orders:[done]});
+  app.module.renderCalendar();
+  const tile=app.elements.weekDays.children.find(x=>x.dataset.date==="2026-11-11");
+  assert.ok(tile.className.includes("workload-completed"));
+  assert.match(tile.attrs["aria-label"],/Все заказы выполнены/);
+  assert.equal(tile.attrs["aria-pressed"],"false");
+  assert.match(require("node:fs").readFileSync(require("node:path").join(__dirname,"..","master-calendar-load.css"),"utf8"),/\.day\.workload-completed/);
+  assert.match(require("node:fs").readFileSync(require("node:path").join(__dirname,"..","order-availability.css"),"utf8"),/\.oa-week-completed/);
+});

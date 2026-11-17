@@ -47,9 +47,18 @@
       incomplete:false,percent:0,longestFreeMinutes:PREFERRED_END-PREFERRED_START,
       label:"Свободно: заказов нет"
     };
+    // Completed work must never make the schedule appear busy.
+    // A day is grey only if it contains real completed orders and no active work.
+    // Cancelled jobs are excluded above and cannot turn an empty day grey.
+    const pending=list.filter(order=>order.status!=="Выполнен");
+    if(!pending.length)return {
+      level:"completed",count:list.length,minutes:0,workMinutes:0,travelMinutes:0,
+      incomplete:false,percent:0,longestFreeMinutes:PREFERRED_END-PREFERRED_START,
+      label:"Все заказы выполнены: "+list.length
+    };
     let work=0,travel=0,missingWork=0,missingTime=0;
     const blocks=[];
-    for(const order of list){
+    for(const order of pending){
       const r=quantity(order.radiators),f=quantity(order.floorLoops);
       const jobMinutes=(r||0)*RAD_MINUTES+(f||0)*LOOP_MINUTES;
       const trip=travelMinutes(order.address);
@@ -64,15 +73,15 @@
     const longestFreeMinutes=longestAvailableWindow(blocks);
     // Red also means no room for a typical service in the preferred 10-18 window.
     // Only use the fragmentation rule when all arrival times and durations are known.
-    const noTypicalSlot=list.length>1&&!incomplete&&longestFreeMinutes<STANDARD_VISIT;
+    const noTypicalSlot=pending.length>1&&!incomplete&&longestFreeMinutes<STANDARD_VISIT;
     const level=minutes>=(PREFERRED_END-PREFERRED_START)*.85||noTypicalSlot?"full":
-      (minutes>=(PREFERRED_END-PREFERRED_START)*.35||list.length>=3)?"busy":"light";
+      (minutes>=(PREFERRED_END-PREFERRED_START)*.35||pending.length>=3)?"busy":"light";
     const names={light:"Небольшая загрузка",busy:"Средняя загрузка",full:"Высокая загрузка"};
     return {
-      level,count:list.length,minutes,workMinutes:work,travelMinutes:travel,
+      level,count:pending.length,minutes,workMinutes:work,travelMinutes:travel,
       incomplete,percent:Math.min(100,Math.round(minutes/(PREFERRED_END-PREFERRED_START)*100)),
       longestFreeMinutes,
-      label:names[level]+": "+list.length+" заказ(ов), примерно "+minutesDescription(minutes)+
+      label:names[level]+": "+pending.length+" заказ(ов), примерно "+minutesDescription(minutes)+
         " работы и дороги"+(incomplete?". Оценка неполная — уточните время и объём работ.":"")+
         ". Можно записать по договорённости."
     };

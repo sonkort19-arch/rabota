@@ -376,3 +376,6 @@
   #orderForm .oa-week-name{font-size:11px}
   #orderForm .oa-week-number{font-size:17px}
 }
+
+/* Finished calendar days match Raul's grey workload state. */
+#orderForm .oa-week-day.oa-week-completed{background:#D6DCE5;border-color:#BAC3D1;color:#475569}

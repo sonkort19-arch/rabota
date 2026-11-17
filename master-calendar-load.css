@@ -1,5 +1,12 @@
 /* Raul only: paint the same seven visible date tiles, without dots or legends.
    The blue inset ring keeps the selected date visible in every load state. */
+/* Grey means every non-cancelled booking for the day is completed. */
+body.rd #appScreen.rd-master.master-mode #calendarPanel.master-calendar-compact .week .day.workload-completed{
+  background:#D6DCE5;border-color:#BAC3D1;color:#475569;
+}
+body.rd #appScreen.rd-master.master-mode #calendarPanel.master-calendar-compact .week .day.workload-completed .weekday{
+  color:#475569;
+}
 body.rd #appScreen.rd-master.master-mode #calendarPanel.master-calendar-compact .week .day.workload-free{
   background:#24b36b;border-color:#15965a;color:#fff;
 }
