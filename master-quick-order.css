@@ -359,3 +359,48 @@ body.rd #orderOverlay.master-quick #orderForm .mq-number-controls .mq-step{width
 body.rd #orderOverlay.master-quick #orderForm .oa-week-strip{gap:3px}
 body.rd #orderOverlay.master-quick #orderForm .order-time-field{grid-template-columns:minmax(0,1fr) 112px}
 }
+
+/* Workload preview in Raul's quick order form. All times are ESTIMATES. */
+body.rd #orderOverlay.master-quick #orderForm .oa-busy-timeline{
+  margin:8px 0 6px;padding:10px 11px 9px;
+  border:1px solid #e0e6f2;border-radius:13px;background:#f8faff;
+}
+body.rd #orderOverlay.master-quick #orderForm .oa-busy-timeline[hidden]{display:none!important}
+body.rd #orderOverlay.master-quick #orderForm .oa-timeline-heading{
+  color:#263957;font-size:12px;line-height:1.25;font-weight:800;
+}
+body.rd #orderOverlay.master-quick #orderForm .oa-timeline-list{
+  display:flex;flex-direction:column;gap:5px;margin:6px 0 9px;
+}
+body.rd #orderOverlay.master-quick #orderForm .oa-timeline-item{
+  display:flex;flex-wrap:wrap;gap:3px 8px;align-items:baseline;
+  color:#4d5b71;font-size:12px;line-height:1.25;
+}
+body.rd #orderOverlay.master-quick #orderForm .oa-timeline-item strong{
+  color:#a43d42;font-weight:800;font-variant-numeric:tabular-nums;
+}
+body.rd #orderOverlay.master-quick #orderForm .oa-timeline-track{
+  position:relative;height:19px;border-radius:8px;
+  overflow:hidden;background:#dff3e8;
+}
+body.rd #orderOverlay.master-quick #orderForm .oa-timeline-block{
+  position:absolute;top:0;bottom:0;background:#df5156;
+  border-radius:5px;min-width:3px;
+}
+body.rd #orderOverlay.master-quick #orderForm .oa-timeline-block.is-unknown{
+  background:#c69138;
+}
+body.rd #orderOverlay.master-quick #orderForm .oa-timeline-axis{
+  display:flex;justify-content:space-between;
+  margin:3px 0 0;color:#647794;
+  font-size:10px;line-height:1.2;font-variant-numeric:tabular-nums;
+}
+body.rd #orderOverlay.master-quick #orderForm .oa-timeline-disclaimer{
+  color:#718198;font-size:10px;line-height:1.3;margin-top:7px;
+}
+body.rd #orderOverlay.master-quick #orderForm .oa-slot.oa-slot-busy:disabled{
+  background:#ffeaec;border-color:#edb1b4;color:#a43d42;
+}
+body.rd #orderOverlay.master-quick #orderForm .oa-slot.oa-slot-busy:disabled small{
+  font-weight:700;
+}
