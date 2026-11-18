@@ -27,8 +27,12 @@
   function candidateSlots({masters,now=new Date(),checkTime,horizon=14,limit=14,sort="free-first"}) {
     if(typeof checkTime!=="function")return [];
     const clock=moscowClock(now),free=[],tight=[];
-    const names=[...new Map((masters||[]).map(name=>String(name||"").trim()).filter(Boolean)
-      .map(name=>[name.toLocaleLowerCase("ru"),name])).values()];
+    const names=[];
+    const seen=new Set();
+    for(const raw of masters||[]){
+      const name=String(raw||"").trim(),key=name.toLocaleLowerCase("ru");
+      if(name&&!seen.has(key)){seen.add(key);names.push(name);}
+    }
     for(let day=0;day<horizon;day++){
       const date=addDay(clock.today,day);
       for(const time of TIMES){
@@ -163,8 +167,12 @@
   };
   function namesFrom(data) {
     const values=Array.isArray(data?.masters)?data.masters:[];
-    return [...new Map(values.map(s=>String(s||"").trim()).filter(Boolean)
-      .map(s=>[s.toLocaleLowerCase("ru"),s])).values()];
+    const names=[],seen=new Set();
+    for(const raw of values){
+      const name=String(raw||"").trim(),key=name.toLocaleLowerCase("ru");
+      if(name&&!seen.has(key)){seen.add(key);names.push(name);}
+    }
+    return names;
   }
   function showMasters(data) {
     const names=namesFrom(data);
