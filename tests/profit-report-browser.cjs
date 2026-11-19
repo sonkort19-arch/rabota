@@ -17,6 +17,7 @@ async function run(browserType,iphone){
     await page.addStyleTag({path:path.join(__dirname,"..","light-theme.css")});
     await page.addStyleTag({path:path.join(__dirname,"..","polished-v2.css")});
     await page.addStyleTag({path:reportCss});
+    await page.addScriptTag({path:path.join(__dirname,"..","finance-model.js")});
     await page.addScriptTag({path:reportJs});
     await page.evaluate(()=>{
       const created=new Date().toISOString();
@@ -36,6 +37,9 @@ async function run(browserType,iphone){
         document.querySelector("#rdReports"),{getOrders:()=>window.syntheticOrders});
     });
     await page.locator(".pr-report-link").click();
+    assert.equal(await page.locator('.pr-controls select[aria-label="Тип даты отчёта"]').inputValue(),"closed");
+    // Default closing-date month excludes booked orders; "all" still shows every order.
+    await page.locator('.pr-controls select[aria-label="Период отчёта"]').selectOption("all");
     const table=page.locator(".pr-table");
     const palette=await page.evaluate(()=>{
       const color=selector=>{
@@ -112,13 +116,14 @@ async function run(browserType,iphone){
     assert.ok(density.width<=820,"Table width must be compact: "+JSON.stringify(density));
     assert.equal(await table.locator("tbody>tr").count(),7);
     assert.equal(await page.locator(".pr-metrics").count(),0,"Old summary cards must be absent");
+    assert.match(await table.locator("thead").innerText(),/Доля компании/);
     const firstTotal=(await table.locator("tbody>tr:first-child").innerText()).replace(/\s+/g," ");
     assert.match(firstTotal,/Итого/);
     assert.match(firstTotal,/27 000/);
     assert.match(firstTotal,/15 000/);
     assert.match(firstTotal,/6 500/);
     assert.match(firstTotal,/3 500/);
-    assert.match(await page.locator(".pr-note").innerText(),/Без расчёта прибыли: 1/);
+    assert.match(await page.locator(".pr-note").innerText(),/Без расчёта доли: 1/);
     await page.locator('.pr-controls select[aria-label="Статус заказов"]').selectOption("unpaid");
     assert.equal(await table.locator("tbody>tr").count(),3);
     const unpaidTotal=(await table.locator("tbody>tr:first-child").innerText()).replace(/\s+/g," ");
@@ -165,6 +170,7 @@ async function checkRaulPortal(name,shouldHaveProfit){
     await page.addStyleTag({path:path.join(__dirname,"..","light-theme.css")});
     await page.addStyleTag({path:path.join(__dirname,"..","money-workspace.css")});
     await page.addStyleTag({path:reportCss});
+    await page.addScriptTag({path:path.join(__dirname,"..","finance-model.js")});
     await page.addScriptTag({path:reportJs});
     await page.evaluate(masterName=>{
       const now=new Date().toISOString();
