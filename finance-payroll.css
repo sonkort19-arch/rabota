@@ -391,3 +391,53 @@ body.rd #rdSalaryReport .fp-report-head .fp-link{min-height:36px}
  body.rd #rdSalaryReport .fp-report-head{gap:8px;margin-bottom:10px}
  body.rd #rdSalaryReport .fp-report-title{font-size:18px}
 }
+
+/* Owner / Reports / Salary: compact CRM light design.
+   Scoped to the relocated payroll panel. The real payout dialog is unchanged. */
+body.rd #rdSalaryReport .fp-screen{gap:9px}
+body.rd #rdSalaryReport .fp-metrics{gap:7px}
+body.rd #rdSalaryReport .fp-metric{
+  gap:4px;padding:11px 12px;border-radius:12px;box-shadow:none;
+}
+body.rd #rdSalaryReport .fp-metric strong{
+  font-size:clamp(17px,2.5vw,22px);line-height:1.12;
+}
+body.rd #rdSalaryReport .fp-metric span{font-size:10px;line-height:1.25}
+body.rd #rdSalaryReport .fp-title-row{margin-bottom:8px}
+body.rd #rdSalaryReport .fp-section,
+body.rd #rdSalaryReport .fp-person-detail{padding:11px;border-radius:12px;box-shadow:none}
+body.rd #rdSalaryReport .fp-person-row{min-height:62px;padding:9px 10px}
+body.rd #rdSalaryReport .fp-pay{min-height:32px;padding:5px 10px}
+body.rd #rdSalaryReport .fp-people{border-radius:9px}
+body.rd #rdSalaryReport .fp-hint{font-size:11px;margin-top:7px}
+body.rd #rdSalaryReport .fp-subtabs,
+body.rd #rdSalaryReport .fp-person-detail .fp-subtabs{margin:10px 0;gap:3px;padding:3px}
+body.rd #rdSalaryReport .fp-subtab{padding:8px 12px}
+body.rd #rdSalaryReport .fp-total{padding:8px 10px}
+body.rd #rdSalaryReport .fp-ledger-row{padding:8px 2px}
+body.rd #rdSalaryReport .fp-balance-hero{padding:14px 15px;gap:9px}
+body.rd #rdSalaryReport .fp-balance-value{font-size:clamp(25px,3vw,31px)}
+body.rd #rdSalaryReport .fp-person-summary{gap:7px;margin-top:8px}
+body.rd #rdSalaryReport .fp-person-summary-item{padding:10px 11px;gap:4px}
+@media(max-width:510px){
+  body.rd #rdSalaryReport .fp-metrics{
+    display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px;
+  }
+  body.rd #rdSalaryReport .fp-metric:first-child{grid-column:1/-1}
+  body.rd #rdSalaryReport .fp-metric{padding:10px}
+  body.rd #rdSalaryReport .fp-metric strong{font-size:19px;letter-spacing:-.35px}
+  body.rd #rdSalaryReport .fp-metric:first-child strong{font-size:24px}
+  body.rd #rdSalaryReport .fp-metric span{display:none}
+  body.rd #rdSalaryReport .fp-person-row{padding:8px 9px;gap:5px;min-height:58px}
+  body.rd #rdSalaryReport .fp-avatar{width:30px;height:30px;flex-basis:30px;font-size:12px}
+  body.rd #rdSalaryReport .fp-person-button{gap:7px}
+  body.rd #rdSalaryReport .fp-name strong{font-size:13px}
+  body.rd #rdSalaryReport .fp-person-row>.fp-due{font-size:13px}
+  body.rd #rdSalaryReport .fp-person-row>.fp-pay{
+    grid-column:2;grid-row:2;justify-self:end;width:auto;min-height:30px;
+  }
+  body.rd #rdSalaryReport .fp-balance-hero{gap:10px}
+  body.rd #rdSalaryReport .fp-balance-value{font-size:26px}
+  body.rd #rdSalaryReport .fp-balance-payout{min-height:38px}
+  body.rd #rdSalaryReport .fp-person-summary-item>strong{font-size:15px}
+}

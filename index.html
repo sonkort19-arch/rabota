@@ -273,7 +273,7 @@
   <link rel="stylesheet" href="/order-payment.css">
   <link rel="stylesheet" href="/master-notifications.css?v=20261117-review-v1">
   <link rel="stylesheet" href="/orders-list.css">
-  <link rel="stylesheet" href="/finance-payroll.css?v=20261120-moved-to-reports-v1">
+  <link rel="stylesheet" href="/finance-payroll.css?v=20261120-audited-v6">
   <link rel="stylesheet" href="/lead-assistant.css">
   <link rel="stylesheet" href="/ui-alignment.css">
   <link rel="stylesheet" href="/ui-alignment-orders.css?v=20261113-stage8">
@@ -856,7 +856,7 @@
   <script src="/order-model.js?v=20261118-client-source-v1"></script>
   <script src="/calendar-load.js?v=20261117-completed-v1"></script>
    <script src="/calendar-model.js?v=20261117-month-view-v1"></script>
-  <script src="/finance-model.js?v=20261113-stage5"></script>
+  <script src="/finance-model.js?v=20261120-shared-reports-v1"></script>
   <script src="/master-ui.js?v=20261118-day-audit-v1"></script>
   <script src="/lead-ai-bridge.js?v=20261113-stage7"></script>
   <script src="/app-services.js?v=20261114-stage9"></script>
@@ -2044,6 +2044,7 @@
         if(financeActive)renderFinance();
         window.__rdMoneyUpdated?.();
         window.__rdOwnerPayrollUpdated?.();
+        window.__rdReportUpdated?.();
       }
     });
     const FINANCE_TIMUR_FEE=financeModel.TIMUR_FEE;
@@ -2052,6 +2053,9 @@
     const sumBy=financeModel.sumBy;
     const roundMoney=financeModel.roundMoney;
     function financeSplit(price){return financeModel.financeSplit(price);}
+    // Reports and payroll read the same master identity and finance model.
+    window.__rdReportMasterId=()=>currentRole==="owner"?financeMasterId:
+      currentRole==="master"?currentUser?.id||null:null;
     // Owner payroll in Reports consumes the same authoritative finance snapshot.
     // No additional ledger, database queries, privileges, or payment path is created.
     window.__rdOwnerPayrollSnapshot=()=>{
@@ -2132,22 +2136,15 @@
         return;
       }
       root.append(make("h2","finance-title",isOwner?"Финансы бригады Рауля":"Мои выплаты"));
-      root.append(financeMetric("Осталось выплатить",raulDue,"Моя доля: 50% от выполненных и оплаченных заказов",true));
-      if(isOwner){
-        const grid=make("div","finance-grid");
-        grid.append(financeMetric("Тимуру к выплате",timurDue,"1 500 ₽ за заказ"));
-        grid.append(financeMetric("Доля компании",companyEarned,"До прочих расходов"));
-        root.append(grid);
+      // Salary metrics live in Reports for the owner.
+      if(!isOwner){
+        root.append(financeMetric("Осталось выплатить",raulDue,"Моя доля: 50% от выполненных и оплаченных заказов",true));
+        const statement=make("div","finance-hero");
+        statement.append(financeLine("Выполнено и оплачено",eligible.length+" зак."));
+        statement.append(financeLine("Мне начислено",money(raulAccrued)));
+        statement.append(financeLine("Уже выплачено",money(raulPaid)));
+        root.append(statement);
       }
-      const statement=make("div","finance-hero");
-      statement.append(financeLine("Выполнено и оплачено",eligible.length+" зак."+(isOwner?" · "+money(eligibleGross):"")));
-      statement.append(financeLine(isOwner?"Раулю начислено":"Мне начислено",money(raulAccrued)));
-      statement.append(financeLine(isOwner?"Раулю выдано":"Уже выплачено",money(raulPaid)));
-      if(isOwner){
-        statement.append(financeLine("Тимуру начислено",money(timurAccrued)));
-        statement.append(financeLine("Тимуру выдано",money(timurPaid)));
-      }
-      root.append(statement);
       const custody=make("div","finance-hero");
       custody.append(financeLine("Компании ещё нужно передать",money(masterHeld)));
       custody.append(financeLine("Передано, ожидает подтверждения",money(waitingOwner)));
@@ -2199,19 +2196,22 @@
         root.append(make("p","finance-tip","После выполнения заказа можешь распределить фактически полученную наличную оплату: твоя доля и выплата Тимуру фиксируются сразу, а доля компании остаётся к сдаче до подтверждения владельцем. Администратор также может вести выплаты вручную."));
       }
 
-      root.append(make("h2","finance-title","Расчёт по заказам"));
-      if(!eligible.length)root.append(make("div","empty","Пока нет выполненных и оплаченных заказов."));
-      for(const order of eligible.slice().sort((a,b)=>String(b.date).localeCompare(String(a.date)))){
-        const item=make("div","finance-activity");
-        const top=make("div","finance-activity-top");
-        top.append(make("span","",order.name||"Без имени"),make("span","",money(order.price)));
-        item.append(top);
-        const breakdown=isOwner?
-          "Раулю: "+money(financeSplit(order.price).raul)+" · Тимуру: 1 500 ₽ · Компании: "+money(financeSplit(order.price).company):
-          "Моя доля: "+money(financeSplit(order.price).raul);
-        item.append(make("div","finance-activity-sub",(order.date?formatDate(order.date)+" · ":"")+breakdown));
-        root.append(item);
-      }
+      // Order-level salary/profit breakdown belongs in Reports.
+      if(!isOwner){
+        root.append(make("h2","finance-title","Расчёт по заказам"));
+        if(!eligible.length)root.append(make("div","empty","Пока нет выполненных и оплаченных заказов."));
+        for(const order of eligible.slice().sort((a,b)=>String(b.date).localeCompare(String(a.date)))){
+          const item=make("div","finance-activity");
+          const top=make("div","finance-activity-top");
+          top.append(make("span","",order.name||"Без имени"),make("span","",money(order.price)));
+          item.append(top);
+          const breakdown=isOwner?
+            "Раулю: "+money(financeSplit(order.price).raul)+" · Тимуру: 1 500 ₽ · Компании: "+money(financeSplit(order.price).company):
+            "Моя доля: "+money(financeSplit(order.price).raul);
+          item.append(make("div","finance-activity-sub",(order.date?formatDate(order.date)+" · ":"")+breakdown));
+          root.append(item);
+        }
+        }
       const logs=isOwner?financeOperations:financeOperations.filter(o=>o.master_user_id===financeMasterId&&o.kind==="raul_payout");
       if(!logs.length)history.append(make("div","empty","Операций пока нет."));
       for(const row of logs.slice(0,70)){
@@ -2696,12 +2696,12 @@
   <script src="/whatsapp-order.js?v=20261111-master-notes"></script>
   <script src="/whatsapp-client.js?v=20261118-safety-fix-v1"></script>
   <script src="/whatsapp-settings.js?v=20261118-safety-fix-v1"></script>
-  <script src="/profit-report.js?v=20261120-compact-raul-v5"></script>
-  <script src="/redesign.js?v=20261120-moved-payroll-v1"></script>
+  <script src="/profit-report.js?v=20261120-audited-v6"></script>
+  <script src="/redesign.js?v=20261120-audited-v6"></script>
   <script src="/master-notifications.js?v=20261117-review-v1"></script>
   <script src="/orders-list.js?v=20261117-seq5-v1"></script>
-  <script src="/finance-payroll.js?v=20261120-owner-salary-reports-v1"></script>
-  <script src="/money-workspace.js?v=20261120-compact-raul-v5"></script>
+  <script src="/finance-payroll.js?v=20261120-audited-v6"></script>
+  <script src="/money-workspace.js?v=20261120-audited-v6"></script>
   <script src="/lead-assistant.js"></script>
 </body>
 </html>

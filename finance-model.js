@@ -100,7 +100,7 @@
     return {loadFinance,money,sumBy,roundMoney,financeSplit,calculateAccruals,
       calculateCompanyCash,TIMUR_FEE:FINANCE_TIMUR_FEE,RAUL_PERCENT:FINANCE_RAUL_PERCENT};
   }
-  if(root)root.__rdCreateFinanceModel=createFinanceModel;
+  if(root){root.__rdCreateFinanceModel=createFinanceModel;root.__rdFinanceSplit=financeSplit;}
   if(typeof module!=="undefined"&&module.exports)
     module.exports={createFinanceModel,money,sumBy,roundMoney,financeSplit,
       calculateAccruals,calculateCompanyCash,TIMUR_FEE:FINANCE_TIMUR_FEE,

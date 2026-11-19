@@ -56,7 +56,7 @@ function uiIcon(name,extra=""){
  if(extra)svg.classList.add(extra);
  svg.innerHTML=iconPaths[name]||iconPaths.orders;return svg;
 }
-let activePage="home",ready=false,lastOrderKey="",rdSearchTerm="",selectedClientKey=null,builtRole=null,calendarMode="week",calendarMaster="",calendarStatus="",calendarHideDone=false,calendarOpened=false,profitReport=null;
+let activePage="home",ready=false,lastOrderKey="",rdSearchTerm="",selectedClientKey=null,builtRole=null,calendarMode="week",calendarMaster="",calendarStatus="",calendarHideDone=false,calendarOpened=false,profitReport=null,salaryRoot=null,ownerSalaryReport=null;
 let calendarWeekCache="",calendarDetailCache="",calendarMastersCache="";
 let calendarFiltersOpen=false;
 const calendarExpandedOrders=new Set();
@@ -500,16 +500,18 @@ function build(){
  window.addEventListener("resize",()=>{
   if(filterDialog.open&&window.innerWidth>790)closeMobileOrderFilters();
  });
+ profitReport=null;
  const financeTitle=sectionView("rdFinanceIntro","Финансы","Платежи, касса и история операций");
  const reports=sectionView("rdReports","Отчёты","Финансовые показатели по заказам");
  const reportsRoot=makeNode("div","rd-reports-root");
  reports.append(reportsRoot);
- const salaryRoot=makeNode("div","rd-salary-report");
+ salaryRoot=makeNode("div","rd-salary-report");
  salaryRoot.id="rdSalaryReport";salaryRoot.hidden=true;
  reportsRoot.append(salaryRoot);
- let ownerSalaryReport=null;
+ ownerSalaryReport=null;
  if(currentRole==="owner"){
-   profitReport=window.__rdCreateProfitReport?.(reportsRoot,{getOrders:()=>getOrders()})||null;
+   profitReport=window.__rdCreateProfitReport?.(reportsRoot,{getOrders:()=>getOrders(),
+      getRaulMasterId:()=>window.__rdReportMasterId?.()})||null;
    const menu=reportsRoot.querySelector(".pr-menu");
    if(menu){
      const openSalary=makeNode("button","pr-report-link rd-salary-entry");
@@ -531,8 +533,14 @@ function build(){
      menu.append(openSalary);
    }
  }
+ window.__rdReportUpdated=()=>{
+   if(activePage==="reports")profitReport?.render();
+ };
  window.__rdOwnerPayrollUpdated=()=>{
-   if(activePage==="reports"&&!salaryRoot.hidden)ownerSalaryReport?.render();
+   if(activePage!=="reports"||!salaryRoot||salaryRoot.hidden)return;
+   const focused=document.activeElement;
+   if(focused&&salaryRoot.contains(focused)&&/^(INPUT|SELECT|TEXTAREA)$/.test(focused.tagName))return;
+   ownerSalaryReport?.render();
  };
  const settings=sectionView("rdSettings","Настройки","Сообщения клиентам и параметры приложения");
  window.__rdWhatsAppSettings?.mount(settings);
@@ -612,7 +620,7 @@ function navigate(key){
  else if(key==="clients")drawClients();
  else if(key==="leads")window.__rdLeadsRender?.();
  else if(key==="settings")window.__rdWhatsAppSettings?.refresh();
- else if(key==="reports"){profitReport?.render();if(!salaryRoot.hidden)ownerSalaryReport?.render();}
+ else if(key==="reports"){profitReport?.render();if(salaryRoot&&!salaryRoot.hidden)ownerSalaryReport?.render();}
  window.scrollTo({top:0,behavior:"instant"});
 }
 function drawChart(parent,values,month){
