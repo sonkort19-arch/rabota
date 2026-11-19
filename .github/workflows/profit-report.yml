@@ -32,3 +32,9 @@ jobs:
         run: node --test tests/profit-report.test.cjs
       - name: Run existing finance model regression tests
         run: node --test tests/finance-model.test.cjs
+      - name: Install headless browser engines
+        run: |
+          npm install --no-save --ignore-scripts playwright@1.56.1
+          npx playwright install --with-deps chromium webkit
+      - name: Check report interactions in desktop and iPhone Safari engines
+        run: node tests/profit-report-browser.cjs
