@@ -174,7 +174,7 @@
     const table=node("table","pr-table");
     // Stable per-column widths prevent jumps when filters change or rows are expanded.
     const columns=node("colgroup");
-    for(const width of [100,118,164,124,130,140,155,155]){
+    for(const width of [78,92,116,100,104,108,110,110]){
       const col=node("col");col.style.width=width+"px";columns.append(col);
     }
     table.append(columns);
