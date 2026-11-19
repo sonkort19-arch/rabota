@@ -119,7 +119,7 @@ async function runOne(browser,label,device){
   });
   assert.ok(head.titleTop<expectedTopLimit,label+": content begins beside avatar without spacer "+JSON.stringify(head));
   await page.locator("#rdProfileToggle").click();
-  assert.equal(await page.locator("#rdProfileMenu").isVisible(),true,label+": floating profile opens");
+  assert.equal(await page.locator("#appScreen > section#rdProfileMenu").isVisible(),true,label+": floating profile opens");
   await page.locator("#rdProfileToggle").click();
   await page.locator('#rdMobileNav [data-page="orders"]').click();
   assert.equal(await page.locator("#rdTopSearch").isVisible(),true,label+": orders still have search");
