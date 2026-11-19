@@ -1,0 +1,97 @@
+/* Owner reports / profit by order. Scope to the report section only. */
+body.rd #rdReports { max-width:1100px; width:100%; }
+body.rd #rdReports .pr-menu { margin-top:8px; }
+body.rd #rdReports .pr-report-link {
+  width:100%;display:flex;align-items:center;justify-content:space-between;
+  min-height:72px;padding:16px 18px;border:1px solid #dce4ef;border-radius:16px;
+  background:#fff;color:#202c42;font:700 17px/1.4 inherit;text-align:left;
+  cursor:pointer;box-shadow:0 3px 12px #172c4a08;
+}
+body.rd #rdReports .pr-report-arrow {font-size:26px;font-weight:500;color:#4466d9}
+body.rd #rdReports .pr-description {font-size:13px;color:#69768a;margin:9px 5px 0;line-height:1.5}
+body.rd #rdReports .pr-heading {display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:0 0 18px}
+body.rd #rdReports .pr-heading h2 {font-size:21px;font-weight:750;letter-spacing:-.35px;margin:0;color:#192b43}
+body.rd #rdReports .pr-back,
+body.rd #rdReports .pr-export,
+body.rd #rdReports .pr-more-btn {
+  appearance:none;min-height:42px;padding:9px 14px;border-radius:11px;
+  border:1px solid #d5dfed;background:#fff;color:#293c54;
+  font-weight:700;cursor:pointer;
+}
+body.rd #rdReports .pr-back {background:#edf2fb;border:0;color:#3562b8}
+body.rd #rdReports .pr-controls {
+  display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px;margin:0 0 11px;
+}
+body.rd #rdReports .pr-controls select,
+body.rd #rdReports .pr-controls input,
+body.rd #rdReports .pr-custom input {
+  box-sizing:border-box;min-width:0;width:100%;min-height:44px;padding:10px 12px;
+  border:1px solid #d5deea;border-radius:11px;background:#fff;color:#24354b;
+  font:500 14px/1.35 inherit;
+}
+body.rd #rdReports .pr-controls input {grid-column:span 2}
+body.rd #rdReports .pr-export {width:100%;background:#eef3ff;color:#2c59ba}
+body.rd #rdReports .pr-custom {display:flex;gap:9px;margin:0 0 10px}
+body.rd #rdReports .pr-metrics {display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:9px;margin:15px 0}
+body.rd #rdReports .pr-metric {
+  display:flex;flex-direction:column;gap:7px;min-width:0;
+  border:1px solid #e0e7f1;background:#fff;border-radius:14px;padding:13px;
+}
+body.rd #rdReports .pr-metric small {font-size:12px;color:#66768b;font-weight:650}
+body.rd #rdReports .pr-metric strong {font-size:clamp(16px,2vw,23px);color:#1e3659;line-height:1.25;overflow-wrap:anywhere}
+body.rd #rdReports .pr-note {font-size:13px;color:#6c7788;margin:12px 0}
+body.rd #rdReports .pr-scroll {
+  border:1px solid #dce4ee;border-radius:13px;overflow:auto;
+  max-width:100%;background:#fff;overscroll-behavior-x:contain;
+}
+body.rd #rdReports .pr-table {width:100%;min-width:865px;border-collapse:separate;border-spacing:0;font-size:13px}
+body.rd #rdReports .pr-table th {
+  background:#eef3f9;color:#53647b;font-weight:700;text-align:left;
+  padding:13px 11px;border-bottom:1px solid #dce4ee;white-space:nowrap;
+}
+body.rd #rdReports .pr-table td {padding:12px 11px;border-bottom:1px solid #e8edf3;color:#2f3f55;vertical-align:top}
+body.rd #rdReports .pr-table td.pr-number {white-space:nowrap;text-align:right;font-variant-numeric:tabular-nums}
+body.rd #rdReports .pr-table tr:last-child td {border-bottom:0}
+body.rd #rdReports .pr-table th:first-child,
+body.rd #rdReports .pr-table td:first-child {
+  position:sticky;left:0;z-index:1;background:#fff;box-shadow:1px 0 #e4eaf2;
+}
+body.rd #rdReports .pr-table th:first-child {z-index:2;background:#eef3f9}
+body.rd #rdReports .pr-row-open {border:0;padding:0;background:transparent;color:#3562bf;font:700 13px inherit;cursor:pointer}
+body.rd #rdReports .pr-row-open[aria-expanded="true"] {text-decoration:underline}
+body.rd #rdReports .pr-table .pr-expanded td {background:#f7f9fc;padding:12px}
+body.rd #rdReports .pr-expanded-content {font-size:12px;line-height:1.6;max-width:770px}
+body.rd #rdReports .pr-table .pr-empty {text-align:center;padding:30px;color:#738095}
+body.rd #rdReports .pr-more {display:flex;justify-content:center;margin:12px 0}
+body.rd #rdReports .pr-explain {font-size:12px;line-height:1.65;color:#6f7b8d;margin:12px 0 0}
+body.rd #rdReports .pr-report-link:focus-visible,
+body.rd #rdReports button:focus-visible,
+body.rd #rdReports input:focus-visible,
+body.rd #rdReports select:focus-visible {outline:2px solid #4879e3;outline-offset:2px}
+@media(max-width:790px) {
+  body.rd #appScreen.rd-view-reports {padding-bottom:calc(95px + env(safe-area-inset-bottom))}
+  body.rd #rdReports .pr-heading {gap:8px}
+  body.rd #rdReports .pr-heading h2 {font-size:19px}
+  body.rd #rdReports .pr-controls {grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+  body.rd #rdReports .pr-controls input {grid-column:span 2}
+  body.rd #rdReports .pr-controls .pr-export {grid-column:span 2}
+  body.rd #rdReports .pr-metrics {grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+  body.rd #rdReports .pr-metric {padding:11px}
+  body.rd #rdReports .pr-metric strong {font-size:20px}
+}
+@media(prefers-color-scheme:dark) {
+  body.rd:not(.theme-light) #rdReports .pr-report-link,
+  body.rd:not(.theme-light) #rdReports .pr-metric,
+  body.rd:not(.theme-light) #rdReports .pr-scroll,
+  body.rd:not(.theme-light) #rdReports .pr-table td:first-child,
+  body.rd:not(.theme-light) #rdReports .pr-controls select,
+  body.rd:not(.theme-light) #rdReports .pr-controls input,
+  body.rd:not(.theme-light) #rdReports .pr-custom input {
+    background:#1b2534;color:#eff4fc;border-color:#354358;
+  }
+  body.rd:not(.theme-light) #rdReports .pr-table th,
+  body.rd:not(.theme-light) #rdReports .pr-table th:first-child {background:#28364b;color:#c2d0e5}
+  body.rd:not(.theme-light) #rdReports .pr-table td {color:#e0e8f4;border-color:#354358}
+  body.rd:not(.theme-light) #rdReports .pr-heading h2,
+  body.rd:not(.theme-light) #rdReports .pr-metric strong {color:#f0f5ff}
+}
