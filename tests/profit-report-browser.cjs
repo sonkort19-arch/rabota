@@ -9,10 +9,13 @@ async function run(browserType,iphone){
   try{
     const context=await browser.newContext({
       viewport:iphone?{width:390,height:844}:{width:1200,height:800},
-      acceptDownloads:true,isMobile:iphone,hasTouch:iphone
+      acceptDownloads:true,isMobile:iphone,hasTouch:iphone,
+      colorScheme:iphone?"dark":"light"
     });
     const page=await context.newPage();
     await page.setContent('<!doctype html><html lang="ru"><head><meta name="viewport" content="width=device-width,initial-scale=1"><style>body{margin:0;font-family:Arial}#rdReports{padding:12px;box-sizing:border-box}</style></head><body class="rd"><section id="rdReports"></section></body></html>');
+    await page.addStyleTag({path:path.join(__dirname,"..","light-theme.css")});
+    await page.addStyleTag({path:path.join(__dirname,"..","polished-v2.css")});
     await page.addStyleTag({path:reportCss});
     await page.addScriptTag({path:reportJs});
     await page.evaluate(()=>{
@@ -34,6 +37,22 @@ async function run(browserType,iphone){
     });
     await page.locator(".pr-report-link").click();
     const table=page.locator(".pr-table");
+    const palette=await page.evaluate(()=>{
+      const color=selector=>{
+        const style=getComputedStyle(document.querySelector(selector));
+        return {background:style.backgroundColor,text:style.color};
+      };
+      return {page:color("#rdReports"),table:color(".pr-table"),
+        firstRow:color(".pr-table tbody .pr-total-row"),
+        dataRow:color(".pr-table tbody tr:not(.pr-total-row) td"),
+        input:color(".pr-controls input"),status:color(".pr-controls select")};
+    });
+    for(const field of ["table","dataRow","input","status"]){
+      assert.equal(palette[field].background,"rgb(255, 255, 255)",
+        "The report must match the light CRM in both OS themes: "+field+" "+JSON.stringify(palette));
+    }
+    assert.notEqual(palette.firstRow.background,"rgb(27, 37, 52)",
+      "The totals row must not inherit the previous dark report theme");
     assert.equal(await table.locator("tbody>tr").count(),7);
     assert.equal(await page.locator(".pr-metrics").count(),0,"Old summary cards must be absent");
     const firstTotal=(await table.locator("tbody>tr:first-child").innerText()).replace(/\s+/g," ");
