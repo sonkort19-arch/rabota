@@ -7,9 +7,9 @@ const body=document.body;
 body.classList.add("rd");
 const $=id=>document.getElementById(id);
 const makeNode=(tag,className,text)=>{const n=document.createElement(tag);if(className)n.className=className;if(text!=null)n.textContent=String(text);return n};
-const sections=["home","leads","orders","calendar","clients","finance","settings","ai"];
-const titles={home:"Главная",leads:"Лиды",orders:"Заказы",calendar:"Календарь",clients:"Клиенты",finance:"Финансы",settings:"Настройки",ai:"ИИ-чат"};
-const crmReturnPages=new Set(["home","leads","orders","calendar","clients","finance","settings"]);
+const sections=["home","leads","orders","calendar","clients","finance","reports","settings","ai"];
+const titles={home:"Главная",leads:"Лиды",orders:"Заказы",calendar:"Календарь",clients:"Клиенты",finance:"Финансы",reports:"Отчёты",settings:"Настройки",ai:"ИИ-чат"};
+const crmReturnPages=new Set(["home","leads","orders","calendar","clients","finance","reports","settings"]);
 function aiChatUrl(draft){
  const source=crmReturnPages.has(activePage)?activePage:"home";
  const query=new URLSearchParams({from:source});
@@ -25,6 +25,7 @@ const iconPaths={
  calendar:'<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M7 3v4M17 3v4M3 10h18M8 14h2M14 14h2M8 18h2"/>',
  clients:'<circle cx="12" cy="8" r="4"/><path d="M4 21v-2a8 8 0 0 1 16 0v2"/>',
  finance:'<path d="M4 20V10h4v10M10 20V4h4v16M16 20v-8h4v8M2 21h20"/>',
+ reports:'<path d="M4 20V11h4v9M10 20V4h4v16M16 20v-7h4v7M3 21h18"/>',
  ai:'<path d="m12 2 1.9 6.1L20 10l-6.1 1.9L12 18l-1.9-6.1L4 10l6.1-1.9L12 2ZM19 16l.8 2.2L22 19l-2.2.8L19 22l-.8-2.2L16 19l2.2-.8L19 16Z"/>',
  settings:'<circle cx="12" cy="12" r="3"/><path d="M12 2v2m0 16v2M4.9 4.9l1.4 1.4m11.4 11.4 1.4 1.4M2 12h2m16 0h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>',
  more:'<circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/>',
@@ -55,7 +56,7 @@ function uiIcon(name,extra=""){
  if(extra)svg.classList.add(extra);
  svg.innerHTML=iconPaths[name]||iconPaths.orders;return svg;
 }
-let activePage="home",ready=false,lastOrderKey="",rdSearchTerm="",selectedClientKey=null,builtRole=null,calendarMode="week",calendarMaster="",calendarStatus="",calendarHideDone=false,calendarOpened=false;
+let activePage="home",ready=false,lastOrderKey="",rdSearchTerm="",selectedClientKey=null,builtRole=null,calendarMode="week",calendarMaster="",calendarStatus="",calendarHideDone=false,calendarOpened=false,profitReport=null;
 let calendarWeekCache="",calendarDetailCache="",calendarMastersCache="";
 let calendarFiltersOpen=false;
 const calendarExpandedOrders=new Set();
@@ -162,7 +163,7 @@ function navButton(key){const btn=makeNode("button","rd-nav-btn");btn.type="butt
  const emblem=makeNode("span","rd-icon");emblem.append(uiIcon(key));
  btn.append(emblem,boxText("span",titles[key]));btn.addEventListener("click",()=>navigate(key));return btn}
 function permittedSections(){
- return sections.filter(key=>!(["finance","ai"].includes(key)&&currentRole!=="owner"));
+ return sections.filter(key=>!(["finance","reports","ai"].includes(key)&&currentRole!=="owner"));
 }
 function makeProfileMenu(){
  const toggle=makeNode("button","rd-user rd-profile-trigger");
@@ -500,9 +501,14 @@ function build(){
   if(filterDialog.open&&window.innerWidth>790)closeMobileOrderFilters();
  });
  const financeTitle=sectionView("rdFinanceIntro","Финансы","Начисления, касса и история операций");
+ const reports=sectionView("rdReports","Отчёты","Финансовые показатели по заказам");
+ const reportsRoot=makeNode("div","rd-reports-root");
+ reports.append(reportsRoot);
+ if(currentRole==="owner")profitReport=window.__rdCreateProfitReport?.(reportsRoot,{getOrders:()=>getOrders()})||null;
  const settings=sectionView("rdSettings","Настройки","Сообщения клиентам и параметры приложения");
  window.__rdWhatsAppSettings?.mount(settings);
  app.insertBefore(settings,$("ordersArea"));
+ app.insertBefore(reports,$("ordersArea"));
  app.insertBefore(home,$("ordersArea"));
  app.insertBefore(clients,$("ordersArea"));
  app.insertBefore(leads,$("ordersArea"));
@@ -518,7 +524,7 @@ function build(){
  $("ordersArea").insertBefore($("newOrderBtn"),$("ordersArea").querySelector(".tabs"));
  builtRole=currentRole;ready=true;
  const requested=new URLSearchParams(window.location.search).get("view");
- const initial=crmReturnPages.has(requested)&&(requested!=="finance"||currentRole==="owner")?requested:"home";
+ const initial=crmReturnPages.has(requested)&&(!["finance","reports"].includes(requested)||currentRole==="owner")?requested:"home";
  navigate(initial);
 }
 function navigate(key){
@@ -527,7 +533,7 @@ function navigate(key){
   window.__rdCloseOrderFilters?.();
  if(key==="ai"){openAiChat();return}
  if(!ready)return;
- if(key==="finance"&&currentRole!=="owner")return;
+ if(["finance","reports"].includes(key)&&currentRole!=="owner")return;
  if(activePage==="orders"&&key!=="orders")storeOrderFilters(currentTab);
  const globalSearch=$("rdTopSearch");
  if(globalSearch){
@@ -550,6 +556,7 @@ function navigate(key){
  $("rdClients").hidden=key!=="clients";
  $("rdLeads").hidden=key!=="leads";
  $("rdSettings").hidden=key!=="settings";
+ $("rdReports").hidden=key!=="reports";
  $("rdOrdersIntro").hidden=!isOrders;
  $("rdOrderStats").hidden=!isOrders;
  $("rdOrderToolbar").hidden=!isOrders;
@@ -567,7 +574,7 @@ function navigate(key){
  document.querySelectorAll(".rd-nav-btn[data-page]").forEach(btn=>
   btn.setAttribute("aria-current",btn.dataset.page===key?"page":"false"));
  const moreButton=$("rdMobileMoreBtn");
- if(moreButton)moreButton.setAttribute("aria-current",["clients","finance","settings"].includes(key)?"page":"false");
+ if(moreButton)moreButton.setAttribute("aria-current",["clients","finance","reports","settings"].includes(key)?"page":"false");
  if(isOrders||isCalendar){
   currentTab=isCalendar?"calendar":"all";
   if(isOrders)restoreOrderFilters(currentTab);
@@ -576,6 +583,7 @@ function navigate(key){
  else if(key==="clients")drawClients();
  else if(key==="leads")window.__rdLeadsRender?.();
  else if(key==="settings")window.__rdWhatsAppSettings?.refresh();
+ else if(key==="reports")profitReport?.render();
  window.scrollTo({top:0,behavior:"instant"});
 }
 function drawChart(parent,values,month){
@@ -1271,5 +1279,6 @@ window.__rdRefresh=()=>{
  if(activePage==="calendar")drawCalendar();
  if(activePage==="clients")drawClients();
  if(activePage==="orders"){drawOrderSummary();filterCards();}
+ if(activePage==="reports")profitReport?.render();
 };
 })();
