@@ -58,3 +58,17 @@ test("CSV escapes spreadsheet formulas and preserves the order breakdown",()=>{
   assert.match(csv,/3500/);
   assert.match(csv,/№00012/);
 });
+
+test("Raul report adapter is assigned-user scoped and guarded by role",()=>{
+  const fs=require("node:fs");
+  const path=require("node:path");
+  const markup=fs.readFileSync(path.join(__dirname,"..","index.html"),"utf8");
+  const match=markup.match(/masterReportOrders\(\)\s*\{([\s\S]*?)\n\s*\},\s*\n\s*masterPayments\(\)/);
+  assert.ok(match,"Raul's report adapter must be declared near masterPayments");
+  const code=match[1];
+  assert.match(code,/currentRole\s*!==\s*"master"/);
+  assert.match(code,/currentUser\?\.id/);
+  assert.match(code,/toLocaleLowerCase\("ru"\)\s*!==\s*"рауль"/);
+  assert.match(code,/\.filter\(o\s*=>\s*o\.assignedUserId\s*===\s*id\)/);
+  assert.doesNotMatch(code,/dbRequest\(|rpc\//,"Read-only reporting cannot write to the database");
+});
