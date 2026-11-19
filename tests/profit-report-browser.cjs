@@ -206,10 +206,56 @@ async function checkRaulPortal(name,shouldHaveProfit){
     await context.close();
   }finally{await browser.close()}
 }
+async function checkOwnerPayroll(browserType,iphone){
+  const browser=await browserType.launch({headless:true});
+  try{
+    const context=await browser.newContext({
+      viewport:iphone?{width:390,height:844}:{width:1200,height:800},
+      isMobile:iphone,hasTouch:iphone,colorScheme:iphone?"dark":"light"
+    });
+    const page=await context.newPage();
+    await page.setContent('<!doctype html><html lang="ru"><head><meta name="viewport" content="width=device-width,initial-scale=1"></head><body class="rd"><main id="appScreen"><section id="rdReports"><div id="rdSalaryReport"></div></section></main></body></html>');
+    await page.addStyleTag({path:path.join(__dirname,"..","light-theme.css")});
+    await page.addStyleTag({path:path.join(__dirname,"..","polished-v2.css")});
+    await page.addStyleTag({path:path.join(__dirname,"..","finance-payroll.css")});
+    await page.addScriptTag({path:path.join(__dirname,"..","finance-payroll.js")});
+    await page.evaluate(()=>{
+      const model={isOwner:true,raulAccrued:12000,raulPaid:5000,raulDue:7000,
+        timurAccrued:3000,timurPaid:1500,timurDue:1500,
+        companyEarned:10000,masterHeld:0,waitingOwner:0,
+        orders:[{date:"2026-11-19",name:"Тестовый заказ",price:20000,raul:10000,timur:1500}],
+        operations:[]};
+      window.salaryBrowserFixture=window.__rdPayrollReport.mount(
+        document.getElementById("rdSalaryReport"),
+        {getSnapshot:()=>model,onBack:()=>{window.returnedToReports=true}}
+      );
+    });
+    assert.equal(await page.locator("#rdSalaryReport .fp-person-row").count(),2);
+    assert.equal(await page.locator("#rdSalaryReport .fp-metric").count(),3);
+    const layout=await page.evaluate(()=>({
+      pageWidth:document.documentElement.scrollWidth,
+      viewport:window.innerWidth,
+      background:getComputedStyle(document.querySelector("#rdSalaryReport .fp-section")).backgroundColor
+    }));
+    assert.equal(layout.background,"rgb(255, 255, 255)","Salary must match CRM light style");
+    if(iphone)assert.ok(layout.pageWidth<=layout.viewport+1,
+      "Owner salary report must not overflow iPhone: "+JSON.stringify(layout));
+    await page.locator("#rdSalaryReport .fp-person-button").first().click();
+    assert.equal(await page.locator("#rdSalaryReport .fp-balance-hero").count(),1);
+    assert.match(await page.locator("#rdSalaryReport .fp-balance-hero").innerText(),/7[\s\u00a0\u202f]*000/);
+    await page.locator("#rdSalaryReport .fp-person-heading .fp-link").click();
+    assert.equal(await page.locator("#rdSalaryReport .fp-person-row").count(),2);
+    await page.locator("#rdSalaryReport .fp-report-head .fp-link").click();
+    assert.equal(await page.evaluate(()=>window.returnedToReports),true);
+    await context.close();
+  }finally{await browser.close()}
+}
 (async()=>{
   await run(chromium,false);
   await run(webkit,true);
   await checkRaulPortal("Рауль",true);
   await checkRaulPortal("Олег",false);
-  process.stdout.write("Profit report browser checks passed in Chromium and mobile WebKit, including Raul access\n");
+  await checkOwnerPayroll(chromium,false);
+  await checkOwnerPayroll(webkit,true);
+  process.stdout.write("Reports browser checks passed: orders, owner salary and Raul permissions\n");
 })().catch(err=>{console.error(err);process.exitCode=1});

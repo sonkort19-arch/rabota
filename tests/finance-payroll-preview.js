@@ -41,9 +41,9 @@ const select=(root,cls)=>{
 };
 function fixture(){
  const body=mk("body"),panel=mk("section"),heading=mk("h2","finance-title","История");
- const root=mk("div"),history=mk("div"),entry=mk("div"),legacy=mk("div","","Оригинальные финансовые расчёты");
+ const root=mk("div"),salaryRoot=mk("div"),history=mk("div"),entry=mk("div"),legacy=mk("div","","Оригинальные финансовые расчёты");
  root.append(legacy);panel.append(root,entry,heading,history);
- const lookup={financePanel:panel,financeContent:root,financeHistory:history,financeEntry:entry};
+ const lookup={financePanel:panel,financeContent:root,financeHistory:history,financeEntry:entry,rdSalaryReport:salaryRoot};
  const document={body,createElement:t=>mk(t),getElementById:id=>lookup[id]||null,
   addEventListener(){},removeEventListener(){}};
  let confirmed=0;
@@ -56,23 +56,29 @@ function fixture(){
   operations:[{created_at:"2026-10-27T12:00:00Z",kind:"raul_payout",amount:15500,
    voided_at:null,note:"Тестовый расчёт",order_id:null}]};
  window.__rdFinanceEnhance(model);
- return {body,panel,heading,root,history,entry,legacy,window,model,get confirmed(){return confirmed}}
+ let back=0;
+ const payroll=window.__rdPayrollReport.mount(salaryRoot,{
+   getSnapshot:()=>model,onBack:()=>{back++}
+ });
+ return {body,panel,heading,root,salaryRoot,payroll,history,entry,legacy,window,model,
+  get back(){return back},get confirmed(){return confirmed}}
 }
-test("owner finance opens on salary; totals come from supplied numbers",()=>{
+test("owner Finance has three tabs, salary is mounted in Reports with the same numbers",()=>{
  const f=fixture();
- assert.equal(select(f.root,"fp-tab").length,4);
- assert.equal(select(f.root,"fp-person-row").length,2);
- assert.equal(select(f.root,"fp-metric").length,3);
- assert.ok(f.root.textContent.includes("8 750,00")||f.root.textContent.includes("8 750,00"));
+ assert.equal(select(f.root,"fp-tab").length,3);
+ assert.ok(!f.root.textContent.includes("Сотрудники"));
+ assert.equal(select(f.salaryRoot,"fp-person-row").length,2);
+ assert.equal(select(f.salaryRoot,"fp-metric").length,3);
+ assert.ok(f.salaryRoot.textContent.includes("8 750,00")||f.salaryRoot.textContent.includes("8 750,00"));
  assert.equal(select(f.root,"fp-original")[0].hidden,true);
 });
 test("employee views show earned and paid entries; preview never executes payout",()=>{
  const f=fixture();
- select(f.root,"fp-person-button")[0].click();
- assert.equal(select(f.root,"fp-ledger-row").length,1);
- select(f.root,"fp-subtab")[1].click();
- assert.ok(f.root.textContent.includes("История выплат"));
- select(f.root,"fp-balance-payout")[0].click();
+ select(f.salaryRoot,"fp-person-button")[0].click();
+ assert.equal(select(f.salaryRoot,"fp-ledger-row").length,1);
+ select(f.salaryRoot,"fp-subtab")[1].click();
+ assert.ok(f.salaryRoot.textContent.includes("История выплат"));
+ select(f.salaryRoot,"fp-balance-payout")[0].click();
  assert.equal(select(f.body,"fp-modal").length,1);
  const inputs=select(f.body,"fp-input");
  inputs[0].value="5000";inputs[1].value="Частичная зарплата";inputs.forEach(e=>e.input());
@@ -81,36 +87,36 @@ test("employee views show earned and paid entries; preview never executes payout
  assert.equal(f.confirmed,0);
  assert.ok(f.body.textContent.includes("не записана в Supabase"));
 });
-test("switching finance tabs preserves button identity, focus target and active states",()=>{
+test("switching three finance tabs preserves buttons, focus state and visibility",()=>{
  const f=fixture();
  const all=select(f.root,"fp-tab");
- assert.equal(all.length,4);
- const salary=all[0],payments=all[1],cash=all[2],ops=all[3];
- assert.equal(salary.getAttribute("aria-pressed"),"true");
+ assert.equal(all.length,3);
+ const payments=all[0],cash=all[1],ops=all[2];
+ assert.equal(payments.getAttribute("aria-pressed"),"true");
  cash.click();
- assert.equal(select(f.root,"fp-tab")[2],cash);
- assert.equal(select(f.root,"fp-tab")[0],salary);
+ assert.equal(select(f.root,"fp-tab")[1],cash);
+ assert.equal(select(f.root,"fp-tab")[0],payments);
  assert.equal(cash.getAttribute("aria-pressed"),"true");
- assert.equal(salary.getAttribute("aria-pressed"),"false");
+ assert.equal(payments.getAttribute("aria-pressed"),"false");
  ops.click();
- assert.equal(select(f.root,"fp-tab")[3],ops);
+ assert.equal(select(f.root,"fp-tab")[2],ops);
  assert.equal(ops.getAttribute("aria-pressed"),"true");
- salary.click();
- assert.equal(select(f.root,"fp-tab")[0],salary);
- assert.equal(salary.getAttribute("aria-pressed"),"true");
+ payments.click();
+ assert.equal(select(f.root,"fp-tab")[0],payments);
+ assert.equal(payments.getAttribute("aria-pressed"),"true");
  assert.equal(f.history.hidden,true);
  assert.equal(f.entry.hidden,true);
 });
 test("employee detail starts with balance, payout and only two supporting totals",()=>{
  const f=fixture();
- select(f.root,"fp-person-button")[0].click();
- const hero=select(f.root,"fp-balance-hero")[0];
+ select(f.salaryRoot,"fp-person-button")[0].click();
+ const hero=select(f.salaryRoot,"fp-balance-hero")[0];
  assert.ok(hero,"balance hero must exist");
  assert.ok(hero.textContent.includes("Баланс Рауля"));
  assert.ok(hero.textContent.includes("7 250,00")||hero.textContent.includes("7 250,00"));
- assert.equal(select(f.root,"fp-metric").length,0,"no repeated company-wide KPI strip in employee view");
- assert.equal(select(f.root,"fp-person-summary-item").length,2);
- const button=select(f.root,"fp-balance-payout")[0];
+ assert.equal(select(f.salaryRoot,"fp-metric").length,0,"no repeated company-wide KPI strip in employee view");
+ assert.equal(select(f.salaryRoot,"fp-person-summary-item").length,2);
+ const button=select(f.salaryRoot,"fp-balance-payout")[0];
  assert.equal(button.textContent,"Выплатить");
  assert.equal(button.disabled,false);
  button.click();
@@ -119,20 +125,31 @@ test("employee detail starts with balance, payout and only two supporting totals
 });
 test("Timur detail has independent balance and the same transaction tabs",()=>{
  const f=fixture();
- select(f.root,"fp-person-button")[1].click();
- const hero=select(f.root,"fp-balance-hero")[0];
+ select(f.salaryRoot,"fp-person-button")[1].click();
+ const hero=select(f.salaryRoot,"fp-balance-hero")[0];
  assert.ok(hero.textContent.includes("Баланс Тимура"));
  assert.ok(hero.textContent.includes("1 500,00")||hero.textContent.includes("1 500,00"));
- assert.equal(select(f.root,"fp-subtab").length,2);
- assert.equal(select(f.root,"fp-metric").length,0);
+ assert.equal(select(f.salaryRoot,"fp-subtab").length,2);
+ assert.equal(select(f.salaryRoot,"fp-metric").length,0);
 });
 test("cash and operations retain old report and operation controls",()=>{
  const f=fixture();
- select(f.root,"fp-tab")[2].click();
+ select(f.root,"fp-tab")[1].click();
  assert.equal(select(f.root,"fp-original")[0].hidden,false);
  assert.ok(f.root.textContent.includes("Оригинальные финансовые расчёты"));
- select(f.root,"fp-tab")[3].click();
+ select(f.root,"fp-tab")[2].click();
  assert.equal(f.history.hidden,false);
  assert.equal(f.entry.hidden,false);
  assert.equal(f.heading.hidden,false);
+});
+
+test("Reports salary preserves back navigation and blocks non-owner snapshots",()=>{
+ const f=fixture();
+ assert.equal(select(f.salaryRoot,"fp-report-head").length,1);
+ select(f.salaryRoot,"fp-link")[0].click();
+ assert.equal(f.back,1);
+ const denied=mk("div");
+ f.window.__rdPayrollReport.mount(denied,{getSnapshot:()=>({isOwner:false}),onBack:()=>{}});
+ assert.ok(denied.textContent.includes("только владельцу"));
+ assert.equal(select(denied,"fp-person-row").length,0);
 });

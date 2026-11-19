@@ -7,6 +7,9 @@ on:
     paths:
       - profit-report.js
       - profit-report.css
+      - finance-payroll.js
+      - finance-payroll.css
+      - tests/finance-payroll-preview.js
       - redesign.js
       - index.html
       - tests/profit-report.test.cjs
@@ -28,10 +31,13 @@ jobs:
         run: |
           node --check profit-report.js
           node --check redesign.js
+          node --check finance-payroll.js
       - name: Test report calculations, filters, and CSV
         run: node --test tests/profit-report.test.cjs
       - name: Run existing finance model regression tests
         run: node --test tests/finance-model.test.cjs
+      - name: Test relocated salary module and payout preview safety
+        run: node --test tests/finance-payroll-preview.js
       - name: Install headless browser engines
         run: |
           npm install --no-save --ignore-scripts playwright@1.56.1
