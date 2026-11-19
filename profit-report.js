@@ -118,7 +118,7 @@
     const data=rows.map(r=>[r.referenceCode||r.orderNumber||"",getDate(r,"created"),r.date||"",
       getDate(r,"closed"),r.name,r.master,r.status,r.reportPrice==null?"":r.reportPrice,
       r.reportReceived,r.reportSalary==null?"":r.reportSalary,r.reportProfit==null?"":r.reportProfit,
-       r.reportPaymentMissing?"Сумма платежа не указана":r.reportPaymentMismatch?"Оплата отличается от цены":"Сумма указана"]);
+       !r.paid?"Не оплачено":r.reportPaymentMissing?"Сумма платежа не указана":r.reportPaymentMismatch?"Оплата отличается от цены":"Сумма указана"]);
     return "\uFEFF"+[cols,...data].map(row=>row.map(quoteCsv).join(";")).join("\r\n");
   }
   function node(tag,cls,value){
