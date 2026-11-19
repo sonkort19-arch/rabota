@@ -42,7 +42,7 @@ jobs:
       - name: Install Chromium and WebKit
         run: |
           npm install --no-save --ignore-scripts playwright@1.56.1
-          npx playwright install --with-deps chromium webkit
+          npx playwright install chromium webkit
       - name: Owner order list, status icons and fixed navigation in Chromium
         env:
           TEST_BROWSER: chromium
