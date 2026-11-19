@@ -66,27 +66,40 @@ body.rd #rdReports .pr-scroll {
   background:var(--pr-bg);
 }
 body.rd #rdReports .pr-table {
-  width:100%;min-width:865px;border-collapse:separate;border-spacing:0;
+  width:100%;min-width:1086px;border-collapse:separate;border-spacing:0;
   background:var(--pr-bg);color:var(--pr-ink);
-  font:inherit;font-size:13px;table-layout:auto;
+  font:inherit;font-size:13px;table-layout:fixed;
 }
 body.rd #rdReports .pr-table th {
+  box-sizing:border-box;line-height:1.4;
   padding:13px 11px;white-space:nowrap;text-align:left;
   background:#f7f8fc;color:#5f6775;
   font-weight:700;border-bottom:1px solid var(--pr-border);
 }
 body.rd #rdReports .pr-table td {
+  box-sizing:border-box;line-height:1.4;
   padding:12px 11px;background:var(--pr-bg);color:var(--pr-ink);
   border-bottom:1px solid #edeef1;vertical-align:middle;
 }
-body.rd #rdReports .pr-table td.pr-number {
-  white-space:nowrap;text-align:right;font-variant-numeric:tabular-nums
+/* Column headings and figures must share one horizontal center.
+   Previously headings were left-aligned while financial values were right-aligned. */
+body.rd #rdReports .pr-table thead th:nth-child(n+5),
+body.rd #rdReports .pr-table tbody td.pr-number {
+  text-align:center;
+  white-space:nowrap;
+  font-variant-numeric:tabular-nums;
+}
+body.rd #rdReports .pr-table tbody tr:not(.pr-expanded):not(.pr-total-row) > td:nth-child(3),
+body.rd #rdReports .pr-table tbody tr:not(.pr-expanded):not(.pr-total-row) > td:nth-child(4) {
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
 }
 body.rd #rdReports .pr-table tr:last-child td {border-bottom:0}
 body.rd #rdReports .pr-table th:first-child,
 body.rd #rdReports .pr-table td:first-child {
   position:sticky;left:0;z-index:1;
-  min-width:86px;white-space:nowrap;
+  width:100px;min-width:100px;max-width:100px;white-space:nowrap;
   background:var(--pr-bg);
   box-shadow:1px 0 #e3e5eb,6px 0 12px -12px #252b3b66;
 }
@@ -131,5 +144,5 @@ body.rd #rdReports select:focus-visible {
   body.rd #rdReports .pr-table th,
   body.rd #rdReports .pr-table td {padding:13px 10px}
   body.rd #rdReports .pr-table th:first-child,
-  body.rd #rdReports .pr-table td:first-child {min-width:78px}
+  body.rd #rdReports .pr-table td:first-child {width:100px;min-width:100px;max-width:100px}
 }
