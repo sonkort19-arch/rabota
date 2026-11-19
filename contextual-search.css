@@ -7,11 +7,6 @@ body.rd #appScreen.rd-no-global-search > .rd-top{
 }
 body.rd #appScreen.rd-no-global-search .rd-top-search,
 body.rd #appScreen.rd-no-global-search .rd-top-title{display:none!important}
-@media(max-width:790px){
-  body.rd #appScreen.rd-no-global-search > .rd-top{height:52px}
-  body.rd #appScreen.rd-no-global-search{padding-top:65px}
-}
-
 
 /* Searchless screens have no header strip: keep only a floating account circle.
    Orders and Leads retain the existing complete search header.
@@ -58,11 +53,11 @@ body.rd #appScreen.rd-no-global-search:not(.rd-master) > .rd-profile-menu{
   top:calc(59px + env(safe-area-inset-top));
 }
 body.rd #appScreen.rd-no-global-search:not(.rd-master){
-  padding-top:24px;
+  padding-top:calc(24px + env(safe-area-inset-top));
 }
 @media(max-width:790px){
   body.rd #appScreen.rd-no-global-search:not(.rd-master){
-    padding-top:15px;
+    padding-top:calc(15px + env(safe-area-inset-top));
   }
   body.rd #appScreen.rd-no-global-search:not(.rd-master) > .rd-top{
     height:0;padding:0;border:0;
