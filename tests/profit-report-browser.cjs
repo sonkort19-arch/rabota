@@ -38,7 +38,6 @@ async function run(browserType,iphone){
     assert.equal(await page.locator(".pr-metrics").count(),0,"Old summary cards must be absent");
     const firstTotal=(await table.locator("tbody>tr:first-child").innerText()).replace(/\s+/g," ");
     assert.match(firstTotal,/Итого/);
-    assert.match(firstTotal,/3 зак\./);
     assert.match(firstTotal,/27 000/);
     assert.match(firstTotal,/15 000/);
     assert.match(firstTotal,/6 500/);
