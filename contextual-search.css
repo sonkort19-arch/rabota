@@ -1,0 +1,13 @@
+/* The global search is useful only for orders and leads.
+   Other screens keep the profile action, but have no empty search decoration. */
+body.rd #appScreen.rd-no-global-search > .rd-top:before,
+body.rd #appScreen.rd-no-global-search > .rd-top:after{display:none!important}
+body.rd #appScreen.rd-no-global-search > .rd-top{
+  justify-content:flex-end;
+}
+body.rd #appScreen.rd-no-global-search .rd-top-search,
+body.rd #appScreen.rd-no-global-search .rd-top-title{display:none!important}
+@media(max-width:790px){
+  body.rd #appScreen.rd-no-global-search > .rd-top{height:52px}
+  body.rd #appScreen.rd-no-global-search{padding-top:65px}
+}
