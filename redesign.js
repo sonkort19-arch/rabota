@@ -510,7 +510,8 @@ function build(){
  reportsRoot.append(salaryRoot);
  ownerSalaryReport=null;
  if(currentRole==="owner"){
-   profitReport=window.__rdCreateProfitReport?.(reportsRoot,{getOrders:()=>getOrders()})||null;
+   profitReport=window.__rdCreateProfitReport?.(reportsRoot,{getOrders:()=>getOrders(),
+      getRaulMasterId:()=>window.__rdReportMasterId?.()})||null;
    const menu=reportsRoot.querySelector(".pr-menu");
    if(menu){
      const openSalary=makeNode("button","pr-report-link rd-salary-entry");
@@ -532,6 +533,9 @@ function build(){
      menu.append(openSalary);
    }
  }
+ window.__rdReportUpdated=()=>{
+   if(activePage==="reports")profitReport?.render();
+ };
  window.__rdOwnerPayrollUpdated=()=>{
    if(activePage!=="reports"||!salaryRoot||salaryRoot.hidden)return;
    const focused=document.activeElement;
