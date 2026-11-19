@@ -2043,6 +2043,7 @@
         }
         if(financeActive)renderFinance();
         window.__rdMoneyUpdated?.();
+        window.__rdOwnerPayrollUpdated?.();
       }
     });
     const FINANCE_TIMUR_FEE=financeModel.TIMUR_FEE;
@@ -2051,6 +2052,33 @@
     const sumBy=financeModel.sumBy;
     const roundMoney=financeModel.roundMoney;
     function financeSplit(price){return financeModel.financeSplit(price);}
+    // Owner payroll in Reports consumes the same authoritative finance snapshot.
+    // No additional ledger, database queries, privileges, or payment path is created.
+    window.__rdOwnerPayrollSnapshot=()=>{
+      if(currentRole!=="owner")return null;
+      if(financeLoadError)return {isOwner:true,error:financeLoadError};
+      if(!financeMasterId)return {isOwner:true,error:"Рауль пока не подключён к начислениям."};
+      const m=financeModel.calculateAccruals({
+        orders:getOrders(),operations:financeOperations,
+        collections:financeCollections,masterId:financeMasterId
+      });
+      return {
+        isOwner:true,
+        raulAccrued:m.raulAccrued,raulPaid:m.raulPaid,raulDue:m.raulDue,
+        timurAccrued:m.timurAccrued,timurPaid:m.timurPaid,timurDue:m.timurDue,
+        operations:financeOperations,
+        orders:m.eligible.map(o=>({
+          date:o.date,name:o.name,price:o.price,
+          raul:financeSplit(o.price).raul,timur:FINANCE_TIMUR_FEE
+        }))
+      };
+    };
+    window.__rdOwnerPayrollReload=async()=>{
+      if(currentRole!=="owner")return;
+      try{await loadFinance();}
+      catch(error){financeLoadError=friendlyError(error);}
+      window.__rdOwnerPayrollUpdated?.();
+    };
     function financeLine(label,value) {
       const line=make("div","finance-line");
       line.append(make("span","finance-line-label",label),make("strong","",value));
@@ -2672,7 +2700,7 @@
   <script src="/redesign.js?v=20261119-profit-report-v1"></script>
   <script src="/master-notifications.js?v=20261117-review-v1"></script>
   <script src="/orders-list.js?v=20261117-seq5-v1"></script>
-  <script src="/finance-payroll.js"></script>
+  <script src="/finance-payroll.js?v=20261120-owner-salary-reports-v1"></script>
   <script src="/money-workspace.js?v=20261120-compact-raul-v5"></script>
   <script src="/lead-assistant.js"></script>
 </body>
