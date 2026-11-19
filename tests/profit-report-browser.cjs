@@ -97,6 +97,19 @@ async function run(browserType,iphone){
     const initialGrid=await checkAlignment();
     assert.deepEqual(initialGrid.errors,[],JSON.stringify(initialGrid));
     assert.equal(initialGrid.widths.length,8);
+    const density=await page.evaluate(()=>{
+      const height=selector=>document.querySelector(selector).getBoundingClientRect().height;
+      return {
+        filter:height('.pr-controls select'),
+        row:height('.pr-table tbody tr:not(.pr-expanded):not(.pr-total-row)'),
+        total:height('.pr-total-row'),
+        csv:height('.pr-export'),
+        width:document.querySelector('.pr-table').getBoundingClientRect().width
+      };
+    });
+    assert.ok(density.filter<=39 && density.csv<=39,"Compact controls too tall: "+JSON.stringify(density));
+    assert.ok(density.row<=44 && density.total<=48,"Compact table too tall: "+JSON.stringify(density));
+    assert.ok(density.width<=820,"Table width must be compact: "+JSON.stringify(density));
     assert.equal(await table.locator("tbody>tr").count(),7);
     assert.equal(await page.locator(".pr-metrics").count(),0,"Old summary cards must be absent");
     const firstTotal=(await table.locator("tbody>tr:first-child").innerText()).replace(/\s+/g," ");
@@ -143,8 +156,60 @@ async function run(browserType,iphone){
     await context.close();
   }finally{await browser.close()}
 }
+async function checkRaulPortal(name,shouldHaveProfit){
+  const browser=await webkit.launch({headless:true});
+  try{
+    const context=await browser.newContext({viewport:{width:390,height:844},isMobile:true,hasTouch:true,colorScheme:"dark"});
+    const page=await context.newPage();
+    await page.setContent('<!doctype html><html lang="ru"><head><meta name="viewport" content="width=device-width,initial-scale=1"></head><body class="rd"><main id="appScreen"><h1 id="appTitle">Мои заказы</h1><section id="ordersArea"><nav class="tabs"><button class="tab" data-tab="calendar"></button><button class="tab" data-tab="all"></button></nav><div id="orders"></div><span id="orderCount"></span></section><section id="financePanel" hidden></section><button id="masterFinanceBack"></button></main></body></html>');
+    await page.addStyleTag({path:path.join(__dirname,"..","light-theme.css")});
+    await page.addStyleTag({path:path.join(__dirname,"..","money-workspace.css")});
+    await page.addStyleTag({path:reportCss});
+    await page.addScriptTag({path:reportJs});
+    await page.evaluate(masterName=>{
+      const now=new Date().toISOString();
+      const orders=[
+        {id:"raul",assignedUserId:"raul-uid",referenceCode:"№00012",name:"Мой клиент",
+          master:"Рауль",status:"Выполнен",paid:true,price:10000,paymentAmount:10000,createdAt:now,completedAt:now},
+        {id:"foreign",assignedUserId:"another-uid",referenceCode:"№99999",name:"Чужой клиент",
+          master:"Олег",status:"Выполнен",paid:true,price:100000,paymentAmount:100000,createdAt:now,completedAt:now}
+      ];
+      window.__rdOrderReference={normalize:x=>String(x||"")};
+      window.__rdMoneyUi={
+        snapshot:()=>({role:"master",masterName,masterId:"raul-uid",due:0,accrued:0,paid:0,orders:[],payouts:[]}),
+        masterReportOrders:()=>masterName==="Рауль"?orders.filter(o=>o.assignedUserId==="raul-uid"):[]
+      };
+    },name);
+    await page.addScriptTag({path:path.join(__dirname,"..","money-workspace.js")});
+    await page.evaluate(()=>window.__rdMoneyAccess());
+    await page.locator('[data-mw-page="reports"]').click();
+    const entry=page.locator('.mw-entry').filter({hasText:"Прибыль по заказам"});
+    if(!shouldHaveProfit){
+      assert.equal(await entry.count(),0,"A different master cannot see Raul's profit report");
+      await context.close();return;
+    }
+    assert.equal(await entry.count(),1);
+    await entry.click();
+    assert.equal(await page.locator('.pr-total-row').count(),1);
+    const orderText=await page.locator('#mwMasterReports .pr-table').innerText();
+    assert.match(orderText,/№00012/);
+    assert.doesNotMatch(orderText,/№99999|Чужой клиент|100 000/);
+    const dimensions=await page.evaluate(()=>({
+      width:document.documentElement.scrollWidth,
+      viewport:window.innerWidth,
+      cell:document.querySelector('.pr-table tbody tr:not(.pr-total-row)').getBoundingClientRect().height
+    }));
+    assert.ok(dimensions.width<=dimensions.viewport+1,"Raul's report causes page overflow: "+JSON.stringify(dimensions));
+    assert.ok(dimensions.cell<=44,"Raul's report has oversized rows: "+JSON.stringify(dimensions));
+    await page.locator('#mwMasterReports .pr-back').click();
+    assert.equal(await entry.count(),1,"Back should return to Raul's Reports menu");
+    await context.close();
+  }finally{await browser.close()}
+}
 (async()=>{
   await run(chromium,false);
   await run(webkit,true);
-  process.stdout.write("Profit report browser checks passed in Chromium and mobile WebKit\n");
+  await checkRaulPortal("Рауль",true);
+  await checkRaulPortal("Олег",false);
+  process.stdout.write("Profit report browser checks passed in Chromium and mobile WebKit, including Raul access\n");
 })().catch(err=>{console.error(err);process.exitCode=1});
