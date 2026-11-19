@@ -285,6 +285,7 @@
       }
       const report=maker(container,{
         getOrders:()=>api()?.masterReportOrders?.()||[],
+        getRaulMasterId:()=>api()?.snapshot()?.masterId||null,
         startOpen:true,onBack:()=>{step="menu";masterProfitReport=null;renderMaster()}
       });
       masterProfitReport={container,api:report};
