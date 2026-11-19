@@ -6,6 +6,10 @@
   const TIME_ZONE="Europe/Moscow";
   const RAUL_PERCENT=0.5;
   const TIMUR_PER_ORDER=1500;
+  // Identical salary and company-share split to Finance. Never keep another
+  // independently implemented calculation in a report.
+  const sharedSplit=root?.__rdFinanceSplit ||
+    (typeof require==="function"?require("./finance-model.js").financeSplit:null);
   const PAGE_SIZE=100;
   const round=n=>Math.round((Number(n)+Number.EPSILON)*100)/100;
   const money=n=>Number(n||0).toLocaleString("ru-RU",{minimumFractionDigits:0,maximumFractionDigits:2})+" ₽";
@@ -22,31 +26,44 @@
     if(basis==="appointment")return txt(order.date).slice(0,10);
     return order.createdAt?moscowDay(order.createdAt):"";
   }
-  function reportRow(order){
+  function reportRow(order,options={}){
     const price=order.price==null||order.price===""?null:Number(order.price);
     const validPrice=price!=null&&Number.isFinite(price)&&price>=0;
-    const amount=order.paymentAmount==null?price:Number(order.paymentAmount);
     const paid=Boolean(order.paid);
+    const paymentAmountMissing=paid&&(order.paymentAmount==null||order.paymentAmount==="");
+    const amount=paymentAmountMissing?price:Number(order.paymentAmount);
     const received=paid&&validPrice&&Number.isFinite(amount)&&amount>=0?round(amount):0;
+    const paymentMismatch=paid&&validPrice&&!paymentAmountMissing&&
+      Number.isFinite(amount)&&Math.abs(amount-price)>=.01;
     const completed=order.status==="Выполнен";
     const earned=completed&&paid;
-    const raul=txt(order.master).trim().toLocaleLowerCase("ru-RU")==="рауль";
-    const isFullPayment=validPrice&&Math.abs(received-price)<.01;
-    const calculated=earned&&raul&&validPrice&&isFullPayment;
-    const salary=calculated?round(price*RAUL_PERCENT+TIMUR_PER_ORDER):null;
-    const profit=calculated?round(price-salary):null;
-    return Object.assign({},order,{reportPrice:validPrice?price:null,
+    // In the CRM, always supply Raul's authenticated master user_id.
+    // Legacy unit-test callers without masterId may still use display names.
+    const scoped=Object.prototype.hasOwnProperty.call(options,"masterId");
+    const raul=scoped
+      ?Boolean(options.masterId)&&order.assignedUserId===options.masterId
+      :txt(order.master).trim().toLocaleLowerCase("ru-RU")==="рауль";
+    const calculated=earned&&raul&&validPrice&&typeof sharedSplit==="function";
+    const split=calculated?sharedSplit(price):null;
+    const salary=split?round(split.raul+split.timur):null;
+    const profit=split?split.company:null;
+    return Object.assign({},order,{
+      reportPrice:validPrice?price:null,
       reportReceived:received,reportEarned:earned,reportCalculated:calculated,
       reportSalary:salary,reportProfit:profit,
-      reportReason:!earned?"":"\u041d\u0435\u0442 \u0440\u0430\u0441\u0447\u0451\u0442\u0430: "+
-        (!validPrice?"\u043d\u0435 \u0443\u043a\u0430\u0437\u0430\u043d\u0430 \u0446\u0435\u043d\u0430":!raul?"\u043d\u0435\u0442 \u043f\u0440\u0430\u0432\u0438\u043b \u0432\u044b\u043f\u043b\u0430\u0442 \u0434\u043b\u044f \u043c\u0430\u0441\u0442\u0435\u0440\u0430":"\u0441\u0443\u043c\u043c\u0430 \u043e\u043f\u043b\u0430\u0442\u044b \u043e\u0442\u043b\u0438\u0447\u0430\u0435\u0442\u0441\u044f \u043e\u0442 \u0446\u0435\u043d\u044b")
+      reportPaymentMissing:paymentAmountMissing,reportPaymentMismatch:paymentMismatch,
+      reportReason:!earned?"":calculated?"":!validPrice?"Не указана цена":!raul?
+        "Нет расчёта: заказ назначен другому мастеру или мастер не найден":
+        "Не загружены правила финансовых начислений"
     });
   }
   function summary(rows){
-    const total={count:rows.length,price:0,received:0,salary:0,profit:0,uncalculated:0};
+    const total={count:rows.length,price:0,received:0,salary:0,profit:0,uncalculated:0,missingPayments:0,mismatchedPayments:0};
     rows.forEach(row=>{
       total.price=round(total.price+(row.reportPrice??0));
       total.received=round(total.received+row.reportReceived);
+      if(row.reportPaymentMissing)total.missingPayments++;
+      if(row.reportPaymentMismatch)total.mismatchedPayments++;
       if(row.reportCalculated){
         total.salary=round(total.salary+row.reportSalary);
         total.profit=round(total.profit+row.reportProfit);
@@ -76,8 +93,8 @@
     const search=txt(options.search).trim().toLocaleLowerCase("ru-RU").replace(/^[№#]\s*/,"");
     const today=options.today||moscowDay(new Date());
     const [from,to]=bounds(options.period||"all",today,options.from,options.to);
-    return orders.map(reportRow).filter(row=>{
-      const day=getDate(row,options.basis||"created");
+    return orders.map(order=>reportRow(order,options)).filter(row=>{
+      const day=getDate(row,options.basis||"closed");
       if(from&&(!day||day<from))return false;
       if(to&&(!day||day>to))return false;
       if(options.status==="paid"&&!row.paid)return false;
@@ -97,10 +114,11 @@
     return '"'+s.replace(/"/g,'""')+'"';
   }
   function csvFor(rows){
-    const cols=["Заказ","Дата создания","Дата записи","Дата закрытия","Клиент","Мастер","Статус","Цена","Оплачено","Зарплата","Доля компании"];
+    const cols=["Заказ","Дата создания","Дата записи","Дата закрытия","Клиент","Мастер","Статус","Цена","Оплачено (по отметке)","Зарплата","Доля компании","Сведения о сумме оплаты"];
     const data=rows.map(r=>[r.referenceCode||r.orderNumber||"",getDate(r,"created"),r.date||"",
       getDate(r,"closed"),r.name,r.master,r.status,r.reportPrice==null?"":r.reportPrice,
-      r.reportReceived,r.reportSalary==null?"":r.reportSalary,r.reportProfit==null?"":r.reportProfit]);
+      r.reportReceived,r.reportSalary==null?"":r.reportSalary,r.reportProfit==null?"":r.reportProfit,
+       r.reportPaymentMissing?"Сумма платежа не указана":r.reportPaymentMismatch?"Оплата отличается от цены":"Сумма указана"]);
     return "\uFEFF"+[cols,...data].map(row=>row.map(quoteCsv).join(";")).join("\r\n");
   }
   function node(tag,cls,value){
@@ -119,10 +137,10 @@
     el.value=initial;el.addEventListener("change",()=>changed(el.value));
     return el;
   }
-  function mount(rootEl,{getOrders,startOpen=false,onBack=null}){
+  function mount(rootEl,{getOrders,getRaulMasterId=null,startOpen=false,onBack=null}){
     if(!rootEl||typeof getOrders!=="function")throw Error("Отчёт не может загрузиться");
     rootEl.classList.add("pr-report-scope");
-    const state={open:false,period:"month",basis:"created",status:"",search:"",from:"",to:"",visible:PAGE_SIZE};
+    const state={open:false,period:"month",basis:"closed",status:"",search:"",from:"",to:"",visible:PAGE_SIZE};
     const menu=node("div","pr-menu");
     const card=button("Прибыль по заказам","pr-report-link",()=>{state.open=true;menu.hidden=true;detail.hidden=false;render()});
     card.append(node("span","pr-report-arrow","›"));
@@ -138,7 +156,7 @@
     const controls=node("div","pr-controls");
     const period=makeSelect([["month","Текущий месяц"],["previous","Прошлый месяц"],["week","Эта неделя"],["all","За всё время"],["custom","Свой период"]],
       "Период отчёта",state.period,value=>{state.period=value;custom.hidden=value!=="custom";redraw()});
-    const basis=makeSelect([["created","По дате создания"],["closed","По дате закрытия"],["appointment","По дате записи"]],
+    const basis=makeSelect([["closed","По дате закрытия"],["created","По дате создания"],["appointment","По дате записи"]],
       "Тип даты отчёта",state.basis,value=>{state.basis=value;redraw()});
     const status=makeSelect([["","Все статусы"],["Записан","Записан"],["В работе","В работе"],
       ["Выполнен","Выполнен"],["Отменён","Отменён"],["paid","Оплачены"],["unpaid","Не оплачены"]],
@@ -153,7 +171,7 @@
     to.addEventListener("change",()=>{state.to=to.value;redraw()});
     custom.append(from,to);
     const download=button("Скачать CSV","pr-export",()=>{
-      const csv=csvFor(filterRows(getOrders(),state));
+      const csv=csvFor(queryRows());
       const url=URL.createObjectURL(new Blob([csv],{type:"text/csv;charset=utf-8"}));
       const anchor=document.createElement("a");anchor.href=url;
       anchor.download="rabota-profit-orders-"+moscowDay(new Date())+".csv";
@@ -169,7 +187,7 @@
     const caption=node("p","pr-note");
     const info=node("details","pr-info");
     info.append(node("summary","","Как считается прибыль?"));
-    info.append(node("p","pr-explain","Прибыль = стоимость выполненного и оплаченного заказа − 50% Раулю − 1 500 ₽ Тимуру. Это доля компании до затрат на материалы, дорогу, налоги и другие расходы. Для остальных мастеров прибыль не рассчитывается без правил выплат."));
+    info.append(node("p","pr-explain","Доля компании = стоимость выполненного и оплаченного заказа − 50% Раулю − 1 500 ₽ Тимуру, до затрат на материалы, дорогу и налоги. Если в старом заказе нет суммы оплаты, расчёт поступлений основан только на отметке «Оплачено», а не на подтверждённом платеже."));
     const scroll=node("div","pr-scroll");
     const table=node("table","pr-table");
     // Stable per-column widths prevent jumps when filters change or rows are expanded.
@@ -180,7 +198,7 @@
     table.append(columns);
     const thead=node("thead");
     const tr=node("tr");
-    for(const label of ["Заказ","Дата","Клиент","Статус","Цена","Платежи","Зарплата","Прибыль"]){
+    for(const label of ["Заказ","Дата","Клиент","Статус","Цена","Платежи","Зарплата","Доля компании"]){
       const th=node("th","",label);th.scope="col";tr.append(th);
     }
     thead.append(tr);table.append(thead);
@@ -188,19 +206,26 @@
     const more=node("div","pr-more");
     detail.append(heading,controls,custom,caption,scroll,more,info);
     rootEl.append(menu,detail);
+    function queryRows(){
+      const options={...state};
+      if(typeof getRaulMasterId==="function")options.masterId=getRaulMasterId();
+      return filterRows(getOrders(),options);
+    }
     function redraw(){state.visible=PAGE_SIZE;render()}
     function render(){
       if(!state.open)return;
-      const rows=filterRows(getOrders(),state);
+      const rows=queryRows();
       const totals=summary(rows);
       caption.textContent="Показаны "+Math.min(state.visible,rows.length)+" из "+rows.length+
-        (totals.uncalculated?" · Без расчёта прибыли: "+totals.uncalculated:"");
+        (totals.uncalculated?" · Без расчёта доли: "+totals.uncalculated:"")+
+         (totals.missingPayments?" · Нет суммы платежа: "+totals.missingPayments:"")+
+         (totals.mismatchedPayments?" · Оплата отличается от цены: "+totals.mismatchedPayments:"");
       tbody.replaceChildren();
       // Like HelloClient: period totals go above individual orders, after the header.
       // Totals include every matching order, not just the visible page of 100.
       const totalRow=node("tr","pr-total-row");
       const totalCells=["Итого","","","",money(totals.price),
-        money(totals.received),money(totals.salary),money(totals.profit)];
+        money(totals.received)+(totals.missingPayments?"*":""),money(totals.salary),money(totals.profit)];
       totalCells.forEach((value,index)=>{
         const cell=node(index===0?"th":"td",index>=4?"pr-number":"",value);
         if(index===0)cell.scope="row";
@@ -209,6 +234,8 @@
         }
         totalRow.append(cell);
       });
+      if(totals.missingPayments)totalRow.children[5].title=
+        "В части оплаченных заказов сумма платежа отсутствует. Общая сумма включает стоимость этих заказов по отметке «Оплачено».";
       tbody.append(totalRow);
       if(!rows.length){
         const empty=node("tr");const cell=node("td","pr-empty","Заказов по выбранным фильтрам нет.");
@@ -221,7 +248,7 @@
         const first=node("td");first.append(open);tr.append(first);
         const values=[getDate(row,state.basis)||"—",row.name||"Без имени",
           row.status||"—",row.reportPrice==null?"—":money(row.reportPrice),
-          money(row.reportReceived),row.reportSalary==null?"—":money(row.reportSalary),
+          money(row.reportReceived)+(row.reportPaymentMissing?"*":""),row.reportSalary==null?"—":money(row.reportSalary),
           row.reportProfit==null?"—":money(row.reportProfit)];
         values.forEach((value,i)=>tr.append(node("td",i>=3?"pr-number":"",value)));
         tbody.append(tr);
@@ -236,6 +263,8 @@
           "Источник: "+(row.clientSource||"не указан")
         ];
         if(row.reportCalculated)parts.push("Расчёт: "+money(row.reportPrice)+" − "+money(row.reportSalary)+" = "+money(row.reportProfit));
+        if(row.reportPaymentMissing)parts.push("Сумма фактической оплаты не записана; показана стоимость заказа по отметке «Оплачено»");
+        if(row.reportPaymentMismatch)parts.push("Внимание: сумма оплаты отличается от стоимости заказа");
         if(row.reportReason)parts.push(row.reportReason);
         td.append(node("div","pr-expanded-content",parts.join(" · ")));
         extra.append(td);tbody.append(extra);
