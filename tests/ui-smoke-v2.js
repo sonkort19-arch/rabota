@@ -189,6 +189,7 @@ function runSmoke(source) {
     search.value="";search.fire("input");
     nav("leads").click();
     expect(get("rdTopSearch").hidden===false,"lead search stays available");
+    expect(!get("appScreen").classList.contains("rd-no-global-search"),"lead keeps real search bar");
     nav("orders").click();
     expect(get("rdTopSearch").hidden===false,"order search restores");
     nav("clients").click();
@@ -197,6 +198,7 @@ function runSmoke(source) {
       nav("finance").click();expect(finance.hidden===false,"owner finance available");
       expect(get("rdTopSearch").hidden===true,"global search hidden in finance");
       nav("reports").click();expect(get("rdTopSearch").hidden===true,"global search hidden in reports");
+      nav("settings").click();expect(get("rdTopSearch").hidden===true,"global search hidden in settings");
       expect(Boolean(nav("ai")),"owner AI available");
     }else{
       expect(!nav("finance"),"manager finance protected");
