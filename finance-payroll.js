@@ -240,9 +240,12 @@
      ui.person=null;ui.view="accruals";ui.month="all";
      const redraw=()=>{
        root.replaceChildren();
-       const back=button("‹ Отчёты","fp-link",()=>onBack?.());
-       back.setAttribute("aria-label","Назад к отчётам");
-       root.append(div("fp-report-head",back,el("h2","fp-report-title","Зарплата")));
+       const back=button("Отчёты","fp-link fp-crumb-back",()=>onBack?.());
+       back.setAttribute("aria-label","Вернуться ко всем отчётам");
+       const nav=div("fp-report-head",back,el("span","fp-crumb-sep","/"),
+         el("h2","fp-report-title","Зарплата"));
+       nav.setAttribute("aria-label","Отчёты / Зарплата");
+       root.append(nav);
        const m=typeof getSnapshot==="function"?getSnapshot():null;
        if(!m?.isOwner){
          root.append(el("p","fp-hint","Зарплата доступна только владельцу."));return;

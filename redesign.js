@@ -533,11 +533,13 @@ function build(){
      openSalary.append(makeNode("span","pr-report-arrow","›"));
      openSalary.addEventListener("click",()=>{
        menu.hidden=true;salaryRoot.hidden=false;
+       reports.classList.add("rd-reports-detail-open");
        ownerSalaryReport=window.__rdPayrollReport?.mount(salaryRoot,{
          getSnapshot:()=>window.__rdOwnerPayrollSnapshot?.(),
          onBack:()=>{
            salaryRoot.hidden=true;salaryRoot.replaceChildren();
            menu.hidden=false;ownerSalaryReport=null;
+           reports.classList.remove("rd-reports-detail-open");
          }
        })||null;
        if(!ownerSalaryReport)salaryRoot.textContent="Модуль зарплаты недоступен. Обновите страницу.";

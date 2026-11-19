@@ -227,3 +227,47 @@ body.rd #rdReports .rd-report-section-items .pr-report-arrow{
   body.rd #rdReports .rd-report-section-title{font-size:14px}
   body.rd #rdReports .rd-report-section-items .pr-report-link{min-height:44px}
 }
+
+
+/* Report drill-down navigation like HelloClient: one compact breadcrumb, no duplicate page title. */
+body.rd #rdReports.rd-reports-detail-open > .rd-view-title{display:none}
+body.rd #rdReports .pr-detail .pr-heading,
+body.rd #rdReports #rdSalaryReport .fp-report-head{
+  display:flex;align-items:center;flex-wrap:wrap;column-gap:8px;row-gap:0;
+  margin:0 0 10px;min-width:0;
+}
+body.rd #rdReports .pr-detail .pr-heading .pr-back,
+body.rd #rdReports #rdSalaryReport .fp-report-head .fp-crumb-back{
+  appearance:none;box-sizing:border-box;display:inline-flex;align-items:center;
+  justify-content:flex-start;min-height:44px;padding:0 1px;
+  margin:0;border:0;border-radius:0;box-shadow:none;
+  background:transparent;color:var(--pr-muted,#686b72);
+  font:inherit;font-size:15px;font-weight:500;line-height:1.25;
+  text-decoration:none;cursor:pointer;
+}
+body.rd #rdReports .pr-detail .pr-heading .pr-back:hover,
+body.rd #rdReports #rdSalaryReport .fp-report-head .fp-crumb-back:hover{
+  color:var(--pr-blue,#4656f5);
+}
+body.rd #rdReports .pr-detail .pr-heading .pr-crumb-sep,
+body.rd #rdReports #rdSalaryReport .fp-report-head .fp-crumb-sep{
+  color:var(--pr-muted,#686b72);opacity:.7;font-size:16px;
+}
+body.rd #rdReports .pr-detail .pr-heading h2,
+body.rd #rdReports #rdSalaryReport .fp-report-head .fp-report-title{
+  margin:0;color:var(--pr-ink,#202123);
+  font-size:17px;line-height:1.25;font-weight:650;letter-spacing:-.2px;
+}
+/* The entire native iPhone select remains tappable; only its chevron is restyled. */
+body.rd #rdReports .pr-detail .pr-controls select{
+  appearance:none;-webkit-appearance:none;
+  padding-right:28px;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='m3 6 5 5 5-5' stroke='%235b6373' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' fill='none'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;background-size:12px 12px;
+  background-position:right 9px center;
+}
+body.rd #rdReports .pr-detail .pr-controls select:focus-visible,
+body.rd #rdReports .pr-detail .pr-heading .pr-back:focus-visible,
+body.rd #rdReports #rdSalaryReport .fp-report-head .fp-crumb-back:focus-visible{
+  outline:2px solid var(--pr-blue,#4656f5);outline-offset:2px;
+}
