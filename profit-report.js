@@ -43,8 +43,9 @@
     });
   }
   function summary(rows){
-    const total={count:rows.length,received:0,salary:0,profit:0,uncalculated:0};
+    const total={count:rows.length,price:0,received:0,salary:0,profit:0,uncalculated:0};
     rows.forEach(row=>{
+      total.price=round(total.price+(row.reportPrice??0));
       total.received=round(total.received+row.reportReceived);
       if(row.reportCalculated){
         total.salary=round(total.salary+row.reportSalary);
@@ -156,7 +157,7 @@
       setTimeout(()=>URL.revokeObjectURL(url),1000);
     });
     controls.append(period,basis,status,search,download);
-    const metrics=node("div","pr-metrics"),caption=node("p","pr-note");
+    const caption=node("p","pr-note");
     const info=node("p","pr-explain","Прибыль = стоимость выполненного и оплаченного заказа − 50% Раулю − 1 500 ₽ Тимуру. Это доля компании до затрат на материалы, дорогу, налоги и другие расходы. Для остальных мастеров прибыль не рассчитывается без правил выплат.");
     const scroll=node("div","pr-scroll");
     const table=node("table","pr-table");
@@ -168,19 +169,30 @@
     thead.append(tr);table.append(thead);
     const tbody=node("tbody");table.append(tbody);scroll.append(table);
     const more=node("div","pr-more");
-    detail.append(heading,controls,custom,metrics,caption,scroll,more,info);
+    detail.append(heading,controls,custom,caption,scroll,more,info);
     rootEl.append(menu,detail);
     function redraw(){state.visible=PAGE_SIZE;render()}
-    function metric(label,value){const cell=node("div","pr-metric");cell.append(node("small","",label),node("strong","",value));return cell}
     function render(){
       if(!state.open)return;
       const rows=filterRows(getOrders(),state);
       const totals=summary(rows);
-      metrics.replaceChildren(metric("Заказов",totals.count),metric("Оплачено",money(totals.received)),
-        metric("Зарплата",money(totals.salary)),metric("Доля компании",money(totals.profit)));
       caption.textContent="Показаны "+Math.min(state.visible,rows.length)+" из "+rows.length+
         (totals.uncalculated?" · Без расчёта прибыли: "+totals.uncalculated:"");
       tbody.replaceChildren();
+      // Like HelloClient: period totals go above individual orders, after the header.
+      // Totals include every matching order, not just the visible page of 100.
+      const totalRow=node("tr","pr-total-row");
+      const totalCells=["Итого","",totals.count+" зак.","",money(totals.price),
+        money(totals.received),money(totals.salary),money(totals.profit)];
+      totalCells.forEach((value,index)=>{
+        const cell=node(index===0?"th":"td",index>=4?"pr-number":"",value);
+        if(index===0)cell.scope="row";
+        if(index>=6&&totals.uncalculated){
+          cell.title="Доля рассчитана не по всем выполненным заказам: "+totals.uncalculated+" без расчёта";
+        }
+        totalRow.append(cell);
+      });
+      tbody.append(totalRow);
       if(!rows.length){
         const empty=node("tr");const cell=node("td","pr-empty","Заказов по выбранным фильтрам нет.");
         cell.colSpan=8;empty.append(cell);tbody.append(empty);
