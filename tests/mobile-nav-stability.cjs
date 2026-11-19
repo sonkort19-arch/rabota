@@ -176,6 +176,16 @@ async function runOne(browser,label,device){
   assert.equal(await page.locator("#rdTopSearch").isVisible(),true,label+": leads search remains");
   await page.locator('#rdMobileNav [data-page="orders"]').click();
   assert.equal(await page.locator("#rdTopSearch").isVisible(),true,label+": orders search remains");
+  const ownerStatus=page.locator("#ownerStatusFilters .owner-status-chip");
+  assert.equal(await ownerStatus.count(),5,label+": owner has Raul-style five status icons");
+  assert.ok(await page.locator("#ownerOrderTools").count()===1,label+": owner stats and extras stay available");
+  assert.ok(await page.locator("#orders .owner-day-heading").count()>0,label+": orders grouped by appointment day");
+  await ownerStatus.nth(1).click();
+  assert.equal(await page.locator("#rdStatusFilter").inputValue(),"Записан",label+": status icon reuses existing filter");
+  await ownerStatus.first().click();
+  assert.equal(await page.locator("#rdStatusFilter").inputValue(),"",label+": all status filter resets");
+  assert.ok(await page.locator("#orders .rd-list-row").count()>0,label+": actual owner order rows are preserved");
+
 
   await page.evaluate(()=>document.getElementById("appScreen").hidden=true);
   await page.waitForFunction(()=>document.getElementById("rdMobileNav").hidden);
