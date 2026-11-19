@@ -1,0 +1,36 @@
+name: Profit report regression checks
+on:
+  push:
+    branches:
+      - feat/order-profit-reports-20261119
+  pull_request:
+    paths:
+      - profit-report.js
+      - profit-report.css
+      - redesign.js
+      - index.html
+      - tests/profit-report.test.cjs
+      - .github/workflows/profit-report.yml
+
+permissions:
+  contents: read
+
+jobs:
+  report:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Verify JavaScript parsing
+        run: |
+          node --check profit-report.js
+          node --check redesign.js
+      - name: Test report calculations, filters, and CSV
+        run: node --test tests/profit-report.test.cjs
+      - name: Run existing finance and order model tests
+        run: |
+          node --test tests/finance-model.test.cjs
+          node --test tests/order-model.test.cjs
