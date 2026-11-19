@@ -53,6 +53,50 @@ async function run(browserType,iphone){
     }
     assert.notEqual(palette.firstRow.background,"rgb(27, 37, 52)",
       "The totals row must not inherit the previous dark report theme");
+    // Validate real text placement, not just that table cells line up.
+    // This catches the visually displaced "Зарплата" and "Прибыль" shown on iPhone.
+    async function checkAlignment(scrollToRight=false){
+      return page.evaluate(move=>{
+        const table=document.querySelector(".pr-table");
+        const scroller=document.querySelector(".pr-scroll");
+        if(move)scroller.scrollLeft=scroller.scrollWidth;
+        const headers=[...table.querySelectorAll("thead th")];
+        const total=[...table.querySelectorAll("tbody tr.pr-total-row > *")];
+        const sample=[...table.querySelectorAll("tbody tr:not(.pr-total-row):not(.pr-expanded)")][0];
+        const row=[...sample.children];
+        const centerText=el=>{
+          const textRange=document.createRange();
+          textRange.selectNodeContents(el);
+          const bounds=textRange.getBoundingClientRect();
+          return (bounds.left+bounds.right)/2;
+        };
+        const errors=[];
+        for(let i=0;i<8;i++){
+          const headerRect=headers[i].getBoundingClientRect();
+          const totalRect=total[i].getBoundingClientRect();
+          const rowRect=row[i].getBoundingClientRect();
+          if(Math.abs(headerRect.left-totalRect.left)>1||
+             Math.abs(headerRect.right-totalRect.right)>1||
+             Math.abs(headerRect.left-rowRect.left)>1||
+             Math.abs(headerRect.right-rowRect.right)>1){
+            errors.push("Column "+(i+1)+" has shifted boundaries");
+          }
+          if(i>=4){
+            for(const cell of [headers[i],total[i],row[i]]){
+              const rect=cell.getBoundingClientRect();
+              if(Math.abs(centerText(cell)-(rect.left+rect.right)/2)>2.5){
+                errors.push("Financial label or value is off-center in column "+(i+1));
+              }
+            }
+          }
+        }
+        return {errors,widths:headers.map(h=>Math.round(h.getBoundingClientRect().width)),
+          scrollLeft:scroller.scrollLeft};
+      },scrollToRight);
+    }
+    const initialGrid=await checkAlignment();
+    assert.deepEqual(initialGrid.errors,[],JSON.stringify(initialGrid));
+    assert.equal(initialGrid.widths.length,8);
     assert.equal(await table.locator("tbody>tr").count(),7);
     assert.equal(await page.locator(".pr-metrics").count(),0,"Old summary cards must be absent");
     const firstTotal=(await table.locator("tbody>tr:first-child").innerText()).replace(/\s+/g," ");
@@ -68,6 +112,10 @@ async function run(browserType,iphone){
     assert.match(unpaidTotal,/12 000/);
     assert.match(unpaidTotal,/0 ₽/);
     assert.match(await page.locator(".pr-note").innerText(),/1 из 1/);
+    const filteredGrid=await checkAlignment();
+    assert.deepEqual(filteredGrid.errors,[],JSON.stringify(filteredGrid));
+    assert.deepEqual(filteredGrid.widths,initialGrid.widths,
+      "All table widths should remain fixed when order filters change");
     await page.locator('.pr-controls select[aria-label="Статус заказов"]').selectOption("");
     await page.locator(".pr-controls input[type=search]").fill("#00012");
     assert.equal(await table.locator("tbody>tr").count(),3);
@@ -88,6 +136,9 @@ async function run(browserType,iphone){
       }));
       assert.ok(size.pageWidth<=size.viewport+1,"Mobile page has horizontal overflow: "+JSON.stringify(size));
       assert.ok(size.tableOverflow,"Order table must scroll inside its own viewport");
+      const rightGrid=await checkAlignment(true);
+      assert.deepEqual(rightGrid.errors,[],JSON.stringify(rightGrid));
+      assert.ok(rightGrid.scrollLeft>0,"The fixed-width grid should be horizontally scrollable");
     }
     await context.close();
   }finally{await browser.close()}
