@@ -32,7 +32,7 @@
   const api=()=>window.__rdMoneyUi;
   const token=()=>{if(typeof window.crypto?.randomUUID!=="function")throw Error("Браузер не поддерживает безопасный идентификатор операции");return window.crypto.randomUUID()};
   const isPreview=()=>/^rabota-[a-z0-9]{7,}-sonkort19-6069s-projects\.vercel\.app$/i.test(String(window.location?.hostname||""));
-  let page="day",step="menu",salaryTab="accruals",masterReady=false;
+  let page="day",step="menu",salaryTab="accruals",masterReady=false,masterProfitReport=null;
   let orderQuery="",orderStatus="all",paymentMethod="all";
   const scrollPositions=new Map();
   const statusOptions=[["all","Все"],["Записан","Записаны"],
@@ -251,15 +251,43 @@
   }
   function renderMaster(){
     const root=$("mwMasterReports");if(!root||root.hidden)return;
-    const m=api()?.snapshot();root.replaceChildren();
+    const m=api()?.snapshot();
     if(!m||m.role!=="master")return;
+    if(step==="orderProfit"&&masterProfitReport?.container?.isConnected){
+      masterProfitReport.api.render();return;
+    }
+    masterProfitReport=null;
+    root.replaceChildren();
     const back=(label,fn)=>btn("‹ "+label,"mw-back",fn);
+    const isRaul=String(m.masterName||"").trim().toLocaleLowerCase("ru")==="рауль";
     if(step==="menu"){
       // The authenticated master only has one report: no extra staff directory.
       const entry=btn("","mw-entry",()=>{step="detail";salaryTab="accruals";renderMaster()});
       entry.append(el("span","mw-entry-icon","▤"),box("mw-entry-copy",
         el("strong","","Зарплата"),el("small","","Баланс, начисления и выплаты")),el("span","mw-chevron","›"));
       root.append(entry);
+      if(isRaul){
+        const orderProfit=btn("","mw-entry",()=>{step="orderProfit";renderMaster()});
+        orderProfit.append(el("span","mw-entry-icon","▤"),box("mw-entry-copy",
+          el("strong","","Прибыль по заказам"),
+          el("small","","Мои заказы, оплаты и начисления")),el("span","mw-chevron","›"));
+        root.append(orderProfit);
+      }
+      return;
+    }
+    if(step==="orderProfit"){
+      if(!isRaul){step="menu";renderMaster();return;}
+      const container=el("div","mw-profit-report");root.append(container);
+      const maker=window.__rdCreateProfitReport;
+      if(typeof maker!=="function"){
+        root.append(back("Отчёты",()=>{step="menu";renderMaster()}),
+          el("p","mw-error","Отчёт временно недоступен."));return;
+      }
+      const report=maker(container,{
+        getOrders:()=>api()?.masterReportOrders?.()||[],
+        startOpen:true,onBack:()=>{step="menu";masterProfitReport=null;renderMaster()}
+      });
+      masterProfitReport={container,api:report};
       return;
     }
     root.append(back("Отчёты",()=>{step="menu";renderMaster()}));
@@ -456,7 +484,10 @@
       }
     });
   }
-  window.__rdMasterOrdersRefresh=()=>{filterRows()};
+  window.__rdMasterOrdersRefresh=()=>{
+    filterRows();
+    if(page==="reports"&&step==="orderProfit")masterProfitReport?.api.render();
+  };
   window.__rdMoneyAccess=()=>{
     const isMaster=api()?.snapshot()?.role==="master";
     if(isMaster){

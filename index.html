@@ -491,6 +491,8 @@
   <link rel="stylesheet" href="/master-calendar-load.css?v=20261117-single-outline-v1">
   <link rel="stylesheet" href="/whatsapp-settings.css?v=20261118-source-v1">
   <link rel="stylesheet" href="/client-source.css?v=20261118-v1">
+  <!-- Reports inherit the final light CRM palette, including on dark-mode iPhones. -->
+  <link rel="stylesheet" href="/profit-report.css?v=20261120-compact-raul-v5">
 </head>
 <body>
 
@@ -2488,6 +2490,14 @@
             payment_method:o.payment_method,created_at:o.created_at,order_id:o.order_id}))
         };
       },
+      masterReportOrders(){
+        // The order report is read-only and exclusively about Raul's assigned orders.
+        // The database's RLS still enforces access before these rows reach the browser.
+        const id=currentUser?.id;
+        if(currentRole!=="master" || String(currentMasterName||"").trim().toLocaleLowerCase("ru")!=="рауль" || !id)
+          return [];
+        return getOrders().filter(o=>o.assignedUserId===id);
+      },
       masterPayments(){
         if(currentRole!=="master")throw Error("Доступно только мастеру");
         const orders=getOrders().filter(o=>o.assignedUserId===currentUser?.id);
@@ -2658,11 +2668,12 @@
   <script src="/whatsapp-order.js?v=20261111-master-notes"></script>
   <script src="/whatsapp-client.js?v=20261118-safety-fix-v1"></script>
   <script src="/whatsapp-settings.js?v=20261118-safety-fix-v1"></script>
-  <script src="/redesign.js?v=20261118-settings-v1"></script>
+  <script src="/profit-report.js?v=20261120-compact-raul-v5"></script>
+  <script src="/redesign.js?v=20261119-profit-report-v1"></script>
   <script src="/master-notifications.js?v=20261117-review-v1"></script>
   <script src="/orders-list.js?v=20261117-seq5-v1"></script>
   <script src="/finance-payroll.js"></script>
-  <script src="/money-workspace.js?v=20261118-settings-v1"></script>
+  <script src="/money-workspace.js?v=20261120-compact-raul-v5"></script>
   <script src="/lead-assistant.js"></script>
 </body>
 </html>
