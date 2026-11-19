@@ -500,11 +500,40 @@ function build(){
  window.addEventListener("resize",()=>{
   if(filterDialog.open&&window.innerWidth>790)closeMobileOrderFilters();
  });
- const financeTitle=sectionView("rdFinanceIntro","Финансы","Начисления, касса и история операций");
+ const financeTitle=sectionView("rdFinanceIntro","Финансы","Платежи, касса и история операций");
  const reports=sectionView("rdReports","Отчёты","Финансовые показатели по заказам");
  const reportsRoot=makeNode("div","rd-reports-root");
  reports.append(reportsRoot);
- if(currentRole==="owner")profitReport=window.__rdCreateProfitReport?.(reportsRoot,{getOrders:()=>getOrders()})||null;
+ const salaryRoot=makeNode("div","rd-salary-report");
+ salaryRoot.id="rdSalaryReport";salaryRoot.hidden=true;
+ reportsRoot.append(salaryRoot);
+ let ownerSalaryReport=null;
+ if(currentRole==="owner"){
+   profitReport=window.__rdCreateProfitReport?.(reportsRoot,{getOrders:()=>getOrders()})||null;
+   const menu=reportsRoot.querySelector(".pr-menu");
+   if(menu){
+     const openSalary=makeNode("button","pr-report-link rd-salary-entry");
+     openSalary.type="button";openSalary.textContent="Зарплата";
+     openSalary.append(makeNode("span","pr-report-arrow","›"));
+     openSalary.addEventListener("click",()=>{
+       menu.hidden=true;salaryRoot.hidden=false;
+       ownerSalaryReport=window.__rdPayrollReport?.mount(salaryRoot,{
+         getSnapshot:()=>window.__rdOwnerPayrollSnapshot?.(),
+         onBack:()=>{
+           salaryRoot.hidden=true;salaryRoot.replaceChildren();
+           menu.hidden=false;ownerSalaryReport=null;
+         }
+       })||null;
+       if(!ownerSalaryReport)salaryRoot.textContent="Модуль зарплаты недоступен. Обновите страницу.";
+       // Reload the existing financial snapshot; no payroll data is duplicated.
+       void window.__rdOwnerPayrollReload?.();
+     });
+     menu.append(openSalary);
+   }
+ }
+ window.__rdOwnerPayrollUpdated=()=>{
+   if(activePage==="reports"&&!salaryRoot.hidden)ownerSalaryReport?.render();
+ };
  const settings=sectionView("rdSettings","Настройки","Сообщения клиентам и параметры приложения");
  window.__rdWhatsAppSettings?.mount(settings);
  app.insertBefore(settings,$("ordersArea"));
@@ -583,7 +612,7 @@ function navigate(key){
  else if(key==="clients")drawClients();
  else if(key==="leads")window.__rdLeadsRender?.();
  else if(key==="settings")window.__rdWhatsAppSettings?.refresh();
- else if(key==="reports")profitReport?.render();
+ else if(key==="reports"){profitReport?.render();if(!salaryRoot.hidden)ownerSalaryReport?.render();}
  window.scrollTo({top:0,behavior:"instant"});
 }
 function drawChart(parent,values,month){
@@ -1279,6 +1308,6 @@ window.__rdRefresh=()=>{
  if(activePage==="calendar")drawCalendar();
  if(activePage==="clients")drawClients();
  if(activePage==="orders"){drawOrderSummary();filterCards();}
- if(activePage==="reports")profitReport?.render();
+ if(activePage==="reports"){profitReport?.render();if(document.getElementById("rdSalaryReport")?.hidden===false)window.__rdOwnerPayrollUpdated?.();}
 };
 })();
