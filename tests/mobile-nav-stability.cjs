@@ -112,7 +112,12 @@ async function runOne(browser,label,device){
   assert.equal(head.visibleSearch,false,label+": no unused global search");
   assert.equal(head.syncDisplayed,false,label+": routine sync label does not waste space");
   assert.ok(head.avatarWidth>=40&&head.avatarHeight>=40,label+": floating avatar stays tappable");
-  assert.ok(head.titleTop<60,label+": content begins near screen top "+JSON.stringify(head));
+  // On standalone iPhones top safe area can be nonzero; no artificial toolbar should be added.
+  const expectedTopLimit=await page.evaluate(()=>{
+    const avatarTop=document.getElementById("rdProfileToggle").getBoundingClientRect().top;
+    return avatarTop+52;
+  });
+  assert.ok(head.titleTop<expectedTopLimit,label+": content begins beside avatar without spacer "+JSON.stringify(head));
   await page.locator("#rdProfileToggle").click();
   assert.equal(await page.locator("#rdProfileMenu").isVisible(),true,label+": floating profile opens");
   await page.locator("#rdProfileToggle").click();
@@ -134,6 +139,44 @@ async function runOne(browser,label,device){
   await page.locator("#rdTopSearch").focus();
   await assertDocked(page,label+" search focused");
   await page.locator("#rdTopSearch").blur();
+
+  // Every owner destination must avoid the old empty top strip.
+  for(const section of ["home","calendar","clients","finance","reports","settings"]){
+    if(["home","calendar"].includes(section)){
+      await page.locator('#rdMobileNav [data-page="'+section+'"]').click();
+    }else{
+      await page.locator("#rdMobileMoreBtn").click();
+      await page.locator('#rdMobileMoreSheet [data-page="'+section+'"]').click();
+    }
+    const info=await page.evaluate(()=>{
+      const app=document.getElementById("appScreen");
+      const header=app.querySelector(":scope > .rd-top");
+      const avatar=document.getElementById("rdProfileToggle");
+      return {
+        noSearchClass:app.classList.contains("rd-no-global-search"),
+        height:header.getBoundingClientRect().height,
+        background:getComputedStyle(header).backgroundColor,
+        searchVisible:getComputedStyle(document.getElementById("rdTopSearch")).display!=="none",
+        syncVisible:getComputedStyle(document.getElementById("syncStatus")).display!=="none",
+        avatarWidth:avatar.getBoundingClientRect().width,
+        avatarHeight:avatar.getBoundingClientRect().height,
+        appTopPadding:parseFloat(getComputedStyle(app).paddingTop)
+      };
+    });
+    assert.equal(info.noSearchClass,true,label+": "+section+" activates compact header mode");
+    assert.ok(info.height<=1,label+": "+section+" empty toolbar must be zero-height: "+JSON.stringify(info));
+    assert.equal(info.background,"rgba(0, 0, 0, 0)",label+": "+section+" transparent header");
+    assert.equal(info.searchVisible,false,label+": "+section+" does not display unrelated search");
+    assert.equal(info.syncVisible,false,label+": "+section+" does not display routine sync status");
+    assert.ok(info.avatarWidth>=40 && info.avatarHeight>=40,label+": "+section+" profile remains usable");
+    assert.ok(info.appTopPadding<110,label+": "+section+" top content uses available space");
+    await assertDocked(page,label+" "+section+" without empty top");
+  }
+  await page.locator('#rdMobileNav [data-page="leads"]').click();
+  assert.equal(await page.locator("#rdTopSearch").isVisible(),true,label+": leads search remains");
+  await page.locator('#rdMobileNav [data-page="orders"]').click();
+  assert.equal(await page.locator("#rdTopSearch").isVisible(),true,label+": orders search remains");
+
   await page.evaluate(()=>document.getElementById("appScreen").hidden=true);
   await page.waitForFunction(()=>document.getElementById("rdMobileNav").hidden);
   assert.equal(await page.locator("#rdMobileNav").isVisible(),false,label+": nav hidden when app screen hidden");
