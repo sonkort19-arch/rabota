@@ -119,8 +119,9 @@
     el.value=initial;el.addEventListener("change",()=>changed(el.value));
     return el;
   }
-  function mount(rootEl,{getOrders}){
+  function mount(rootEl,{getOrders,startOpen=false,onBack=null}){
     if(!rootEl||typeof getOrders!=="function")throw Error("Отчёт не может загрузиться");
+    rootEl.classList.add("pr-report-scope");
     const state={open:false,period:"month",basis:"created",status:"",search:"",from:"",to:"",visible:PAGE_SIZE};
     const menu=node("div","pr-menu");
     const card=button("Прибыль по заказам","pr-report-link",()=>{state.open=true;menu.hidden=true;detail.hidden=false;render()});
@@ -129,7 +130,10 @@
     menu.append(card,desc);
     const detail=node("section","pr-detail");detail.hidden=true;
     const heading=node("div","pr-heading");
-    heading.append(button("‹ Отчёты","pr-back",()=>{state.open=false;detail.hidden=true;menu.hidden=false}),
+    heading.append(button("‹ Отчёты","pr-back",()=>{
+      if(typeof onBack==="function"){onBack();return;}
+      state.open=false;detail.hidden=true;menu.hidden=false;
+    }),
       node("h2","","Прибыль по заказам"));
     const controls=node("div","pr-controls");
     const period=makeSelect([["month","Текущий месяц"],["previous","Прошлый месяц"],["week","Эта неделя"],["all","За всё время"],["custom","Свой период"]],
@@ -156,9 +160,16 @@
       document.body.append(anchor);anchor.click();anchor.remove();
       setTimeout(()=>URL.revokeObjectURL(url),1000);
     });
-    controls.append(period,basis,status,search,download);
+    const quickActions=node("div","pr-quick-actions");
+    download.textContent="CSV ↓";
+    download.setAttribute("aria-label","Скачать CSV");
+    download.title="Скачать CSV";
+    quickActions.append(search,download);
+    controls.append(period,basis,status,quickActions);
     const caption=node("p","pr-note");
-    const info=node("p","pr-explain","Прибыль = стоимость выполненного и оплаченного заказа − 50% Раулю − 1 500 ₽ Тимуру. Это доля компании до затрат на материалы, дорогу, налоги и другие расходы. Для остальных мастеров прибыль не рассчитывается без правил выплат.");
+    const info=node("details","pr-info");
+    info.append(node("summary","","Как считается прибыль?"));
+    info.append(node("p","pr-explain","Прибыль = стоимость выполненного и оплаченного заказа − 50% Раулю − 1 500 ₽ Тимуру. Это доля компании до затрат на материалы, дорогу, налоги и другие расходы. Для остальных мастеров прибыль не рассчитывается без правил выплат."));
     const scroll=node("div","pr-scroll");
     const table=node("table","pr-table");
     // Stable per-column widths prevent jumps when filters change or rows are expanded.
@@ -235,6 +246,7 @@
           "pr-more-btn",()=>{state.visible+=PAGE_SIZE;render()}));
       }
     }
+    if(startOpen){state.open=true;menu.hidden=true;detail.hidden=false;render();}
     return {render,isOpen:()=>state.open};
   }
   if(root)root.__rdCreateProfitReport=mount;
