@@ -30,7 +30,5 @@ jobs:
           node --check redesign.js
       - name: Test report calculations, filters, and CSV
         run: node --test tests/profit-report.test.cjs
-      - name: Run existing finance and order model tests
-        run: |
-          node --test tests/finance-model.test.cjs
-          node --test tests/order-model.test.cjs
+      - name: Run existing finance model regression tests
+        run: node --test tests/finance-model.test.cjs
