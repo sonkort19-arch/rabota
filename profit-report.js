@@ -142,16 +142,24 @@
     rootEl.classList.add("pr-report-scope");
     const state={open:false,period:"month",basis:"closed",status:"",search:"",from:"",to:"",visible:PAGE_SIZE};
     const menu=node("div","pr-menu");
-    const card=button("Прибыль по заказам","pr-report-link",()=>{state.open=true;menu.hidden=true;detail.hidden=false;render()});
+    const card=button("Прибыль по заказам","pr-report-link",()=>{
+      state.open=true;menu.hidden=true;detail.hidden=false;
+      rootEl.closest("#rdReports")?.classList.add("rd-reports-detail-open");
+      render();
+    });
     card.append(node("span","pr-report-arrow","›"));
     const desc=node("p","pr-description","Список заказов, оплата, зарплата мастерам и доля компании.");
     menu.append(card,desc);
     const detail=node("section","pr-detail");detail.hidden=true;
     const heading=node("div","pr-heading");
-    heading.append(button("‹ Отчёты","pr-back",()=>{
+    const back=button("Отчёты","pr-back",()=>{
       if(typeof onBack==="function"){onBack();return;}
       state.open=false;detail.hidden=true;menu.hidden=false;
-    }),
+      rootEl.closest("#rdReports")?.classList.remove("rd-reports-detail-open");
+    });
+    back.setAttribute("aria-label","Вернуться ко всем отчётам");
+    heading.setAttribute("aria-label","Отчёты / Прибыль по заказам");
+    heading.append(back,node("span","pr-crumb-sep","/"),
       node("h2","","Прибыль по заказам"));
     const controls=node("div","pr-controls");
     const period=makeSelect([["month","Текущий месяц"],["previous","Прошлый месяц"],["week","Эта неделя"],["all","За всё время"],["custom","Свой период"]],
@@ -275,7 +283,11 @@
           "pr-more-btn",()=>{state.visible+=PAGE_SIZE;render()}));
       }
     }
-    if(startOpen){state.open=true;menu.hidden=true;detail.hidden=false;render();}
+    if(startOpen){
+      state.open=true;menu.hidden=true;detail.hidden=false;
+      rootEl.closest("#rdReports")?.classList.add("rd-reports-detail-open");
+      render();
+    }
     return {render,isOpen:()=>state.open};
   }
   if(root)root.__rdCreateProfitReport=mount;
