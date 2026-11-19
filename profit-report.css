@@ -32,6 +32,7 @@ body.rd #rdReports .pr-custom input {
 body.rd #rdReports .pr-controls input {grid-column:span 2}
 body.rd #rdReports .pr-export {width:100%;background:#eef3ff;color:#2c59ba}
 body.rd #rdReports .pr-custom {display:flex;gap:9px;margin:0 0 10px}
+body.rd #rdReports .pr-custom[hidden] {display:none!important}
 body.rd #rdReports .pr-metrics {display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:9px;margin:15px 0}
 body.rd #rdReports .pr-metric {
   display:flex;flex-direction:column;gap:7px;min-width:0;
