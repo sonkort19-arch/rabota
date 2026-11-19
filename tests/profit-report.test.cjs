@@ -120,3 +120,10 @@ test("owner reports navigation retains salary scope outside build()",()=>{
   assert.doesNotMatch(ui,/const salaryRoot=makeNode/);
   assert.match(ui,/else if\(key==="reports"\)\{profitReport\?\.render\(\);if\(salaryRoot/);
 });
+
+test("CSV never labels unpaid orders as having a recorded payment",()=>{
+  const row=reportRow(order({status:"Записан",paid:false,paymentAmount:null}));
+  const csv=csvFor([row]);
+  assert.match(csv,/Не оплачено/);
+  assert.doesNotMatch(csv,/Сумма указана/);
+});
