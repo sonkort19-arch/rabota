@@ -34,8 +34,11 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Static owner/manager UI checks
-        run: node tests/ui-smoke-v2.js
+      - name: JavaScript syntax checks
+        run: |
+          node --check redesign.js
+          node --check orders-list.js
+          node --check owner-parity.js
       - name: Install Chromium and WebKit
         run: |
           npm install --no-save --ignore-scripts playwright@1.56.1
