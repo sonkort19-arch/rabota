@@ -186,7 +186,7 @@
     controls.append(period,basis,status,quickActions);
     const caption=node("p","pr-note");
     const info=node("details","pr-info");
-    info.append(node("summary","","Как считается прибыль?"));
+    info.append(node("summary","","Как считается доля компании?"));
     info.append(node("p","pr-explain","Доля компании = стоимость выполненного и оплаченного заказа − 50% Раулю − 1 500 ₽ Тимуру, до затрат на материалы, дорогу и налоги. Если в старом заказе нет суммы оплаты, расчёт поступлений основан только на отметке «Оплачено», а не на подтверждённом платеже."));
     const scroll=node("div","pr-scroll");
     const table=node("table","pr-table");
