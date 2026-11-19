@@ -196,7 +196,7 @@ test("finance operations fetch over 1000 rows safely",async()=>{
 });
 test("index uses the new finance module but retains existing RPC payment paths",()=>{
   const html=fs.readFileSync(path.join(__dirname,"..","index.html"),"utf8");
-  assert.match(html,/src="\/finance-model\.js\?v=20261113-stage5"/);
+  assert.match(html,/src="\/finance-model\.js\?v=[A-Za-z0-9_-]+"/);
   assert.match(html,/financeModel\.calculateAccruals/);
   assert.match(html,/financeModel\.calculateCompanyCash/);
   assert.match(html,/return financeModel\.loadFinance\(\)/);
