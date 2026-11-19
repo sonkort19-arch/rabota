@@ -35,7 +35,7 @@ async function run(browserType,iphone){
     await page.locator(".pr-report-link").click();
     const table=page.locator(".pr-table");
     assert.equal(await table.locator("tbody>tr").count(),6);
-    assert.match(await page.locator(".pr-metrics").innerText(),/3 500/);
+    assert.match(await page.locator(".pr-metrics").innerText(),/3[\u00A0\s]500/);
     assert.match(await page.locator(".pr-note").innerText(),/Без расчёта прибыли: 1/);
     await page.locator('.pr-controls select[aria-label="Статус заказов"]').selectOption("unpaid");
     assert.equal(await table.locator("tbody>tr").count(),2);
