@@ -13,7 +13,7 @@ async function run(browserType,iphone){
       colorScheme:iphone?"dark":"light"
     });
     const page=await context.newPage();
-    await page.setContent('<!doctype html><html lang="ru"><head><meta name="viewport" content="width=device-width,initial-scale=1"><style>body{margin:0;font-family:Arial}#rdReports{padding:12px;box-sizing:border-box}</style></head><body class="rd"><section id="rdReports"></section></body></html>');
+    await page.setContent('<!doctype html><html lang="ru"><head><meta name="viewport" content="width=device-width,initial-scale=1"><style>body{margin:0;font-family:Arial}#rdReports{padding:12px;box-sizing:border-box}</style></head><body class="rd"><section id="rdReports"><h1 class="rd-view-title">Отчёты</h1></section></body></html>');
     await page.addStyleTag({path:path.join(__dirname,"..","light-theme.css")});
     await page.addStyleTag({path:path.join(__dirname,"..","polished-v2.css")});
     await page.addStyleTag({path:reportCss});
@@ -37,6 +37,9 @@ async function run(browserType,iphone){
         document.querySelector("#rdReports"),{getOrders:()=>window.syntheticOrders});
     });
     await page.locator(".pr-report-link").click();
+    assert.equal((await page.locator(".pr-heading").innerText()).replace(/\s+/g," "), "Отчёты / Прибыль по заказам");
+    assert.equal(await page.locator(".pr-heading .pr-back").count(),1);
+    assert.equal(await page.locator("#rdReports > .rd-view-title").isVisible(),false,"No duplicate report title when viewing details");
     assert.equal(await page.locator('.pr-controls select[aria-label="Тип даты отчёта"]').inputValue(),"closed");
     // Default closing-date month excludes booked orders; "all" still shows every order.
     await page.locator('.pr-controls select[aria-label="Период отчёта"]').selectOption("all");
@@ -145,6 +148,11 @@ async function run(browserType,iphone){
     await page.locator(".pr-export").click();
     const download=await downloadPromise;
     assert.match(download.suggestedFilename(),/rabota-profit-orders-.*\.csv/);
+    await page.locator(".pr-heading .pr-back").click();
+    assert.equal(await page.locator("#rdReports > .rd-view-title").isVisible(),true,"Main heading reappears in the reports menu");
+    assert.equal(await page.locator(".pr-menu").isVisible(),true,"Back returns to the report list");
+    await page.locator(".pr-menu .pr-report-link").click();
+    assert.equal(await page.locator(".pr-detail").isVisible(),true,"Report can reopen after going back");
     if(iphone){
       const size=await page.evaluate(()=>({
         pageWidth:document.documentElement.scrollWidth,
