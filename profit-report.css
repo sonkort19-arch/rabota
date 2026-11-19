@@ -1,7 +1,7 @@
 /* Owner reports use the same permanently LIGHT palette as CRM «Работа».
    Do not follow the device dark preference: the rest of the CRM is light.
    Scoped to #rdReports so orders, finance, calendar and the master UI are unchanged. */
-body.rd #rdReports {
+body.rd :is(#rdReports,.pr-report-scope) {
   --pr-bg:var(--ui-surface,#fff);
   --pr-soft:var(--ui-muted-surface,#f7f7f8);
   --pr-ink:var(--ui-ink,#202123);
@@ -14,135 +14,178 @@ body.rd #rdReports {
   color:var(--pr-ink);
   color-scheme:light;
 }
-body.rd #rdReports .pr-detail[hidden],
-body.rd #rdReports .pr-menu[hidden] {display:none!important}
-body.rd #rdReports .pr-menu {margin-top:8px}
-body.rd #rdReports .pr-report-link {
+body.rd :is(#rdReports,.pr-report-scope) .pr-detail[hidden],
+body.rd :is(#rdReports,.pr-report-scope) .pr-menu[hidden] {display:none!important}
+body.rd :is(#rdReports,.pr-report-scope) .pr-menu {margin-top:8px}
+body.rd :is(#rdReports,.pr-report-scope) .pr-report-link {
   appearance:none;
   width:100%;display:flex;align-items:center;justify-content:space-between;
-  min-height:72px;padding:16px 18px;
+  min-height:50px;padding:9px 12px;
   border:1px solid var(--pr-border);border-radius:16px;
   background:var(--pr-bg);color:var(--pr-ink);
-  font:inherit;font-size:16px;font-weight:700;text-align:left;
+  font:inherit;font-size:14px;font-weight:700;text-align:left;
   cursor:pointer;box-shadow:0 1px 4px #18264508;
 }
-body.rd #rdReports .pr-report-arrow {font-size:24px;color:var(--pr-blue)}
-body.rd #rdReports .pr-description {font-size:13px;color:var(--pr-muted);margin:9px 5px 0;line-height:1.5}
-body.rd #rdReports .pr-heading {display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:0 0 18px}
-body.rd #rdReports .pr-heading h2 {font-size:21px;font-weight:750;letter-spacing:-.35px;margin:0;color:var(--pr-ink)}
-body.rd #rdReports .pr-back,
-body.rd #rdReports .pr-export,
-body.rd #rdReports .pr-more-btn {
-  appearance:none;min-height:42px;padding:9px 14px;border-radius:11px;
+body.rd :is(#rdReports,.pr-report-scope) .pr-report-arrow {font-size:20px;color:var(--pr-blue)}
+body.rd :is(#rdReports,.pr-report-scope) .pr-description {font-size:13px;color:var(--pr-muted);margin:5px 3px 0;line-height:1.4}
+body.rd :is(#rdReports,.pr-report-scope) .pr-heading {display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:0 0 8px}
+body.rd :is(#rdReports,.pr-report-scope) .pr-heading h2 {font-size:17px;font-weight:750;letter-spacing:-.35px;margin:0;color:var(--pr-ink)}
+body.rd :is(#rdReports,.pr-report-scope) .pr-back,
+body.rd :is(#rdReports,.pr-report-scope) .pr-export,
+body.rd :is(#rdReports,.pr-report-scope) .pr-more-btn {
+  appearance:none;min-height:34px;padding:6px 10px;border-radius:9px;
   border:1px solid var(--pr-border);background:var(--pr-bg);
-  color:var(--pr-ink);font:inherit;font-size:14px;font-weight:650;cursor:pointer;
+  color:var(--pr-ink);font:inherit;font-size:12px;font-weight:650;cursor:pointer;
   box-shadow:none;
 }
-body.rd #rdReports .pr-back {background:var(--pr-soft);border-color:var(--pr-border);color:var(--pr-ink)}
-body.rd #rdReports .pr-controls {
+body.rd :is(#rdReports,.pr-report-scope) .pr-back {background:var(--pr-soft);border-color:var(--pr-border);color:var(--pr-ink)}
+body.rd :is(#rdReports,.pr-report-scope) .pr-controls {
   display:grid;grid-template-columns:repeat(3,minmax(0,1fr));
-  gap:9px;margin:0 0 11px;
+  gap:6px;margin:0 0 6px;
 }
-body.rd #rdReports .pr-controls select,
-body.rd #rdReports .pr-controls input,
-body.rd #rdReports .pr-custom input {
-  appearance:auto;box-sizing:border-box;min-width:0;width:100%;min-height:44px;
-  padding:10px 12px;border:1px solid #dedee1;border-radius:11px;
+body.rd :is(#rdReports,.pr-report-scope) .pr-controls select,
+body.rd :is(#rdReports,.pr-report-scope) .pr-controls input,
+body.rd :is(#rdReports,.pr-report-scope) .pr-custom input {
+  appearance:auto;box-sizing:border-box;min-width:0;width:100%;min-height:36px;
+  padding:6px 9px;border:1px solid #dedee1;border-radius:9px;
   background:var(--pr-bg);color:var(--pr-ink);
-  font:inherit;font-size:14px;font-weight:500;
+  font:inherit;font-size:12px;font-weight:500;
   box-shadow:none;color-scheme:light;
 }
-body.rd #rdReports .pr-controls input::placeholder {color:#858890;opacity:1}
-body.rd #rdReports .pr-controls input {grid-column:span 2}
-body.rd #rdReports .pr-export {width:100%;background:#eff1ff;border-color:#e3e7ff;color:#4055ee}
-body.rd #rdReports .pr-export:hover {background:#e8edff}
-body.rd #rdReports .pr-custom {display:flex;gap:9px;margin:0 0 10px}
-body.rd #rdReports .pr-custom[hidden] {display:none!important}
-body.rd #rdReports .pr-note {font-size:13px;color:var(--pr-muted);margin:12px 0}
-body.rd #rdReports .pr-scroll {
+body.rd :is(#rdReports,.pr-report-scope) .pr-controls input::placeholder {color:#858890;opacity:1}
+body.rd :is(#rdReports,.pr-report-scope) .pr-controls input {grid-column:span 2}
+body.rd :is(#rdReports,.pr-report-scope) .pr-export {width:auto;min-width:68px;background:#eff1ff;border-color:#e3e7ff;color:#4055ee}
+body.rd :is(#rdReports,.pr-report-scope) .pr-export:hover {background:#e8edff}
+body.rd :is(#rdReports,.pr-report-scope) .pr-custom {display:flex;gap:6px;margin:0 0 6px}
+body.rd :is(#rdReports,.pr-report-scope) .pr-custom[hidden] {display:none!important}
+body.rd :is(#rdReports,.pr-report-scope) .pr-note {font-size:11px;color:var(--pr-muted);margin:6px 0 8px}
+body.rd :is(#rdReports,.pr-report-scope) .pr-scroll {
   max-width:100%;overflow-x:auto;overflow-y:auto;overscroll-behavior-x:contain;
   -webkit-overflow-scrolling:touch;
-  border:1px solid var(--pr-border);border-radius:14px;
+  border:1px solid var(--pr-border);border-radius:10px;
   background:var(--pr-bg);
 }
-body.rd #rdReports .pr-table {
-  width:100%;min-width:1086px;border-collapse:separate;border-spacing:0;
+body.rd :is(#rdReports,.pr-report-scope) .pr-table {
+  width:818px;min-width:818px;max-width:818px;border-collapse:separate;border-spacing:0;
   background:var(--pr-bg);color:var(--pr-ink);
-  font:inherit;font-size:13px;table-layout:fixed;
+  font:inherit;font-size:12px;table-layout:fixed;
 }
-body.rd #rdReports .pr-table th {
+body.rd :is(#rdReports,.pr-report-scope) .pr-table th {
   box-sizing:border-box;line-height:1.4;
-  padding:13px 11px;white-space:nowrap;text-align:left;
+  padding:8px 7px;white-space:nowrap;text-align:left;
   background:#f7f8fc;color:#5f6775;
   font-weight:700;border-bottom:1px solid var(--pr-border);
 }
-body.rd #rdReports .pr-table td {
+body.rd :is(#rdReports,.pr-report-scope) .pr-table td {
   box-sizing:border-box;line-height:1.4;
-  padding:12px 11px;background:var(--pr-bg);color:var(--pr-ink);
+  padding:7px 7px;background:var(--pr-bg);color:var(--pr-ink);
   border-bottom:1px solid #edeef1;vertical-align:middle;
 }
 /* Column headings and figures must share one horizontal center.
    Previously headings were left-aligned while financial values were right-aligned. */
-body.rd #rdReports .pr-table thead th:nth-child(n+5),
-body.rd #rdReports .pr-table tbody td.pr-number {
+body.rd :is(#rdReports,.pr-report-scope) .pr-table thead th:nth-child(n+5),
+body.rd :is(#rdReports,.pr-report-scope) .pr-table tbody td.pr-number {
   text-align:center;
   white-space:nowrap;
   font-variant-numeric:tabular-nums;
 }
-body.rd #rdReports .pr-table tbody tr:not(.pr-expanded):not(.pr-total-row) > td:nth-child(3),
-body.rd #rdReports .pr-table tbody tr:not(.pr-expanded):not(.pr-total-row) > td:nth-child(4) {
+body.rd :is(#rdReports,.pr-report-scope) .pr-table tbody tr:not(.pr-expanded):not(.pr-total-row) > td:nth-child(3),
+body.rd :is(#rdReports,.pr-report-scope) .pr-table tbody tr:not(.pr-expanded):not(.pr-total-row) > td:nth-child(4) {
   overflow:hidden;
   text-overflow:ellipsis;
   white-space:nowrap;
 }
-body.rd #rdReports .pr-table tr:last-child td {border-bottom:0}
-body.rd #rdReports .pr-table th:first-child,
-body.rd #rdReports .pr-table td:first-child {
+body.rd :is(#rdReports,.pr-report-scope) .pr-table tr:last-child td {border-bottom:0}
+body.rd :is(#rdReports,.pr-report-scope) .pr-table th:first-child,
+body.rd :is(#rdReports,.pr-report-scope) .pr-table td:first-child {
   position:sticky;left:0;z-index:1;
-  width:100px;min-width:100px;max-width:100px;white-space:nowrap;
+  width:78px;min-width:78px;max-width:78px;white-space:nowrap;
   background:var(--pr-bg);
   box-shadow:1px 0 #e3e5eb,6px 0 12px -12px #252b3b66;
 }
-body.rd #rdReports .pr-table th:first-child {z-index:2;background:#f7f8fc}
-body.rd #rdReports .pr-table .pr-total-row > th,
-body.rd #rdReports .pr-table .pr-total-row > td {
+body.rd :is(#rdReports,.pr-report-scope) .pr-table th:first-child {z-index:2;background:#f7f8fc}
+body.rd :is(#rdReports,.pr-report-scope) .pr-table .pr-total-row > th,
+body.rd :is(#rdReports,.pr-report-scope) .pr-table .pr-total-row > td {
   background:#eef1ff;color:#26335d;font-weight:800;
   border-bottom:2px solid #dce2f7;
-  padding-top:15px;padding-bottom:15px;
+  padding-top:9px;padding-bottom:9px;
   white-space:nowrap;font-variant-numeric:tabular-nums;
 }
-body.rd #rdReports .pr-table .pr-total-row > th:first-child {
+body.rd :is(#rdReports,.pr-report-scope) .pr-table .pr-total-row > th:first-child {
   position:sticky;left:0;z-index:3;background:#eef1ff;
   box-shadow:1px 0 #dce2f7,6px 0 12px -12px #252b3b66;
 }
-body.rd #rdReports .pr-row-open {
+body.rd :is(#rdReports,.pr-report-scope) .pr-row-open {
   border:0;padding:0;background:transparent;
-  color:var(--pr-blue);font:inherit;font-size:13px;
+  color:var(--pr-blue);font:inherit;font-size:12px;
   font-weight:700;cursor:pointer;
 }
-body.rd #rdReports .pr-row-open[aria-expanded="true"] {text-decoration:underline}
-body.rd #rdReports .pr-table .pr-expanded td {
+body.rd :is(#rdReports,.pr-report-scope) .pr-row-open[aria-expanded="true"] {text-decoration:underline}
+body.rd :is(#rdReports,.pr-report-scope) .pr-table .pr-expanded td {
   background:#f9faff;color:var(--pr-ink);padding:12px;
 }
-body.rd #rdReports .pr-expanded-content {font-size:12px;line-height:1.6;max-width:770px}
-body.rd #rdReports .pr-table .pr-empty {text-align:center;padding:30px;color:var(--pr-muted)}
-body.rd #rdReports .pr-more {display:flex;justify-content:center;margin:12px 0}
-body.rd #rdReports .pr-explain {font-size:12px;line-height:1.65;color:var(--pr-muted);margin:12px 0 0}
-body.rd #rdReports .pr-report-link:focus-visible,
-body.rd #rdReports button:focus-visible,
-body.rd #rdReports input:focus-visible,
-body.rd #rdReports select:focus-visible {
+body.rd :is(#rdReports,.pr-report-scope) .pr-expanded-content {font-size:12px;line-height:1.6;max-width:770px}
+body.rd :is(#rdReports,.pr-report-scope) .pr-table .pr-empty {text-align:center;padding:30px;color:var(--pr-muted)}
+body.rd :is(#rdReports,.pr-report-scope) .pr-more {display:flex;justify-content:center;margin:8px 0}
+body.rd :is(#rdReports,.pr-report-scope) .pr-explain {font-size:11px;line-height:1.5;color:var(--pr-muted);margin:5px 0 0}
+body.rd :is(#rdReports,.pr-report-scope) .pr-report-link:focus-visible,
+body.rd :is(#rdReports,.pr-report-scope) button:focus-visible,
+body.rd :is(#rdReports,.pr-report-scope) input:focus-visible,
+body.rd :is(#rdReports,.pr-report-scope) select:focus-visible {
   outline:2px solid var(--pr-blue);outline-offset:2px;
 }
 @media(max-width:790px) {
   body.rd #appScreen.rd-view-reports {padding-bottom:calc(95px + env(safe-area-inset-bottom))}
-  body.rd #rdReports .pr-heading {gap:8px}
-  body.rd #rdReports .pr-heading h2 {font-size:19px}
-  body.rd #rdReports .pr-controls {grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
-  body.rd #rdReports .pr-controls input {grid-column:span 2}
-  body.rd #rdReports .pr-controls .pr-export {grid-column:span 2}
-  body.rd #rdReports .pr-table th,
-  body.rd #rdReports .pr-table td {padding:13px 10px}
-  body.rd #rdReports .pr-table th:first-child,
-  body.rd #rdReports .pr-table td:first-child {width:100px;min-width:100px;max-width:100px}
+  body.rd :is(#rdReports,.pr-report-scope) .pr-heading {gap:8px}
+  body.rd :is(#rdReports,.pr-report-scope) .pr-heading h2 {font-size:16px}
+  body.rd :is(#rdReports,.pr-report-scope) .pr-controls {grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}
+  body.rd :is(#rdReports,.pr-report-scope) .pr-controls input {grid-column:span 2}
+  body.rd :is(#rdReports,.pr-report-scope) .pr-quick-actions .pr-export {grid-column:auto}
+  body.rd :is(#rdReports,.pr-report-scope) .pr-table th,
+  body.rd :is(#rdReports,.pr-report-scope) .pr-table td {padding:8px 7px}
+  body.rd :is(#rdReports,.pr-report-scope) .pr-table th:first-child,
+  body.rd :is(#rdReports,.pr-report-scope) .pr-table td:first-child {width:78px;min-width:78px;max-width:78px}
+}
+
+/* Compact, iPhone-friendly report controls and dense fixed-width finance grid. */
+body.rd :is(#rdReports,.pr-report-scope) .pr-quick-actions{
+  grid-column:1/-1;display:flex;align-items:stretch;gap:6px;min-width:0;
+}
+body.rd :is(#rdReports,.pr-report-scope) .pr-quick-actions input{
+  flex:1 1 auto;min-width:0;width:auto;grid-column:auto;
+}
+body.rd :is(#rdReports,.pr-report-scope) .pr-quick-actions .pr-export{
+  display:inline-flex;align-items:center;justify-content:center;
+  flex:0 0 auto;min-height:36px;min-width:70px;white-space:nowrap;
+}
+body.rd :is(#rdReports,.pr-report-scope) .pr-info{
+  margin:8px 1px 0;color:var(--pr-muted);font-size:11px;
+}
+body.rd :is(#rdReports,.pr-report-scope) .pr-info summary{
+  cursor:pointer;list-style:revert;color:#57647c;font-size:11px;
+}
+body.rd :is(#rdReports,.pr-report-scope) .pr-table tbody tr:not(.pr-total-row):not(.pr-expanded)>td{
+  height:35px;
+}
+body.rd :is(#rdReports,.pr-report-scope) .pr-table .pr-total-row>th,
+body.rd :is(#rdReports,.pr-report-scope) .pr-table .pr-total-row>td{
+  height:39px;padding-top:8px;padding-bottom:8px;
+}
+body.rd :is(#rdReports,.pr-report-scope) .pr-table th:first-child,
+body.rd :is(#rdReports,.pr-report-scope) .pr-table td:first-child{width:78px;min-width:78px;max-width:78px}
+body.rd #appScreen.rd-view-reports #rdReports>.rd-view-title{
+  font-size:22px;line-height:1.2;margin:0 0 4px;
+}
+body.rd #appScreen.rd-view-reports #rdReports>.rd-view-subtitle{
+  font-size:12px;line-height:1.35;margin:0 0 10px;
+}
+body.rd #mwMasterReports .pr-report-scope {max-width:100%;width:100%}
+body.rd #mwMasterReports .pr-detail {margin:0;padding:0}
+@media(max-width:790px){
+  body.rd :is(#rdReports,.pr-report-scope) .pr-quick-actions{gap:6px}
+  body.rd :is(#rdReports,.pr-report-scope) .pr-quick-actions input{grid-column:auto}
+  body.rd :is(#rdReports,.pr-report-scope) .pr-quick-actions .pr-export{min-height:36px}
+  body.rd :is(#rdReports,.pr-report-scope) .pr-controls{gap:6px}
+  body.rd :is(#rdReports,.pr-report-scope) .pr-table th,
+  body.rd :is(#rdReports,.pr-report-scope) .pr-table td{padding:7px}
 }
