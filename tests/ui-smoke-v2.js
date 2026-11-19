@@ -79,6 +79,7 @@ function runSmoke(source) {
     expect(get("rdHome").querySelectorAll(".rd-stat").length===4,"four KPI cards");
     expect(get("rdHome").querySelectorAll(".rd-svgicon").length>=7,"vector icons appear");
     expect(get("rdHome").querySelectorAll(".rd-chart-month").length===1,"real month label");
+    expect(get("rdTopSearch").hidden===true,"global search hidden on home");
     expect(Boolean(nav("calendar")),"calendar menu");
     nav("calendar").click();
     expect(get("ordersArea").hidden===false,"calendar shares order shell");
@@ -92,6 +93,7 @@ function runSmoke(source) {
     expect(nav("calendar").getAttribute("aria-current")==="page","only calendar is active");
     expect(window.__testCurrentTab()==="calendar","calendar view uses calendar tab");
     expect(window.__rdCurrentPage==="calendar","calendar view state matches navigation");
+    expect(get("rdTopSearch").hidden===true,"global search hidden in calendar");
     expect(nav("orders").getAttribute("aria-current")!=="page","orders navigation is not active");
     expect(get("rdCalendarBoard").querySelectorAll(".rd-calendar-day").length===7,"seven weekday panels");
     expect(get("rdCalendarBoard").querySelectorAll(".rd-day-chip").length===7,"seven mobile date tabs");
@@ -144,6 +146,7 @@ function runSmoke(source) {
     expect(nav("orders").getAttribute("aria-current")==="page","orders active");
     expect(window.__testCurrentTab()==="all","orders view defaults to all orders");
     expect(window.__rdCurrentPage==="orders","orders view state matches navigation");
+    expect(get("rdTopSearch").hidden===false,"global search visible in orders");
 
     const kpis=get("rdOrderStats").querySelectorAll(".rd-stat");
     expect(kpis.length===4,"four order summary KPIs");
@@ -179,12 +182,21 @@ function runSmoke(source) {
     nav("orders").click();
     expect(get("orders").hidden===false&&get("rdCalendarBoard").hidden===true,"second orders transition");
     nav("clients").click();
+    expect(get("rdTopSearch").hidden===true,"global search hidden in clients (local search exists)");
     expect(get("rdClientsList").querySelectorAll(".rd-client").length===3,"three distinct customers");
     const search=get("rdTopSearch");search.value="Сослан";search.fire("input");
     expect(get("rdClientsList").querySelectorAll(".rd-client").length===1,"client search responsive");
     search.value="";search.fire("input");
+    nav("leads").click();
+    expect(get("rdTopSearch").hidden===false,"lead search stays available");
+    nav("orders").click();
+    expect(get("rdTopSearch").hidden===false,"order search restores");
+    nav("clients").click();
+    expect(get("rdTopSearch").hidden===true,"client search is local-only");
     if(role==="owner"){
       nav("finance").click();expect(finance.hidden===false,"owner finance available");
+      expect(get("rdTopSearch").hidden===true,"global search hidden in finance");
+      nav("reports").click();expect(get("rdTopSearch").hidden===true,"global search hidden in reports");
       expect(Boolean(nav("ai")),"owner AI available");
     }else{
       expect(!nav("finance"),"manager finance protected");
