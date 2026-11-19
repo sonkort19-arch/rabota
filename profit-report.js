@@ -161,6 +161,12 @@
     const info=node("p","pr-explain","Прибыль = стоимость выполненного и оплаченного заказа − 50% Раулю − 1 500 ₽ Тимуру. Это доля компании до затрат на материалы, дорогу, налоги и другие расходы. Для остальных мастеров прибыль не рассчитывается без правил выплат.");
     const scroll=node("div","pr-scroll");
     const table=node("table","pr-table");
+    // Stable per-column widths prevent jumps when filters change or rows are expanded.
+    const columns=node("colgroup");
+    for(const width of [100,118,164,124,130,140,155,155]){
+      const col=node("col");col.style.width=width+"px";columns.append(col);
+    }
+    table.append(columns);
     const thead=node("thead");
     const tr=node("tr");
     for(const label of ["Заказ","Дата","Клиент","Статус","Цена","Платежи","Зарплата","Прибыль"]){
