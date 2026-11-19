@@ -2490,6 +2490,14 @@
             payment_method:o.payment_method,created_at:o.created_at,order_id:o.order_id}))
         };
       },
+      masterReportOrders(){
+        // The order report is read-only and exclusively about Raul's assigned orders.
+        // The database's RLS still enforces access before these rows reach the browser.
+        const id=currentUser?.id;
+        if(currentRole!=="master" || String(currentMasterName||"").trim().toLocaleLowerCase("ru")!=="рауль" || !id)
+          return [];
+        return getOrders().filter(o=>o.assignedUserId===id);
+      },
       masterPayments(){
         if(currentRole!=="master")throw Error("Доступно только мастеру");
         const orders=getOrders().filter(o=>o.assignedUserId===currentUser?.id);
