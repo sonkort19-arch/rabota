@@ -502,7 +502,7 @@ function build(){
  });
  profitReport=null;
  const financeTitle=sectionView("rdFinanceIntro","Финансы","Платежи, касса и история операций");
- const reports=sectionView("rdReports","Отчёты","Финансовые показатели по заказам");
+ const reports=sectionView("rdReports","Отчёты","");
  const reportsRoot=makeNode("div","rd-reports-root");
  reports.append(reportsRoot);
  salaryRoot=makeNode("div","rd-salary-report");
@@ -514,6 +514,20 @@ function build(){
       getRaulMasterId:()=>window.__rdReportMasterId?.()})||null;
    const menu=reportsRoot.querySelector(".pr-menu");
    if(menu){
+     // Keep the report hub dense: only link real, working reports.
+     const profitEntry=menu.querySelector(".pr-report-link");
+     menu.querySelector(".pr-description")?.remove();
+     function reportGroup(title,label,icon,entry){
+       const section=makeNode("section","rd-report-section");
+       const heading=makeNode("h2","rd-report-section-title",title);
+       const items=makeNode("div","rd-report-section-items");
+       const arrow=entry.querySelector(".pr-report-arrow")||makeNode("span","pr-report-arrow","›");
+       entry.textContent="";
+       entry.classList.add("rd-report-item");
+       entry.append(uiIcon(icon,"rd-report-item-icon"),makeNode("span","rd-report-item-label",label),arrow);
+       items.append(entry);section.append(heading,items);menu.append(section);
+     }
+     if(profitEntry)reportGroup("Финансы","Прибыль по заказам","wallet",profitEntry);
      const openSalary=makeNode("button","pr-report-link rd-salary-entry");
      openSalary.type="button";openSalary.textContent="Зарплата";
      openSalary.append(makeNode("span","pr-report-arrow","›"));
@@ -530,7 +544,7 @@ function build(){
        // Reload the existing financial snapshot; no payroll data is duplicated.
        void window.__rdOwnerPayrollReload?.();
      });
-     menu.append(openSalary);
+     reportGroup("Сотрудники","Зарплата","clients",openSalary);
    }
  }
  window.__rdReportUpdated=()=>{
