@@ -589,9 +589,20 @@ function navigate(key){
  if(["finance","reports"].includes(key)&&currentRole!=="owner")return;
  if(activePage==="orders"&&key!=="orders")storeOrderFilters(currentTab);
  const globalSearch=$("rdTopSearch");
+ const searchNeeded=key==="orders"||key==="leads";
  if(globalSearch){
+  // This input belongs to Orders and Leads only, not to every CRM screen.
+  globalSearch.hidden=!searchNeeded;
   globalSearch.placeholder=key==="leads"?"Поиск лидов по имени и телефону...":"Поиск заказов, клиентов, адресов...";
-  if(activePage==="leads"&&key!=="leads"){globalSearch.value="";rdSearchTerm="";}
+  if(activePage==="leads"&&key!=="leads"){
+   globalSearch.value="";rdSearchTerm="";
+   window.__rdLeadsSearch?.("");
+  }
+  if(key==="leads"&&activePage!=="leads"){
+   globalSearch.value="";rdSearchTerm="";
+   window.__rdLeadsSearch?.("");
+  }
+  if(!searchNeeded){globalSearch.value="";rdSearchTerm="";}
  }
  // Keep the visible screen, active navigation and legacy tab state in sync.
  // Update visibility before legacy rendering: a render error must not leave
@@ -624,6 +635,7 @@ function navigate(key){
  $("teamPanel").hidden=key!=="orders"||currentRole!=="owner";
  $("rdFinanceIntro").hidden=key!=="finance";
  app.className=app.className.replace(/\brd-view-\S+/g,"").trim()+" rd-view-"+key;
+ app.classList.toggle("rd-no-global-search",!searchNeeded);
  document.querySelectorAll(".rd-nav-btn[data-page]").forEach(btn=>
   btn.setAttribute("aria-current",btn.dataset.page===key?"page":"false"));
  const moreButton=$("rdMobileMoreBtn");
