@@ -182,7 +182,7 @@
       // Like HelloClient: period totals go above individual orders, after the header.
       // Totals include every matching order, not just the visible page of 100.
       const totalRow=node("tr","pr-total-row");
-      const totalCells=["Итого","",totals.count+" зак.","",money(totals.price),
+      const totalCells=["Итого","","","",money(totals.price),
         money(totals.received),money(totals.salary),money(totals.profit)];
       totalCells.forEach((value,index)=>{
         const cell=node(index===0?"th":"td",index>=4?"pr-number":"",value);
