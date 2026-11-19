@@ -1328,6 +1328,7 @@ function filterCards(){
   });
   empty.append(reset);$("orders").append(empty);
  }
+ window.__rdOwnerParitySync?.();
 }
 window.__rdGoToLeads=()=>navigate("leads");
 window.__rdAccess=()=>{
