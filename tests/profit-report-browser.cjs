@@ -242,7 +242,7 @@ async function checkOwnerPayroll(browserType,iphone){
       "Owner salary report must not overflow iPhone: "+JSON.stringify(layout));
     await page.locator("#rdSalaryReport .fp-person-button").first().click();
     assert.equal(await page.locator("#rdSalaryReport .fp-balance-hero").count(),1);
-    assert.match(await page.locator("#rdSalaryReport .fp-balance-hero").innerText(),/7\\s*000/);
+    assert.match(await page.locator("#rdSalaryReport .fp-balance-hero").innerText(),/7[\s\u00a0\u202f]*000/);
     await page.locator("#rdSalaryReport .fp-person-heading .fp-link").click();
     assert.equal(await page.locator("#rdSalaryReport .fp-person-row").count(),2);
     await page.locator("#rdSalaryReport .fp-report-head .fp-link").click();
