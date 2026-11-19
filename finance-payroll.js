@@ -297,7 +297,7 @@
      if(historyTitle)historyTitle.hidden=ui.tab!=="operations";
      if(ui.tab==="cash")panel.append(cash(m));
      else if(ui.tab==="payments")window.__rdPaymentsRender?.(panel);
-     else panel.append(el("p","fp-hint","Здесь сохранены прежние формы ручных операций, история и возможность отмены записей. В этой тестовой версии запись и отмена финансовых операций отключены. Реальные данные не изменяются."));
+     else panel.append(el("p","fp-hint",isPreview()? "Тестовая версия: просмотр истории без изменения реальных финансовых операций.": "История финансовых операций и управление записями доступны ниже."));
    };
    for(const [value,label] of [["payments","Платежи"],["cash","Касса"],["operations","Операции"]]){
      const b=button(label,"fp-tab",()=>{
