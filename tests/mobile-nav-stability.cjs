@@ -93,6 +93,31 @@ async function runOne(browser,label,device){
    await page.locator('#rdMobileNav [data-page="'+section+'"]').click();
    await assertDocked(page,label+" switch "+section);
   }
+  // On non-search screens the header must not occupy any space.
+  await page.locator('#rdMobileNav [data-page="home"]').click();
+  const head=await page.evaluate(()=>{
+    const app=document.getElementById("appScreen");
+    const top=app.querySelector(":scope > .rd-top");
+    const toggle=document.getElementById("rdProfileToggle");
+    const title=document.querySelector("#rdHome .rd-view-title");
+    const rect=top.getBoundingClientRect();
+    const avatar=toggle.getBoundingClientRect();
+    return {headerHeight:rect.height,background:getComputedStyle(top).backgroundColor,
+      visibleSearch:getComputedStyle(document.getElementById("rdTopSearch")).display!=="none",
+      syncDisplayed:getComputedStyle(document.getElementById("syncStatus")).display!=="none",
+      avatarWidth:avatar.width,avatarHeight:avatar.height,titleTop:title.getBoundingClientRect().top};
+  });
+  assert.ok(head.headerHeight<=1,label+": no empty header height "+JSON.stringify(head));
+  assert.equal(head.background,"rgba(0, 0, 0, 0)",label+": header is transparent");
+  assert.equal(head.visibleSearch,false,label+": no unused global search");
+  assert.equal(head.syncDisplayed,false,label+": routine sync label does not waste space");
+  assert.ok(head.avatarWidth>=40&&head.avatarHeight>=40,label+": floating avatar stays tappable");
+  assert.ok(head.titleTop<60,label+": content begins near screen top "+JSON.stringify(head));
+  await page.locator("#rdProfileToggle").click();
+  assert.equal(await page.locator("#rdProfileMenu").isVisible(),true,label+": floating profile opens");
+  await page.locator("#rdProfileToggle").click();
+  await page.locator('#rdMobileNav [data-page="orders"]').click();
+  assert.equal(await page.locator("#rdTopSearch").isVisible(),true,label+": orders still have search");
   await page.locator("#rdMobileMoreBtn").click();
   assert.equal(await page.locator("#rdMobileMoreSheet").isVisible(),true,label+": more menu opens");
   await assertDocked(page,label+" menu");
