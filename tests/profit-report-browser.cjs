@@ -37,7 +37,7 @@ async function run(browserType,iphone){
         document.querySelector("#rdReports"),{getOrders:()=>window.syntheticOrders});
     });
     await page.locator(".pr-report-link").click();
-    assert.equal((await page.locator(".pr-heading").innerText()).replace(/\s+/g," "), "Отчёты / Прибыль по заказам");
+    assert.equal((await page.locator(".pr-heading").innerText()).replace(/\s+/g," ").trim(), "Отчёты / Прибыль по заказам");
     assert.equal(await page.locator(".pr-heading .pr-back").count(),1);
     assert.equal(await page.locator("#rdReports > .rd-view-title").isVisible(),false,"No duplicate report title when viewing details");
     assert.equal(await page.locator('.pr-controls select[aria-label="Тип даты отчёта"]').inputValue(),"closed");
