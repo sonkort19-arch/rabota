@@ -29,7 +29,14 @@ test("other master and payment discrepancies are not invented as profits",()=>{
 test("summary includes all payments, but only calculable company shares",()=>{
   const rows=[order(),order({id:"b",master:"Алекс",price:5000,paymentAmount:5000}),
     order({id:"c",status:"Записан",paid:false,price:2000,paymentAmount:null})].map(reportRow);
-  assert.deepEqual(summary(rows),{count:3,received:15000,salary:6500,profit:3500,uncalculated:1});
+  assert.deepEqual(summary(rows),{count:3,price:17000,received:15000,salary:6500,profit:3500,uncalculated:1});
+});
+test("totals respect every filtered order, not only the first 100 rendered",()=>{
+  const orders=Array.from({length:132},(_,i)=>reportRow(order({id:String(i),price:10000,paymentAmount:10000})));
+  assert.deepEqual(summary(orders),{
+    count:132,price:1320000,received:1320000,
+    salary:858000,profit:462000,uncalculated:0
+  });
 });
 test("dates follow Moscow local time and all orders remain available",()=>{
   assert.equal(moscowDay("2026-11-18T22:30:00Z"),"2026-11-19");
