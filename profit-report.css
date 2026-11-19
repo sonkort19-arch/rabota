@@ -1,78 +1,126 @@
-/* Owner reports / profit by order. Scope to the report section only. */
-body.rd #rdReports { max-width:1100px; width:100%; }
-body.rd #rdReports .pr-menu { margin-top:8px; }
-body.rd #rdReports .pr-report-link {
-  width:100%;display:flex;align-items:center;justify-content:space-between;
-  min-height:72px;padding:16px 18px;border:1px solid #dce4ef;border-radius:16px;
-  background:#fff;color:#202c42;font:700 17px/1.4 inherit;text-align:left;
-  cursor:pointer;box-shadow:0 3px 12px #172c4a08;
+/* Owner reports use the same permanently LIGHT palette as CRM «Работа».
+   Do not follow the device dark preference: the rest of the CRM is light.
+   Scoped to #rdReports so orders, finance, calendar and the master UI are unchanged. */
+body.rd #rdReports {
+  --pr-bg:var(--ui-surface,#fff);
+  --pr-soft:var(--ui-muted-surface,#f7f7f8);
+  --pr-ink:var(--ui-ink,#202123);
+  --pr-muted:var(--ui-muted,#686b72);
+  --pr-border:var(--ui-border,#e7e7e7);
+  --pr-blue:var(--rd-brand,#4656f5);
+  max-width:1100px;
+  width:100%;
+  min-width:0;
+  color:var(--pr-ink);
+  color-scheme:light;
 }
-body.rd #rdReports .pr-report-arrow {font-size:26px;font-weight:500;color:#4466d9}
-body.rd #rdReports .pr-description {font-size:13px;color:#69768a;margin:9px 5px 0;line-height:1.5}
+body.rd #rdReports .pr-detail[hidden],
+body.rd #rdReports .pr-menu[hidden] {display:none!important}
+body.rd #rdReports .pr-menu {margin-top:8px}
+body.rd #rdReports .pr-report-link {
+  appearance:none;
+  width:100%;display:flex;align-items:center;justify-content:space-between;
+  min-height:72px;padding:16px 18px;
+  border:1px solid var(--pr-border);border-radius:16px;
+  background:var(--pr-bg);color:var(--pr-ink);
+  font:inherit;font-size:16px;font-weight:700;text-align:left;
+  cursor:pointer;box-shadow:0 1px 4px #18264508;
+}
+body.rd #rdReports .pr-report-arrow {font-size:24px;color:var(--pr-blue)}
+body.rd #rdReports .pr-description {font-size:13px;color:var(--pr-muted);margin:9px 5px 0;line-height:1.5}
 body.rd #rdReports .pr-heading {display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:0 0 18px}
-body.rd #rdReports .pr-heading h2 {font-size:21px;font-weight:750;letter-spacing:-.35px;margin:0;color:#192b43}
+body.rd #rdReports .pr-heading h2 {font-size:21px;font-weight:750;letter-spacing:-.35px;margin:0;color:var(--pr-ink)}
 body.rd #rdReports .pr-back,
 body.rd #rdReports .pr-export,
 body.rd #rdReports .pr-more-btn {
   appearance:none;min-height:42px;padding:9px 14px;border-radius:11px;
-  border:1px solid #d5dfed;background:#fff;color:#293c54;
-  font-weight:700;cursor:pointer;
+  border:1px solid var(--pr-border);background:var(--pr-bg);
+  color:var(--pr-ink);font:inherit;font-size:14px;font-weight:650;cursor:pointer;
+  box-shadow:none;
 }
-body.rd #rdReports .pr-back {background:#edf2fb;border:0;color:#3562b8}
+body.rd #rdReports .pr-back {background:var(--pr-soft);border-color:var(--pr-border);color:var(--pr-ink)}
 body.rd #rdReports .pr-controls {
-  display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px;margin:0 0 11px;
+  display:grid;grid-template-columns:repeat(3,minmax(0,1fr));
+  gap:9px;margin:0 0 11px;
 }
 body.rd #rdReports .pr-controls select,
 body.rd #rdReports .pr-controls input,
 body.rd #rdReports .pr-custom input {
-  box-sizing:border-box;min-width:0;width:100%;min-height:44px;padding:10px 12px;
-  border:1px solid #d5deea;border-radius:11px;background:#fff;color:#24354b;
-  font:500 14px/1.35 inherit;
+  appearance:auto;box-sizing:border-box;min-width:0;width:100%;min-height:44px;
+  padding:10px 12px;border:1px solid #dedee1;border-radius:11px;
+  background:var(--pr-bg);color:var(--pr-ink);
+  font:inherit;font-size:14px;font-weight:500;
+  box-shadow:none;color-scheme:light;
 }
+body.rd #rdReports .pr-controls input::placeholder {color:#858890;opacity:1}
 body.rd #rdReports .pr-controls input {grid-column:span 2}
-body.rd #rdReports .pr-export {width:100%;background:#eef3ff;color:#2c59ba}
+body.rd #rdReports .pr-export {width:100%;background:#eff1ff;border-color:#e3e7ff;color:#4055ee}
+body.rd #rdReports .pr-export:hover {background:#e8edff}
 body.rd #rdReports .pr-custom {display:flex;gap:9px;margin:0 0 10px}
 body.rd #rdReports .pr-custom[hidden] {display:none!important}
-body.rd #rdReports .pr-note {font-size:13px;color:#6c7788;margin:12px 0}
+body.rd #rdReports .pr-note {font-size:13px;color:var(--pr-muted);margin:12px 0}
 body.rd #rdReports .pr-scroll {
-  border:1px solid #dce4ee;border-radius:13px;overflow:auto;
-  max-width:100%;background:#fff;overscroll-behavior-x:contain;
+  max-width:100%;overflow-x:auto;overflow-y:auto;overscroll-behavior-x:contain;
+  -webkit-overflow-scrolling:touch;
+  border:1px solid var(--pr-border);border-radius:14px;
+  background:var(--pr-bg);
 }
-body.rd #rdReports .pr-table {width:100%;min-width:865px;border-collapse:separate;border-spacing:0;font-size:13px}
+body.rd #rdReports .pr-table {
+  width:100%;min-width:865px;border-collapse:separate;border-spacing:0;
+  background:var(--pr-bg);color:var(--pr-ink);
+  font:inherit;font-size:13px;table-layout:auto;
+}
 body.rd #rdReports .pr-table th {
-  background:#eef3f9;color:#53647b;font-weight:700;text-align:left;
-  padding:13px 11px;border-bottom:1px solid #dce4ee;white-space:nowrap;
+  padding:13px 11px;white-space:nowrap;text-align:left;
+  background:#f7f8fc;color:#5f6775;
+  font-weight:700;border-bottom:1px solid var(--pr-border);
 }
-body.rd #rdReports .pr-table td {padding:12px 11px;border-bottom:1px solid #e8edf3;color:#2f3f55;vertical-align:top}
-body.rd #rdReports .pr-table td.pr-number {white-space:nowrap;text-align:right;font-variant-numeric:tabular-nums}
+body.rd #rdReports .pr-table td {
+  padding:12px 11px;background:var(--pr-bg);color:var(--pr-ink);
+  border-bottom:1px solid #edeef1;vertical-align:middle;
+}
+body.rd #rdReports .pr-table td.pr-number {
+  white-space:nowrap;text-align:right;font-variant-numeric:tabular-nums
+}
 body.rd #rdReports .pr-table tr:last-child td {border-bottom:0}
 body.rd #rdReports .pr-table th:first-child,
 body.rd #rdReports .pr-table td:first-child {
-  position:sticky;left:0;z-index:1;background:#fff;box-shadow:1px 0 #e4eaf2;
+  position:sticky;left:0;z-index:1;
+  min-width:86px;white-space:nowrap;
+  background:var(--pr-bg);
+  box-shadow:1px 0 #e3e5eb,6px 0 12px -12px #252b3b66;
 }
-body.rd #rdReports .pr-table th:first-child {z-index:2;background:#eef3f9}
-/* HelloClient-like "Итого" row stays directly below the column titles. */
+body.rd #rdReports .pr-table th:first-child {z-index:2;background:#f7f8fc}
 body.rd #rdReports .pr-table .pr-total-row > th,
 body.rd #rdReports .pr-table .pr-total-row > td {
-  background:#eaf0fa;color:#1c304d;font-weight:800;
-  border-bottom:2px solid #cbd8ec;padding-top:15px;padding-bottom:15px;
-  font-variant-numeric:tabular-nums;white-space:nowrap;
+  background:#eef1ff;color:#26335d;font-weight:800;
+  border-bottom:2px solid #dce2f7;
+  padding-top:15px;padding-bottom:15px;
+  white-space:nowrap;font-variant-numeric:tabular-nums;
 }
 body.rd #rdReports .pr-table .pr-total-row > th:first-child {
-  position:sticky;left:0;z-index:3;background:#eaf0fa;
-  box-shadow:1px 0 #d4deed;text-align:left;
+  position:sticky;left:0;z-index:3;background:#eef1ff;
+  box-shadow:1px 0 #dce2f7,6px 0 12px -12px #252b3b66;
 }
-body.rd #rdReports .pr-row-open {border:0;padding:0;background:transparent;color:#3562bf;font:700 13px inherit;cursor:pointer}
+body.rd #rdReports .pr-row-open {
+  border:0;padding:0;background:transparent;
+  color:var(--pr-blue);font:inherit;font-size:13px;
+  font-weight:700;cursor:pointer;
+}
 body.rd #rdReports .pr-row-open[aria-expanded="true"] {text-decoration:underline}
-body.rd #rdReports .pr-table .pr-expanded td {background:#f7f9fc;padding:12px}
+body.rd #rdReports .pr-table .pr-expanded td {
+  background:#f9faff;color:var(--pr-ink);padding:12px;
+}
 body.rd #rdReports .pr-expanded-content {font-size:12px;line-height:1.6;max-width:770px}
-body.rd #rdReports .pr-table .pr-empty {text-align:center;padding:30px;color:#738095}
+body.rd #rdReports .pr-table .pr-empty {text-align:center;padding:30px;color:var(--pr-muted)}
 body.rd #rdReports .pr-more {display:flex;justify-content:center;margin:12px 0}
-body.rd #rdReports .pr-explain {font-size:12px;line-height:1.65;color:#6f7b8d;margin:12px 0 0}
+body.rd #rdReports .pr-explain {font-size:12px;line-height:1.65;color:var(--pr-muted);margin:12px 0 0}
 body.rd #rdReports .pr-report-link:focus-visible,
 body.rd #rdReports button:focus-visible,
 body.rd #rdReports input:focus-visible,
-body.rd #rdReports select:focus-visible {outline:2px solid #4879e3;outline-offset:2px}
+body.rd #rdReports select:focus-visible {
+  outline:2px solid var(--pr-blue);outline-offset:2px;
+}
 @media(max-width:790px) {
   body.rd #appScreen.rd-view-reports {padding-bottom:calc(95px + env(safe-area-inset-bottom))}
   body.rd #rdReports .pr-heading {gap:8px}
@@ -80,25 +128,8 @@ body.rd #rdReports select:focus-visible {outline:2px solid #4879e3;outline-offse
   body.rd #rdReports .pr-controls {grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
   body.rd #rdReports .pr-controls input {grid-column:span 2}
   body.rd #rdReports .pr-controls .pr-export {grid-column:span 2}
-}
-@media(prefers-color-scheme:dark) {
-  body.rd:not(.theme-light) #rdReports .pr-report-link,
-  body.rd:not(.theme-light) #rdReports .pr-scroll,
-  body.rd:not(.theme-light) #rdReports .pr-table td:first-child,
-  body.rd:not(.theme-light) #rdReports .pr-controls select,
-  body.rd:not(.theme-light) #rdReports .pr-controls input,
-  body.rd:not(.theme-light) #rdReports .pr-custom input {
-    background:#1b2534;color:#eff4fc;border-color:#354358;
-  }
-  body.rd:not(.theme-light) #rdReports .pr-table th,
-  body.rd:not(.theme-light) #rdReports .pr-table th:first-child {background:#28364b;color:#c2d0e5}
-  body.rd:not(.theme-light) #rdReports .pr-table td {color:#e0e8f4;border-color:#354358}
-  body.rd:not(.theme-light) #rdReports .pr-table .pr-total-row > th,
-  body.rd:not(.theme-light) #rdReports .pr-table .pr-total-row > td {
-    background:#2b3950;color:#f1f6ff;border-bottom-color:#445778;
-  }
-  body.rd:not(.theme-light) #rdReports .pr-table .pr-total-row > th:first-child {
-    background:#2b3950;box-shadow:1px 0 #445778;
-  }
-  body.rd:not(.theme-light) #rdReports .pr-heading h2 {color:#f0f5ff}
+  body.rd #rdReports .pr-table th,
+  body.rd #rdReports .pr-table td {padding:13px 10px}
+  body.rd #rdReports .pr-table th:first-child,
+  body.rd #rdReports .pr-table td:first-child {min-width:78px}
 }
