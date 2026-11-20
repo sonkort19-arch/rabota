@@ -539,7 +539,7 @@ body.rd #appScreen.rd-master.master-mode #orders .mw-filter-empty{
     z-index:96;
     top:calc(var(--master-sticky-safe, env(safe-area-inset-top, 0px)) + 5px);
     left:max(10px, calc((100vw - 670px) / 2 + 10px));
-    right:max(123px, calc((100vw - 670px) / 2 + 123px));
+    right:max(151px, calc((100vw - 670px) / 2 + 151px));
     box-sizing:border-box;
     width:auto;
     max-width:none;
