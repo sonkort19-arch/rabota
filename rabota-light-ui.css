@@ -1,0 +1,177 @@
+/* Rabota Light UI — Figma concept, 2026-11-21.
+   Presentation layer only; keep role checks, real values, workload colors,
+   hidden attributes, layout breakpoints and all existing click handlers. */
+:root {
+  color-scheme: light;
+  --rabota-bg:#f7f8fa;
+  --rabota-paper:#fff;
+  --rabota-ink:#182230;
+  --rabota-muted:#627083;
+  --rabota-line:#e6eaf0;
+  --rabota-blue:#175ce8;
+  --rabota-blue-hover:#124dc6;
+  --rabota-blue-soft:#eaf1ff;
+  --rabota-green:#17834d;
+  --rabota-green-soft:#eaf6ee;
+  --rabota-red:#ac3936;
+  --rabota-red-soft:#fceeee;
+  --rabota-neutral:#e9edf2;
+  --rabota-radius:12px;
+  background:var(--rabota-bg);
+  color:var(--rabota-ink);
+}
+body.rd {
+  --ui-bg:var(--rabota-bg);
+  --ui-sidebar:var(--rabota-paper);
+  --ui-surface:var(--rabota-paper);
+  --ui-muted-surface:var(--rabota-bg);
+  --ui-hover:var(--rabota-blue-soft);
+  --ui-border:var(--rabota-line);
+  --ui-ink:var(--rabota-ink);
+  --ui-muted:var(--rabota-muted);
+  --ui-link:var(--rabota-blue);
+  --ui-accent:var(--rabota-blue);
+  --rd-ink:var(--rabota-ink);
+  --rd-secondary:var(--rabota-muted);
+  --rd-brand:var(--rabota-blue);
+  --rd-line:var(--rabota-line);
+  --rd-paper:var(--rabota-paper);
+  --rd-soft:var(--rabota-blue-soft);
+  --rd-shadow:none;
+  background:var(--rabota-bg);
+  color:var(--rabota-ink);
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;
+}
+body.rd #appScreen{color:var(--rabota-ink)}
+body.rd :is(.rd-view-title,.rd-panel-heading h2,.finance-title,.mw-heading){color:var(--rabota-ink);letter-spacing:-.45px}
+body.rd :is(.rd-view-title,.mw-settings-title){font-weight:750}
+body.rd :is(.muted,.count,.rd-view-subtitle,.finance-hero-label,.finance-hero-sub){color:var(--rabota-muted)}
+body.rd :is(.rd-primary,.primary),.wa-settings-save{
+  background:var(--rabota-blue);color:#fff;border-color:transparent;
+  border-radius:var(--rabota-radius);box-shadow:none;
+}
+body.rd :is(.rd-primary,.primary):hover,.wa-settings-save:hover{background:var(--rabota-blue-hover);color:#fff}
+body.rd :is(.rd-primary,.primary):disabled{opacity:.65}
+body.rd :is(.rd-panel,.panel,.rd-client,.rd-stat,.rd-home-paid-summary,.rd-home-metric,.finance-hero,.finance-entry,.finance-activity,.team-item,.order-card,.master-schedule-card,.wa-template-card){
+  border-color:var(--rabota-line);background:var(--rabota-paper);
+  border-radius:var(--rabota-radius);box-shadow:none;
+}
+body.rd :is(.secondary,.rd-secondary,.rd-quick,.compact-select,.calendar-date){
+  border-color:var(--rabota-line);background:var(--rabota-paper);color:var(--rabota-ink);box-shadow:none;
+}
+body.rd :is(.rd-quick,.rd-client button,.action:not(.wa)){color:var(--rabota-blue);background:var(--rabota-blue-soft);border-color:transparent;box-shadow:none}
+body.rd :is(.rd-nav-btn,.mw-nav-btn){color:var(--rabota-muted);box-shadow:none}
+body.rd :is(.rd-shell,.rd-top,.rd-mobilebar),body.rd .mw-bottom-nav{
+  background:#fff;border-color:var(--rabota-line);box-shadow:none;
+}
+body.rd .rd-nav-btn[aria-current="page"],body.rd .rd-mobilebar .rd-nav-btn[aria-current="page"],body.rd .mw-nav-btn.is-active{
+  color:var(--rabota-blue);background:var(--rabota-blue-soft);border-color:transparent;
+}
+body.rd .rd-nav-btn[aria-current="page"] .rd-icon,body.rd .rd-mobilebar .rd-nav-btn[aria-current="page"] .rd-icon{color:var(--rabota-blue)}
+/* Preserve zero-height searchless header: do not paint an empty bar. */
+body.rd #appScreen.rd-no-global-search:not(.rd-master)>.rd-top{background:transparent;border:0;box-shadow:none}
+body.rd :is(.rd-more-sheet:not([hidden]),.sheet,.rd-order-sheet,.mw-order-modal){background:#fff;color:var(--rabota-ink);border-color:var(--rabota-line)}
+body.rd :is(.rd-profile-trigger,.rd-user-dot){box-shadow:none}
+body.rd #appScreen.rd-owner .owner-status-chip{border-color:var(--rabota-line);border-radius:10px}
+body.rd #appScreen.rd-owner .owner-status-chip.active{color:var(--rabota-blue);background:var(--rabota-blue-soft);border-color:#b8cdfc}
+/* Owner calendar: a flat week strip and actual schedule, no duplicate cards. */
+body.rd #rdCalendarBoard.rd-calendar-panel{
+  border:0;border-radius:0;background:transparent;box-shadow:none;padding:10px 0;
+}
+body.rd #rdCalendarBoard .rd-day-chip{
+  background:transparent;border-color:transparent;box-shadow:none;border-radius:10px;
+  color:var(--rabota-muted);min-height:54px;padding:6px 2px;
+}
+body.rd #rdCalendarBoard .rd-day-chip strong{color:var(--rabota-ink);font-size:16px}
+body.rd #rdCalendarBoard .rd-day-chip.is-selected{
+  background:var(--rabota-blue);border-color:var(--rabota-blue);color:#fff;box-shadow:none;
+}
+body.rd #rdCalendarBoard .rd-day-chip.is-selected :is(strong,small,span){color:#fff}
+body.rd #rdCalendarBoard .rd-selected-heading h3{color:var(--rabota-ink);font-size:19px}
+body.rd #rdCalendarBoard .rd-mobile-event.rd-cal-collapsible{
+  border:0;border-left:4px solid var(--rabota-red);
+  border-radius:var(--rabota-radius);background:var(--rabota-red-soft);box-shadow:none;margin:7px 0;
+}
+body.rd #rdCalendarBoard .rd-mobile-event.rd-cal-collapsible.is-booked{border-left-color:var(--rabota-red);background:var(--rabota-red-soft)}
+body.rd #rdCalendarBoard .rd-mobile-event.rd-cal-collapsible.is-progress{border-left-color:#b36a16;background:#fff5e6}
+body.rd #rdCalendarBoard .rd-mobile-event.rd-cal-collapsible.is-done{border-left-color:#8995a6;background:var(--rabota-neutral)}
+body.rd #rdCalendarBoard .rd-mobile-event.rd-cal-collapsible .rd-cal-summary-time{color:var(--rabota-ink)}
+body.rd #rdCalendarBoard .rd-mobile-event.rd-cal-collapsible.is-booked .rd-cal-summary-time{color:var(--rabota-red)}
+body.rd #rdCalendarBoard .rd-cal-summary-name{color:var(--rabota-ink);font-size:15px}
+body.rd #rdCalendarBoard .rd-cal-summary-brief{color:var(--rabota-muted);font-size:12px}
+body.rd #rdCalendarBoard .rd-cal-summary-price{color:var(--rabota-ink)}
+/* Master workload: preserve green/yellow/orange/red/grey, and selected-day ring. */
+body.rd #appScreen.rd-master.master-mode #calendarPanel{
+  padding:8px 0 10px;border:0;border-bottom:1px solid var(--rabota-line);
+  border-radius:0;background:transparent;box-shadow:none;
+}
+body.rd #appScreen.rd-master.master-mode #calendarPanel .nav .secondary{background:transparent;border-color:var(--rabota-line);color:var(--rabota-ink)}
+body.rd #appScreen.rd-master.master-mode #calendarPanel.master-calendar-compact .week .day.workload-free{background:#eaf6ee;border-color:#d1e9da;color:#17663b}
+body.rd #appScreen.rd-master.master-mode #calendarPanel.master-calendar-compact .week .day.workload-light{background:#fff4d6;border-color:#f4e1aa;color:#76520b}
+body.rd #appScreen.rd-master.master-mode #calendarPanel.master-calendar-compact .week .day.workload-busy{background:#ffead7;border-color:#f4cfae;color:#914710}
+body.rd #appScreen.rd-master.master-mode #calendarPanel.master-calendar-compact .week .day.workload-full{background:var(--rabota-red-soft);border-color:#efc6c5;color:var(--rabota-red)}
+body.rd #appScreen.rd-master.master-mode #calendarPanel.master-calendar-compact .week .day.workload-completed{background:var(--rabota-neutral);border-color:#d5dce6;color:#475569}
+body.rd #appScreen.rd-master.master-mode #calendarPanel.master-calendar-compact .week .day[class*="workload-"] .weekday{color:inherit}
+body.rd #appScreen.rd-master.master-mode #calendarPanel.master-calendar-compact .week .day.active[class*="workload-"]{border:2px solid var(--rabota-blue);box-shadow:none}
+body.rd #appScreen.rd-master.master-mode .master-next-jump.master-next-compact{background:var(--rabota-blue-soft);border-radius:10px;box-shadow:none}
+body.rd #appScreen.rd-master.master-mode .master-next-compact .master-next-value{color:var(--rabota-ink)}
+/* Both owner and master order lists keep every status, price and action. */
+body.rd #appScreen.rd-view-orders #orders>.order-card.rd-list-row,
+body.rd #appScreen.rd-master.master-mode .master-schedule-card{
+  border:1px solid var(--rabota-line);border-radius:12px;box-shadow:none;background:#fff;
+}
+body.rd #appScreen.rd-view-orders #orders>.order-card.rd-list-row:hover,
+body.rd #appScreen.rd-view-orders #orders>.order-card.rd-list-row.is-open{box-shadow:none;border-color:#c8d6f1}
+body.rd #appScreen.rd-master.master-mode .master-schedule-card.is-next{border-color:#b8cdfc}
+body.rd #appScreen.rd-master.master-mode .master-schedule-card .master-schedule-toggle{
+  background:#fff;color:var(--rabota-ink);box-shadow:none;
+}
+body.rd #appScreen.rd-master.master-mode .master-schedule-card.is-expanded .master-schedule-toggle{background:var(--rabota-bg)}
+body.rd #appScreen.rd-master.master-mode .master-schedule-card[data-status="Выполнен"] .master-schedule-toggle{background:var(--rabota-neutral)}
+body.rd #appScreen.rd-master.master-mode :is(.master-schedule-time,.master-schedule-price),
+body.rd #orders .rd-list-price strong{color:var(--rabota-ink);font-variant-numeric:tabular-nums}
+body.rd #appScreen.rd-master.master-mode .master-schedule-name,body.rd #orders .rd-list-name{color:var(--rabota-ink)}
+body.rd #appScreen.rd-master.master-mode .master-schedule-address,body.rd #orders .rd-list-address{color:var(--rabota-muted)}
+body.rd #orders .rd-list-avatar,body.rd #appScreen.rd-master.master-mode .master-schedule-avatar{background:var(--rabota-blue-soft);color:var(--rabota-blue);box-shadow:none}
+body.rd .master-order-sheet :is(.master-sheet-spec,.master-sheet-price){border-color:var(--rabota-line);border-radius:12px;background:var(--rabota-bg);box-shadow:none}
+body.rd .master-order-sheet .master-sheet-price-value{color:var(--rabota-ink);font-variant-numeric:tabular-nums}
+body.rd .master-order-sheet .master-action.primary{background:var(--rabota-blue);box-shadow:none}
+body.rd #orderOverlay.master-quick #orderForm :is(.mq-client-field,.mq-quantity-field,.mq-price-wrap){border-color:var(--rabota-line);box-shadow:none}
+body.rd #orderOverlay.master-quick #orderForm .oa-week-day.is-selected{background:var(--rabota-blue);border-color:var(--rabota-blue);box-shadow:none}
+body.rd #orderOverlay.master-quick #orderForm .order-submit-bar .save{background:var(--rabota-blue);box-shadow:none}
+body.rd #orderOverlay .sheet{border-color:var(--rabota-line)}
+/* Finance, reports, leads and settings: same light tokens, figures stay real. */
+body.rd .finance-hero-primary{background:var(--rabota-blue);border-color:var(--rabota-blue)}
+body.rd .finance-hero-primary :is(.finance-hero-label,.finance-hero-value,.finance-hero-sub){color:#fff}
+body.rd :is(#financePanel,#rdSalaryReport) .fp-balance-hero,body.rd .mw-salary-hero{
+  background:var(--rabota-paper);border:1px solid var(--rabota-line);border-radius:12px;box-shadow:none;
+}
+body.rd .mw-wallet-action{background:var(--rabota-blue);box-shadow:none}
+body.rd :is(#financePanel,#rdSalaryReport) .fp-person-summary-item{border-color:var(--rabota-line);box-shadow:none}
+body.rd :is(#rdReports,.pr-report-scope){--pr-blue:var(--rabota-blue);--pr-bg:#fff;--pr-soft:var(--rabota-bg);--pr-ink:var(--rabota-ink);--pr-muted:var(--rabota-muted);--pr-border:var(--rabota-line)}
+body.rd :is(#rdReports,.pr-report-scope) .pr-report-link{
+  background:#fff;border-color:var(--rabota-line);border-radius:12px;box-shadow:none;
+}
+body.rd #rdReports .rd-report-section-items{border-color:var(--rabota-line);border-radius:12px;box-shadow:none}
+body.rd :is(#rdReports,.pr-report-scope) .pr-export{background:var(--rabota-blue-soft);color:var(--rabota-blue);border-color:transparent}
+body.rd .mw-entry,body.rd .wa-settings-entry{border-color:var(--rabota-line);border-radius:12px;box-shadow:none;background:#fff}
+body.rd .mw-entry-icon{background:var(--rabota-blue-soft);color:var(--rabota-blue)}
+body.rd #rdLeadsMount .la-summary-item{background:#fff;border-color:var(--rabota-line);box-shadow:none;border-radius:12px}
+body.rd #rdLeadsMount .la-primary{background:var(--rabota-blue);color:#fff;box-shadow:none}
+body.rd :is(button,a,input,select,textarea):focus-visible{outline-color:var(--rabota-blue)}
+@media(max-width:790px){
+  body.rd :is(.rd-view-title,.mw-heading){font-size:24px;line-height:1.2}
+  body.rd #appScreen.rd-master.master-mode #calendarPanel .week .day{border-radius:10px}
+  body.rd #appScreen.rd-master.master-mode #ordersArea>#newOrderBtn,
+  body.rd #appScreen.rd-owner.rd-view-orders #ordersArea>#newOrderBtn{
+    width:54px;min-width:54px;max-width:54px;height:54px;min-height:54px;
+    padding:0;gap:0;border-radius:50%;background:var(--rabota-blue);box-shadow:0 3px 10px #175ce82b;
+  }
+  body.rd #appScreen.rd-master.master-mode #ordersArea>#newOrderBtn .new-order-label,
+  body.rd #appScreen.rd-owner.rd-view-orders #ordersArea>#newOrderBtn .new-order-label{display:none}
+  body.rd #appScreen.rd-master.master-mode #ordersArea>#newOrderBtn .plus,
+  body.rd #appScreen.rd-owner.rd-view-orders #ordersArea>#newOrderBtn .plus{margin:0;font-size:32px;line-height:1;font-weight:400}
+  body.rd .rd-mobilebar .rd-nav-btn[aria-current="page"],body.rd .mw-nav-btn.is-active{background:transparent;color:var(--rabota-blue)}
+  body.rd .rd-mobilebar .rd-nav-btn,body.rd .mw-nav-btn{border-radius:8px;min-height:48px}
+  body.rd #rdCalendarBoard .rd-day-chip{flex:1 0 42px;min-width:42px}
+}
