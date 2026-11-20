@@ -19,7 +19,7 @@ const fixture=[
 '<div class="master-header-actions"><section id="masterPushPanel" class="push-panel push-compact">',
 '<button class="push-bell" aria-label="Уведомления">☼</button></section><button class="secondary" id="logoutBtn">Выйти</button></div></header>',
 '<div class="sync-note" id="syncStatus">Обновлено 17:33</div><div id="ordersArea">',
-'<section class="mw-master-filterbar"><input class="mw-filter-search" placeholder="Поиск по заказам"><div class="mw-status-filters">',
+'<section id="mwMasterFilterbar" class="mw-master-filterbar"><input class="mw-filter-search" placeholder="Поиск по заказам"><div class="mw-status-filters">',
 ...["Все","Записаны","В работе","Выполнены","Отменены"].map(label=>'<button type="button" class="mw-filter-chip" aria-label="Фильтр: '+label+'"><span class="mw-filter-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="22" height="22"><circle cx="12" cy="12" r="9"></circle></svg></span></button>'),
 '</div></section>',
 '<button class="primary new-order" id="newOrderBtn"><span class="plus">+</span>Новый заказ</button>',
