@@ -127,10 +127,15 @@ try{
     const r=selector=>document.querySelector(selector).getBoundingClientRect();
     const display=selector=>getComputedStyle(document.querySelector(selector)).display;
     const view=r("#appScreen"),topbar=r("#appScreen > header"),search=r(".mw-filter-search");
+    const bellRect=r(".push-bell"), profileRect=r("#logoutBtn");
+    const chipRect=r(".mw-status-filters"),searchBox=r(".mw-filter-search");
     return {brand:display("#masterBrand"),title:display(".master-header-info"),
       listTitle:display("#listTitle"),count:display("#orderCount"),
       toolbar:topbar.height,searchTop:search.top,headerBottom:topbar.bottom,
-      bell:r(".push-bell").height,logout:r("#logoutBtn").height,
+      searchRight:searchBox.right,bellLeft:bellRect.left,
+      statusTop:chipRect.top,searchBottom:searchBox.bottom,
+      bellTop:bellRect.top,profileTop:profileRect.top,
+      bell:bellRect.height,logout:profileRect.height,
       appWidth:view.width,scrollWidth:document.documentElement.scrollWidth,
       viewportWidth:document.documentElement.clientWidth};
   });
@@ -138,9 +143,13 @@ try{
   assert.equal(clean.title,"none","orders remove upper heading at "+width);
   assert.equal(clean.listTitle,"none","orders hide duplicate list heading at "+width);
   assert.notEqual(clean.count,"none","order counter stays visible at "+width);
-  assert.ok(clean.toolbar>=53&&clean.toolbar<=57,"single-row fixed header at "+width+": "+clean.toolbar);
-  assert.ok(clean.searchTop>=clean.headerBottom-1&&clean.searchTop-clean.headerBottom<35,
-    "no redundant header gap above search at "+width+": "+JSON.stringify(clean));
+  assert.ok(clean.toolbar<=1,"empty header must occupy zero height at "+width+": "+JSON.stringify(clean));
+  assert.ok(Math.abs(clean.searchTop-clean.bellTop)<8&&Math.abs(clean.searchTop-clean.profileTop)<8,
+    "search, bell, profile share one row at "+width+": "+JSON.stringify(clean));
+  assert.ok(clean.searchRight<=clean.bellLeft-5,
+    "search must not overlap notification button at "+width+": "+JSON.stringify(clean));
+  assert.ok(clean.statusTop>=clean.searchBottom-2&&clean.statusTop-clean.searchBottom<28,
+    "status icons follow the top row without blank strip at "+width+": "+JSON.stringify(clean));
   assert.ok(clean.bell>=43.5&&clean.logout>=43.5,"alerts and profile remain tappable at "+width);
   assert.ok(clean.scrollWidth<=clean.viewportWidth+1,"no horizontal overflow with clean header at "+width);
 
