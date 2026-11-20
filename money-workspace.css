@@ -507,3 +507,54 @@ body.rd #appScreen.rd-master.master-mode #orders .mw-filter-empty{
   outline:2px solid #4e6fdb;outline-offset:2px;
 }
 .rd-order-reference-slot:empty{display:none}
+
+
+/* Raul orders, iPhone: one useful top row, not an empty sticky header.
+   Put search beside the existing bell and profile. Only the orders view
+   changes; money, reports, settings and owner/manager are unaffected. */
+@media (max-width:790px) {
+  html.rd-master-scroll-locked body.rd #appScreen.rd-master.master-mode.mw-orders-minimal-header:not([hidden]) {
+    --master-brand-height:0px;
+    --master-heading-height:48px;
+  }
+  html.rd-master-scroll-locked body.rd #appScreen.rd-master.master-mode.mw-orders-minimal-header:not([hidden]) > header {
+    height:0!important;
+    min-height:0!important;
+    margin:0!important;
+    padding:0!important;
+    background:transparent!important;
+    border:0!important;
+    box-shadow:none!important;
+    pointer-events:none;
+  }
+  html.rd-master-scroll-locked body.rd #appScreen.rd-master.master-mode.mw-orders-minimal-header > header .master-header-actions {
+    position:absolute;
+    top:4px;
+    right:10px;
+    z-index:135;
+    pointer-events:auto;
+  }
+  html.rd-master-scroll-locked body.rd #appScreen.rd-master.master-mode.mw-orders-minimal-header #mwMasterFilterbar .mw-filter-search {
+    position:fixed;
+    z-index:96;
+    top:calc(var(--master-sticky-safe, env(safe-area-inset-top, 0px)) + 5px);
+    left:max(10px, calc((100vw - 670px) / 2 + 10px));
+    right:max(123px, calc((100vw - 670px) / 2 + 123px));
+    box-sizing:border-box;
+    width:auto;
+    max-width:none;
+    height:43px;
+    min-height:43px;
+    margin:0;
+    padding:8px 11px;
+    border-radius:12px;
+    pointer-events:auto;
+  }
+  html.rd-master-scroll-locked body.rd #appScreen.rd-master.master-mode.mw-orders-minimal-header #mwMasterFilterbar .mw-status-filters {
+    margin-top:0;
+  }
+  /* The fixed shield is now only as tall as the occupied, single header row. */
+  html.rd-master-scroll-locked body.rd #appScreen.rd-master.master-mode.mw-orders-minimal-header:not([hidden])::before {
+    height:calc(var(--master-sticky-safe, env(safe-area-inset-top, 0px)) + 50px);
+  }
+}
