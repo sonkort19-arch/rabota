@@ -137,7 +137,7 @@
     el.value=initial;el.addEventListener("change",()=>changed(el.value));
     return el;
   }
-  function mount(rootEl,{getOrders,getRaulMasterId=null,startOpen=false,onBack=null}){
+  function mount(rootEl,{getOrders,getRaulMasterId=null,getFinanceStatus=null,startOpen=false,onBack=null}){
     if(!rootEl||typeof getOrders!=="function")throw Error("Отчёт не может загрузиться");
     rootEl.classList.add("pr-report-scope");
     const state={open:false,period:"month",basis:"closed",status:"",search:"",from:"",to:"",visible:PAGE_SIZE};
@@ -222,6 +222,15 @@
     function redraw(){state.visible=PAGE_SIZE;render()}
     function render(){
       if(!state.open)return;
+      const finance=getFinanceStatus?.();
+      const unavailable=Boolean(finance?.loading||finance?.error);
+      scroll.hidden=unavailable;download.disabled=unavailable;
+      if(unavailable){
+        tbody.replaceChildren();more.replaceChildren();
+        caption.textContent=finance.error?"Не удалось загрузить расчёты. "+finance.error:"Загружаем данные отчёта…";
+        caption.setAttribute("role",finance.error?"alert":"status");return;
+      }
+      caption.removeAttribute("role");
       const rows=queryRows();
       const totals=summary(rows);
       caption.textContent="Показаны "+Math.min(state.visible,rows.length)+" из "+rows.length+

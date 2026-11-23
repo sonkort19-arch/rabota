@@ -190,11 +190,13 @@
   });
   window.__rdRefreshMasterNotices=loadUnread;
   window.__rdDisableMasterPush=disablePush;
+  let initializedUser=null;
   window.__rdInitMasterPush=()=>{
-    if(currentRole!=="master")return;
+    if(currentRole!=="master"||!currentUser?.id||initializedUser===currentUser.id)return;
+    initializedUser=currentUser.id;
     syncToggle();
     loadUnread().catch(err=>feedback(friendlyError(err),true));
   };
   // In case login completed before this external script loaded.
-  if(currentRole==="master"&&currentUser)window.__rdInitMasterPush();
+  if(document.getElementById("appScreen")?.hidden===false)window.__rdInitMasterPush();
 })();

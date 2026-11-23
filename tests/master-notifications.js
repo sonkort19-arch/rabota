@@ -11,7 +11,7 @@ const css=fs.readFileSync(path.join(__dirname,"..","master-notifications.css"),"
 assert.doesNotThrow(()=>new Function(src));
 assert(html.includes('id="pushUnreadCount"')&&html.includes('id="pushPopover"'));
 assert(html.includes('id="pushToggle" type="checkbox" role="switch"'));
-assert(html.includes('src="/master-notifications.js?v=20261117-review-v1"'));
+assert.match(html,/src="\/master-notifications\.js\?v=[\w-]+"/);
 assert(html.indexOf('id="masterPushPanel"')>html.indexOf('<main id="appScreen"'));
 assert(html.indexOf('id="masterPushPanel"')<html.indexOf('</header>'),"bell stays in header");
 assert(html.indexOf('id="pushToggle"')>html.indexOf('id="pushPopover"'),"push toggle inside popup");
@@ -31,7 +31,7 @@ class Element{
   contains(){return true;}
 }
 async function run(){
-  const ids=["masterPushPanel","pushBellBtn","pushPopover","pushToggle","pushUnreadCount","recentNotificationList","testPushBtn","pushToggleText","pushStatus","closePushPopover","masterStatusReviewList"];
+  const ids=["appScreen","masterPushPanel","pushBellBtn","pushPopover","pushToggle","pushUnreadCount","recentNotificationList","testPushBtn","pushToggleText","pushStatus","closePushPopover","masterStatusReviewList"];
   const els=Object.fromEntries(ids.map(id=>[id,new Element(id)]));
   const doc={getElementById:id=>els[id],addEventListener(){}};
   let messages=[
@@ -52,8 +52,9 @@ async function run(){
   }};
   const navigator={userAgent:"iPhone",standalone:true,serviceWorker:{getRegistration:async()=>reg,register:async()=>reg,ready:Promise.resolve(reg)}};
   const window={isSecureContext:true,matchMedia:()=>({matches:true}),PushManager:function(){},Notification:function(){}};
+  let notificationReads=0;
   const dbRequest=async(request,method)=>{
-    if(request.includes("rabota_order_notifications")&&method==="GET")return messages;
+    if(request.includes("rabota_order_notifications")&&method==="GET"){notificationReads++;return messages;}
     if(request.includes("rabota_order_notifications")&&method==="PATCH"){
       const message=messages.find(m=>request.includes("id=eq."+m.id));
       if(!message)return [];
@@ -76,6 +77,8 @@ async function run(){
     atob:base64=>Buffer.from(base64,"base64").toString("binary"),Uint8Array
   };
   new Function(...Object.keys(vars),src)(...Object.values(vars));
+  window.__rdInitMasterPush();
+  assert.equal(notificationReads,1,"Late script initialization and access hook share one initial fetch");
   await window.__rdRefreshMasterNotices();
   assert.equal(els.pushUnreadCount.textContent,"5","3 new + 2 overdue");
   assert.equal(els.masterStatusReviewList.hidden,false);

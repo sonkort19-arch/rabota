@@ -33,7 +33,7 @@
   const token=()=>{if(typeof window.crypto?.randomUUID!=="function")throw Error("Браузер не поддерживает безопасный идентификатор операции");return window.crypto.randomUUID()};
   const isPreview=()=>/^rabota-[a-z0-9]{7,}-sonkort19-6069s-projects\.vercel\.app$/i.test(String(window.location?.hostname||""));
   let page="day",step="menu",salaryTab="accruals",masterReady=false,masterProfitReport=null;
-  let orderQuery="",orderStatus="all",paymentMethod="all";
+  let orderQuery="",orderStatus="all",paymentMethod="all",navigationUser=null;
   let paymentBreakdownOpen=false, handoffMessage="", handoffRefreshError="";
   const paymentCurrency=new Intl.NumberFormat("ru-RU",{style:"currency",currency:"RUB",
     minimumFractionDigits:2,maximumFractionDigits:2,trailingZeroDisplay:"stripIfInteger"});
@@ -310,6 +310,11 @@
     }
   }
 
+  function showFinanceLoading(root){
+    const message=el("p","mw-help","Загружаем финансовые данные…");
+    message.setAttribute("role","status");
+    root.replaceChildren(message);
+  }
   function renderMasterPayments(){
     const root=$("mwMasterPayments");if(!root||root.hidden)return;
     const cards=document.createDocumentFragment();
@@ -321,6 +326,7 @@
       const message=el("p","mw-error",error.message||"Не удалось загрузить платежи.");
       message.setAttribute("role","alert");root.replaceChildren(message);return;
     }
+    if(m.loading&&!m.error){showFinanceLoading(root);return;}
     const dataError=m.error||handoffRefreshError;
     if(handoffMessage){
       const status=el("p","mw-handoff-status",handoffMessage);
@@ -386,6 +392,11 @@
     const root=$("mwMasterReports");if(!root||root.hidden)return;
     const m=api()?.snapshot();
     if(!m||m.role!=="master")return;
+    if(m.loading&&!m.error){showFinanceLoading(root);return;}
+    if(m.error&&!m.masterId){
+      const message=el("p","mw-error","Не удалось загрузить расчёты. "+m.error);
+      message.setAttribute("role","alert");root.replaceChildren(message);return;
+    }
     if(step==="orderProfit"&&masterProfitReport?.container?.isConnected){
       masterProfitReport.api.render();return;
     }
@@ -623,14 +634,19 @@
     if(page==="reports"&&step==="orderProfit")masterProfitReport?.api.render();
   };
   window.__rdMoneyAccess=()=>{
-    const isMaster=api()?.snapshot()?.role==="master";
-    if(isMaster){
+    const member=api()?.snapshot();
+    if(member?.role==="master"){
+      const user=typeof currentUser!=="undefined"&&currentUser?.id||member.masterName||"master";
+      if(masterReady&&navigationUser===user)return;
       setupMaster();
+      if(!masterReady)return;
+      navigationUser=user;
       const nav=$("mwMasterNav");if(nav)nav.hidden=false;
       page="day";step="menu";paymentMethod="all";paymentBreakdownOpen=false;
       handoffMessage="";handoffRefreshError="";
       switchPage("day",false);
     }else{
+      navigationUser=null;
       $("appScreen")?.classList.remove("mw-orders-minimal-header");
       $("appScreen")?.classList.remove("mw-payments-header");
       const nav=$("mwMasterNav"),reports=$("mwMasterReports"),
@@ -658,4 +674,5 @@
     }
   };
   window.__rdPaymentsRender=ownerPayments;
+  if($("appScreen")?.hidden===false)window.__rdMoneyAccess();
 })();
