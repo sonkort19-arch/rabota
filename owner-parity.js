@@ -3,7 +3,7 @@
 "use strict";
 (()=>{
   const $=id=>document.getElementById(id);
-  const owner=()=>!!$("appScreen")?.classList.contains("rd-owner");
+  const owner=()=>!!$("appScreen")?.matches(".rd-owner,.rd-manager");
   const statuses=[
     ["","Все",'M4 7h16M4 12h16M4 17h16'],
     ["Записан","Записаны",'M7 3v4M17 3v4M3 10h18M8 15l2 2 4-4'],
@@ -85,6 +85,7 @@
     const root=$("orders");
     if(!root||window.__rdCurrentPage!=="orders")return;
     root.querySelectorAll(":scope > .owner-day-heading").forEach(node=>node.remove());
+    if(window.__rdOrdersWorkspace?.isActive()&&currentTab==="calendar")return;
     const rows=[...root.querySelectorAll(":scope > .rd-list-row")]
       .filter(card=>!card.hidden);
     const counts=new Map();
@@ -96,7 +97,7 @@
       seen.add(key);
       const group=make("div","owner-day-heading");
       const label=make("strong","owner-day-label",formatDay(key));
-      const count=make("small","owner-day-count",counts.get(key)+" "+(counts.get(key)===1?"заказ":"заказов"));
+      const count=make("small","owner-day-count",masterOrderCount(counts.get(key)));
       group.append(label,count);
       root.insertBefore(group,row);
     }

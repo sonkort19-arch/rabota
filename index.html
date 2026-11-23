@@ -494,6 +494,7 @@
   <!-- Reports inherit the final light CRM palette, including on dark-mode iPhones. -->
   <link rel="stylesheet" href="/profit-report.css?v=20261120-breadcrumb-v1">
   <link rel="stylesheet" href="/contextual-search.css?v=20261120-raul-parity-v4">
+  <link rel="stylesheet" href="/orders-workspace.css?v=20261124-unified-v1">
 </head>
 <body>
 
@@ -856,7 +857,7 @@
   <script src="/order-sync.js?v=20261113-stage2"></script>
   <script src="/order-model.js?v=20261118-client-source-v1"></script>
   <script src="/calendar-load.js?v=20261117-completed-v1"></script>
-   <script src="/calendar-model.js?v=20261117-month-view-v1"></script>
+   <script src="/calendar-model.js?v=20261124-unified-v1"></script>
   <script src="/finance-model.js?v=20261124-handoff"></script>
   <script src="/master-ui.js?v=20261124-handoff"></script>
   <script src="/lead-ai-bridge.js?v=20261113-stage7"></script>
@@ -934,14 +935,15 @@
     function formatDate(value) {return window.__rdCalendarUtils.formatDate(value);}
     const calendarModule=window.__rdCreateCalendarModule({
       elements:{calendarDate,weekDays,ordersWeekDays,ordersDayDateLabel},
-      make,getOrders:()=>getOrders(),getOrdersRevision:()=>window.__rdOrdersRevision||0,
+      make,getOrders:()=>window.__rdOrdersWorkspace?.calendarOrders(getOrders())||getOrders(),getOrdersRevision:()=>window.__rdOrdersRevision||0,
+      isUnified:()=>window.__rdOrdersWorkspace?.isActive()||false,
       getSelectedDate:()=>selectedDate,setSelectedDate:date=>{
          selectedDate=date;
          if(currentRole==="master")masterFollowsToday=(date===masterClock().date);
        },
       getCurrentRole:()=>currentRole,getCurrentTab:()=>currentTab,
       estimateDayLoad:(orders,day)=>window.__rdCalendarLoad.estimateDay(
-        orders.filter(order=>currentUser?.id&&order.assignedUserId===currentUser.id),day),
+        currentRole==="master"?orders.filter(order=>currentUser?.id&&order.assignedUserId===currentUser.id):orders,day),
       setCurrentTab:tab=>{currentTab=tab;},render:()=>render(),
       verticalScrollPosition:()=>verticalScrollPosition(),
       restoreVerticalScroll:value=>restoreVerticalScroll(value),
@@ -1117,6 +1119,7 @@
         if(currentTab==="calendar")renderMasterOverview(masterWorkingOrders());
         try{await refreshRabotaNotifications();}catch(error){console.warn("Notification reload",error);}
       }
+      if(window.__rdOrdersWorkspace?.isActive())window.__rdOrdersWorkspace.refreshOverview();
     }
     function getOrders() {return cloudOrders;}
     // Recheck the authoritative order list before sharing a technician schedule.
@@ -1495,7 +1498,10 @@
     function masterSettlementOrders(){return masterUI.masterSettlementOrders();}
     function masterScheduleSort(a,b,today){return masterUI.masterScheduleSort(a,b,today);}
     function masterOrderCount(n){return masterUI.masterOrderCount(n);}
-    function renderMasterOverview(rows){return masterUI.renderMasterOverview(rows);}
+    function renderMasterOverview(rows){
+      if(window.__rdOrdersWorkspace?.isActive())return window.__rdOrdersWorkspace.refreshOverview();
+      return masterUI.renderMasterOverview(rows);
+    }
     window.__rdMasterStatusReview=()=>{
       if(currentRole!=="master"||!currentUser?.id)return [];
       return masterUI.masterOrdersToReview(masterWorkingOrders().filter(
@@ -1675,25 +1681,31 @@
 
     function renderCalendar() {calendarModule.renderCalendar();}
     function render() {
+      const workspace=window.__rdOrdersWorkspace;
+      const unified=workspace?.isActive()||false;
+      if(unified)workspace.beforeRender();
       renderCalendar();
       document.querySelectorAll("[data-tab]").forEach(btn => {
         btn.classList.toggle("active",btn.dataset.tab===currentTab);
         btn.setAttribute("aria-current",btn.dataset.tab===currentTab?"page":"false");
       });
-      const redesignedOrders = window.__rdCurrentPage==="orders" &&
+      const redesignedOrders = !unified && window.__rdCurrentPage==="orders" &&
         (currentRole==="owner"||currentRole==="manager");
       // The large legacy calendar belongs to the classic master view, not to order tabs.
       // Render a short date picker after the tabs for owners and managers instead.
       document.getElementById("calendarPanel").hidden = redesignedOrders ||
-        currentTab!=="calendar" || window.__rdCurrentPage==="calendar";
+        currentTab!=="calendar" || (!unified&&window.__rdCurrentPage==="calendar");
       ordersDayPicker.hidden = !redesignedOrders || currentTab!=="calendar";
       const toolbarDateFilter = document.getElementById("rdOrderDate");
       if(toolbarDateFilter && redesignedOrders)
         toolbarDateFilter.value=currentTab==="calendar"?selectedDate:
           currentTab==="history"?orderHistoryDateFilter:orderListDateFilter;
+      const sourceOrders=unified?workspace.filterOrders(getOrders()):getOrders();
+      const cancelledForDay=unified&&currentTab==="calendar"&&!workspace.status()?
+        sourceOrders.filter(o=>o.date===selectedDate&&o.status==="Отменён"):[];
       let shown;
       if (currentTab === "history") {
-        shown = getOrders().filter(o=>o.status==="Выполнен");
+        shown = sourceOrders.filter(o=>o.status==="Выполнен");
         // History follows the appointment date shown on each card.
         shown.sort((a,b)=>String(b.date||"").localeCompare(String(a.date||""))||
           String(b.time||"").localeCompare(String(a.time||""))||
@@ -1701,33 +1713,34 @@
         document.getElementById("listTitle").textContent="Выполненные заказы";
       } else if (currentTab==="all") {
         if(currentRole==="master") {
-          shown=getOrders().filter(o=>o.assignedUserId===currentUser?.id);
+          shown=sourceOrders.filter(o=>o.assignedUserId===currentUser?.id);
           const now=masterClock();
           shown.sort((a,b)=>masterScheduleSort(a,b,now.date,now.minutes));
         } else {
-          shown=getOrders();
+          shown=sourceOrders.slice();
           shown.sort((a,b)=>String(b.date||"").localeCompare(String(a.date||"")) ||
             String(b.time||"").localeCompare(String(a.time||"")));
         }
         document.getElementById("listTitle").textContent=currentRole==="master"?"Все мои заказы":"Все заказы";
       } else {
-        shown=getOrders().filter(o=>o.date===selectedDate &&
+        shown=sourceOrders.filter(o=>o.date===selectedDate &&
+          (!unified||workspace.status()||o.status!=="Отменён")&&
           (currentRole!=="master"||
             (o.assignedUserId===currentUser?.id&&
-              o.status!=="Выполнен"&&o.status!=="Отменён")));
+              o.status!=="Выполнен"&&(o.status!=="Отменён"||(unified&&workspace.status()==="Отменён")))));
         shown.sort((a,b)=>String(a.time||"").localeCompare(String(b.time||"")));
         document.getElementById("listTitle").textContent="Заказы · "+formatDate(selectedDate);
       }
       // Raul sees the active queue first and a separate collapsed history
       // for the selected day. Completed orders stay hidden in other views.
       const completedForDay=currentRole==="master"&&currentTab==="calendar"?
-        getOrders().filter(o=>o.date===selectedDate&&o.status==="Выполнен"&&
+        sourceOrders.filter(o=>o.date===selectedDate&&o.status==="Выполнен"&&
           o.assignedUserId===currentUser?.id):[];
       // Count active and completed jobs for Raul's selected day, even when
       // the completed section is folded; other screens keep their old counts.
       const visibleDayCount=shown.length+completedForDay.length;
-      document.getElementById("orderCount").textContent=
-        (currentRole==="master"&&currentTab==="calendar"?visibleDayCount:shown.length)+" шт.";
+      const displayedCount=currentRole==="master"&&currentTab==="calendar"?visibleDayCount:shown.length;
+      document.getElementById("orderCount").textContent=unified?masterOrderCount(displayedCount):displayedCount+" шт.";
       ordersNode.replaceChildren();
       renderMasterOverview(currentTab==="calendar"&&currentRole==="master"?
         masterWorkingOrders().filter(o=>o.assignedUserId===currentUser?.id):[]);
@@ -1736,11 +1749,22 @@
         if(currentTab==="calendar")masterUI.renderMasterCompletedDay(completedForDay,selectedDate);
       }
       else if(!shown.length) ordersNode.append(make("div","empty",currentTab==="history"?"Выполненных заказов нет":"Заказов нет"));
-      else shown.forEach(o=>{const card=makeCard(o);window.__rdDecorateOrder?.(card,o);card.dataset.search=(o.name+' '+o.phone+' '+o.address+' '+o.master+' '+(o.referenceCode||'')+' '+(o.id||'')).toLocaleLowerCase('ru');card.dataset.date=o.date||'';card.dataset.master=o.master||'';card.dataset.status=o.status||'';card.dataset.unpaid=String(o.status==='Выполнен'&&!o.paid);card.dataset.pendingPayment=String(o.status==="Выполнен"&&!o.paid);ordersNode.append(card);});
+      else shown.forEach(o=>ordersNode.append(makeCompactOwnerOrder(o)));
+      if(cancelledForDay.length)workspace.renderCancelled(cancelledForDay,
+        currentRole==="master"?makeMasterScheduleRow:makeCompactOwnerOrder);
       renderMasterSettlements();
       window.__rdMasterOrdersRefresh?.();
       refreshMasterOrderDialog();
       window.__rdRefresh?.();
+    }
+    function makeCompactOwnerOrder(order){
+      const card=makeCard(order);window.__rdDecorateOrder?.(card,order);
+      card.dataset.search=[order.name,order.phone,order.address,order.master,order.referenceCode||"",order.id||""].join(" ").toLocaleLowerCase("ru");
+      card.dataset.date=order.date||"";card.dataset.master=order.master||"";
+      card.dataset.status=order.status||"";
+      card.dataset.unpaid=String(order.status==="Выполнен"&&!order.paid);
+      card.dataset.pendingPayment=card.dataset.unpaid;
+      return card;
     }
     let formPaymentChoice=null;
     function updateOrderDeleteButton(existing){
@@ -2405,7 +2429,7 @@
     async function loadTeam() {
       const generation=accessGeneration;
       const panel=document.getElementById("teamPanel");
-      panel.hidden=currentRole!=="owner" || (window.__rdCurrentPage!=null && window.__rdCurrentPage!=="orders");
+      panel.hidden=currentRole!=="owner" || window.__rdCurrentPage!=="settings";
       if (currentRole!=="owner") return;
       const requests=document.getElementById("teamRequests");
       const active=document.getElementById("teamMembers");
@@ -2563,6 +2587,7 @@
       document.querySelector('[data-tab="calendar"]').textContent="По дням";
       document.getElementById("appScreen").classList.toggle("master-mode",currentRole==="master");
       document.getElementById("appScreen").classList.toggle("rd-owner",currentRole==="owner");
+      document.getElementById("appScreen").classList.toggle("rd-manager",currentRole==="manager");
       document.getElementById("masterBrand").hidden=currentRole!=="master";
       document.getElementById("masterPushPanel").hidden=currentRole!=="master";
       // Only the master's floating button uses the short visible label.
@@ -2824,12 +2849,13 @@
   <script src="/whatsapp-client.js?v=20261118-safety-fix-v1"></script>
   <script src="/whatsapp-settings.js?v=20261118-safety-fix-v1"></script>
   <script src="/profit-report.js?v=20261124-fast-start"></script>
-  <script src="/redesign.js?v=20261124-fast-start"></script>
+  <script src="/redesign.js?v=20261124-unified-v1"></script>
   <script src="/master-notifications.js?v=20261124-fast-start"></script>
-  <script src="/orders-list.js?v=20261117-seq5-v1"></script>
-  <script src="/owner-parity.js?v=20261120-v1"></script>
+  <script src="/orders-list.js?v=20261124-unified-v1"></script>
+  <script src="/owner-parity.js?v=20261124-unified-v1"></script>
   <script src="/finance-payroll.js?v=20261124-fast-start"></script>
-  <script src="/money-workspace.js?v=20261124-fast-start"></script>
+  <script src="/money-workspace.js?v=20261124-unified-v1"></script>
   <script src="/lead-assistant.js"></script>
+  <script src="/orders-workspace.js?v=20261124-unified-v1"></script>
 </body>
 </html>

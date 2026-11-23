@@ -93,7 +93,8 @@ async function masterStartup(browser, failFinance) {
       await payments.locator(".mw-handoff-action:enabled").waitFor();
     }
     s.notices.release();
-    await s.page.locator('#mwMasterNav [data-mw-page="day"]').click();
+    await s.page.locator('#mwMasterNav [data-mw-page="orders"]').click();
+    assert.equal(await s.page.locator('#owViewSwitch [data-ow-mode="calendar"]').getAttribute("aria-selected"), "true");
     await schedule.waitFor();
   } finally { await s.close(); }
 }

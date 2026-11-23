@@ -273,7 +273,11 @@
         if(!isMaster){
           const btn=make("button","day"+(date===selectedDate?" active":"")+
             (hasOrders?" has-orders":""));
-          btn.type="button";
+          btn.type="button";btn.dataset.date=date;
+          if(deps.isUnified?.()&&typeof deps.estimateDayLoad==="function"){
+            const load=deps.estimateDayLoad(orders.filter(order=>order.date===date),date);
+            if(load)btn.classList.add("workload-"+load.level);
+          }
           btn.setAttribute("aria-label",day.toLocaleDateString("ru-RU"));
           btn.setAttribute("aria-pressed",String(date===selectedDate));
           btn.append(make("span","weekday",day.toLocaleDateString("ru-RU",{weekday:"short"})));
@@ -305,7 +309,7 @@
         setSelectedDate(date);setCurrentTab("calendar");render();
       };
       const today=()=>{
-        const date=getCurrentRole()==="master"?deps.masterClock().date:localDate(new Date());
+        const date=getCurrentRole()==="master"||deps.isUnified?.()?deps.masterClock().date:localDate(new Date());
         requestStripDate(weekDates(date).monday);
         setSelectedDate(date);setCurrentTab("calendar");render();
       };
