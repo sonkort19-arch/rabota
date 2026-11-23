@@ -8,8 +8,8 @@
   // Keep the list static: a single dialog displays the selected live order.
   let activeId=null,activeDialog=null,oldBodyOverflow="",returnFocus=null;
   function visibleCards(){
-    return Array.from(document.querySelectorAll("#orders > .rd-list-row"))
-      .filter(node=>!node.hidden&&node.dataset.rdOrderId);
+    return Array.from(document.querySelectorAll("#orders .rd-list-row"))
+      .filter(node=>!node.closest("[hidden]")&&node.dataset.rdOrderId);
   }
   function orderCard(id){
     return visibleCards().find(node=>node.dataset.rdOrderId===id)||null;
@@ -318,6 +318,7 @@
       else paintDialog();
     }
     const root=document.getElementById("orders");
+    if(window.__rdOrdersWorkspace?.isActive())return;
     if(!root||currentRole==="master"||window.__rdCurrentPage!=="orders"||
        !root.querySelector(".rd-list-row")||root.querySelector(".rd-list-columns"))return;
     const header=text("div","","rd-list-columns");

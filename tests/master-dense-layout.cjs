@@ -1,6 +1,9 @@
-/* Synthetic CSS-only WebKit check; never accesses production or Supabase. */
+/* Synthetic CSS-only check; defaults to WebKit for CI.
+ * TEST_BROWSER / TEST_BROWSER_PATH allow a local browser without network access.
+ * Never accesses production or Supabase.
+ */
 "use strict";
-const {webkit}=require("playwright"),fs=require("node:fs"),path=require("node:path");
+const {webkit,chromium}=require("playwright"),fs=require("node:fs"),path=require("node:path");
 const assert=require("node:assert/strict");
 const root=path.resolve(__dirname,".."),html=fs.readFileSync(path.join(root,"index.html"),"utf8");
 const inline=html.match(/<style>([\s\S]*?)<\/style>/)?.[1];
@@ -50,7 +53,13 @@ const fixture=[
 '</div></div><nav id="mwMasterNav" class="mw-bottom-nav"><button class="mw-nav-btn is-active"><span class="mw-icon">▣</span>Расписание</button><button class="mw-nav-btn">Заказы</button><button class="mw-nav-btn">Финансы</button><button class="mw-nav-btn">Профиль</button></nav></main>'
 ].join("");
 (async()=>{
-const browser=await webkit.launch({headless:true});
+const browserName=process.env.TEST_BROWSER||"webkit";
+assert.ok(["webkit","chromium"].includes(browserName),"TEST_BROWSER must be webkit or chromium");
+const browser=await ({webkit,chromium})[browserName].launch({
+  headless:true,
+  executablePath:process.env.TEST_BROWSER_PATH||(browserName==="chromium"?process.env.CHROMIUM_PATH:undefined),
+  args:browserName==="chromium"?["--no-sandbox"]:[]
+});
 try{
  for(const width of [320,350,375,390,430,768]){
   const page=await browser.newPage({viewport:{width,height:844},isMobile:true,hasTouch:true});
@@ -156,6 +165,6 @@ try{
 
   await page.close();
  }
- console.log("Master dense layout: PASS (WebKit, 320/350/375/390/430/768)");
+ console.log("Master dense layout: PASS ("+browserName+", 320/350/375/390/430/768)");
 }finally{await browser.close();}
 })().catch(e=>{console.error(e);process.exitCode=1});

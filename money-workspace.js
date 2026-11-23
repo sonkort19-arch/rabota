@@ -102,10 +102,11 @@
     app.insertBefore(reports,finance);app.insertBefore(payments,finance);app.insertBefore(settings,finance);
     const nav=el("nav","mw-bottom-nav");nav.id="mwMasterNav";
     nav.setAttribute("aria-label","Разделы мастера");
-    for(const [key,label,icon] of [["day","По дням","day"],["orders","Заказы","orders"],
+    for(const [key,label,icon] of [["orders","Заказы","orders"],
       ["payments","Платежи","payments"],["reports","Отчёты","reports"],
       ["settings","Настройки","settings"]]){
-      const item=btn("","mw-nav-btn",()=>switchPage(key));
+      const item=btn("","mw-nav-btn",()=>switchPage(key==="orders"&&
+        window.__rdOrdersWorkspace?.currentMode?.()==="calendar"?"day":key));
       item.dataset.mwPage=key;
       item.append(navIcon(icon),el("span","",label));nav.append(item);
     }
@@ -119,6 +120,7 @@
     }
   }
   function filterRows(){
+    if(window.__rdOrdersWorkspace?.isActive?.())return;
     if(page!=="orders"||api()?.snapshot()?.role!=="master")return;
     const root=$("orders");if(!root)return;
     let heading=null,shown=0,visibleInGroup=0;
@@ -158,7 +160,7 @@
     $("appScreen")?.classList.toggle("mw-payments-header",page==="payments"&&api()?.snapshot()?.role==="master");
     const nav=$("mwMasterNav");if(!nav)return;
     for(const b of nav.querySelectorAll("button")){
-      const active=b.dataset.mwPage===page;
+      const active=b.dataset.mwPage===(page==="day"||page==="orders"?"orders":page);
       b.classList.toggle("is-active",active);
       b.setAttribute("aria-current",active?"page":"false");
     }
@@ -171,10 +173,13 @@
     if(restore&&which!==page){
       scrollPositions.set(page,window.__rdMasterViewportScroll?.position?.()??window.scrollY??0);
     }
-    page=which;reports.hidden=which!=="reports";payments.hidden=which!=="payments";
+    page=which;
+    window.__rdMasterCurrentPage=page;
+    window.__rdCurrentPage=which==="day"||which==="orders"?"orders":which;
+    reports.hidden=which!=="reports";payments.hidden=which!=="payments";
     if(settings)settings.hidden=which!=="settings";
     const filters=$("mwMasterFilterbar");
-    if(filters)filters.hidden=which!=="orders";
+    if(filters)filters.hidden=which!=="orders"||Boolean(window.__rdOrdersWorkspace?.isActive?.());
     const title=$("appTitle");
     if(which==="reports"||which==="payments"||which==="settings"){
       orders.hidden=true;finance.hidden=true;
@@ -183,22 +188,26 @@
       else if(which==="payments")renderMasterPayments();
       else window.__rdWhatsAppSettings?.refresh();
     }else{
-      if(title)title.textContent=which==="day"?"По дням":"Мои заказы";
+      if(title)title.textContent="Заказы";
       // Legacy tab handlers remain for calendar calculations, but tabs are not visible to master.
       if(!finance.hidden)$("masterFinanceBack")?.click();
       orders.hidden=false;finance.hidden=true;
       if(which==="day")window.__rdSyncMasterToday?.();
       const tab=orders.querySelector('.tab[data-tab="'+(which==="day"?"calendar":"all")+'"]');
+      const sameTab=tab?.dataset.tab===currentTab;
       tab?.click();
+      if(sameTab&&window.__rdOrdersWorkspace?.isActive?.())render();
       if(which==="orders")filterRows();
     }
     updateNav();
+    window.__rdOrdersWorkspace?.refresh?.();
     if(restore){
       const y=scrollPositions.get(which)||0;
       if(window.__rdMasterViewportScroll?.restore)window.__rdMasterViewportScroll.restore(y);
       else window.scrollTo({top:y,behavior:"instant"});
     }
   }
+  window.__rdMasterNavigate=(which,restore=false)=>switchPage(which,restore);
   function settlementTotals(collections){
     const sums={waiting:0,pending:0,confirmed:0};
     for(const c of collections){

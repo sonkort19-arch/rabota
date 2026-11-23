@@ -4,14 +4,24 @@ const path=require("node:path");
 const assert=require("node:assert/strict");
 const reportJs=path.join(__dirname,"..","profit-report.js");
 const reportCss=path.join(__dirname,"..","profit-report.css");
+// Keep Chromium + WebKit coverage by default; allow one installed engine locally.
+async function launch(browserType){
+  const type=process.env.TEST_BROWSER==="chromium"?chromium:
+    process.env.TEST_BROWSER==="webkit"?webkit:browserType;
+  return type.launch({headless:true,
+    executablePath:process.env.TEST_BROWSER_PATH||
+      (type===chromium?process.env.CHROMIUM_PATH:undefined),
+    args:type===chromium?["--no-sandbox"]:[]});
+}
 async function run(browserType,iphone){
-  const browser=await browserType.launch({headless:true});
+  const browser=await launch(browserType);
   try{
     const context=await browser.newContext({
       viewport:iphone?{width:390,height:844}:{width:1200,height:800},
       acceptDownloads:true,isMobile:iphone,hasTouch:iphone,
-      colorScheme:iphone?"dark":"light"
+      colorScheme:iphone?"dark":"light",serviceWorkers:"block"
     });
+    await context.route("**/*",route=>route.abort());
     const page=await context.newPage();
     await page.setContent('<!doctype html><html lang="ru"><head><meta name="viewport" content="width=device-width,initial-scale=1"><style>body{margin:0;font-family:Arial}#rdReports{padding:12px;box-sizing:border-box}</style></head><body class="rd"><section id="rdReports"><h1 class="rd-view-title">Отчёты</h1></section></body></html>');
     await page.addStyleTag({path:path.join(__dirname,"..","light-theme.css")});
@@ -170,10 +180,12 @@ async function run(browserType,iphone){
   }finally{await browser.close()}
 }
 async function checkRaulPortal(name,shouldHaveProfit){
-  const browser=await webkit.launch({headless:true});
+  const browser=await launch(webkit);
   try{
-    const context=await browser.newContext({viewport:{width:390,height:844},isMobile:true,hasTouch:true,colorScheme:"dark"});
+    const context=await browser.newContext({viewport:{width:390,height:844},isMobile:true,hasTouch:true,colorScheme:"dark",serviceWorkers:"block"});
+    await context.route("**/*",route=>route.abort());
     const page=await context.newPage();
+    const errors=[];page.on("pageerror",error=>errors.push(error.message));
     await page.setContent('<!doctype html><html lang="ru"><head><meta name="viewport" content="width=device-width,initial-scale=1"></head><body class="rd"><main id="appScreen"><h1 id="appTitle">Мои заказы</h1><section id="ordersArea"><nav class="tabs"><button class="tab" data-tab="calendar"></button><button class="tab" data-tab="all"></button></nav><div id="orders"></div><span id="orderCount"></span></section><section id="financePanel" hidden></section><button id="masterFinanceBack"></button></main></body></html>');
     await page.addStyleTag({path:path.join(__dirname,"..","light-theme.css")});
     await page.addStyleTag({path:path.join(__dirname,"..","money-workspace.css")});
@@ -181,6 +193,8 @@ async function checkRaulPortal(name,shouldHaveProfit){
     await page.addScriptTag({path:path.join(__dirname,"..","finance-model.js")});
     await page.addScriptTag({path:reportJs});
     await page.evaluate(masterName=>{
+      // The real index owns this state; the isolated portal must supply it too.
+      window.currentTab="calendar";
       const now=new Date().toISOString();
       const orders=[
         {id:"raul",assignedUserId:"raul-uid",referenceCode:"№00012",name:"Мой клиент",
@@ -200,6 +214,7 @@ async function checkRaulPortal(name,shouldHaveProfit){
     const entry=page.locator('.mw-entry').filter({hasText:"Прибыль по заказам"});
     if(!shouldHaveProfit){
       assert.equal(await entry.count(),0,"A different master cannot see Raul's profit report");
+      assert.deepEqual(errors,[],"Isolated master portal has no JavaScript errors");
       await context.close();return;
     }
     assert.equal(await entry.count(),1);
@@ -217,16 +232,18 @@ async function checkRaulPortal(name,shouldHaveProfit){
     assert.ok(dimensions.cell<=44,"Raul's report has oversized rows: "+JSON.stringify(dimensions));
     await page.locator('#mwMasterReports .pr-back').click();
     assert.equal(await entry.count(),1,"Back should return to Raul's Reports menu");
+    assert.deepEqual(errors,[],"Isolated master portal has no JavaScript errors");
     await context.close();
   }finally{await browser.close()}
 }
 async function checkOwnerPayroll(browserType,iphone){
-  const browser=await browserType.launch({headless:true});
+  const browser=await launch(browserType);
   try{
     const context=await browser.newContext({
       viewport:iphone?{width:390,height:844}:{width:1200,height:800},
-      isMobile:iphone,hasTouch:iphone,colorScheme:iphone?"dark":"light"
+      isMobile:iphone,hasTouch:iphone,colorScheme:iphone?"dark":"light",serviceWorkers:"block"
     });
+    await context.route("**/*",route=>route.abort());
     const page=await context.newPage();
     await page.setContent('<!doctype html><html lang="ru"><head><meta name="viewport" content="width=device-width,initial-scale=1"></head><body class="rd"><main id="appScreen"><section id="rdReports"><div id="rdSalaryReport"></div></section></main></body></html>');
     await page.addStyleTag({path:path.join(__dirname,"..","light-theme.css")});

@@ -53,8 +53,9 @@ function fixture(role){
  const root=el("section"),body=el("body");let legacy=0,refreshed=0,edits=0,pays=0;
  const document={
   body,activeElement:null,createElement:tag=>el(tag),getElementById:id=>id==="orders"?root:id==="orderOverlay"?{hidden:true}:null,
-  querySelectorAll:selector=>selector==="#orders > .rd-list-row"?
-   root.children.filter(x=>x.classList.contains("rd-list-row")):[],
+  querySelectorAll:selector=>selector==="#orders .rd-list-row"?
+   root.querySelectorAll(".rd-list-row"):selector==="#orders > .rd-list-row"?
+    root.children.filter(x=>x.classList.contains("rd-list-row")):[],
   querySelector:()=>null,addEventListener(){},removeEventListener(){}
  };
  const window={__rdCurrentPage:"orders",__rdDecorateOrder:()=>legacy++,__rdRefresh:()=>refreshed++,

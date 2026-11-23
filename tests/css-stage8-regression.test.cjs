@@ -48,10 +48,12 @@ test("ui-alignment: CSS bytes preserve original Git blob in cascade order",()=>{
     "1669695e03aaf519514fa89a054a39c897fa6eef"
   );
 });
-test("master-dense: CSS bytes preserve original Git blob in cascade order",()=>{
+test("master-dense: preserves accepted CSS before the unified workspace",()=>{
+  // Accepted main baseline 8710b5e; the unified workspace adds a separate
+  // stylesheet and must not change these existing master/finance rules.
   assert.equal(
     gitBlobSha(master.map(read).join("")),
-    "d357ae642508e54d4749a8e4356f1a9061e66d2a"
+    "c13c2c1ecf5909f83a7718238b2487f28ababd61"
   );
 });
 test("no file cuts a CSS block, comment, or string",()=>{
@@ -73,13 +75,17 @@ test("HTML links CSS parts adjacently and preserves downstream precedence",()=>{
   const html=read("index.html");
   const files=[...html.matchAll(/<link\s+rel="stylesheet"\s+href="(\/[^"]+\.css(?:\?[^"]*)?)"/g)]
     .map(match=>match[1].split("?")[0].slice(1));
-  assert.equal(files.length,21);
+  assert.equal(files.length,31,"30 accepted baseline styles plus the unified orders override");
+  assert.equal(new Set(files).size,files.length,"each stylesheet is loaded once");
   const start=files.indexOf("ui-alignment.css");
   assert.deepEqual(files.slice(start,start+4),alignment);
   assert.equal(files[start+4],"master-dashboard.css");
   const masterStart=files.indexOf("master-dense.css");
   assert.deepEqual(files.slice(masterStart,masterStart+2),master);
-  assert.equal(files[masterStart+2],"money-workspace.css");
+  assert.deepEqual(files.slice(masterStart+2,masterStart+4),[
+    "master-completed-day.css","money-workspace.css"
+  ]);
+  assert.equal(files.at(-1),"orders-workspace.css","unified overrides follow the existing cascade");
   for(const file of files)assert.ok(fs.existsSync(path.join(root,file)),file);
 });
 test("core JS modules and PWA remain wired without behavior changes",()=>{

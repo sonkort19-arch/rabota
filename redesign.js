@@ -8,7 +8,7 @@ body.classList.add("rd");
 const $=id=>document.getElementById(id);
 const makeNode=(tag,className,text)=>{const n=document.createElement(tag);if(className)n.className=className;if(text!=null)n.textContent=String(text);return n};
 const sections=["home","leads","orders","calendar","clients","finance","reports","settings","ai"];
-const titles={home:"Главная",leads:"Лиды",orders:"Заказы",calendar:"Календарь",clients:"Клиенты",finance:"Финансы",reports:"Отчёты",settings:"Настройки",ai:"ИИ-чат"};
+const titles={home:"Главная",leads:"Лиды",orders:"Заказы",calendar:"Календарь",clients:"Клиенты",finance:"Платежи",reports:"Отчёты",settings:"Настройки",ai:"ИИ-чат"};
 const crmReturnPages=new Set(["home","leads","orders","calendar","clients","finance","reports","settings"]);
 function aiChatUrl(draft){
  const source=crmReturnPages.has(activePage)?activePage:"home";
@@ -24,7 +24,7 @@ const iconPaths={
  orders:'<rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 7h6M9 12h6M9 17h4"/>',
  calendar:'<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M7 3v4M17 3v4M3 10h18M8 14h2M14 14h2M8 18h2"/>',
  clients:'<circle cx="12" cy="8" r="4"/><path d="M4 21v-2a8 8 0 0 1 16 0v2"/>',
- finance:'<path d="M4 20V10h4v10M10 20V4h4v16M16 20v-8h4v8M2 21h20"/>',
+ finance:'<rect x="3" y="5" width="18" height="15" rx="2"/><path d="M3 9h18M16 15h3"/>',
  reports:'<path d="M4 20V11h4v9M10 20V4h4v16M16 20v-7h4v7M3 21h18"/>',
  ai:'<path d="m12 2 1.9 6.1L20 10l-6.1 1.9L12 18l-1.9-6.1L4 10l6.1-1.9L12 2ZM19 16l.8 2.2L22 19l-2.2.8L19 22l-.8-2.2L16 19l2.2-.8L19 16Z"/>',
  settings:'<circle cx="12" cy="12" r="3"/><path d="M12 2v2m0 16v2M4.9 4.9l1.4 1.4m11.4 11.4 1.4 1.4M2 12h2m16 0h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>',
@@ -200,7 +200,7 @@ function build(){
  const brand=makeNode("div","rd-brand");brand.append(boxText("span","▰","rd-logo"));
  const brandText=makeNode("div");brandText.append(boxText("strong","Работа"),boxText("small","CRM · промывка отопления"));brand.append(brandText);side.append(brand);
  const nav=makeNode("nav","rd-nav");
- for(const key of permittedSections())nav.append(navButton(key));
+ for(const key of permittedSections().filter(key=>key!=="calendar"))nav.append(navButton(key));
  side.append(nav);
  const foot=makeNode("div","rd-sidefoot");foot.append(boxText("strong","Мой кабинет"),boxText("div","Система заказов и расписания."));
  const logout=makeNode("button","","Выйти из аккаунта");logout.type="button";logout.addEventListener("click",()=>$("logoutBtn").click());foot.append(logout);side.append(foot);
@@ -224,7 +224,8 @@ function build(){
  const profile=makeProfileMenu();top.append(profile.toggle);
  const mobile=makeNode("nav","rd-mobilebar");mobile.id="rdMobileNav";
  mobile.setAttribute("aria-label","Основные разделы приложения");
- const primaryMobileSections=["home","leads","orders","calendar"];
+ const primaryMobileSections=currentRole==="owner"?
+  ["orders","finance","reports","settings"]:["orders","leads","clients","settings"];
  for(const key of primaryMobileSections)mobile.append(navButton(key));
  const navMore=makeNode("button","rd-nav-btn rd-mobile-more-trigger");
  navMore.type="button";navMore.id="rdMobileMoreBtn";
@@ -234,7 +235,6 @@ function build(){
  navMore.setAttribute("aria-controls","rdMobileMoreSheet");
  const moreIcon=makeNode("span","rd-icon");moreIcon.append(uiIcon("more"));
  navMore.append(moreIcon,boxText("span","Ещё"));
- mobile.append(navMore);
  const veil=makeNode("button","rd-more-veil");veil.type="button";
  veil.setAttribute("aria-label","Закрыть дополнительные разделы");
  veil.hidden=true;
@@ -248,7 +248,7 @@ function build(){
  moreClose.setAttribute("aria-label","Закрыть меню дополнительных разделов");
  moreHeader.append(moreClose);
  moreSheet.append(moreHeader);
- for(const key of permittedSections().filter(section=>!primaryMobileSections.includes(section))){
+ for(const key of permittedSections().filter(section=>section!=="calendar"&&!primaryMobileSections.includes(section))){
   moreSheet.append(navButton(key));
  }
  const closeMore=()=>{
@@ -560,6 +560,9 @@ function build(){
    ownerSalaryReport?.render();
  };
  const settings=sectionView("rdSettings","Настройки","Сообщения клиентам и параметры приложения");
+ navMore.setAttribute("aria-label","Другие разделы: сводка, лиды и клиенты");
+ navMore.querySelector("span:last-child").textContent="Другие разделы";
+ settings.append(navMore);
  window.__rdWhatsAppSettings?.mount(settings);
  app.insertBefore(settings,$("ordersArea"));
  app.insertBefore(reports,$("ordersArea"));
@@ -573,15 +576,17 @@ function build(){
  listHead.append(listActions);
  $("financePanel").prepend(financeTitle);
  // Staff access administration is still available, but should not obscure the booking list.
- $("ordersArea").append($("teamPanel"));
+ settings.append($("teamPanel"));
  // Original order editor, calendar state, and financial forms are retained.
  $("ordersArea").insertBefore($("newOrderBtn"),$("ordersArea").querySelector(".tabs"));
  builtRole=currentRole;ready=true;
  const requested=new URLSearchParams(window.location.search).get("view");
- const initial=crmReturnPages.has(requested)&&(!["finance","reports"].includes(requested)||currentRole==="owner")?requested:"home";
+ const initial=crmReturnPages.has(requested)&&(!["finance","reports"].includes(requested)||currentRole==="owner")?requested:"orders";
  navigate(initial);
 }
 function navigate(key){
+ const requestedCalendar=key==="calendar";
+ if(requestedCalendar)key="orders";
  closeMobileMore();
  if(key!=="orders"&&$("rdOrdersFilterDialog")?.open)
   window.__rdCloseOrderFilters?.();
@@ -590,7 +595,7 @@ function navigate(key){
  if(["finance","reports"].includes(key)&&currentRole!=="owner")return;
  if(activePage==="orders"&&key!=="orders")storeOrderFilters(currentTab);
  const globalSearch=$("rdTopSearch");
- const searchNeeded=key==="orders"||key==="leads";
+ const searchNeeded=key==="leads"||(key==="orders"&&!window.__rdOrdersWorkspace);
  if(globalSearch){
   // This input belongs to Orders and Leads only, not to every CRM screen.
   globalSearch.hidden=!searchNeeded;
@@ -614,7 +619,7 @@ function navigate(key){
  const isOrders=key==="orders",isCalendar=key==="calendar";
  // Initial calendar date must be Moscow today, not the date left in the Orders tab.
  // Revisiting calendar later keeps an explicitly selected date.
- if(isCalendar&&!calendarOpened){selectedDate=todayMoscow();calendarOpened=true;}
+ if((isOrders||isCalendar)&&!calendarOpened){selectedDate=todayMoscow();calendarOpened=true;}
  $("ordersArea").hidden=!(isOrders||isCalendar);
  $("financePanel").hidden=key!=="finance";
  $("rdHome").hidden=key!=="home";
@@ -633,7 +638,7 @@ function navigate(key){
  $("ordersArea").querySelector(".list-head").hidden=!isOrders;
  $("orders").hidden=!isOrders;
  $("newOrderBtn").hidden=!isOrders || !(currentRole==="owner"||currentRole==="manager");
- $("teamPanel").hidden=key!=="orders"||currentRole!=="owner";
+ $("teamPanel").hidden=key!=="settings"||currentRole!=="owner";
  $("rdFinanceIntro").hidden=key!=="finance";
  app.className=app.className.replace(/\brd-view-\S+/g,"").trim()+" rd-view-"+key;
  app.classList.toggle("rd-no-global-search",!searchNeeded);
@@ -642,7 +647,7 @@ function navigate(key){
  const moreButton=$("rdMobileMoreBtn");
  if(moreButton)moreButton.setAttribute("aria-current",["clients","finance","reports","settings"].includes(key)?"page":"false");
  if(isOrders||isCalendar){
-  currentTab=isCalendar?"calendar":"all";
+  currentTab=requestedCalendar||isCalendar?"calendar":window.__rdOrdersWorkspace?.currentMode()||"calendar";
   if(isOrders)restoreOrderFilters(currentTab);
   render(); // Legacy render triggers __rdRefresh, which rebuilds the selected view.
  }else if(key==="home")drawHome();
@@ -650,8 +655,10 @@ function navigate(key){
  else if(key==="leads")window.__rdLeadsRender?.();
  else if(key==="settings")window.__rdWhatsAppSettings?.refresh();
  else if(key==="reports"){profitReport?.render();if(salaryRoot&&!salaryRoot.hidden)ownerSalaryReport?.render();}
+ window.__rdOrdersWorkspace?.refresh();
  window.scrollTo({top:0,behavior:"instant"});
 }
+window.__rdNavigate=navigate;
 function drawChart(parent,values,month){
  // Draw the real month's orders. SVG is self-contained; no chart dependency,
  // network requests, hard-coded counts, or writes to customer/finance data.
@@ -775,6 +782,7 @@ function drawChart(parent,values,month){
 }
 function openDashboardOrders({filter="",orderId=null,date=""}={}){
  if(!ready)return;
+ if(window.__rdOrdersWorkspace){window.__rdOrdersWorkspace.show({filter,orderId,date});return;}
  navigate("orders");
  // Clear stale manual filters before selecting a dashboard shortcut.
  const dateInput=$("rdOrderDate"),master=$("rdMasterFilter"),status=$("rdStatusFilter"),search=$("rdTopSearch");
@@ -1276,6 +1284,7 @@ function compactOrderCard(card){
 window.__rdDecorateOrder=compactOrderCard;
 function applySummaryFilter(key){
  if(activePage!=="orders"||!["active","progress","unpaid","unassigned"].includes(key))return;
+ if(window.__rdOrdersWorkspace){window.__rdOrdersWorkspace.show({filter:key});return;}
  summaryFilter=summaryFilter===key?"":key;
  currentTab="all";orderListDateFilter="";
  const date=$("rdOrderDate"),master=$("rdMasterFilter"),status=$("rdStatusFilter"),search=$("rdTopSearch");
@@ -1293,6 +1302,7 @@ function syncSummaryButtons(){
 }
 function filterCards(){
  if(!ready||activePage!=="orders")return;
+ if(window.__rdOrdersWorkspace?.isActive())return;
  const date=currentTab==="calendar"?"":currentTab==="history"?orderHistoryDateFilter:orderListDateFilter,
   master=$("rdMasterFilter").value,status=$("rdStatusFilter").value;
  let visible=0,total=0;

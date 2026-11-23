@@ -189,13 +189,13 @@ test("quick-slot validation rejects invalid roles, times, and unavailable slots"
 });
 test("app loads calendar before use while preserving availability scripts",()=>{
   const html=fs.readFileSync(path.join(__dirname,"..","index.html"),"utf8");
-  assert.match(html,/src="\/calendar-model\.js\?v=20261117-month-view-v1"/);
+  assert.match(html,/src="\/calendar-model\.js\?v=20261124-unified-v1"/);
   assert.match(html,/src="\/order-availability\.js(?:\?[^"]*)?"/);
   assert.match(html,/src="\/quick-slots\.js"/);
   assert.match(html,/calendarModule\.renderCalendar\(\)/);
   assert.match(html,/calendarModule\.bindNavigation\(\)/);
   assert.match(html,/__rdCalendarUtils\.canPrefillSlot/);
-  assert.ok(html.indexOf('src="/calendar-model.js?v=20261117-month-view-v1"')<
+  assert.ok(html.indexOf('src="/calendar-model.js?v=20261124-unified-v1"')<
     html.indexOf("const calendarModule=window.__rdCreateCalendarModule"));
   const inline=html.split("<script>\n").at(-1).split("</script>")[0];
   assert.doesNotThrow(()=>new Function(inline));
