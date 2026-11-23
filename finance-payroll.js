@@ -253,6 +253,10 @@
        if(m.error){
          root.append(el("p","fp-error","Финансовые данные недоступны: "+m.error));return;
        }
+       if(m.loading){
+         const message=el("p","fp-hint","Загружаем данные зарплаты…");
+         message.setAttribute("role","status");root.append(message);return;
+       }
        root.append(overview(m,redraw));
      };
      redraw();

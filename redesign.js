@@ -511,7 +511,8 @@ function build(){
  ownerSalaryReport=null;
  if(currentRole==="owner"){
    profitReport=window.__rdCreateProfitReport?.(reportsRoot,{getOrders:()=>getOrders(),
-      getRaulMasterId:()=>window.__rdReportMasterId?.()})||null;
+      getRaulMasterId:()=>window.__rdReportMasterId?.(),
+      getFinanceStatus:()=>window.__rdFinanceStatus?.()})||null;
    const menu=reportsRoot.querySelector(".pr-menu");
    if(menu){
      // Keep the report hub dense: only link real, working reports.
@@ -1332,8 +1333,8 @@ function filterCards(){
 }
 window.__rdGoToLeads=()=>navigate("leads");
 window.__rdAccess=()=>{
- if(ready&&builtRole!==currentRole){window.location.reload();return}
- if(currentRole==="master"){app.classList.add("rd-master");return}
+ if(builtRole&&builtRole!==currentRole){window.location.reload();return}
+ if(currentRole==="master"){builtRole=currentRole;app.classList.add("rd-master");return}
  if(!["owner","manager"].includes(currentRole))return;
  build();
  window.__rdLeadsSyncNav?.();
@@ -1347,4 +1348,6 @@ window.__rdRefresh=()=>{
  if(activePage==="orders"){drawOrderSummary();filterCards();}
  if(activePage==="reports"){profitReport?.render();if(document.getElementById("rdSalaryReport")?.hidden===false)window.__rdOwnerPayrollUpdated?.();}
 };
+// Authentication and the initial schedule can finish while this script downloads.
+if(app.hidden===false)window.__rdAccess();
 })();

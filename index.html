@@ -921,6 +921,9 @@
     let financeDeposits = [];
     let financeMasterId = null;
     let financeLoadError = "";
+    let financeSnapshotReady = false;
+    let financeRead = null;
+    let accessGeneration = 0;
     try { session = JSON.parse(localStorage.getItem(AUTH_KEY) || "null"); }
     catch (error) { session = null; }
 
@@ -988,11 +991,16 @@
         expires_at:Math.floor(Date.now()/1000) + Number(data.expires_in || 3600)};
       localStorage.setItem(AUTH_KEY, JSON.stringify(session));
     }
-    function clearSession() {
-      session = null; currentUser = null; currentRole=null; currentMasterName=""; cloudOrders = []; ordersLoaded=false;
+    function resetAccountData() {
+      accessGeneration++;
+      currentUser=null;currentRole=null;currentMasterName="";cloudOrders=[];ordersLoaded=false;
       window.__rdOrderSync?.reset();
       financeOperations=[];financeCollections=[];financeDeposits=[];financeMasterId=null;financeActive=false;financeLoadError="";
+      financeSnapshotReady=false;financeRead=null;
       financeLoadGeneration++; // invalidate finance responses still in flight
+    }
+    function clearSession() {
+      session=null;resetAccountData();
       localStorage.removeItem(AUTH_KEY);
     }
     // Existing session state and refresh policy are authoritative in this file.
@@ -1050,17 +1058,20 @@
       const calendarStatus=document.getElementById("rdCalendarSynced");
       if(calendarStatus){calendarStatus.textContent=node.textContent;calendarStatus.classList.toggle("sync-error",Boolean(error));}
     }
-    async function reloadOrders({background=false}={}) {
+    async function loadOrderData(background=false) {
+      const generation=accessGeneration;
       // Background polls compare tiny id/updated_at headers first.
       // Explicit user actions always fetch the authoritative complete list.
       const unchanged=background && ordersLoaded && window.__rdOrderSync &&
         await window.__rdOrderSync.isUnchanged((offset,limit)=>
           dbRequest("rabota_orders?select=id,updated_at&order=id.asc&limit="+limit+"&offset="+offset,"GET")
         );
+      if(generation!==accessGeneration)return;
       if(!unchanged){
         const items = [];
         for (let offset = 0; offset < 100000; offset += 1000) {
           const page = await dbRequest("rabota_orders?select=*&order=created_at.desc&limit=1000&offset=" + offset, "GET");
+          if(generation!==accessGeneration)return;
           if (!Array.isArray(page)) throw new Error("Неверный ответ базы данных.");
           items.push(...page);
           if (page.length < 1000) break;
@@ -1094,16 +1105,14 @@
         // Keep slot suggestions current without rebuilding unchanged order cards.
         window.__rdQuickSlotsRefresh?.();
       }
-      let syncError=null;
-      if(currentRole==="owner"||currentRole==="master") {
-        try {await loadFinance();} catch(error){
-          financeLoadError=friendlyError(error);
-          if(financeActive)renderFinance();
-          window.__rdMoneyUpdated?.();
-          syncError=error;
-        }
-      }
-      reportSync(syncError,"finance");
+    }
+    async function reloadOrders({background=false}={}) {
+      const generation=accessGeneration;
+      await loadOrderData(background);
+      if(generation!==accessGeneration)return;
+      if(currentRole==="owner"||currentRole==="master")await refreshFinance(!background);
+      else reportSync(null);
+      if(generation!==accessGeneration)return;
       if(currentRole==="master"){
         if(currentTab==="calendar")renderMasterOverview(masterWorkingOrders());
         try{await refreshRabotaNotifications();}catch(error){console.warn("Notification reload",error);}
@@ -1199,6 +1208,11 @@
       if(currentRole!=="master" || String(currentMasterName||"").trim().toLowerCase()!=="рауль")return;
       if(order.status!=="Выполнен")return;
       const wrap=make("div","cash-share");
+      if(!financeSnapshotReady||financeLoadError){
+        wrap.append(make("div","cash-share-status",financeLoadError?
+          "Расчёт по заказу временно недоступен.":"Загружаем расчёт по заказу…"));
+        card.append(wrap);return;
+      }
       const collection=collectionForOrder(order.id);
       if(!collection) {
         if(!order.paid) {
@@ -1729,6 +1743,18 @@
       window.__rdRefresh?.();
     }
     let formPaymentChoice=null;
+    function updateOrderDeleteButton(existing){
+      deleteOrderBtn.hidden=currentRole!=="owner"||!existing;
+      if(deleteOrderBtn.hidden)return;
+      if(!financeSnapshotReady||financeLoadError){
+        deleteOrderBtn.disabled=true;
+        deleteOrderBtn.textContent=financeLoadError?"Финансы недоступны":"Проверяем оплаты…";
+        return;
+      }
+      deleteOrderBtn.disabled=orderHasFinancialHistory(existing);
+      deleteOrderBtn.textContent=deleteOrderBtn.disabled
+        ?"Есть оплата или финансы — удалить нельзя":"Удалить заказ";
+    }
     function openForm(id) {
       const raulCreating=raulCanCreateOrder();
       if(!canCreateOrder() || (currentRole==="master" && (id!==undefined || !raulCreating)))return;
@@ -1744,10 +1770,7 @@
       const existing=editingId===null?null:getOrders().find(x=>String(x.id)===editingId);
       controls.source.required=!existing;
       advanced.open=Boolean(existing);
-      deleteOrderBtn.hidden=currentRole!=="owner"||!existing;
-      deleteOrderBtn.disabled=orderHasFinancialHistory(existing);
-      deleteOrderBtn.textContent=deleteOrderBtn.disabled
-        ?"Есть оплата или финансы — удалить нельзя":"Удалить заказ";
+      updateOrderDeleteButton(existing);
       document.getElementById("formTitle").textContent=existing?"Редактировать заказ":"Новый заказ";
       if(existing) {
         controls.name.value=existing.name||"";
@@ -2046,19 +2069,18 @@
       nextGeneration:()=>++financeLoadGeneration,
       isCurrentGeneration:g=>g===financeLoadGeneration,
       onSnapshot:({masterId,operations,collections,deposits})=>{
+        const firstSnapshot=!financeSnapshotReady||Boolean(financeLoadError);
         financeMasterId=masterId;
         financeOperations=operations;
         financeCollections=collections;
         financeDeposits=deposits;
+        financeSnapshotReady=true;
         financeLoadError="";
         if(currentRole==="master"&&!financeActive){
           renderMasterSettlements();
           if(currentTab==="calendar")renderMasterOverview(masterWorkingOrders());
         }
-        if(financeActive)renderFinance();
-        window.__rdMoneyUpdated?.();
-        window.__rdOwnerPayrollUpdated?.();
-        window.__rdReportUpdated?.();
+        updateFinanceViews(firstSnapshot);
       }
     });
     const FINANCE_TIMUR_FEE=financeModel.TIMUR_FEE;
@@ -2066,6 +2088,7 @@
     const money=financeModel.money;
     const sumBy=financeModel.sumBy;
     const roundMoney=financeModel.roundMoney;
+    window.__rdFinanceStatus=()=>({loading:!financeSnapshotReady&&!financeLoadError,error:financeLoadError});
     function financeSplit(price){return financeModel.financeSplit(price);}
     // Reports and payroll read the same master identity and finance model.
     window.__rdReportMasterId=()=>currentRole==="owner"?financeMasterId:
@@ -2075,6 +2098,7 @@
     window.__rdOwnerPayrollSnapshot=()=>{
       if(currentRole!=="owner")return null;
       if(financeLoadError)return {isOwner:true,error:financeLoadError};
+      if(!financeSnapshotReady)return {isOwner:true,loading:true};
       if(!financeMasterId)return {isOwner:true,error:"Рауль пока не подключён к начислениям."};
       const m=financeModel.calculateAccruals({
         orders:getOrders(),operations:financeOperations,
@@ -2093,9 +2117,7 @@
     };
     window.__rdOwnerPayrollReload=async()=>{
       if(currentRole!=="owner")return;
-      try{await loadFinance();}
-      catch(error){financeLoadError=friendlyError(error);}
-      window.__rdOwnerPayrollUpdated?.();
+      await refreshFinance();
     };
     function financeLine(label,value) {
       const line=make("div","finance-line");
@@ -2114,6 +2136,31 @@
     // or replace the result of a newer request.
     let financeLoadGeneration=0;
     async function loadFinance() {return financeModel.loadFinance();}
+    function updateFinanceViews(refreshOrder){
+      if(financeActive)renderFinance();
+      if(refreshOrder)refreshMasterOrderDialog();
+      if(editingId&&!overlay.hidden&&!orderSaving&&currentRole==="owner")
+        updateOrderDeleteButton(getOrders().find(o=>String(o.id)===editingId));
+      window.__rdMoneyUpdated?.();
+      window.__rdOwnerPayrollUpdated?.();
+      window.__rdReportUpdated?.();
+    }
+    function refreshFinance(fresh=false){
+      // Navigation can share the initial read. A confirmed write needs a newer snapshot.
+      if(financeRead&&!fresh)return financeRead;
+      const pending=loadFinance().then(()=>{
+        if(financeRead===pending)reportSync(null);
+      }).catch(error=>{
+        if(financeRead!==pending)return;
+        financeLoadError=friendlyError(error);
+        updateFinanceViews(true);
+        reportSync(error,"finance");
+      }).finally(()=>{
+        if(financeRead===pending)financeRead=null;
+      });
+      financeRead=pending;
+      return pending;
+    }
     function financeVisible() {
       const show=currentRole==="owner"|| (currentRole==="master"&&String(currentMasterName||"").trim().toLowerCase()==="рауль");
       // Владелец переключается вкладками. У Рауля только баланс и кнопка возврата.
@@ -2131,8 +2178,14 @@
       const root=document.getElementById("financeContent");
       const history=document.getElementById("financeHistory");
       root.replaceChildren();history.replaceChildren();
+      document.getElementById("financeEntry").hidden=currentRole!=="owner"||!financeActive||!financeSnapshotReady||Boolean(financeLoadError);
       if(financeLoadError) {
         root.append(make("div","error","Ошибка загрузки финансов: "+financeLoadError));
+        return;
+      }
+      if(!financeSnapshotReady){
+        const status=make("p","finance-tip","Загружаем финансы…");
+        status.setAttribute("role","status");root.append(status);
         return;
       }
       const isOwner=currentRole==="owner";
@@ -2282,7 +2335,7 @@
     document.getElementById("viewFinanceBtn").addEventListener("click",async()=>{
       financeActive=true;financeVisible();
       restoreVerticalScroll(0);
-      try{await loadFinance();}catch(error){financeLoadError=friendlyError(error);renderFinance();}
+      await refreshFinance();
     });
     // Payroll payouts use one awaited operation, not a hidden form submission.
     // The backend validates the owner, the available balance and prevents overpayment.
@@ -2350,12 +2403,14 @@
     });
 
     async function loadTeam() {
+      const generation=accessGeneration;
       const panel=document.getElementById("teamPanel");
       panel.hidden=currentRole!=="owner" || (window.__rdCurrentPage!=null && window.__rdCurrentPage!=="orders");
       if (currentRole!=="owner") return;
       const requests=document.getElementById("teamRequests");
       const active=document.getElementById("teamMembers");
       const rows=await dbRequest("rabota_members?select=user_id,email,role,active,master_name&order=created_at.desc&limit=200","GET");
+      if(generation!==accessGeneration||currentRole!=="owner")return;
       if(!Array.isArray(rows)) throw new Error("Не удалось загрузить сотрудников.");
       requests.replaceChildren();active.replaceChildren();
       const pending=rows.filter(m=>!m.active);
@@ -2474,12 +2529,16 @@
     const loginMessage=document.getElementById("authMessage");
     const accessMessage=document.getElementById("accessMessage");
     async function checkAccess() {
+      resetAccountData();
+      const generation=accessGeneration;
       const user=await authRequest("user","GET",null,true);
+      if(generation!==accessGeneration)return;
       if(!user||!user.id) throw new Error("Не удалось проверить аккаунт.");
       currentUser=user;
       document.getElementById("currentEmail").textContent=user.email||"";
       const rows=await dbRequest("rabota_members?select=user_id,role,active,master_name&user_id=eq."+
         encodeURIComponent(user.id)+"&limit=1","GET");
+      if(generation!==accessGeneration)return;
       if(!Array.isArray(rows)||!rows.length||!rows[0].active){
         showScreen("accessScreen");return;
       }
@@ -2515,8 +2574,11 @@
       if (currentRole==="master") { currentTab="calendar"; selectedDate=masterClock().date; masterFollowsToday=true; }
       financeActive=false;
       financeVisible();
-      await reloadOrders();
+      await loadOrderData();
+      if(generation!==accessGeneration)return;
+      reportSync(null);
       showScreen("appScreen");
+      if(currentRole==="owner"||currentRole==="master")void refreshFinance();
       if(currentRole==="master")window.__rdInitMasterPush?.();
       window.__rdAccess?.();
       window.__rdMoneyAccess?.();
@@ -2573,6 +2635,7 @@
         const paid=roundMoney(sumBy(payouts,o=>o.amount));
         return {
           role:currentRole,masterName:currentMasterName,masterId:financeMasterId,
+          loading:!financeSnapshotReady&&!financeLoadError,
           error:financeLoadError,accrued,paid,due:roundMoney(accrued-paid),
           orders:mine.map(o=>({name:o.name,date:o.date,id:o.id,amount:financeSplit(o.price).raul,price:o.price})),
           payouts:payouts.map(o=>({id:o.id,amount:Number(o.amount),note:o.note,
@@ -2592,6 +2655,7 @@
         const orders=getOrders().filter(o=>o.assignedUserId===currentUser?.id);
         const collections=financeCollections.filter(c=>c.master_user_id===currentUser?.id);
         return {
+          loading:!financeSnapshotReady&&!financeLoadError,
           error:financeLoadError,
           preview:handoffPreview,
           canSubmit:financeMasterId===currentUser?.id&&(handoffPreview||collections.some(c=>"submitted_amount" in c)),
@@ -2614,6 +2678,7 @@
       ownerSnapshot(){
         if(currentRole!=="owner")throw Error("Нет доступа");
         return {
+          loading:!financeSnapshotReady&&!financeLoadError,
           error:financeLoadError,
           paidOrders:getOrders().filter(o=>o.paid&&o.status!=="Отменён").map(o=>({
             id:o.id,name:o.name,amount:o.paymentAmount??o.price,method:o.paymentMethod,
@@ -2758,13 +2823,13 @@
   <script src="/whatsapp-order.js?v=20261111-master-notes"></script>
   <script src="/whatsapp-client.js?v=20261118-safety-fix-v1"></script>
   <script src="/whatsapp-settings.js?v=20261118-safety-fix-v1"></script>
-  <script src="/profit-report.js?v=20261120-breadcrumb-v1"></script>
-  <script src="/redesign.js?v=20261120-owner-parity-v1"></script>
-  <script src="/master-notifications.js?v=20261117-review-v1"></script>
+  <script src="/profit-report.js?v=20261124-fast-start"></script>
+  <script src="/redesign.js?v=20261124-fast-start"></script>
+  <script src="/master-notifications.js?v=20261124-fast-start"></script>
   <script src="/orders-list.js?v=20261117-seq5-v1"></script>
   <script src="/owner-parity.js?v=20261120-v1"></script>
-  <script src="/finance-payroll.js?v=20261120-breadcrumb-v1"></script>
-  <script src="/money-workspace.js?v=20261124-handoff"></script>
+  <script src="/finance-payroll.js?v=20261124-fast-start"></script>
+  <script src="/money-workspace.js?v=20261124-fast-start"></script>
   <script src="/lead-assistant.js"></script>
 </body>
 </html>
