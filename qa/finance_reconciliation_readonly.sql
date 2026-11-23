@@ -20,14 +20,21 @@ WITH order_stats AS (
    count(*) FILTER (WHERE f.kind='timur_payout' AND f.voided_at IS NULL)::int timur_entries
  FROM public.rabota_finance_operations f WHERE f.order_id IS NOT NULL
  GROUP BY f.order_id
+), collection_amounts AS (
+ SELECT c.order_id,c.company_amount,c.gross,c.confirmed_at,
+   coalesce((to_jsonb(c)->>'submitted_amount')::numeric,
+     CASE WHEN c.submitted_at IS NOT NULL OR c.confirmed_at IS NOT NULL THEN c.company_amount ELSE 0 END) AS submitted,
+   coalesce((to_jsonb(c)->>'confirmed_amount')::numeric,
+     CASE WHEN c.confirmed_at IS NOT NULL THEN c.company_amount ELSE 0 END) AS confirmed
+ FROM public.rabota_cash_collections c
 ), cash_stats AS (
  SELECT count(*)::int collections,
    count(*) FILTER(WHERE c.confirmed_at IS NOT NULL)::int confirmed_collections,
-   count(*) FILTER(WHERE c.submitted_at IS NOT NULL AND c.confirmed_at IS NULL)::int pending_collections,
-   coalesce(sum(c.company_amount) FILTER(WHERE c.submitted_at IS NOT NULL AND c.confirmed_at IS NULL),0)::numeric(14,2) pending_company_cash,
+   count(*) FILTER(WHERE c.submitted>c.confirmed)::int pending_collections,
+   coalesce(sum(c.submitted-c.confirmed),0)::numeric(14,2) pending_company_cash,
    count(*) FILTER(WHERE coalesce(l.raul_entries,0)=0 OR coalesce(l.timur_entries,0)=0)::int collections_missing_auto_ledger,
    coalesce(sum(c.gross) FILTER(WHERE coalesce(l.raul_entries,0)=0 OR coalesce(l.timur_entries,0)=0),0)::numeric(14,2) missing_auto_ledger_gross
- FROM public.rabota_cash_collections c
+ FROM collection_amounts c
  LEFT JOIN ledger_per_order l ON l.order_id=c.order_id
 ), master_stats AS (
  SELECT count(*) FILTER (WHERE c.order_id IS NULL)::int paid_master_no_distribution,
@@ -58,6 +65,13 @@ WITH ledger AS (
    count(*) FILTER (WHERE kind='timur_payout' AND voided_at IS NULL)::int timur_rows
  FROM public.rabota_finance_operations
  WHERE order_id IS NOT NULL GROUP BY order_id
+), collection_amounts AS (
+ SELECT c.order_id,c.company_amount,c.gross,c.confirmed_at,
+   coalesce((to_jsonb(c)->>'submitted_amount')::numeric,
+     CASE WHEN c.submitted_at IS NOT NULL OR c.confirmed_at IS NOT NULL THEN c.company_amount ELSE 0 END) AS submitted,
+   coalesce((to_jsonb(c)->>'confirmed_amount')::numeric,
+     CASE WHEN c.confirmed_at IS NOT NULL THEN c.company_amount ELSE 0 END) AS confirmed
+ FROM public.rabota_cash_collections c
 ), flagged AS (
  SELECT right(o.id::text,8) AS order_code,
    o.appointment_date AS visit_date,
@@ -66,17 +80,18 @@ WITH ledger AS (
    coalesce(c.gross,0)::numeric(14,2) AS collection_gross,
    coalesce(c.company_amount,0)::numeric(14,2) AS company_share,
    CASE WHEN c.order_id IS NULL THEN 'no_collection'
+     WHEN c.submitted>c.confirmed THEN 'awaiting_owner'
      WHEN c.confirmed_at IS NOT NULL THEN 'confirmed'
-     WHEN c.submitted_at IS NOT NULL THEN 'awaiting_owner'
+     WHEN c.confirmed>0 THEN 'partly_confirmed'
      ELSE 'held_by_master' END AS collection_state,
    (o.paid AND o.payment_method IS NULL AND o.payment_amount IS NULL
      AND o.payment_received_by IS NULL AND o.paid_at IS NULL AND o.paid_by IS NULL) AS legacy_paid,
    (o.paid AND o.payment_received_by='master' AND c.order_id IS NULL) AS master_no_collection,
    (c.order_id IS NOT NULL AND
       (coalesce(l.raul_rows,0)=0 OR coalesce(l.timur_rows,0)=0)) AS collection_no_automatic_ledger,
-   (c.order_id IS NOT NULL AND c.submitted_at IS NOT NULL AND c.confirmed_at IS NULL) AS awaiting_owner
+   (c.order_id IS NOT NULL AND c.submitted>c.confirmed) AS awaiting_owner
  FROM public.rabota_orders o
- LEFT JOIN public.rabota_cash_collections c ON c.order_id=o.id
+ LEFT JOIN collection_amounts c ON c.order_id=o.id
  LEFT JOIN ledger l ON l.order_id=o.id
 )
 SELECT order_code,visit_date,order_gross,status,collection_gross,company_share,

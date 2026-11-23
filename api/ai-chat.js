@@ -1,4 +1,5 @@
 /* Личный ИИ-чат. OpenAI ключ хранится только в Vercel Environment Variables. */
+const {collectionAmounts}=require("../finance-model.js");
 const SUPABASE_URL = process.env.SUPABASE_URL || "https://yedzfmibceboncrytbqz.supabase.co";
 const SUPABASE_PUBLISHABLE_KEY = process.env.SUPABASE_PUBLISHABLE_KEY || "sb_publishable_tSqbw3aeAgxYuzHhQurCuw_yDze4ZNn";
 
@@ -78,7 +79,7 @@ async function businessSnapshot(tokenHeaders, question) {
  const [orders,operations,collections,members]=await Promise.all([
   readRows("rabota_orders","id,name,phone,appointment_date,appointment_time,master,assigned_user_id,status,paid,price,created_at,completed_at,updated_at",tokenHeaders,"created_at.desc"),
   readRows("rabota_finance_operations","kind,amount,master_user_id,order_id,voided_at,created_at",tokenHeaders),
-  readRows("rabota_cash_collections","order_id,master_user_id,gross,raul_amount,timur_amount,company_amount,created_at,submitted_at,confirmed_at",tokenHeaders),
+  readRows("rabota_cash_collections","*",tokenHeaders),
   readRows("rabota_members","user_id,role,active,master_name",tokenHeaders,"created_at.asc")
  ]);
  const today=moscowDate(Date.now());
@@ -86,13 +87,11 @@ async function businessSnapshot(tokenHeaders, question) {
  const thisMonth=today.slice(0,7),lastMonth=shiftDate(thisMonth+"-01",-1).slice(0,7);
  const monthEnd=month=>shiftDate(shiftDate(month+"-01",32).slice(0,7)+"-01",-1);
  const currentWeekEnd=shiftDate(thisWeek,6);
- const confirmed=collections.filter(c=>!!c.confirmed_at);
- const pending=collections.filter(c=>!c.confirmed_at);
  const activeOps=operations.filter(o=>!o.voided_at);
  const paidNonCancelled=orders.filter(o=>o.paid&&o.status!=="Отменён");
  const collectionOrderIds=new Set(collections.map(c=>c.order_id));
  const directReceipts=sum(paidNonCancelled.filter(o=>!collectionOrderIds.has(o.id)),o=>o.price);
- const confirmedCompanyDeposits=sum(confirmed,c=>c.company_amount);
+ const confirmedCompanyDeposits=sum(collections,c=>collectionAmounts(c).confirmedAmount);
  const allPayouts=sum(activeOps.filter(o=>["raul_payout","timur_payout"].includes(o.kind)&&!o.order_id),o=>o.amount);
  const expenses=sum(activeOps.filter(o=>o.kind==="expense"),o=>o.amount);
  const cashIn=round(directReceipts+confirmedCompanyDeposits);
@@ -168,7 +167,7 @@ async function businessSnapshot(tokenHeaders, question) {
   weekly_history:weeks,monthly_history:monthly,
   accounting_rub:{
     direct_receipts:directReceipts,confirmed_company_deposits:confirmedCompanyDeposits,
-    unconfirmed_company_deposits:sum(pending,c=>c.company_amount),
+    unconfirmed_company_deposits:round(sum(collections,c=>c.company_amount)-confirmedCompanyDeposits),
     recorded_cash_in:cashIn,payouts_recorded:allPayouts,expenses_recorded:expenses,
     recorded_cash_balance:cashBalance,raul_due:raul?raulDue:null,timur_due:raul?timurDue:null,
     advances_on_incomplete_orders:advancePaid,free_cash_balance:raul?freeBalance:null,

@@ -283,7 +283,7 @@
   <link rel="stylesheet" href="/master-dense.css?v=20261113-stage8">
   <link rel="stylesheet" href="/master-dense-enhancements.css?v=20261117-compact-v1">
   <link rel="stylesheet" href="/master-completed-day.css?v=20261117-v1">
-  <link rel="stylesheet" href="/money-workspace.css?v=20261120-header-row-v2">
+  <link rel="stylesheet" href="/money-workspace.css?v=20261124-handoff">
   <link rel="stylesheet" href="/master-order-sheet.css?v=20261117-icon-align-v2">
   <link rel="stylesheet" href="/master-quick-order.css?v=20261118-inline-busy-v1">
   <link rel="stylesheet" href="/master-quick-premium.css?v=20261118-v1">
@@ -857,8 +857,8 @@
   <script src="/order-model.js?v=20261118-client-source-v1"></script>
   <script src="/calendar-load.js?v=20261117-completed-v1"></script>
    <script src="/calendar-model.js?v=20261117-month-view-v1"></script>
-  <script src="/finance-model.js?v=20261120-shared-reports-v1"></script>
-  <script src="/master-ui.js?v=20261118-day-audit-v1"></script>
+  <script src="/finance-model.js?v=20261124-handoff"></script>
+  <script src="/master-ui.js?v=20261124-handoff"></script>
   <script src="/lead-ai-bridge.js?v=20261113-stage7"></script>
   <script src="/app-services.js?v=20261114-stage9"></script>
   <script>
@@ -918,6 +918,7 @@
     let financeActive = false;
     let financeOperations = [];
     let financeCollections = [];
+    let financeDeposits = [];
     let financeMasterId = null;
     let financeLoadError = "";
     try { session = JSON.parse(localStorage.getItem(AUTH_KEY) || "null"); }
@@ -990,7 +991,7 @@
     function clearSession() {
       session = null; currentUser = null; currentRole=null; currentMasterName=""; cloudOrders = []; ordersLoaded=false;
       window.__rdOrderSync?.reset();
-      financeOperations=[];financeCollections=[];financeMasterId=null;financeActive=false;financeLoadError="";
+      financeOperations=[];financeCollections=[];financeDeposits=[];financeMasterId=null;financeActive=false;financeLoadError="";
       financeLoadGeneration++; // invalidate finance responses still in flight
       localStorage.removeItem(AUTH_KEY);
     }
@@ -1098,6 +1099,7 @@
         try {await loadFinance();} catch(error){
           financeLoadError=friendlyError(error);
           if(financeActive)renderFinance();
+          window.__rdMoneyUpdated?.();
           syncError=error;
         }
       }
@@ -1245,21 +1247,31 @@
         wrap.append(btn,make("p","cash-share-hint",
           "Не отмечай распределение, пока деньги действительно не выданы."));
       }else{
+        const {waitingAmount,pendingAmount,confirmedAmount}=financeModel.collectionAmounts(collection);
         const line=make("div","cash-share-line");
         line.append(make("span","","Доля компании"),make("strong","",money(collection.company_amount)));
         wrap.append(line);
-        if(collection.confirmed_at) {
-          wrap.append(make("div","cash-share-status","✓ Деньги приняты владельцем в кассу"));
-        }else if(collection.submitted_at) {
-          wrap.append(make("div","cash-share-status","Передача отмечена. Ожидается подтверждение владельца."));
-        }else{
-          wrap.append(make("div","cash-share-status","Осталось передать компании: "+money(collection.company_amount)));
+        if(confirmedAmount>0)
+          wrap.append(make("div","cash-share-status","Компания подтвердила "+money(confirmedAmount)));
+        if(pendingAmount>0)
+          wrap.append(make("div","cash-share-status","Ждёт подтверждения "+money(pendingAmount)));
+        if(waitingAmount>0){
+          wrap.append(make("div","cash-share-status","Осталось передать компании: "+money(waitingAmount)));
           const btn=make("button","secondary","Я передал деньги компании");
           btn.type="button";
           btn.addEventListener("click",async()=>{
-            if(!confirm("Ты действительно передал владельцу "+money(collection.company_amount)+" за заказ "+(order.name||"")+"? Владелец должен подтвердить получение."))return;
+            if(!confirm("Ты действительно передал владельцу "+money(waitingAmount)+" за заказ "+(order.name||"")+"? Владелец должен подтвердить получение."))return;
             btn.disabled=true;
-            try{await dbRequest("rpc/rabota_cash_submit","POST",{p_order_id:order.id});await reloadOrders();}
+            try{
+              if("submitted_amount" in collection){
+                const result=await submitMasterHandoff(waitingAmount,crypto.randomUUID(),order.id);
+                if(result.refreshError)alert("Передача записана. "+result.refreshError);
+              }else{
+                await dbRequest("rpc/rabota_cash_submit","POST",{p_order_id:order.id});
+                await reloadOrders();
+              }
+              refreshMasterOrderDialog();
+            }
             catch(error){alert(friendlyError(error));btn.disabled=false;}
           });
           wrap.append(btn);
@@ -2033,10 +2045,11 @@
       getUserId:()=>currentUser?.id||null,
       nextGeneration:()=>++financeLoadGeneration,
       isCurrentGeneration:g=>g===financeLoadGeneration,
-      onSnapshot:({masterId,operations,collections})=>{
+      onSnapshot:({masterId,operations,collections,deposits})=>{
         financeMasterId=masterId;
         financeOperations=operations;
         financeCollections=collections;
+        financeDeposits=deposits;
         financeLoadError="";
         if(currentRole==="master"&&!financeActive){
           renderMasterSettlements();
@@ -2163,18 +2176,27 @@
         if(awaiting.length){
           root.append(make("h2","finance-title","Подтвердить поступление от Рауля"));
           for(const collection of awaiting){
+            const {submittedAmount,confirmedAmount,pendingAmount}=financeModel.collectionAmounts(collection);
             const order=getOrders().find(o=>String(o.id)===String(collection.order_id));
             const item=make("div","finance-activity");
             const title=make("div","finance-activity-top");
-            title.append(make("span","",order?.name||"Заказ"),make("strong","",money(collection.company_amount)));
+            title.append(make("span","",[order?.name||"Заказ",order?.referenceCode].filter(Boolean).join(" · ")),make("strong","",money(pendingAmount)));
             item.append(title);
             item.append(make("div","finance-activity-sub","Рауль отметил передачу денег компании. Подтверди только после фактического получения."));
             const btn=make("button","primary","Подтвердить получение в кассу");
             btn.type="button";
             btn.addEventListener("click",async()=>{
-              if(!confirm("Ты действительно получил "+money(collection.company_amount)+" от Рауля?"))return;
+              if(!confirm("Ты действительно получил "+money(pendingAmount)+" от Рауля?"))return;
               btn.disabled=true;
-              try{await dbRequest("rpc/rabota_cash_confirm","POST",{p_order_id:collection.order_id});await reloadOrders();}
+              try{
+                if("submitted_amount" in collection){
+                  await dbRequest("rpc/rabota_cash_confirm_amount","POST",{p_order_id:collection.order_id,
+                    p_expected_submitted:submittedAmount,p_expected_confirmed:confirmedAmount});
+                }else{
+                  await dbRequest("rpc/rabota_cash_confirm","POST",{p_order_id:collection.order_id});
+                }
+                await reloadOrders();
+              }
               catch(error){alert(friendlyError(error));btn.disabled=false;}
             });
             item.append(btn);root.append(item);
@@ -2185,7 +2207,8 @@
         cash.append(financeLine("Поступило напрямую компании",money(directReceipts)));
         cash.append(financeLine("Получено мастером, ещё не распределено",money(sumBy(masterUnallocated,o=>o.price))));
         cash.append(financeLine("Подтверждено от мастера",money(confirmedDeposits)));
-        cash.append(financeLine("Деньги компании ещё у мастера / в пути",money(sumBy(unconfirmedCash,c=>c.company_amount))));
+        cash.append(financeLine("Деньги компании ещё у мастера / в пути",
+          money(sumBy(unconfirmedCash,c=>Number(c.company_amount)-financeModel.collectionAmounts(c).confirmedAmount))));
         cash.append(financeLine("Выдано Раулю и Тимуру",money(allPayouts)));
         cash.append(financeLine("Другие расходы",money(expenses)));
         cash.append(financeLine("Долги Раулю и Тимуру",money(raulDue+timurDue)));
@@ -2504,7 +2527,44 @@
 
     // Role-aware adapters: the database RPC/RLS remains the final authority.
     // Keep credentials inside dbRequest; UI modules never read localStorage tokens.
+    const handoffPreview=/^rabota-(?:git-[a-z0-9-]+-|[a-z0-9]{7,}-)sonkort19-6069s-projects\.vercel\.app$/i.test(location.hostname);
+    async function submitMasterHandoff(amount,requestId,orderId=null){
+      if(handoffPreview)throw Error("В предпросмотре передача не записывается.");
+      if(currentRole!=="master"||!currentUser?.id||financeMasterId!==currentUser.id)
+        throw Error("Передачу может отметить только мастер, принявший деньги.");
+      if(!Number.isFinite(amount)||amount<=0||roundMoney(amount)!==amount)
+        throw Error("Укажите положительную сумму с точностью до копеек.");
+      // Keep the same id across a dropped response and a reload in this tab.
+      const key=["rabota.handoff",currentUser.id,orderId||"all",Math.round(amount*100)].join(".");
+      const previousId=sessionStorage.getItem(key);
+      if(previousId&&previousId!==requestId){
+        // A new form may represent a second real handoff for the same amount.
+        // Resolve the first receipt without writing before accepting a new intent.
+        const receipt=await dbRequest("rabota_cash_transfer_events?select=id&kind=eq.submitted"+
+          "&request_id=eq."+encodeURIComponent(previousId)+"&master_user_id=eq."+encodeURIComponent(currentUser.id)+"&limit=1","GET");
+        if(!Array.isArray(receipt))throw Error("Не удалось проверить предыдущую передачу.");
+        if(receipt.length){
+          sessionStorage.removeItem(key);
+          await reloadOrders();
+          throw Error("Предыдущая передача "+money(amount)+" уже записана. Если вы передали столько же ещё раз, подтвердите новую передачу.");
+        }
+      }
+      const id=previousId||requestId;
+      sessionStorage.setItem(key,id);
+      const payload={p_amount:amount,p_request_id:id};
+      if(orderId)payload.p_order_id=orderId;
+      const accepted=await dbRequest("rpc/rabota_cash_submit_amount","POST",payload);
+      if(accepted!==true)throw Error("Не удалось подтвердить запись передачи. Повторите попытку.");
+      sessionStorage.removeItem(key);
+      try{await reloadOrders();}
+      catch(error){
+        financeLoadError=friendlyError(error);
+        window.__rdMoneyUpdated?.();
+      }
+      return {refreshError:financeLoadError};
+    }
     window.__rdMoneyUi={
+      submitMasterHandoff,
       snapshot(){
         const mine=getOrders().filter(o=>o.assignedUserId===financeMasterId
           &&o.status==="Выполнен"&&o.paid&&Number.isFinite(o.price)&&o.price>=0);
@@ -2530,17 +2590,19 @@
       masterPayments(){
         if(currentRole!=="master")throw Error("Доступно только мастеру");
         const orders=getOrders().filter(o=>o.assignedUserId===currentUser?.id);
-        const ids=new Set(orders.map(o=>String(o.id)));
+        const collections=financeCollections.filter(c=>c.master_user_id===currentUser?.id);
         return {
           error:financeLoadError,
+          preview:handoffPreview,
+          canSubmit:financeMasterId===currentUser?.id&&(handoffPreview||collections.some(c=>"submitted_amount" in c)),
           orders:orders.map(o=>({
-            id:o.id,name:o.name,date:o.date,time:o.time,status:o.status,
+            id:o.id,reference:o.referenceCode,name:o.name,date:o.date,time:o.time,status:o.status,
             paid:o.paid,amount:o.paymentAmount??o.price,method:o.paymentMethod,
             paidAt:o.paidAt,receivedBy:o.paymentReceivedBy
           })),
-          collections:financeCollections.filter(c=>ids.has(String(c.order_id))).map(c=>({
+          collections:collections.map(c=>({
             orderId:c.order_id,companyAmount:Number(c.company_amount)||0,
-            submittedAt:c.submitted_at,confirmedAt:c.confirmed_at
+            ...financeModel.collectionAmounts(c)
           })),
           payouts:financeOperations.filter(o=>!o.voided_at &&
             o.master_user_id===currentUser?.id && o.kind==="raul_payout").map(o=>({
@@ -2561,9 +2623,8 @@
             id:o.id,kind:o.kind,amount:Number(o.amount),payment_method:o.payment_method,
             note:o.note,created_at:o.created_at,order_id:o.order_id
           })),
-          collections:financeCollections.map(c=>({
-            id:c.order_id,amount:Number(c.company_amount),confirmed_at:c.confirmed_at
-          }))
+          collections:financeCollections.map(c=>({id:c.order_id})),
+          deposits:financeDeposits
         };
       },
       async payout({kind="raul_payout",amount,method,note,requestId,masterId}){
@@ -2703,7 +2764,7 @@
   <script src="/orders-list.js?v=20261117-seq5-v1"></script>
   <script src="/owner-parity.js?v=20261120-v1"></script>
   <script src="/finance-payroll.js?v=20261120-breadcrumb-v1"></script>
-  <script src="/money-workspace.js?v=20261120-audited-v6"></script>
+  <script src="/money-workspace.js?v=20261124-handoff"></script>
   <script src="/lead-assistant.js"></script>
 </body>
 </html>

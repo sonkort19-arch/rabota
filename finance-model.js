@@ -9,6 +9,14 @@
   const money=amount=>Number(amount||0).toLocaleString("ru-RU",{maximumFractionDigits:2})+" ₽";
   const sumBy=(rows,fn)=>rows.reduce((total,row)=>total+Number(fn(row)||0),0);
   const roundMoney=value=>Math.round((Number(value)+Number.EPSILON)*100)/100;
+  function collectionAmounts(row){
+    const total=Number(row.company_amount)||0;
+    // Rows created before partial handoffs record only full-order timestamps.
+    const confirmedAmount=Number(row.confirmed_amount??(row.confirmed_at?total:0));
+    const submittedAmount=Number(row.submitted_amount??(row.submitted_at||row.confirmed_at?total:0));
+    return {confirmedAmount,submittedAmount,pendingAmount:roundMoney(submittedAmount-confirmedAmount),
+      waitingAmount:roundMoney(total-submittedAmount)};
+  }
   function financeSplit(price){
     const gross=roundMoney(price);
     const raul=roundMoney(gross*FINANCE_RAUL_PERCENT);
@@ -30,9 +38,10 @@
     const companyEarned=roundMoney(sumBy(eligible,o=>financeSplit(o.price).company));
     const eligibleGross=sumBy(eligible,o=>o.price);
     const bookedPending=relevantOrders.filter(o=>!o.paid||o.status!=="Выполнен");
-    const unconfirmedCash=collections.filter(c=>!c.confirmed_at);
-    const masterHeld=sumBy(unconfirmedCash.filter(c=>!c.submitted_at&&c.master_user_id===masterId),c=>c.company_amount);
-    const waitingOwner=sumBy(unconfirmedCash.filter(c=>c.submitted_at&&c.master_user_id===masterId),c=>c.company_amount);
+    const unconfirmedCash=collections.filter(c=>collectionAmounts(c).confirmedAmount<Number(c.company_amount));
+    const own=unconfirmedCash.filter(c=>c.master_user_id===masterId).map(collectionAmounts);
+    const masterHeld=roundMoney(sumBy(own,c=>c.waitingAmount));
+    const waitingOwner=roundMoney(sumBy(own,c=>c.pendingAmount));
     return {relevantOrders,eligible,payments,teamPayments,raulAccrued,timurAccrued,
       raulPaid,timurPaid,raulDue,timurDue,companyEarned,eligibleGross,
       bookedPending,unconfirmedCash,masterHeld,waitingOwner};
@@ -44,7 +53,7 @@
       o.paymentReceivedBy==="master"&&!cashCollections.has(String(o.id)));
     const directReceipts=sumBy(receivedOrders.filter(o=>
       !cashCollections.has(String(o.id))&&o.paymentReceivedBy!=="master"),o=>o.price);
-    const confirmedDeposits=sumBy(collections.filter(c=>c.confirmed_at),c=>c.company_amount);
+    const confirmedDeposits=roundMoney(sumBy(collections,c=>collectionAmounts(c).confirmedAmount));
     const cashIn=roundMoney(directReceipts+confirmedDeposits);
     const allPayouts=sumBy(payments.filter(o=>
       (o.kind==="raul_payout"||o.kind==="timur_payout")&&!o.order_id),o=>o.amount);
@@ -52,7 +61,7 @@
     const notCompletedPaid=sumBy(receivedOrders.filter(o=>o.status!=="Выполнен"),o=>o.price);
     const cashBalance=roundMoney(cashIn-allPayouts-expenses);
     const freeBalance=roundMoney(cashBalance-raulDue-timurDue-notCompletedPaid);
-    const awaiting=collections.filter(c=>c.submitted_at&&!c.confirmed_at);
+    const awaiting=collections.filter(c=>collectionAmounts(c).pendingAmount>0);
     return {receivedOrders,cashCollections,masterUnallocated,directReceipts,
       confirmedDeposits,cashIn,allPayouts,expenses,notCompletedPaid,
       cashBalance,freeBalance,awaiting};
@@ -88,21 +97,40 @@
         collections.push(...page);
         if(page.length<1000)break;
       }
+      const uniqueCollections=new Map(collections.map(row=>[String(row.order_id),row]));
+      const currentCollections=[...uniqueCollections.values()];
+      const deposits=currentCollections.filter(c=>c.confirmed_amount==null&&c.confirmed_at)
+        .map(c=>({id:c.order_id,amount:Number(c.company_amount),confirmed_at:c.confirmed_at}));
+      if(currentRole==="owner"&&currentCollections.some(c=>Number(c.confirmed_amount)>0)){
+        // One payment can be confirmed in separate instalments on different days.
+        const seen=new Set();
+        for(let offset=0;;offset+=1000){
+          const page=await deps.dbRequest("rabota_cash_transfer_events?select=id,order_id,amount,created_at&kind=eq.confirmed&order=created_at.desc,id.desc&limit=1000&offset="+offset,"GET");
+          if(!Array.isArray(page))throw Error("Не удалось загрузить подтверждённые передачи");
+          for(const row of page){
+            const collection=uniqueCollections.get(String(row.order_id));
+            // A receipt may have been posted since the collections request.
+            if(!collection?.last_confirmed_at||row.created_at>collection.last_confirmed_at||seen.has(row.id))continue;
+            seen.add(row.id);
+            deposits.push({id:row.id,amount:Number(row.amount),confirmed_at:row.created_at});
+          }
+          if(page.length<1000)break;
+        }
+      }
       if(!deps.isCurrentGeneration(generation))return;
       const uniqueOperations=new Map(operations.map(row=>[String(row.id),row]));
-      const uniqueCollections=new Map(collections.map(row=>[String(row.order_id),row]));
       deps.onSnapshot({
         masterId,
         operations:[...uniqueOperations.values()],
-        collections:[...uniqueCollections.values()]
+        collections:currentCollections,deposits
       });
     }
-    return {loadFinance,money,sumBy,roundMoney,financeSplit,calculateAccruals,
+    return {loadFinance,money,sumBy,roundMoney,collectionAmounts,financeSplit,calculateAccruals,
       calculateCompanyCash,TIMUR_FEE:FINANCE_TIMUR_FEE,RAUL_PERCENT:FINANCE_RAUL_PERCENT};
   }
   if(root){root.__rdCreateFinanceModel=createFinanceModel;root.__rdFinanceSplit=financeSplit;}
   if(typeof module!=="undefined"&&module.exports)
-    module.exports={createFinanceModel,money,sumBy,roundMoney,financeSplit,
+    module.exports={createFinanceModel,money,sumBy,roundMoney,collectionAmounts,financeSplit,
       calculateAccruals,calculateCompanyCash,TIMUR_FEE:FINANCE_TIMUR_FEE,
       RAUL_PERCENT:FINANCE_RAUL_PERCENT};
 })(typeof window!=="undefined"?window:null);

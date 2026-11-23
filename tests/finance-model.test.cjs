@@ -102,6 +102,36 @@ test("legacy paid order without metadata stays in direct receipts",()=>{
   assert.equal(x.directReceipts,10000);
   assert.equal(x.cashBalance,10000);
 });
+test("partial handoffs separate outstanding, pending and confirmed cash from payroll",()=>{
+  const collection={order_id:"1",master_user_id:"raul",company_amount:3500,
+    submitted_amount:"1500.75",confirmed_amount:"1000.50"};
+  const values=calculateAccruals({orders:[r("1",10000)],operations:[],
+    collections:[collection],masterId:"raul"});
+  assert.equal(values.masterHeld,1999.25);
+  assert.equal(values.waitingOwner,500.25);
+  assert.equal(values.raulAccrued,5000);
+  const cash=calculateCompanyCash({orders:[r("1",10000)],collections:[collection],
+    payments:[],raulDue:0,timurDue:0});
+  assert.equal(cash.confirmedDeposits,1000.50);
+  assert.equal(cash.cashBalance,1000.50);
+  assert.deepEqual(cash.awaiting,[collection]);
+});
+test("cash history preserves dates of confirmed instalments and counts each legacy receipt once",async()=>{
+  const first="2026-11-20T11:00:00Z",second="2026-11-21T11:00:00Z";
+  const legacy={order_id:"old",company_amount:3500,confirmed_at:first};
+  const managed={order_id:"new",company_amount:2000,submitted_amount:2000,
+    confirmed_amount:2000,confirmed_at:second,last_confirmed_at:second};
+  const event={id:"entry-a",order_id:"new",amount:800,created_at:first};
+  const {model,snapshots}=setup({request:async path=>{
+    if(path.startsWith("rabota_cash_collections"))return [legacy,legacy,managed];
+    if(path.startsWith("rabota_cash_transfer_events"))return [
+      {id:"entry-b",order_id:"new",amount:1200,created_at:second},event,event];
+    return [];
+  }});
+  await model.loadFinance();
+  assert.deepEqual(snapshots[0].deposits.map(x=>[x.amount,x.confirmed_at]),
+    [[3500,first],[1200,second],[800,first]]);
+});
 test("owner finance reads active Raul and deduplicates operations and collections",async()=>{
   const {model,snapshots,calls}=setup({request:async path=>{
     if(path.startsWith("rabota_members"))return [
