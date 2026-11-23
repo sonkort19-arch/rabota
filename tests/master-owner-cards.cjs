@@ -87,8 +87,9 @@ test("Raul's history displays compact rows grouped by booking dates",()=>{
   const viewEnd=html.indexOf("    let formPaymentChoice=null;",viewStart);
   assert.ok(viewStart>=0&&viewEnd>viewStart,"main order-view renderer remains");
   const view=html.slice(viewStart,viewEnd);
-  assert.match(view,/if \(currentTab === "history"\) \{\s*shown = getOrders\(\).filter\(o=>o.status==="Выполнен"\)/);
-  assert.match(view,/if\(currentRole==="master"\) renderMasterSchedule\(shown\);/);
+  assert.match(view,/const sourceOrders=unified\?workspace\.filterOrders\(getOrders\(\)\):getOrders\(\)/);
+  assert.match(view,/if \(currentTab === "history"\) \{\s*shown = sourceOrders.filter\(o=>o.status==="Выполнен"\)/);
+  assert.match(view,/if\(currentRole==="master"\)\{\s*renderMasterSchedule\(shown,\{compactEmpty:completedForDay.length>0\}\);/);
   const rows=[{id:"old-1",date:"2026-11-11",name:"Завершённый",status:"Выполнен",paid:true},
     {id:"old-2",date:"2026-11-10",name:"Оплаченный",status:"Выполнен",paid:true}];
   const x=fixture({tab:"history",rows});
