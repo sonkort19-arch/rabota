@@ -524,3 +524,85 @@ body.rd .actions .action.rd-share-raul-wa {
 @media (max-width:390px){
  body.rd #rdOrdersIntro .rd-raul-share-settings {flex:1 1 auto;}
 }
+
+
+/* Authoritative owner/manager mobile dock and secondary-menu layout.
+   Keep this geometry independent of the currently selected workspace. */
+@media(max-width:790px){
+ body.rd > #rdMobileNav:not([hidden]){
+   --rd-mobile-nav-height:calc(64px + max(8px,env(safe-area-inset-bottom,0px)));
+   box-sizing:border-box;
+   display:grid;
+   grid-template-columns:repeat(5,minmax(0,1fr));
+   grid-template-rows:56px;
+   align-items:stretch;
+   gap:2px;
+   min-width:0;
+   height:var(--rd-mobile-nav-height);
+   padding:7px max(5px,env(safe-area-inset-right,0px)) max(8px,env(safe-area-inset-bottom,0px)) max(5px,env(safe-area-inset-left,0px));
+   border-top:1px solid #e6eaf3;
+   background:#fff;
+   overflow:hidden;
+ }
+ body.rd > #rdMobileNav > .rd-nav-btn{
+   box-sizing:border-box;
+   flex:none;
+   width:100%;
+   min-width:0;
+   min-height:0;
+   height:56px;
+   padding:4px 1px;
+   gap:4px;
+   margin:0;
+   font-size:clamp(9px,2.35vw,11px);
+   white-space:nowrap;
+   overflow:hidden;
+ }
+ body.rd > #rdMobileNav > .rd-nav-btn > span:last-child{
+   max-width:100%;
+   overflow:hidden;
+   text-overflow:ellipsis;
+ }
+ body.rd.rd-more-open > #rdMobileNav:not([hidden]){z-index:102}
+ body.rd > #rdMobileMoreVeil:not([hidden]){
+   position:fixed;
+   inset:0;
+   z-index:101;
+   display:block;
+   background:#11182766;
+   touch-action:none;
+ }
+ body.rd > #rdMobileMoreSheet:not([hidden]){
+   position:fixed;
+   left:max(9px,env(safe-area-inset-left,0px));
+   right:max(9px,env(safe-area-inset-right,0px));
+   bottom:calc(70px + max(8px,env(safe-area-inset-bottom,0px)));
+   z-index:103;
+   height:auto;
+   min-height:0;
+   max-height:calc(100vh - 88px - env(safe-area-inset-top,0px) - max(8px,env(safe-area-inset-bottom,0px)));
+   max-height:calc(100dvh - 88px - env(safe-area-inset-top,0px) - max(8px,env(safe-area-inset-bottom,0px)));
+   overflow-y:auto;
+   overscroll-behavior:contain;
+   -webkit-overflow-scrolling:touch;
+   background:#fff;
+ }
+ body.rd > #rdMobileMoreSheet .rd-more-header{
+   position:sticky;
+   top:0;
+   z-index:1;
+   background:#fff;
+ }
+ body.rd > #rdMobileMoreSheet .rd-nav-btn{
+   flex-shrink:0;
+   min-height:47px;
+ }
+ /* Do not give two primary items the selected styling while the drawer is open. */
+ body.rd > #rdMobileNav .rd-mobile-more-trigger[aria-expanded="true"]:not([aria-current="page"]){
+   background:#f4f6fb;
+   color:#435373;
+ }
+ body.rd > #rdMobileNav .rd-mobile-more-trigger[aria-expanded="true"]:not([aria-current="page"]) .rd-icon{
+   color:#435373;
+ }
+}
