@@ -7,8 +7,8 @@ const body=document.body;
 body.classList.add("rd");
 const $=id=>document.getElementById(id);
 const makeNode=(tag,className,text)=>{const n=document.createElement(tag);if(className)n.className=className;if(text!=null)n.textContent=String(text);return n};
-const sections=["home","leads","orders","calendar","clients","finance","reports","settings","ai"];
-const titles={home:"Главная",leads:"Лиды",orders:"Заказы",calendar:"Календарь",clients:"Клиенты",finance:"Платежи",reports:"Отчёты",settings:"Настройки",ai:"ИИ-чат"};
+const sections=["home","leads","orders","calendar","clients","finance","reports","growth","settings","ai"];
+const titles={home:"Главная",leads:"Лиды",orders:"Заказы",calendar:"Календарь",clients:"Клиенты",finance:"Платежи",reports:"Отчёты",growth:"Развитие MOBA",settings:"Настройки",ai:"ИИ-чат"};
 const crmReturnPages=new Set(["home","leads","orders","calendar","clients","finance","reports","settings"]);
 function aiChatUrl(draft){
  const source=crmReturnPages.has(activePage)?activePage:"home";
@@ -28,6 +28,7 @@ const iconPaths={
  reports:'<path d="M4 20V11h4v9M10 20V4h4v16M16 20v-7h4v7M3 21h18"/>',
  ai:'<path d="m12 2 1.9 6.1L20 10l-6.1 1.9L12 18l-1.9-6.1L4 10l6.1-1.9L12 2ZM19 16l.8 2.2L22 19l-2.2.8L19 22l-.8-2.2L16 19l2.2-.8L19 16Z"/>',
  settings:'<circle cx="12" cy="12" r="3"/><path d="M12 2v2m0 16v2M4.9 4.9l1.4 1.4m11.4 11.4 1.4 1.4M2 12h2m16 0h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>',
+ growth:'<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1"/>',
  more:'<circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/>',
  search:'<circle cx="10.8" cy="10.8" r="6.8"/><path d="m16 16 5 5"/>',
  clock:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
@@ -161,9 +162,9 @@ function stats(node,items){
 }
 function navButton(key){const btn=makeNode("button","rd-nav-btn");btn.type="button";btn.dataset.page=key;
  const emblem=makeNode("span","rd-icon");emblem.append(uiIcon(key));
- btn.append(emblem,boxText("span",titles[key]));btn.addEventListener("click",()=>navigate(key));return btn}
+ btn.append(emblem,boxText("span",titles[key]));btn.addEventListener("click",()=>key==="growth"?window.location.assign("/growth.html"):navigate(key));return btn}
 function permittedSections(){
- return sections.filter(key=>!(["finance","reports","ai"].includes(key)&&currentRole!=="owner"));
+ return sections.filter(key=>!(["finance","reports","growth","ai"].includes(key)&&currentRole!=="owner"));
 }
 function makeProfileMenu(){
  const toggle=makeNode("button","rd-user rd-profile-trigger");
