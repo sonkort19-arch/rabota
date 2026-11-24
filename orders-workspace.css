@@ -277,13 +277,9 @@ body.rd #appScreen.rd-unified-orders .ow-cancelled-toggle:after{content:"⌄";fl
 body.rd #appScreen.rd-unified-orders .ow-cancelled-toggle[aria-expanded="true"]:after{transform:rotate(180deg)}
 body.rd #appScreen.rd-unified-orders .ow-cancelled-body{display:flex;flex-direction:column;gap:8px;padding-top:8px;min-width:0}
 
-/* Four top-level destinations. Their existing fixed-position/scroll treatment
-   remains owned by the navigation styles. */
+/* Master has four destinations. Owner and manager navigation belong to ui-alignment-mobile.css. */
 body.rd #mwMasterNav{grid-template-columns:repeat(4,minmax(0,1fr))}
 @media(max-width:790px){
-  body.rd #rdMobileNav{grid-template-columns:repeat(4,minmax(0,1fr))}
-  body.rd #appScreen.rd-unified-orders ~ #rdMobileNav{gap:4px}
-  body.rd #appScreen.rd-unified-orders ~ #rdMobileNav .rd-nav-btn{min-width:0;font-size:11px}
   body.rd #appScreen.rd-unified-orders,
   body.rd #appScreen.rd-owner.rd-view-orders.rd-unified-orders,
   body.rd #appScreen.rd-manager.rd-view-orders.rd-unified-orders{
@@ -382,3 +378,85 @@ body.rd #rdSettings>.ow-settings-tools button:focus-visible{outline:3px solid #9
 body.rd #appScreen.rd-unified-orders :is(button,input,select):focus-visible,
 dialog#owFilters :is(button,input,select):focus-visible{outline:3px solid #92aff4;outline-offset:2px}
 @media(prefers-reduced-motion:reduce){body.rd #appScreen.rd-unified-orders *{animation:none!important;scroll-behavior:auto!important}}
+
+
+/* Authoritative owner/manager mobile dock and secondary-menu layout.
+   Keep this geometry independent of the currently selected workspace. */
+@media(max-width:790px){
+ body.rd > #rdMobileNav:not([hidden]){
+   --rd-mobile-nav-height:calc(64px + max(8px,env(safe-area-inset-bottom,0px)));
+   box-sizing:border-box;
+   display:grid;
+   grid-template-columns:repeat(5,minmax(0,1fr));
+   grid-template-rows:56px;
+   align-items:stretch;
+   gap:2px;
+   min-width:0;
+   height:var(--rd-mobile-nav-height);
+   padding:7px max(5px,env(safe-area-inset-right,0px)) max(8px,env(safe-area-inset-bottom,0px)) max(5px,env(safe-area-inset-left,0px));
+   border-top:1px solid #e6eaf3;
+   background:#fff;
+   overflow:hidden;
+ }
+ body.rd > #rdMobileNav > .rd-nav-btn{
+   box-sizing:border-box;
+   flex:none;
+   width:100%;
+   min-width:0;
+   min-height:0;
+   height:56px;
+   padding:4px 1px;
+   gap:4px;
+   margin:0;
+   font-size:clamp(9px,2.35vw,11px);
+   white-space:nowrap;
+   overflow:hidden;
+ }
+ body.rd > #rdMobileNav > .rd-nav-btn > span:last-child{
+   max-width:100%;
+   overflow:hidden;
+   text-overflow:ellipsis;
+ }
+ body.rd.rd-more-open > #rdMobileNav:not([hidden]){z-index:102}
+ body.rd > #rdMobileMoreVeil:not([hidden]){
+   position:fixed;
+   inset:0;
+   z-index:101;
+   display:block;
+   background:#11182766;
+   touch-action:none;
+ }
+ body.rd > #rdMobileMoreSheet:not([hidden]){
+   position:fixed;
+   left:max(9px,env(safe-area-inset-left,0px));
+   right:max(9px,env(safe-area-inset-right,0px));
+   bottom:calc(70px + max(8px,env(safe-area-inset-bottom,0px)));
+   z-index:103;
+   height:auto;
+   min-height:0;
+   max-height:calc(100vh - 88px - env(safe-area-inset-top,0px) - max(8px,env(safe-area-inset-bottom,0px)));
+   max-height:calc(100dvh - 88px - env(safe-area-inset-top,0px) - max(8px,env(safe-area-inset-bottom,0px)));
+   overflow-y:auto;
+   overscroll-behavior:contain;
+   -webkit-overflow-scrolling:touch;
+   background:#fff;
+ }
+ body.rd > #rdMobileMoreSheet .rd-more-header{
+   position:sticky;
+   top:0;
+   z-index:1;
+   background:#fff;
+ }
+ body.rd > #rdMobileMoreSheet .rd-nav-btn{
+   flex-shrink:0;
+   min-height:47px;
+ }
+ /* Do not give two primary items the selected styling while the drawer is open. */
+ body.rd > #rdMobileNav .rd-mobile-more-trigger[aria-expanded="true"]:not([aria-current="page"]){
+   background:#f4f6fb;
+   color:#435373;
+ }
+ body.rd > #rdMobileNav .rd-mobile-more-trigger[aria-expanded="true"]:not([aria-current="page"]) .rd-icon{
+   color:#435373;
+ }
+}

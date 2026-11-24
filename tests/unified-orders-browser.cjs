@@ -183,10 +183,12 @@ async function checkGeometry(s) {
   if (width <= 790) {
     const nav = page.locator(role === "master" ? "#mwMasterNav" : "#rdMobileNav");
     const expected = role === "master" ? ["orders", "payments", "reports", "settings"] :
-      role === "owner" ? ["orders", "finance", "reports", "settings"] : ["orders", "leads", "clients", "settings"];
+      role === "owner" ? ["orders", "expenses", "finance", "reports", "more"] : ["orders", "leads", "clients", "settings", "more"];
     const actions = await nav.locator("button:visible").evaluateAll(buttons =>
-      buttons.map(button => button.dataset.mwPage || button.dataset.page));
-    assert.deepEqual(actions, expected, role + ": correct four actions; manager gains no financial rights");
+      buttons.map(button => button.dataset.mwPage || button.dataset.page || (button.id==="rdMobileMoreBtn"?"more":"unknown")));
+    assert.deepEqual(actions, expected, role + ": correct role-specific actions; manager gains no financial rights");
+    const boxes=await nav.locator("button:visible").evaluateAll(buttons=>buttons.map(b=>{const r=b.getBoundingClientRect();return {top:r.top,bottom:r.bottom,width:r.width}}));
+    assert.ok(boxes.every(b=>Math.abs(b.top-boxes[0].top)<1&&Math.abs(b.bottom-boxes[0].bottom)<1&&b.width>=44),role+": mobile navigation fits in one tappable row");
     const position = await nav.evaluate(element => {
       const box = element.getBoundingClientRect();
       return { bottom: box.bottom, viewport: innerHeight, position: getComputedStyle(element).position };
@@ -344,7 +346,9 @@ async function checkInteraction(s) {
 }
 
 async function checkWhatsAppSettings({ page, role }, nav, attribute) {
-  await nav.locator('button[' + attribute + '="settings"]').tap();
+  const direct=nav.locator('button[' + attribute + '="settings"]');
+  if(await direct.count())await direct.tap();
+  else{await page.locator("#rdMobileMoreBtn").tap();await page.locator('#rdMobileMoreSheet [data-page="settings"]').tap();}
   const settings = page.locator(role === "master" ? "#mwMasterSettings" : "#rdSettings");
   const entry = settings.getByRole("button", { name: /^WhatsApp/ });
   const heading = settings.getByRole("heading", { name: "WhatsApp · сообщения клиентам" });
@@ -366,8 +370,7 @@ async function checkWhatsAppSettings({ page, role }, nav, attribute) {
 
 async function checkOwnerDashboard(page) {
   async function home() {
-    await page.locator('#rdMobileNav [data-page="settings"]').click();
-    await page.locator("#rdSettings #rdMobileMoreBtn").click();
+    await page.locator("#rdMobileMoreBtn").click();
     await page.locator('#rdMobileMoreSheet [data-page="home"]').click();
     await page.locator("#rdHome").waitFor({ state: "visible" });
   }

@@ -67,7 +67,6 @@ async function goSection(page,section){
  const direct=page.locator('#rdMobileNav [data-page="'+section+'"]');
  if(await direct.count())await direct.click();
  else{
-  await page.locator('#rdMobileNav [data-page="settings"]').click();
   await page.locator("#rdMobileMoreBtn").click();
   await page.locator('#rdMobileMoreSheet [data-page="'+section+'"]').click();
  }
@@ -97,9 +96,12 @@ async function runOne(browser,label,device){
  try{
   await assertDocked(page,label+" initial");
   const tabs=page.locator("#rdMobileNav .rd-nav-btn");
-  assert.equal(await tabs.count(),4,label+": four navigation actions");
-  assert.deepEqual(await tabs.evaluateAll(items=>items.map(item=>item.dataset.page)),
-    ["orders","finance","reports","settings"],label+": unified owner destinations");
+  assert.equal(await tabs.count(),5,label+": five navigation actions");
+  assert.deepEqual(await tabs.evaluateAll(items=>items.map(item=>item.dataset.page||(item.id==="rdMobileMoreBtn"?"more":"unknown"))),
+    ["orders","expenses","finance","reports","more"],label+": unified owner destinations");
+  const tabGeometry=await tabs.evaluateAll(items=>items.map(i=>{const r=i.getBoundingClientRect();return {top:r.top,bottom:r.bottom,left:r.left,right:r.right,width:r.width};}));
+  assert.ok(tabGeometry.every(r=>Math.abs(r.top-tabGeometry[0].top)<1&&Math.abs(r.bottom-tabGeometry[0].bottom)<1),label+": five buttons share one row");
+  assert.ok(tabGeometry.every((r,i)=>r.width>=44&&(i===0||r.left>=tabGeometry[i-1].right)),label+": tabs are separate, tappable, non-overlapping");
   const metrics=await page.evaluate(()=>({scrollHeight:document.documentElement.scrollHeight,innerHeight:innerHeight}));
   assert.ok(metrics.scrollHeight>metrics.innerHeight+700,label+": has long scrollable orders list");
   for(const fraction of [0,.15,.5,1,.25,1,0]){
@@ -142,10 +144,15 @@ async function runOne(browser,label,device){
   await page.locator('#rdMobileNav [data-page="orders"]').click();
   assert.equal(await page.locator("#owSearchToggle").isVisible(),true,label+": orders still have search");
   assert.equal(await page.locator("#rdTopSearch").isVisible(),false,label+": no duplicate orders search");
-  await page.locator('#rdMobileNav [data-page="settings"]').click();
+  await goSection(page,"settings");
   await page.locator("#rdMobileMoreBtn").click();
   assert.equal(await page.locator("#rdMobileMoreSheet").isVisible(),true,label+": more menu opens");
   await assertDocked(page,label+" menu");
+  const menuState=await page.evaluate(()=>{const sheet=document.getElementById("rdMobileMoreSheet"),nav=document.getElementById("rdMobileNav");const box=sheet.getBoundingClientRect(),dock=nav.getBoundingClientRect();return {parent:sheet.parentElement.tagName,bottom:box.bottom,navTop:dock.top,scroll:sheet.scrollHeight,client:sheet.clientHeight,active:[...nav.querySelectorAll('[aria-current="page"]')].length,available:[...sheet.querySelectorAll("[data-page]")].map(b=>b.dataset.page)};});
+  assert.equal(menuState.parent,"BODY",label+": secondary sheet is outside scrolling screen");
+  assert.ok(menuState.bottom<=menuState.navTop-1,label+": menu never overlaps dock");
+  assert.equal(menuState.active,1,label+": exactly one primary selection");
+  for(const name of ["home","leads","clients","growth","settings","ai"])assert.ok(menuState.available.includes(name),label+": menu includes "+name);
   await page.locator("#rdMobileMoreSheet .rd-more-close").click();
   assert.equal(await page.locator("#rdMobileMoreBtn").getAttribute("aria-expanded"),"false",label+": more menu closes");
   await assertDocked(page,label+" menu closes");
@@ -225,6 +232,20 @@ async function runOne(browser,label,device){
   await page.evaluate(()=>document.getElementById("appScreen").hidden=false);
   await page.waitForFunction(()=>!document.getElementById("rdMobileNav").hidden);
   await assertDocked(page,label+" restored app");
+  // Verify the newly added owner modules also keep the same five-item dock.
+  await page.locator('#rdMobileNav [data-page="expenses"]').click();
+  await page.locator("#exBottom").waitFor({state:"visible"});
+  assert.equal(await page.locator("#exBottom > a, #exBottom > button").count(),5,label+": expenses dock");
+  await page.locator("#exMoreButton").click();
+  await page.locator('#exMore a[href="/growth.html"]').click();
+  await page.locator("#gwBottom").waitFor({state:"visible"});
+  assert.equal(await page.locator("#gwBottom > a, #gwBottom > button").count(),5,label+": development dock");
+  await page.locator("#gwMoreBtn").click();
+  assert.ok(await page.locator("#gwMenu").isVisible(),label+": development menu opens");
+  await page.locator("#gwMenuVeil").click({position:{x:10,y:10}});
+  await page.locator('#gwBottom a[href="/?view=orders"]').click();
+  await page.locator("#rdMobileNav").waitFor({state:"visible"});
+  await assertDocked(page,label+" after visiting expenses and development");
   assert.deepEqual(writes,[],label+": no database writes");
   assert.deepEqual(errors,[],label+": no page errors");
   console.log("PASS",label,"initial viewport",initial);
