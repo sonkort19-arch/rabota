@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#ffffff">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>Расходы · Работа</title>
+<link rel="stylesheet" href="/expenses.css?v=20261125-1">
+</head>
+<body>
+<div class="ex-page">
+  <header class="ex-header">
+    <a class="ex-back" href="/?view=orders" aria-label="Назад к заказам">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="m15 18-6-6 6-6"/></svg>
+    </a>
+    <div class="ex-brand"><strong>Работа</strong><span>Учёт промывки отопления</span></div>
+    <div class="ex-user" aria-label="Раздел владельца">В</div>
+  </header>
+  <div id="exGate" class="ex-gate" role="status">Проверка доступа…</div>
+  <main id="exMain" class="ex-main" hidden>
+    <h1>Расходы</h1>
+    <p class="ex-subtitle">Дополнительные затраты бизнеса, без зарплат</p>
+    <section class="ex-summary" aria-label="Итог расходов">
+      <div class="ex-summary-top"><span>Расходы за месяц</span><div class="ex-month-controls"><button id="exPrev" type="button" aria-label="Предыдущий месяц">‹</button><strong id="exMonth">—</strong><button id="exNext" type="button" aria-label="Следующий месяц">›</button></div></div>
+      <strong id="exMonthlyTotal" class="ex-large-number">0 ₽</strong>
+      <div class="ex-summary-bottom"><span id="exCount">0 записей</span><span id="exAllTotal">Всего: 0 ₽</span></div>
+    </section>
+    <section class="ex-card ex-formcard">
+      <h2>Добавить расход</h2>
+      <form id="exForm" autocomplete="off">
+        <label for="exAmount">Сумма, ₽</label>
+        <input id="exAmount" name="amount" type="text" inputmode="decimal" placeholder="Например, 1 500" required maxlength="18" spellcheck="false">
+        <label for="exCategory">Категория</label>
+        <select id="exCategory" name="category" required>
+          <option value="Запчасти">Запчасти</option>
+          <option value="Расходники">Расходники</option>
+          <option value="Реклама">Реклама</option>
+          <option value="Оборудование">Оборудование</option>
+          <option value="Транспорт">Транспорт (если ещё не учтён)</option>
+          <option value="Прочее">Другое</option>
+        </select>
+        <label for="exDetail">На что потратил</label>
+        <input id="exDetail" name="detail" maxlength="150" placeholder="Например, средство для промывки">
+        <label for="exOrder">Номер заказа (необязательно)</label>
+        <input id="exOrder" name="order" type="text" inputmode="numeric" maxlength="8" placeholder="Например, 12345">
+        <p class="ex-tip">Вводи только дополнительные расходы. Зарплаты и уже учтённую дорогу повторно не добавляй. Сохранение вычтет сумму из учётной кассы компании.</p>
+        <button class="ex-save" type="submit" id="exSave">Сохранить расход</button>
+        <div class="ex-message" id="exMessage" role="status" aria-live="polite"></div>
+      </form>
+    </section>
+    <section class="ex-history">
+      <div class="ex-history-head"><h2>История расходов</h2><span id="exHistoryCount">0 записей</span></div>
+      <div id="exCategoryTotals" class="ex-categories" hidden></div>
+      <div id="exList" class="ex-list"></div>
+      <p id="exEmpty" class="ex-empty" hidden>За выбранный месяц расходов пока нет.</p>
+    </section>
+  </main>
+</div>
+<nav id="exBottom" class="ex-bottom" aria-label="Разделы CRM" hidden>
+  <a href="/?view=orders" aria-label="Заказы">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 8h6M9 12h6M9 16h4"/></svg><span>Заказы</span>
+  </a>
+  <a class="is-active" href="/expenses.html" aria-current="page" aria-label="Расходы">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 4h16v16H4z"/><path d="M8 9h8M8 13h5M8 17h4"/><path d="M18 18l3 3"/></svg><span>Расходы</span>
+  </a>
+  <a href="/?view=finance" aria-label="Платежи">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="3" y="5" width="18" height="15" rx="2"/><path d="M3 9h18M16 15h3"/></svg><span>Платежи</span>
+  </a>
+  <a href="/?view=reports" aria-label="Отчёты">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 20V11h4v9M10 20V4h4v16M16 20v-7h4v7M3 21h18"/></svg><span>Отчёты</span>
+  </a>
+  <button id="exMoreButton" type="button" aria-label="Другие разделы" aria-expanded="false">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/></svg><span>Ещё</span>
+  </button>
+</nav>
+<div id="exVeil" class="ex-veil" hidden></div>
+<div id="exMore" class="ex-more" hidden>
+  <strong>Другие разделы</strong>
+  <a href="/?view=home">Главная</a>
+  <a href="/?view=leads">Лиды</a>
+  <a href="/?view=calendar">Календарь</a>
+  <a href="/?view=clients">Клиенты</a>
+  <a href="/growth.html">Развитие MOBA</a>
+  <a href="/?view=settings">Настройки</a>
+</div>
+<script src="/expenses.js?v=20261125-1" defer></script>
+</body>
+</html>
