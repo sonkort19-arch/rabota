@@ -646,7 +646,7 @@ function navigate(key){
  document.querySelectorAll(".rd-nav-btn[data-page]").forEach(btn=>
   btn.setAttribute("aria-current",btn.dataset.page===key?"page":"false"));
  const moreButton=$("rdMobileMoreBtn");
- if(moreButton)moreButton.setAttribute("aria-current",["clients","finance","reports","settings"].includes(key)?"page":"false");
+ if(moreButton)moreButton.setAttribute("aria-current",["home","leads","clients","settings"].includes(key)?"page":"false");
  if(isOrders||isCalendar){
   currentTab=requestedCalendar||isCalendar?"calendar":window.__rdOrdersWorkspace?.currentMode()||"calendar";
   if(isOrders)restoreOrderFilters(currentTab);
