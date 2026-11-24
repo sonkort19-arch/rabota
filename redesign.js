@@ -237,6 +237,8 @@ function build(){
  navMore.setAttribute("aria-controls","rdMobileMoreSheet");
  const moreIcon=makeNode("span","rd-icon");moreIcon.append(uiIcon("more"));
  navMore.append(moreIcon,boxText("span","Ещё"));
+ // Fifth owner tab is part of the bottom navigation, never moved into Settings.
+ mobile.append(navMore);
  const veil=makeNode("button","rd-more-veil");veil.type="button";
  veil.setAttribute("aria-label","Закрыть дополнительные разделы");
  veil.hidden=true;
@@ -562,9 +564,6 @@ function build(){
    ownerSalaryReport?.render();
  };
  const settings=sectionView("rdSettings","Настройки","Сообщения клиентам и параметры приложения");
- navMore.setAttribute("aria-label","Другие разделы: сводка, лиды и клиенты");
- navMore.querySelector("span:last-child").textContent="Другие разделы";
- settings.append(navMore);
  window.__rdWhatsAppSettings?.mount(settings);
  app.insertBefore(settings,$("ordersArea"));
  app.insertBefore(reports,$("ordersArea"));
@@ -647,7 +646,7 @@ function navigate(key){
  document.querySelectorAll(".rd-nav-btn[data-page]").forEach(btn=>
   btn.setAttribute("aria-current",btn.dataset.page===key?"page":"false"));
  const moreButton=$("rdMobileMoreBtn");
- if(moreButton)moreButton.setAttribute("aria-current",["clients","finance","reports","settings"].includes(key)?"page":"false");
+ if(moreButton)moreButton.setAttribute("aria-current",["home","leads","clients","settings"].includes(key)?"page":"false");
  if(isOrders||isCalendar){
   currentTab=requestedCalendar||isCalendar?"calendar":window.__rdOrdersWorkspace?.currentMode()||"calendar";
   if(isOrders)restoreOrderFilters(currentTab);
