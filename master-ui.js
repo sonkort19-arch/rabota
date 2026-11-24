@@ -154,9 +154,11 @@ function makeMasterScheduleRow(order,isNext=false) {
       toggle.append(main,time,chevron,workNode,meta,price);
       if(state==="Выполнен"){
         const collection=collectionForOrder(order.id);
+        const partiallyPending=collection&&Number(collection.submitted_amount)>Number(collection.confirmed_amount);
         const note=!order.paid?"Оплата ещё не отмечена":
           collection&&!collection.confirmed_at?
-            (collection.submitted_at?"Передача ожидает подтверждения":"Нужно завершить расчёт"):"";
+            (collection.submitted_at?"Передача ожидает подтверждения":
+              partiallyPending?"Часть денег ждёт подтверждения":"Нужно завершить расчёт"):"";
         if(note)toggle.append(make("span","master-money-note",note));
       }
       toggle.addEventListener("click",()=>openMasterOrderDialog(order));

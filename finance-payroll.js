@@ -1,7 +1,7 @@
-/* Работа — оформление зарплаты владельца; расчёты передаются из действующего renderFinance. */
+/* Работа — зарплата владельца теперь отображается в «Отчётах», данные из финансовой модели. */
 "use strict";
 (()=>{
- const ui={tab:"salary",person:null,view:"accruals",month:"all"};
+ const ui={tab:"payments",person:null,view:"accruals",month:"all"};
  const $=id=>document.getElementById(id);
  const el=(tag,cls="",txt)=>{const n=document.createElement(tag);n.className=cls;if(txt!==undefined)n.textContent=String(txt);return n};
  const div=(cls,...children)=>{const n=el("div",cls);n.append(...children);return n};
@@ -12,7 +12,7 @@
  const who=(m,key)=>key==="raul"?{key,name:"Рауль",role:"Мастер",accrued:m.raulAccrued,paid:m.raulPaid,due:m.raulDue,kind:"raul_payout"}:
    {key,name:"Тимур",role:"Помощник",accrued:m.timurAccrued,paid:m.timurPaid,due:m.timurDue,kind:"timur_payout"};
  const metric=(label,sum,hint,kind)=>div("fp-metric fp-"+kind,el("small","",label),el("strong","",money(sum)),el("span","",hint));
- const isPreview=()=>/^rabota-[a-z0-9]{7,}-sonkort19-6069s-projects\.vercel\.app$/i.test(String(window.location?.hostname||""));
+ const isPreview=()=>/^rabota-(?:git-[a-z0-9-]+-|[a-z0-9]{7,}-)sonkort19-6069s-projects\.vercel\.app$/i.test(String(window.location?.hostname||""));
  function payout(m,p){
    if(!Number.isFinite(p.due)||p.due<=0){window.alert("Положительного остатка к выплате нет.");return}
    const backdrop=el("div","fp-backdrop"),modal=el("section","fp-modal");
@@ -234,6 +234,35 @@
    wrap.append(el("p","fp-hint","Это расчётная доля компании, не наличные в кассе. Ниже сохранён полный действующий финансовый отчёт и подтверждение поступлений."));
    return wrap
  }
+ // The existing salary screen now lives in owner Reports, with the same payout RPC.
+ window.__rdPayrollReport={
+   mount(root,{getSnapshot,onBack}){
+     ui.person=null;ui.view="accruals";ui.month="all";
+     const redraw=()=>{
+       root.replaceChildren();
+       const back=button("Отчёты","fp-link fp-crumb-back",()=>onBack?.());
+       back.setAttribute("aria-label","Вернуться ко всем отчётам");
+       const nav=div("fp-report-head",back,el("span","fp-crumb-sep","/"),
+         el("h2","fp-report-title","Зарплата"));
+       nav.setAttribute("aria-label","Отчёты / Зарплата");
+       root.append(nav);
+       const m=typeof getSnapshot==="function"?getSnapshot():null;
+       if(!m?.isOwner){
+         root.append(el("p","fp-hint","Зарплата доступна только владельцу."));return;
+       }
+       if(m.error){
+         root.append(el("p","fp-error","Финансовые данные недоступны: "+m.error));return;
+       }
+       if(m.loading){
+         const message=el("p","fp-hint","Загружаем данные зарплаты…");
+         message.setAttribute("role","status");root.append(message);return;
+       }
+       root.append(overview(m,redraw));
+     };
+     redraw();
+     return {render:redraw};
+   }
+ };
  window.__rdFinanceEnhance=m=>{
    if(!m?.isOwner)return;
    const root=$("financeContent"),history=$("financeHistory"),entry=$("financeEntry");
@@ -273,12 +302,11 @@
      }
      legacy.hidden=ui.tab!=="cash";history.hidden=ui.tab!=="operations";entry.hidden=ui.tab!=="operations";
      if(historyTitle)historyTitle.hidden=ui.tab!=="operations";
-     if(ui.tab==="salary")panel.append(overview(m,redraw));
-     else if(ui.tab==="cash")panel.append(cash(m));
+     if(ui.tab==="cash")panel.append(cash(m));
      else if(ui.tab==="payments")window.__rdPaymentsRender?.(panel);
-     else panel.append(el("p","fp-hint","Здесь сохранены прежние формы ручных операций, история и возможность отмены записей. В этой тестовой версии запись и отмена финансовых операций отключены. Реальные данные не изменяются."));
+     else panel.append(el("p","fp-hint",isPreview()? "Тестовая версия: просмотр истории без изменения реальных финансовых операций.": "История финансовых операций и управление записями доступны ниже."));
    };
-   for(const [value,label] of [["salary","Зарплата"],["payments","Платежи"],["cash","Касса"],["operations","Операции"]]){
+   for(const [value,label] of [["payments","Платежи"],["cash","Касса"],["operations","Операции"]]){
      const b=button(label,"fp-tab",()=>{
        if(ui.tab===value)return;
        ui.tab=value;ui.person=null;ui.month="all";

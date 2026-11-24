@@ -107,7 +107,7 @@ test("master presentation and role-scoped finance remain wired",()=>{
  assert.match(html,/masterWorkingOrders\(\)/);
  assert.match(html,/renderMasterSettlements\(\)/);
  assert.match(html,/isOwner\?financeOperations:financeOperations\.filter\(o=>o\.master_user_id===financeMasterId&&o\.kind==="raul_payout"\)/);
- assert.match(html,/if\(isOwner\)\{[\s\S]*?financeMetric\("Доля компании"/);
+ assert.match(html,/if\(isOwner\)\{[\s\S]*?financeModel\.calculateCompanyCash\([\s\S]*?financeMetric\("Деньги в кассе по учёту",cashBalance/);
  assert.match(html,/id="masterFinanceBack"/);
  assert.match(html,/financeMetric\("Осталось выплатить"/);
  assert.match(html,/href="\/master-dashboard\.css\?v=[^"]+"/);
@@ -136,14 +136,20 @@ test("finance refresh failure only marks finance as unavailable, not stale order
  assert.match(nodes.get("syncStatus").textContent,/Обновлено/);
 });
 test("changed order data restores focus to the same master's order row",()=>{
- const start=main.indexOf("    async function reloadOrders(");
- const end=main.indexOf("    function getOrders()",start);
- assert.ok(start>=0&&end>start,"refresh function exists");
+ const start=main.indexOf("    async function loadOrderData(");
+ const end=main.indexOf("    async function reloadOrders(",start);
+ assert.ok(start>=0&&end>start,"order data refresh function exists");
  const source=main.slice(start,end);
  assert.match(source,/focusedMasterOrderId=activeToggle\?\.closest/);
  assert.match(source,/row=>row\.dataset\.orderId===focusedMasterOrderId/);
  assert.match(source,/\.focus\(\{preventScroll:true\}\)/);
- assert.match(source,/reportSync\(syncError,"finance"\)/);
+ const reload=main.slice(end,main.indexOf("    function getOrders()",end));
+ assert.match(reload,/await loadOrderData\(background\)/);
+ assert.match(reload,/if\(currentRole==="owner"\|\|currentRole==="master"\)await refreshFinance\(!background\)/);
+ const financeStart=main.indexOf("    function refreshFinance(");
+ const financeEnd=main.indexOf("    function financeVisible()",financeStart);
+ assert.ok(financeStart>=0&&financeEnd>financeStart,"independent finance refresh function exists");
+ assert.match(main.slice(financeStart,financeEnd),/\.catch\(error=>\{[\s\S]*?reportSync\(error,"finance"\)/);
 });
 
 test("overdue booked orders are exposed for the bell, not the daily strip",()=>{
@@ -190,8 +196,8 @@ test("Raul orders use minimal header only on the orders page, preserving other s
  assert.match(styles,/--master-brand-height:0px/);
  assert.match(styles,/--master-heading-height:55px/);
  assert.match(styles,/\.mw-orders-minimal-header > header \.master-header-actions/);
- assert.match(html,/money-workspace\.css\?v=20261117-ref-v1/);
- assert.match(html,/money-workspace\.js\?v=20261117-ref-v1/);
+ assert.match(html,/href="\/money-workspace\.css\?v=[^"]+"/);
+ assert.match(html,/src="\/money-workspace\.js\?v=[^"]+"/);
 });
 test("master brand uses inline vector, not an unloaded PNG",()=>{
  assert.match(html,/class="master-brand-icon"/);

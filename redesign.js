@@ -7,9 +7,9 @@ const body=document.body;
 body.classList.add("rd");
 const $=id=>document.getElementById(id);
 const makeNode=(tag,className,text)=>{const n=document.createElement(tag);if(className)n.className=className;if(text!=null)n.textContent=String(text);return n};
-const sections=["home","leads","orders","calendar","clients","finance","settings","ai"];
-const titles={home:"Главная",leads:"Лиды",orders:"Заказы",calendar:"Календарь",clients:"Клиенты",finance:"Финансы",settings:"Настройки",ai:"ИИ-чат"};
-const crmReturnPages=new Set(["home","leads","orders","calendar","clients","finance","settings"]);
+const sections=["home","leads","orders","calendar","clients","finance","reports","settings","ai"];
+const titles={home:"Главная",leads:"Лиды",orders:"Заказы",calendar:"Календарь",clients:"Клиенты",finance:"Платежи",reports:"Отчёты",settings:"Настройки",ai:"ИИ-чат"};
+const crmReturnPages=new Set(["home","leads","orders","calendar","clients","finance","reports","settings"]);
 function aiChatUrl(draft){
  const source=crmReturnPages.has(activePage)?activePage:"home";
  const query=new URLSearchParams({from:source});
@@ -24,7 +24,8 @@ const iconPaths={
  orders:'<rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 7h6M9 12h6M9 17h4"/>',
  calendar:'<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M7 3v4M17 3v4M3 10h18M8 14h2M14 14h2M8 18h2"/>',
  clients:'<circle cx="12" cy="8" r="4"/><path d="M4 21v-2a8 8 0 0 1 16 0v2"/>',
- finance:'<path d="M4 20V10h4v10M10 20V4h4v16M16 20v-8h4v8M2 21h20"/>',
+ finance:'<rect x="3" y="5" width="18" height="15" rx="2"/><path d="M3 9h18M16 15h3"/>',
+ reports:'<path d="M4 20V11h4v9M10 20V4h4v16M16 20v-7h4v7M3 21h18"/>',
  ai:'<path d="m12 2 1.9 6.1L20 10l-6.1 1.9L12 18l-1.9-6.1L4 10l6.1-1.9L12 2ZM19 16l.8 2.2L22 19l-2.2.8L19 22l-.8-2.2L16 19l2.2-.8L19 16Z"/>',
  settings:'<circle cx="12" cy="12" r="3"/><path d="M12 2v2m0 16v2M4.9 4.9l1.4 1.4m11.4 11.4 1.4 1.4M2 12h2m16 0h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>',
  more:'<circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/>',
@@ -55,7 +56,7 @@ function uiIcon(name,extra=""){
  if(extra)svg.classList.add(extra);
  svg.innerHTML=iconPaths[name]||iconPaths.orders;return svg;
 }
-let activePage="home",ready=false,lastOrderKey="",rdSearchTerm="",selectedClientKey=null,builtRole=null,calendarMode="week",calendarMaster="",calendarStatus="",calendarHideDone=false,calendarOpened=false;
+let activePage="home",ready=false,lastOrderKey="",rdSearchTerm="",selectedClientKey=null,builtRole=null,calendarMode="week",calendarMaster="",calendarStatus="",calendarHideDone=false,calendarOpened=false,profitReport=null,salaryRoot=null,ownerSalaryReport=null;
 let calendarWeekCache="",calendarDetailCache="",calendarMastersCache="";
 let calendarFiltersOpen=false;
 const calendarExpandedOrders=new Set();
@@ -162,7 +163,7 @@ function navButton(key){const btn=makeNode("button","rd-nav-btn");btn.type="butt
  const emblem=makeNode("span","rd-icon");emblem.append(uiIcon(key));
  btn.append(emblem,boxText("span",titles[key]));btn.addEventListener("click",()=>navigate(key));return btn}
 function permittedSections(){
- return sections.filter(key=>!(["finance","ai"].includes(key)&&currentRole!=="owner"));
+ return sections.filter(key=>!(["finance","reports","ai"].includes(key)&&currentRole!=="owner"));
 }
 function makeProfileMenu(){
  const toggle=makeNode("button","rd-user rd-profile-trigger");
@@ -199,7 +200,7 @@ function build(){
  const brand=makeNode("div","rd-brand");brand.append(boxText("span","▰","rd-logo"));
  const brandText=makeNode("div");brandText.append(boxText("strong","Работа"),boxText("small","CRM · промывка отопления"));brand.append(brandText);side.append(brand);
  const nav=makeNode("nav","rd-nav");
- for(const key of permittedSections())nav.append(navButton(key));
+ for(const key of permittedSections().filter(key=>key!=="calendar"))nav.append(navButton(key));
  side.append(nav);
  const foot=makeNode("div","rd-sidefoot");foot.append(boxText("strong","Мой кабинет"),boxText("div","Система заказов и расписания."));
  const logout=makeNode("button","","Выйти из аккаунта");logout.type="button";logout.addEventListener("click",()=>$("logoutBtn").click());foot.append(logout);side.append(foot);
@@ -223,7 +224,8 @@ function build(){
  const profile=makeProfileMenu();top.append(profile.toggle);
  const mobile=makeNode("nav","rd-mobilebar");mobile.id="rdMobileNav";
  mobile.setAttribute("aria-label","Основные разделы приложения");
- const primaryMobileSections=["home","leads","orders","calendar"];
+ const primaryMobileSections=currentRole==="owner"?
+  ["orders","finance","reports","settings"]:["orders","leads","clients","settings"];
  for(const key of primaryMobileSections)mobile.append(navButton(key));
  const navMore=makeNode("button","rd-nav-btn rd-mobile-more-trigger");
  navMore.type="button";navMore.id="rdMobileMoreBtn";
@@ -233,7 +235,6 @@ function build(){
  navMore.setAttribute("aria-controls","rdMobileMoreSheet");
  const moreIcon=makeNode("span","rd-icon");moreIcon.append(uiIcon("more"));
  navMore.append(moreIcon,boxText("span","Ещё"));
- mobile.append(navMore);
  const veil=makeNode("button","rd-more-veil");veil.type="button";
  veil.setAttribute("aria-label","Закрыть дополнительные разделы");
  veil.hidden=true;
@@ -247,7 +248,7 @@ function build(){
  moreClose.setAttribute("aria-label","Закрыть меню дополнительных разделов");
  moreHeader.append(moreClose);
  moreSheet.append(moreHeader);
- for(const key of permittedSections().filter(section=>!primaryMobileSections.includes(section))){
+ for(const key of permittedSections().filter(section=>section!=="calendar"&&!primaryMobileSections.includes(section))){
   moreSheet.append(navButton(key));
  }
  const closeMore=()=>{
@@ -499,10 +500,72 @@ function build(){
  window.addEventListener("resize",()=>{
   if(filterDialog.open&&window.innerWidth>790)closeMobileOrderFilters();
  });
- const financeTitle=sectionView("rdFinanceIntro","Финансы","Начисления, касса и история операций");
+ profitReport=null;
+ const financeTitle=sectionView("rdFinanceIntro","Финансы","Платежи, касса и история операций");
+ const reports=sectionView("rdReports","Отчёты","");
+ const reportsRoot=makeNode("div","rd-reports-root");
+ reports.append(reportsRoot);
+ salaryRoot=makeNode("div","rd-salary-report");
+ salaryRoot.id="rdSalaryReport";salaryRoot.hidden=true;
+ reportsRoot.append(salaryRoot);
+ ownerSalaryReport=null;
+ if(currentRole==="owner"){
+   profitReport=window.__rdCreateProfitReport?.(reportsRoot,{getOrders:()=>getOrders(),
+      getRaulMasterId:()=>window.__rdReportMasterId?.(),
+      getFinanceStatus:()=>window.__rdFinanceStatus?.()})||null;
+   const menu=reportsRoot.querySelector(".pr-menu");
+   if(menu){
+     // Keep the report hub dense: only link real, working reports.
+     const profitEntry=menu.querySelector(".pr-report-link");
+     menu.querySelector(".pr-description")?.remove();
+     function reportGroup(title,label,icon,entry){
+       const section=makeNode("section","rd-report-section");
+       const heading=makeNode("h2","rd-report-section-title",title);
+       const items=makeNode("div","rd-report-section-items");
+       const arrow=entry.querySelector(".pr-report-arrow")||makeNode("span","pr-report-arrow","›");
+       entry.textContent="";
+       entry.classList.add("rd-report-item");
+       entry.append(uiIcon(icon,"rd-report-item-icon"),makeNode("span","rd-report-item-label",label),arrow);
+       items.append(entry);section.append(heading,items);menu.append(section);
+     }
+     if(profitEntry)reportGroup("Финансы","Прибыль по заказам","wallet",profitEntry);
+     const openSalary=makeNode("button","pr-report-link rd-salary-entry");
+     openSalary.type="button";openSalary.textContent="Зарплата";
+     openSalary.append(makeNode("span","pr-report-arrow","›"));
+     openSalary.addEventListener("click",()=>{
+       menu.hidden=true;salaryRoot.hidden=false;
+       reports.classList.add("rd-reports-detail-open");
+       ownerSalaryReport=window.__rdPayrollReport?.mount(salaryRoot,{
+         getSnapshot:()=>window.__rdOwnerPayrollSnapshot?.(),
+         onBack:()=>{
+           salaryRoot.hidden=true;salaryRoot.replaceChildren();
+           menu.hidden=false;ownerSalaryReport=null;
+           reports.classList.remove("rd-reports-detail-open");
+         }
+       })||null;
+       if(!ownerSalaryReport)salaryRoot.textContent="Модуль зарплаты недоступен. Обновите страницу.";
+       // Reload the existing financial snapshot; no payroll data is duplicated.
+       void window.__rdOwnerPayrollReload?.();
+     });
+     reportGroup("Сотрудники","Зарплата","clients",openSalary);
+   }
+ }
+ window.__rdReportUpdated=()=>{
+   if(activePage==="reports")profitReport?.render();
+ };
+ window.__rdOwnerPayrollUpdated=()=>{
+   if(activePage!=="reports"||!salaryRoot||salaryRoot.hidden)return;
+   const focused=document.activeElement;
+   if(focused&&salaryRoot.contains(focused)&&/^(INPUT|SELECT|TEXTAREA)$/.test(focused.tagName))return;
+   ownerSalaryReport?.render();
+ };
  const settings=sectionView("rdSettings","Настройки","Сообщения клиентам и параметры приложения");
+ navMore.setAttribute("aria-label","Другие разделы: сводка, лиды и клиенты");
+ navMore.querySelector("span:last-child").textContent="Другие разделы";
+ settings.append(navMore);
  window.__rdWhatsAppSettings?.mount(settings);
  app.insertBefore(settings,$("ordersArea"));
+ app.insertBefore(reports,$("ordersArea"));
  app.insertBefore(home,$("ordersArea"));
  app.insertBefore(clients,$("ordersArea"));
  app.insertBefore(leads,$("ordersArea"));
@@ -513,26 +576,39 @@ function build(){
  listHead.append(listActions);
  $("financePanel").prepend(financeTitle);
  // Staff access administration is still available, but should not obscure the booking list.
- $("ordersArea").append($("teamPanel"));
+ settings.append($("teamPanel"));
  // Original order editor, calendar state, and financial forms are retained.
  $("ordersArea").insertBefore($("newOrderBtn"),$("ordersArea").querySelector(".tabs"));
  builtRole=currentRole;ready=true;
  const requested=new URLSearchParams(window.location.search).get("view");
- const initial=crmReturnPages.has(requested)&&(requested!=="finance"||currentRole==="owner")?requested:"home";
+ const initial=crmReturnPages.has(requested)&&(!["finance","reports"].includes(requested)||currentRole==="owner")?requested:"orders";
  navigate(initial);
 }
 function navigate(key){
+ const requestedCalendar=key==="calendar";
+ if(requestedCalendar)key="orders";
  closeMobileMore();
  if(key!=="orders"&&$("rdOrdersFilterDialog")?.open)
   window.__rdCloseOrderFilters?.();
  if(key==="ai"){openAiChat();return}
  if(!ready)return;
- if(key==="finance"&&currentRole!=="owner")return;
+ if(["finance","reports"].includes(key)&&currentRole!=="owner")return;
  if(activePage==="orders"&&key!=="orders")storeOrderFilters(currentTab);
  const globalSearch=$("rdTopSearch");
+ const searchNeeded=key==="leads"||(key==="orders"&&!window.__rdOrdersWorkspace);
  if(globalSearch){
+  // This input belongs to Orders and Leads only, not to every CRM screen.
+  globalSearch.hidden=!searchNeeded;
   globalSearch.placeholder=key==="leads"?"Поиск лидов по имени и телефону...":"Поиск заказов, клиентов, адресов...";
-  if(activePage==="leads"&&key!=="leads"){globalSearch.value="";rdSearchTerm="";}
+  if(activePage==="leads"&&key!=="leads"){
+   globalSearch.value="";rdSearchTerm="";
+   window.__rdLeadsSearch?.("");
+  }
+  if(key==="leads"&&activePage!=="leads"){
+   globalSearch.value="";rdSearchTerm="";
+   window.__rdLeadsSearch?.("");
+  }
+  if(!searchNeeded){globalSearch.value="";rdSearchTerm="";}
  }
  // Keep the visible screen, active navigation and legacy tab state in sync.
  // Update visibility before legacy rendering: a render error must not leave
@@ -543,13 +619,14 @@ function navigate(key){
  const isOrders=key==="orders",isCalendar=key==="calendar";
  // Initial calendar date must be Moscow today, not the date left in the Orders tab.
  // Revisiting calendar later keeps an explicitly selected date.
- if(isCalendar&&!calendarOpened){selectedDate=todayMoscow();calendarOpened=true;}
+ if((isOrders||isCalendar)&&!calendarOpened){selectedDate=todayMoscow();calendarOpened=true;}
  $("ordersArea").hidden=!(isOrders||isCalendar);
  $("financePanel").hidden=key!=="finance";
  $("rdHome").hidden=key!=="home";
  $("rdClients").hidden=key!=="clients";
  $("rdLeads").hidden=key!=="leads";
  $("rdSettings").hidden=key!=="settings";
+ $("rdReports").hidden=key!=="reports";
  $("rdOrdersIntro").hidden=!isOrders;
  $("rdOrderStats").hidden=!isOrders;
  $("rdOrderToolbar").hidden=!isOrders;
@@ -561,23 +638,27 @@ function navigate(key){
  $("ordersArea").querySelector(".list-head").hidden=!isOrders;
  $("orders").hidden=!isOrders;
  $("newOrderBtn").hidden=!isOrders || !(currentRole==="owner"||currentRole==="manager");
- $("teamPanel").hidden=key!=="orders"||currentRole!=="owner";
+ $("teamPanel").hidden=key!=="settings"||currentRole!=="owner";
  $("rdFinanceIntro").hidden=key!=="finance";
  app.className=app.className.replace(/\brd-view-\S+/g,"").trim()+" rd-view-"+key;
+ app.classList.toggle("rd-no-global-search",!searchNeeded);
  document.querySelectorAll(".rd-nav-btn[data-page]").forEach(btn=>
   btn.setAttribute("aria-current",btn.dataset.page===key?"page":"false"));
  const moreButton=$("rdMobileMoreBtn");
- if(moreButton)moreButton.setAttribute("aria-current",["clients","finance","settings"].includes(key)?"page":"false");
+ if(moreButton)moreButton.setAttribute("aria-current",["clients","finance","reports","settings"].includes(key)?"page":"false");
  if(isOrders||isCalendar){
-  currentTab=isCalendar?"calendar":"all";
+  currentTab=requestedCalendar||isCalendar?"calendar":window.__rdOrdersWorkspace?.currentMode()||"calendar";
   if(isOrders)restoreOrderFilters(currentTab);
   render(); // Legacy render triggers __rdRefresh, which rebuilds the selected view.
  }else if(key==="home")drawHome();
  else if(key==="clients")drawClients();
  else if(key==="leads")window.__rdLeadsRender?.();
  else if(key==="settings")window.__rdWhatsAppSettings?.refresh();
+ else if(key==="reports"){profitReport?.render();if(salaryRoot&&!salaryRoot.hidden)ownerSalaryReport?.render();}
+ window.__rdOrdersWorkspace?.refresh();
  window.scrollTo({top:0,behavior:"instant"});
 }
+window.__rdNavigate=navigate;
 function drawChart(parent,values,month){
  // Draw the real month's orders. SVG is self-contained; no chart dependency,
  // network requests, hard-coded counts, or writes to customer/finance data.
@@ -701,6 +782,7 @@ function drawChart(parent,values,month){
 }
 function openDashboardOrders({filter="",orderId=null,date=""}={}){
  if(!ready)return;
+ if(window.__rdOrdersWorkspace){window.__rdOrdersWorkspace.show({filter,orderId,date});return;}
  navigate("orders");
  // Clear stale manual filters before selecting a dashboard shortcut.
  const dateInput=$("rdOrderDate"),master=$("rdMasterFilter"),status=$("rdStatusFilter"),search=$("rdTopSearch");
@@ -1202,6 +1284,7 @@ function compactOrderCard(card){
 window.__rdDecorateOrder=compactOrderCard;
 function applySummaryFilter(key){
  if(activePage!=="orders"||!["active","progress","unpaid","unassigned"].includes(key))return;
+ if(window.__rdOrdersWorkspace){window.__rdOrdersWorkspace.show({filter:key});return;}
  summaryFilter=summaryFilter===key?"":key;
  currentTab="all";orderListDateFilter="";
  const date=$("rdOrderDate"),master=$("rdMasterFilter"),status=$("rdStatusFilter"),search=$("rdTopSearch");
@@ -1219,6 +1302,7 @@ function syncSummaryButtons(){
 }
 function filterCards(){
  if(!ready||activePage!=="orders")return;
+ if(window.__rdOrdersWorkspace?.isActive())return;
  const date=currentTab==="calendar"?"":currentTab==="history"?orderHistoryDateFilter:orderListDateFilter,
   master=$("rdMasterFilter").value,status=$("rdStatusFilter").value;
  let visible=0,total=0;
@@ -1255,11 +1339,12 @@ function filterCards(){
   });
   empty.append(reset);$("orders").append(empty);
  }
+ window.__rdOwnerParitySync?.();
 }
 window.__rdGoToLeads=()=>navigate("leads");
 window.__rdAccess=()=>{
- if(ready&&builtRole!==currentRole){window.location.reload();return}
- if(currentRole==="master"){app.classList.add("rd-master");return}
+ if(builtRole&&builtRole!==currentRole){window.location.reload();return}
+ if(currentRole==="master"){builtRole=currentRole;app.classList.add("rd-master");return}
  if(!["owner","manager"].includes(currentRole))return;
  build();
  window.__rdLeadsSyncNav?.();
@@ -1271,5 +1356,8 @@ window.__rdRefresh=()=>{
  if(activePage==="calendar")drawCalendar();
  if(activePage==="clients")drawClients();
  if(activePage==="orders"){drawOrderSummary();filterCards();}
+ if(activePage==="reports"){profitReport?.render();if(document.getElementById("rdSalaryReport")?.hidden===false)window.__rdOwnerPayrollUpdated?.();}
 };
+// Authentication and the initial schedule can finish while this script downloads.
+if(app.hidden===false)window.__rdAccess();
 })();

@@ -7,7 +7,7 @@ const {readFileSync,existsSync}=require("node:fs");
 const path=require("node:path");
 const assert=require("node:assert/strict");
 const root=path.resolve(__dirname,"..");
-const today=new Date().toISOString().slice(0,10);
+const today=new Intl.DateTimeFormat("sv-SE",{timeZone:"Europe/Moscow"}).format(new Date());
 const orders=Array.from({length:9},(_,i)=>({
  id:"fake-"+i,name:"Тестовый клиент "+i,address:"Тестовая улица "+i,
  phone:"79990000000",master:"Рауль",assigned_user_id:"master",
@@ -50,44 +50,66 @@ async function setup(browser,device){
  });
  await page.goto("https://crm.test/");
  await page.locator("#appScreen").waitFor({state:"visible"});
- const mobileCalendar=page.locator('.rd-mobilebar [data-page="calendar"]');
- if(await mobileCalendar.isVisible())await mobileCalendar.click();
- else await page.locator('.rd-shell [data-page="calendar"]').click();
- await page.locator("#rdCalendarDate").waitFor({state:"attached"});
+ const mobileOrders=page.locator('.rd-mobilebar [data-page="orders"]');
+ if(await mobileOrders.isVisible())await mobileOrders.click();
+ else await page.locator('.rd-shell [data-page="orders"]').click();
+ await page.locator('#owViewSwitch [data-ow-mode="calendar"]').click();
+ await page.locator("#calendarPanel").waitFor({state:"visible"});
  return {page,context,writes,errors};
 }
 
 async function checkCalendar(browser,label,device,width){
  const {page,context,writes,errors}=await setup(browser,device);
  try{
-  const date=page.locator("#rdCalendarDate");
-  const field=page.locator("#rdCalendarNavigation .rd-cal-date-field");
-  const prev=page.locator("#rdCalendarNavigation .rd-cal-step").first();
-  const next=page.locator("#rdCalendarNavigation .rd-cal-step").last();
-  const todayButton=page.locator("#rdCalendarNavigation .rd-cal-today");
-  const filterButton=page.locator("#rdCalendarNavigation .rd-cal-filter-toggle");
+  const date=page.locator("#calendarDate");
+  const field=page.locator("#calendarPanel .master-calendar-date-trigger");
+  const prev=page.locator("#prevWeek"),next=page.locator("#nextWeek");
+  const todayButton=page.locator("#goToday");
   const rect=await field.boundingBox(),inputRect=await date.boundingBox();
   assert.ok(rect && inputRect,label+": date input exists");
-  assert.ok(rect.width>=180,label+": visible date field should be at least 180px, got "+rect.width);
-  assert.ok(inputRect.width>=180,label+": native date hit area should be at least 180px, got "+inputRect.width);
+  assert.ok(rect.width>=100&&rect.height>=36,label+": compact date field stays usable: "+JSON.stringify(rect));
+  assert.ok(inputRect.width>=rect.width-2&&inputRect.height>=rect.height-2,
+    label+": native date hit area covers its visible field");
   const before=await page.evaluate(()=>document.documentElement.scrollWidth-window.innerWidth);
   assert.ok(before<=2,label+": no horizontal overflow before selecting date: "+before);
   const prevRect=await prev.boundingBox(),nextRect=await next.boundingBox();
-  if(width<=790){
-   assert.ok(prevRect.x+prevRect.width<=rect.x+2,label+": left arrow does not overlap date");
-   assert.ok(rect.x+rect.width<=nextRect.x+2,label+": right arrow does not overlap date");
-  } // Desktop intentionally positions the date on a separate full-width row.
-  if(width<=520){
-   const todayRect=await todayButton.boundingBox(),filterRect=await filterButton.boundingBox();
-   assert.ok(todayRect.y>=rect.y+rect.height-2,label+": Today is on second row");
-   assert.ok(filterRect.y>=rect.y+rect.height-2,label+": Filters is on second row");
+  assert.ok(prevRect.x+prevRect.width<=rect.x+2,label+": left arrow does not overlap date");
+  assert.ok(rect.x+rect.width<=nextRect.x+2,label+": right arrow does not overlap date");
+  const todayRect=await todayButton.boundingBox();
+  assert.ok(nextRect.x+nextRect.width<=todayRect.x+2,label+": Today does not overlap the arrows");
+  assert.ok(Math.abs(todayRect.y+todayRect.height/2-rect.y-rect.height/2)<=3,
+    label+": compact calendar controls share one row");
+  // September is a longer Russian month name and catches clipped month/year labels.
+  await date.fill("2026-09-19");
+  assert.equal(await date.inputValue(),"2026-09-19",label+": calendar date remains interactive");
+  const labelMetrics=await page.locator("#masterCalendarDateText").evaluate(element=>({
+    text:element.textContent,width:element.clientWidth,scrollWidth:element.scrollWidth
+  }));
+  assert.match(labelMetrics.text,/Сентябрь\s+2026/i,label+": selected month and year are visible");
+  assert.ok(labelMetrics.scrollWidth<=labelMetrics.width+1,label+": complete month label fits: "+JSON.stringify(labelMetrics));
+  const geometry=await page.locator("#weekDays").evaluate(strip=>{
+    const rect=strip.getBoundingClientRect();
+    return {left:rect.left,right:rect.right,width:rect.width,
+      cells:[...strip.children].map(cell=>{
+        const r=cell.getBoundingClientRect();return {left:r.left,right:r.right,width:r.width,top:r.top};
+      })};
+  });
+  assert.equal(geometry.cells.length,7,label+": one compact week shows seven dates");
+  assert.ok(geometry.cells[0].left>=geometry.left-1&&geometry.cells[6].right<=geometry.right+1,
+    label+": all seven cells fit inside the calendar");
+  for(let i=0;i<7;i++){
+    const cell=geometry.cells[i];
+    assert.ok(Math.abs(cell.width-geometry.cells[0].width)<=1,label+": date cells have equal widths");
+    assert.ok(Math.abs(cell.top-geometry.cells[0].top)<=1,label+": date cells stay on one row");
+    if(i)assert.ok(geometry.cells[i-1].right<=cell.left+1,label+": date cells do not overlap");
   }
-  await date.fill("2026-11-19");
-  assert.equal(await date.inputValue(),"2026-11-19",label+": calendar date remains interactive");
+  assert.equal(await page.locator('#weekDays .day.active').getAttribute("data-date"),"2026-09-19",label+": selected date is highlighted");
   await prev.click();
-  assert.notEqual(await date.inputValue(),"2026-11-19",label+": previous-date control works");
+  assert.equal(await date.inputValue(),"2026-09-12",label+": previous-week control works");
   await next.click();
-  assert.equal(await date.inputValue(),"2026-11-19",label+": next-date control restores date");
+  assert.equal(await date.inputValue(),"2026-09-19",label+": next-week control restores date");
+  await todayButton.click();
+  assert.equal(await date.inputValue(),today,label+": Today returns to the Moscow date");
   const after=await page.evaluate(()=>document.documentElement.scrollWidth-window.innerWidth);
   assert.ok(after<=2,label+": no horizontal overflow after navigation: "+after);
   assert.deepEqual(writes,[],label+": no database writes");

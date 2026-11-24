@@ -7,7 +7,7 @@ const {readFileSync,existsSync}=require("node:fs");
 const path=require("node:path");
 const assert=require("node:assert/strict");
 const root=path.resolve(__dirname,"..");
-const today=new Date().toISOString().slice(0,10);
+const today=new Intl.DateTimeFormat("sv-SE",{timeZone:"Europe/Moscow"}).format(new Date());
 const orders=Array.from({length:9},(_,i)=>({
  id:"fake-"+i,name:"Тестовый клиент "+i,address:"Тестовая улица "+i,
  phone:"79990000000",master:"Рауль",assigned_user_id:"master",
@@ -53,58 +53,64 @@ async function setup(browser,device){
  const mobileOrders=page.locator('.rd-mobilebar [data-page="orders"]');
  if(await mobileOrders.isVisible())await mobileOrders.click();
  else await page.locator('.rd-shell [data-page="orders"]').click();
- await page.locator("#rdOrdersFilterToggle").waitFor({state:"visible"});
+ await page.locator('#owViewSwitch [data-ow-mode="all"]').click();
+ await page.locator("#owFilterToggle").waitFor({state:"visible"});
  return {page,context,writes,errors};
 }
 async function mobile(browser,name,device){
  const {page,context,writes,errors}=await setup(browser,device);
  try{
-  const toggle=page.locator("#rdOrdersFilterToggle"),
-    count=page.locator("#orderCount"),dialog=page.locator("#rdOrdersFilterDialog");
+  const toggle=page.locator("#owFilterToggle"),
+    count=page.locator("#orderCount"),dialog=page.locator("#owFilters");
+  const status=page.locator("#owFilterStatus");
+  const visibleRows=page.locator("#orders .rd-list-row:visible");
   const first=await count.innerText();
+  assert.equal(await visibleRows.count(),9,name+": all synthetic orders initially visible");
   const before=await page.locator("#orders").boundingBox();
   await toggle.click();
   assert.equal(await dialog.evaluate(e=>e.open),true,name+": dialog opens");
+  assert.equal(await dialog.evaluate(e=>e.tagName),"DIALOG",name+": filters use the native top layer");
   const after=await page.locator("#orders").boundingBox();
   assert.ok(Math.abs(before.y-after.y)<2,name+": list is not shifted");
-  await page.locator("#rdStatusFilter").selectOption("Выполнен");
+  await status.selectOption("Выполнен");
   assert.equal(await count.innerText(),first,name+": filter is still a draft");
-  await page.locator(".rd-orders-filter-close").click();
+  assert.equal(await visibleRows.count(),9,name+": drafting a filter does not alter cards");
+  await page.locator("#owFilterCancel").click();
   assert.equal(await dialog.evaluate(e=>e.open),false,name+": closed");
-  assert.equal(await page.locator("#rdStatusFilter").inputValue(),"",name+": cancel restores status");
+  assert.equal(await count.innerText(),first,name+": cancel leaves applied results unchanged");
   await toggle.click();
-  await page.locator("#rdStatusFilter").selectOption("Выполнен");
-  await page.locator(".rd-orders-filter-apply").click();
+  assert.equal(await status.inputValue(),"",name+": reopening after cancel restores applied status");
+  await status.selectOption("Выполнен");
+  await page.locator("#owFilterApply").click();
   const filtered=await count.innerText();
   assert.notEqual(filtered,first,name+": Apply filters the list");
-  assert.match(await toggle.innerText(),/Фильтры \(1\)/,name+": active filter badge");
+  assert.equal(await visibleRows.count(),3,name+": Apply shows exactly the completed orders");
+  assert.deepEqual(await visibleRows.evaluateAll(rows=>[...new Set(rows.map(row=>row.dataset.status))]),
+    ["Выполнен"],name+": every shown card matches the applied status");
+  assert.match(await toggle.getAttribute("aria-label"),/активно:\s*1/,name+": accessible active filter count");
+  assert.equal(await toggle.evaluate(e=>e.classList.contains("has-filters")),true,name+": active filter indicator");
+  assert.match(await page.locator("#owFilterSummary").innerText(),/Выполнен/,name+": applied status is visible above the list");
   await toggle.click();
-  await dialog.getByRole("button",{name:"Сбросить"}).click();
+  await page.locator("#owFilterReset").click();
   assert.equal(await count.innerText(),filtered,name+": Reset remains draft");
-  await page.locator(".rd-orders-filter-close").click();
-  assert.equal(await page.locator("#rdStatusFilter").inputValue(),"Выполнен",name+": Reset cancel preserves applied filter");
+  await page.locator("#owFilterCancel").click();
+  assert.equal(await count.innerText(),filtered,name+": cancelled Reset preserves applied results");
   await toggle.click();
-  await dialog.getByRole("button",{name:"Сбросить"}).click();
-  await page.locator(".rd-orders-filter-apply").click();
+  assert.equal(await status.inputValue(),"Выполнен",name+": reopening after Reset/Cancel restores the applied filter");
+  await page.locator("#owFilterReset").click();
+  await page.locator("#owFilterApply").click();
   assert.equal(await count.innerText(),first,name+": Reset/Apply restores all orders");
-  assert.equal(await toggle.innerText(),"Фильтры",name+": no active filters");
+  assert.equal(await visibleRows.count(),9,name+": Reset/Apply restores all cards");
+  assert.equal(await toggle.getAttribute("aria-label"),"Фильтры заказов",name+": no active filters");
+  assert.equal(await page.locator("#owFilterSummary").isVisible(),false,name+": cleared summary disappears");
   assert.deepEqual(writes,[],name+": no production mutations");
   assert.deepEqual(errors,[],name+": no page errors");
   console.log("PASS",name,"initial",first,"filtered",filtered);
  }finally{await context.close();}
 }
 async function desktop(browser){
- const {page,context,writes,errors}=await setup(browser,{viewport:{width:1024,height:820}});
- try{
-  const toggle=page.locator("#rdOrdersFilterToggle");
-  await toggle.click();
-  assert.equal(await page.locator("#rdOrdersFilterDialog").evaluate(e=>e.open),false);
-  assert.equal(await page.locator("#rdOrderToolbar").evaluate(e=>e.classList.contains("is-open")),true);
-  await toggle.click();
-  assert.equal(await page.locator("#rdOrderToolbar").evaluate(e=>e.classList.contains("is-open")),false);
-  assert.deepEqual(writes,[]);assert.deepEqual(errors,[]);
-  console.log("PASS desktop inline filters retained");
- }finally{await context.close();}
+ // Unified desktop and mobile views deliberately use the same draft/apply dialog.
+ await mobile(browser,"desktop native filters",{viewport:{width:1024,height:820}});
 }
 (async()=>{
  const browser=await chromium.launch({executablePath:process.env.CHROMIUM_PATH||"/usr/bin/chromium",args:["--no-sandbox"]});

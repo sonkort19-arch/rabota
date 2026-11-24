@@ -21,7 +21,7 @@ const members=[
  {user_id:"master",role:"master",active:true,master_name:"Рауль",email:"master@test.invalid"}
 ];
 async function setup(browser,device){
- const context=await browser.newContext(device||{});
+ const context=await browser.newContext({...device,serviceWorkers:"block"});
  const page=await context.newPage(),writes=[],errors=[];
  page.on("pageerror",e=>errors.push(e.message));
  await context.addInitScript(()=>{
@@ -53,7 +53,10 @@ async function setup(browser,device){
  const mobileOrders=page.locator('.rd-mobilebar [data-page="orders"]');
  if(await mobileOrders.isVisible())await mobileOrders.click();
  else await page.locator('.rd-shell [data-page="orders"]').click();
- await page.locator("#rdOrdersFilterToggle").waitFor({state:"visible"});
+ await page.locator("#owViewSwitch").waitFor({state:"visible"});
+ // Sharing tools moved into Settings when calendar and orders were unified.
+ await page.locator('#rdMobileNav [data-page="settings"]').click();
+ await page.locator("#rdShareRaulTomorrow").waitFor({state:"visible"});
  return {page,context,writes,errors};
 }
 
@@ -99,7 +102,8 @@ async function check(browser,label,device){
   await page.waitForFunction(()=>window.__whatsappUrls?.length===2);
   assert.equal(prompts.length,1,label+": second share reuses saved number");
   // Orders screen card actions remain owner/manager-only.
-  await page.locator('[data-tab="all"]').click();
+  await page.locator('#rdMobileNav [data-page="orders"]').click();
+  await page.locator('#owViewSwitch [data-ow-mode="all"]').click();
   const row=page.locator("#orders > .rd-list-row").filter({hasText:"Тестовый клиент 0"}).first();
   await row.click();
   const shareOne=page.locator(".rd-order-content .rd-share-raul-wa");

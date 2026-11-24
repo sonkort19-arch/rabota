@@ -127,10 +127,12 @@ test("Raul list shows the next appointment before older orders and closed histor
 });
 test("Raul main list passes Moscow clock to the schedule comparator",()=>{
   const html=fs.readFileSync(path.join(__dirname,"..","index.html"),"utf8");
-  const masterBlock=html.slice(
-    html.indexOf('if(currentRole==="master") {\n          shown=getOrders()'),
-    html.indexOf('} else {\n          shown=getOrders()',html.indexOf('if(currentRole==="master") {\n          shown=getOrders()'))
-  );
+  const allStart=html.indexOf('} else if (currentTab==="all") {');
+  const masterStart=html.indexOf('if(currentRole==="master") {',allStart);
+  const masterEnd=html.indexOf('} else {',masterStart);
+  assert.ok(allStart>=0&&masterStart>allStart&&masterEnd>masterStart,"master all-orders branch exists");
+  const masterBlock=html.slice(masterStart,masterEnd);
+  assert.match(masterBlock,/shown=sourceOrders\.filter\(o=>o\.assignedUserId===currentUser\?\.id\);/);
   assert.match(masterBlock,/const now=masterClock\(\);/);
   assert.match(masterBlock,/shown\.sort\(\(a,b\)=>masterScheduleSort\(a,b,now\.date,now\.minutes\)\);/);
 });
@@ -179,7 +181,10 @@ test("overview shows summary and next future order",()=>{
   const x=setup({rows});
   x.ui.renderMasterOverview(rows);
   assert.equal(x.summary.hidden,false);
-  assert.ok(x.summary.children.some(n=>n.className==="master-next-jump"));
+  const jump=x.summary.children.find(n=>n.className.split(/\s+/).includes("master-next-jump"));
+  assert.ok(jump,"compact overview keeps the next-appointment action");
+  assert.match(jump.attrs["aria-label"],/Мария/);
+  jump.click();assert.deepEqual(x.opened,["a"]);
 });
 test("overview stays hidden for owner and when master is outside calendar",()=>{
   const rows=[newOrder("a")];
@@ -189,17 +194,22 @@ test("overview stays hidden for owner and when master is outside calendar",()=>{
     assert.equal(x.summary.hidden,true);
   }
 });
-test("review overdue orders can expand and reset",()=>{
-  const rows=[newOrder("a",{date:"2000-01-01",time:"09:00"})];
-  const x=setup({rows});x.ui.renderMasterOverview(rows);
-  const review=x.summary.children.find(n=>n.className.includes("master-review-jump"));
-  assert.ok(review);
-  assert.equal(review.attrs["aria-expanded"],"false");
-  review.click();
-  assert.ok(x.summary.children.some(n=>n.className==="master-review-list"));
-  x.ui.resetReviewOpen();
+test("overdue status reviews remain available through notifications",()=>{
+  const rows=[
+    newOrder("overdue",{date:"2000-01-01",time:"09:00"}),
+    newOrder("future",{date:"2099-11-15"}),
+    newOrder("done",{date:"2000-01-01",status:"Выполнен"}),
+    newOrder("progress",{date:"2000-01-01",status:"В работе"})
+  ];
+  const x=setup({rows});
+  assert.deepEqual(x.ui.masterOrdersToReview().map(order=>order.id),["overdue"]);
   x.ui.renderMasterOverview(rows);
   assert.ok(!x.summary.children.some(n=>n.className==="master-review-list"));
+  const html=fs.readFileSync(path.join(__dirname,"..","index.html"),"utf8");
+  const notices=fs.readFileSync(path.join(__dirname,"..","master-notifications.js"),"utf8");
+  assert.match(html,/window\.__rdMasterStatusReview=\(\)=>\{[\s\S]*?masterUI\.masterOrdersToReview\(masterWorkingOrders\(\)\.filter\([\s\S]*?order=>order\.assignedUserId===currentUser\.id/);
+  assert.match(notices,/const reviews=window\.__rdMasterStatusReview\?\.\(\)\|\|\[\];/);
+  assert.match(notices,/window\.__rdOpenMasterOrder\?\.\(order\.id\);/);
 });
 test("finance refresh does not unnecessarily replace unchanged overview",()=>{
   const rows=[newOrder("a",{date:"2099-11-18"})],x=setup({rows});
@@ -210,8 +220,8 @@ test("finance refresh does not unnecessarily replace unchanged overview",()=>{
 });
 test("master module loaded before inline use, payment RPCs unchanged",()=>{
   const html=fs.readFileSync(path.join(__dirname,"..","index.html"),"utf8");
-  assert.match(html,/src="\/master-ui\.js\?v=20261116-status-v1"/);
-  assert.ok(html.indexOf('src="/master-ui.js?v=20261116-status-v1"')<
+  assert.match(html,/src="\/master-ui\.js\?v=20261124-handoff"/);
+  assert.ok(html.indexOf('src="/master-ui.js?v=20261124-handoff"')<
     html.indexOf("const masterUI=window.__rdCreateMasterUI"));
   assert.match(html,/masterUI\.resetReviewOpen\(\)/);
   for(const name of ["masterClock","makeMasterScheduleRow","renderMasterOverview","renderMasterSchedule"]){

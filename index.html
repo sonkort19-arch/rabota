@@ -273,7 +273,7 @@
   <link rel="stylesheet" href="/order-payment.css">
   <link rel="stylesheet" href="/master-notifications.css?v=20261117-review-v1">
   <link rel="stylesheet" href="/orders-list.css">
-  <link rel="stylesheet" href="/finance-payroll.css">
+  <link rel="stylesheet" href="/finance-payroll.css?v=20261120-audited-v6">
   <link rel="stylesheet" href="/lead-assistant.css">
   <link rel="stylesheet" href="/ui-alignment.css">
   <link rel="stylesheet" href="/ui-alignment-orders.css?v=20261113-stage8">
@@ -283,7 +283,7 @@
   <link rel="stylesheet" href="/master-dense.css?v=20261113-stage8">
   <link rel="stylesheet" href="/master-dense-enhancements.css?v=20261117-compact-v1">
   <link rel="stylesheet" href="/master-completed-day.css?v=20261117-v1">
-  <link rel="stylesheet" href="/money-workspace.css?v=20261117-ref-v1">
+  <link rel="stylesheet" href="/money-workspace.css?v=20261124-handoff">
   <link rel="stylesheet" href="/master-order-sheet.css?v=20261117-icon-align-v2">
   <link rel="stylesheet" href="/master-quick-order.css?v=20261118-inline-busy-v1">
   <link rel="stylesheet" href="/master-quick-premium.css?v=20261118-v1">
@@ -491,6 +491,10 @@
   <link rel="stylesheet" href="/master-calendar-load.css?v=20261117-single-outline-v1">
   <link rel="stylesheet" href="/whatsapp-settings.css?v=20261118-wa-icon-v3">
   <link rel="stylesheet" href="/client-source.css?v=20261118-v1">
+  <!-- Reports inherit the final light CRM palette, including on dark-mode iPhones. -->
+  <link rel="stylesheet" href="/profit-report.css?v=20261120-breadcrumb-v1">
+  <link rel="stylesheet" href="/contextual-search.css?v=20261120-raul-parity-v4">
+  <link rel="stylesheet" href="/orders-workspace.css?v=20261124-unified-v1">
 </head>
 <body>
 
@@ -853,9 +857,9 @@
   <script src="/order-sync.js?v=20261113-stage2"></script>
   <script src="/order-model.js?v=20261118-client-source-v1"></script>
   <script src="/calendar-load.js?v=20261117-completed-v1"></script>
-   <script src="/calendar-model.js?v=20261117-month-view-v1"></script>
-  <script src="/finance-model.js?v=20261113-stage5"></script>
-  <script src="/master-ui.js?v=20261118-day-audit-v1"></script>
+   <script src="/calendar-model.js?v=20261124-unified-v1"></script>
+  <script src="/finance-model.js?v=20261124-handoff"></script>
+  <script src="/master-ui.js?v=20261124-handoff"></script>
   <script src="/lead-ai-bridge.js?v=20261113-stage7"></script>
   <script src="/app-services.js?v=20261114-stage9"></script>
   <script>
@@ -915,8 +919,12 @@
     let financeActive = false;
     let financeOperations = [];
     let financeCollections = [];
+    let financeDeposits = [];
     let financeMasterId = null;
     let financeLoadError = "";
+    let financeSnapshotReady = false;
+    let financeRead = null;
+    let accessGeneration = 0;
     try { session = JSON.parse(localStorage.getItem(AUTH_KEY) || "null"); }
     catch (error) { session = null; }
 
@@ -927,14 +935,15 @@
     function formatDate(value) {return window.__rdCalendarUtils.formatDate(value);}
     const calendarModule=window.__rdCreateCalendarModule({
       elements:{calendarDate,weekDays,ordersWeekDays,ordersDayDateLabel},
-      make,getOrders:()=>getOrders(),getOrdersRevision:()=>window.__rdOrdersRevision||0,
+      make,getOrders:()=>window.__rdOrdersWorkspace?.calendarOrders(getOrders())||getOrders(),getOrdersRevision:()=>window.__rdOrdersRevision||0,
+      isUnified:()=>window.__rdOrdersWorkspace?.isActive()||false,
       getSelectedDate:()=>selectedDate,setSelectedDate:date=>{
          selectedDate=date;
          if(currentRole==="master")masterFollowsToday=(date===masterClock().date);
        },
       getCurrentRole:()=>currentRole,getCurrentTab:()=>currentTab,
       estimateDayLoad:(orders,day)=>window.__rdCalendarLoad.estimateDay(
-        orders.filter(order=>currentUser?.id&&order.assignedUserId===currentUser.id),day),
+        currentRole==="master"?orders.filter(order=>currentUser?.id&&order.assignedUserId===currentUser.id):orders,day),
       setCurrentTab:tab=>{currentTab=tab;},render:()=>render(),
       verticalScrollPosition:()=>verticalScrollPosition(),
       restoreVerticalScroll:value=>restoreVerticalScroll(value),
@@ -984,11 +993,16 @@
         expires_at:Math.floor(Date.now()/1000) + Number(data.expires_in || 3600)};
       localStorage.setItem(AUTH_KEY, JSON.stringify(session));
     }
-    function clearSession() {
-      session = null; currentUser = null; currentRole=null; currentMasterName=""; cloudOrders = []; ordersLoaded=false;
+    function resetAccountData() {
+      accessGeneration++;
+      currentUser=null;currentRole=null;currentMasterName="";cloudOrders=[];ordersLoaded=false;
       window.__rdOrderSync?.reset();
-      financeOperations=[];financeCollections=[];financeMasterId=null;financeActive=false;financeLoadError="";
+      financeOperations=[];financeCollections=[];financeDeposits=[];financeMasterId=null;financeActive=false;financeLoadError="";
+      financeSnapshotReady=false;financeRead=null;
       financeLoadGeneration++; // invalidate finance responses still in flight
+    }
+    function clearSession() {
+      session=null;resetAccountData();
       localStorage.removeItem(AUTH_KEY);
     }
     // Existing session state and refresh policy are authoritative in this file.
@@ -1046,17 +1060,20 @@
       const calendarStatus=document.getElementById("rdCalendarSynced");
       if(calendarStatus){calendarStatus.textContent=node.textContent;calendarStatus.classList.toggle("sync-error",Boolean(error));}
     }
-    async function reloadOrders({background=false}={}) {
+    async function loadOrderData(background=false) {
+      const generation=accessGeneration;
       // Background polls compare tiny id/updated_at headers first.
       // Explicit user actions always fetch the authoritative complete list.
       const unchanged=background && ordersLoaded && window.__rdOrderSync &&
         await window.__rdOrderSync.isUnchanged((offset,limit)=>
           dbRequest("rabota_orders?select=id,updated_at&order=id.asc&limit="+limit+"&offset="+offset,"GET")
         );
+      if(generation!==accessGeneration)return;
       if(!unchanged){
         const items = [];
         for (let offset = 0; offset < 100000; offset += 1000) {
           const page = await dbRequest("rabota_orders?select=*&order=created_at.desc&limit=1000&offset=" + offset, "GET");
+          if(generation!==accessGeneration)return;
           if (!Array.isArray(page)) throw new Error("Неверный ответ базы данных.");
           items.push(...page);
           if (page.length < 1000) break;
@@ -1090,19 +1107,19 @@
         // Keep slot suggestions current without rebuilding unchanged order cards.
         window.__rdQuickSlotsRefresh?.();
       }
-      let syncError=null;
-      if(currentRole==="owner"||currentRole==="master") {
-        try {await loadFinance();} catch(error){
-          financeLoadError=friendlyError(error);
-          if(financeActive)renderFinance();
-          syncError=error;
-        }
-      }
-      reportSync(syncError,"finance");
+    }
+    async function reloadOrders({background=false}={}) {
+      const generation=accessGeneration;
+      await loadOrderData(background);
+      if(generation!==accessGeneration)return;
+      if(currentRole==="owner"||currentRole==="master")await refreshFinance(!background);
+      else reportSync(null);
+      if(generation!==accessGeneration)return;
       if(currentRole==="master"){
         if(currentTab==="calendar")renderMasterOverview(masterWorkingOrders());
         try{await refreshRabotaNotifications();}catch(error){console.warn("Notification reload",error);}
       }
+      if(window.__rdOrdersWorkspace?.isActive())window.__rdOrdersWorkspace.refreshOverview();
     }
     function getOrders() {return cloudOrders;}
     // Recheck the authoritative order list before sharing a technician schedule.
@@ -1194,6 +1211,11 @@
       if(currentRole!=="master" || String(currentMasterName||"").trim().toLowerCase()!=="рауль")return;
       if(order.status!=="Выполнен")return;
       const wrap=make("div","cash-share");
+      if(!financeSnapshotReady||financeLoadError){
+        wrap.append(make("div","cash-share-status",financeLoadError?
+          "Расчёт по заказу временно недоступен.":"Загружаем расчёт по заказу…"));
+        card.append(wrap);return;
+      }
       const collection=collectionForOrder(order.id);
       if(!collection) {
         if(!order.paid) {
@@ -1242,21 +1264,31 @@
         wrap.append(btn,make("p","cash-share-hint",
           "Не отмечай распределение, пока деньги действительно не выданы."));
       }else{
+        const {waitingAmount,pendingAmount,confirmedAmount}=financeModel.collectionAmounts(collection);
         const line=make("div","cash-share-line");
         line.append(make("span","","Доля компании"),make("strong","",money(collection.company_amount)));
         wrap.append(line);
-        if(collection.confirmed_at) {
-          wrap.append(make("div","cash-share-status","✓ Деньги приняты владельцем в кассу"));
-        }else if(collection.submitted_at) {
-          wrap.append(make("div","cash-share-status","Передача отмечена. Ожидается подтверждение владельца."));
-        }else{
-          wrap.append(make("div","cash-share-status","Осталось передать компании: "+money(collection.company_amount)));
+        if(confirmedAmount>0)
+          wrap.append(make("div","cash-share-status","Компания подтвердила "+money(confirmedAmount)));
+        if(pendingAmount>0)
+          wrap.append(make("div","cash-share-status","Ждёт подтверждения "+money(pendingAmount)));
+        if(waitingAmount>0){
+          wrap.append(make("div","cash-share-status","Осталось передать компании: "+money(waitingAmount)));
           const btn=make("button","secondary","Я передал деньги компании");
           btn.type="button";
           btn.addEventListener("click",async()=>{
-            if(!confirm("Ты действительно передал владельцу "+money(collection.company_amount)+" за заказ "+(order.name||"")+"? Владелец должен подтвердить получение."))return;
+            if(!confirm("Ты действительно передал владельцу "+money(waitingAmount)+" за заказ "+(order.name||"")+"? Владелец должен подтвердить получение."))return;
             btn.disabled=true;
-            try{await dbRequest("rpc/rabota_cash_submit","POST",{p_order_id:order.id});await reloadOrders();}
+            try{
+              if("submitted_amount" in collection){
+                const result=await submitMasterHandoff(waitingAmount,crypto.randomUUID(),order.id);
+                if(result.refreshError)alert("Передача записана. "+result.refreshError);
+              }else{
+                await dbRequest("rpc/rabota_cash_submit","POST",{p_order_id:order.id});
+                await reloadOrders();
+              }
+              refreshMasterOrderDialog();
+            }
             catch(error){alert(friendlyError(error));btn.disabled=false;}
           });
           wrap.append(btn);
@@ -1466,7 +1498,10 @@
     function masterSettlementOrders(){return masterUI.masterSettlementOrders();}
     function masterScheduleSort(a,b,today){return masterUI.masterScheduleSort(a,b,today);}
     function masterOrderCount(n){return masterUI.masterOrderCount(n);}
-    function renderMasterOverview(rows){return masterUI.renderMasterOverview(rows);}
+    function renderMasterOverview(rows){
+      if(window.__rdOrdersWorkspace?.isActive())return window.__rdOrdersWorkspace.refreshOverview();
+      return masterUI.renderMasterOverview(rows);
+    }
     window.__rdMasterStatusReview=()=>{
       if(currentRole!=="master"||!currentUser?.id)return [];
       return masterUI.masterOrdersToReview(masterWorkingOrders().filter(
@@ -1646,25 +1681,31 @@
 
     function renderCalendar() {calendarModule.renderCalendar();}
     function render() {
+      const workspace=window.__rdOrdersWorkspace;
+      const unified=workspace?.isActive()||false;
+      if(unified)workspace.beforeRender();
       renderCalendar();
       document.querySelectorAll("[data-tab]").forEach(btn => {
         btn.classList.toggle("active",btn.dataset.tab===currentTab);
         btn.setAttribute("aria-current",btn.dataset.tab===currentTab?"page":"false");
       });
-      const redesignedOrders = window.__rdCurrentPage==="orders" &&
+      const redesignedOrders = !unified && window.__rdCurrentPage==="orders" &&
         (currentRole==="owner"||currentRole==="manager");
       // The large legacy calendar belongs to the classic master view, not to order tabs.
       // Render a short date picker after the tabs for owners and managers instead.
       document.getElementById("calendarPanel").hidden = redesignedOrders ||
-        currentTab!=="calendar" || window.__rdCurrentPage==="calendar";
+        currentTab!=="calendar" || (!unified&&window.__rdCurrentPage==="calendar");
       ordersDayPicker.hidden = !redesignedOrders || currentTab!=="calendar";
       const toolbarDateFilter = document.getElementById("rdOrderDate");
       if(toolbarDateFilter && redesignedOrders)
         toolbarDateFilter.value=currentTab==="calendar"?selectedDate:
           currentTab==="history"?orderHistoryDateFilter:orderListDateFilter;
+      const sourceOrders=unified?workspace.filterOrders(getOrders()):getOrders();
+      const cancelledForDay=unified&&currentTab==="calendar"&&!workspace.status()?
+        sourceOrders.filter(o=>o.date===selectedDate&&o.status==="Отменён"):[];
       let shown;
       if (currentTab === "history") {
-        shown = getOrders().filter(o=>o.status==="Выполнен");
+        shown = sourceOrders.filter(o=>o.status==="Выполнен");
         // History follows the appointment date shown on each card.
         shown.sort((a,b)=>String(b.date||"").localeCompare(String(a.date||""))||
           String(b.time||"").localeCompare(String(a.time||""))||
@@ -1672,33 +1713,34 @@
         document.getElementById("listTitle").textContent="Выполненные заказы";
       } else if (currentTab==="all") {
         if(currentRole==="master") {
-          shown=getOrders().filter(o=>o.assignedUserId===currentUser?.id);
+          shown=sourceOrders.filter(o=>o.assignedUserId===currentUser?.id);
           const now=masterClock();
           shown.sort((a,b)=>masterScheduleSort(a,b,now.date,now.minutes));
         } else {
-          shown=getOrders();
+          shown=sourceOrders.slice();
           shown.sort((a,b)=>String(b.date||"").localeCompare(String(a.date||"")) ||
             String(b.time||"").localeCompare(String(a.time||"")));
         }
         document.getElementById("listTitle").textContent=currentRole==="master"?"Все мои заказы":"Все заказы";
       } else {
-        shown=getOrders().filter(o=>o.date===selectedDate &&
+        shown=sourceOrders.filter(o=>o.date===selectedDate &&
+          (!unified||workspace.status()||o.status!=="Отменён")&&
           (currentRole!=="master"||
             (o.assignedUserId===currentUser?.id&&
-              o.status!=="Выполнен"&&o.status!=="Отменён")));
+              o.status!=="Выполнен"&&(o.status!=="Отменён"||(unified&&workspace.status()==="Отменён")))));
         shown.sort((a,b)=>String(a.time||"").localeCompare(String(b.time||"")));
         document.getElementById("listTitle").textContent="Заказы · "+formatDate(selectedDate);
       }
       // Raul sees the active queue first and a separate collapsed history
       // for the selected day. Completed orders stay hidden in other views.
       const completedForDay=currentRole==="master"&&currentTab==="calendar"?
-        getOrders().filter(o=>o.date===selectedDate&&o.status==="Выполнен"&&
+        sourceOrders.filter(o=>o.date===selectedDate&&o.status==="Выполнен"&&
           o.assignedUserId===currentUser?.id):[];
       // Count active and completed jobs for Raul's selected day, even when
       // the completed section is folded; other screens keep their old counts.
       const visibleDayCount=shown.length+completedForDay.length;
-      document.getElementById("orderCount").textContent=
-        (currentRole==="master"&&currentTab==="calendar"?visibleDayCount:shown.length)+" шт.";
+      const displayedCount=currentRole==="master"&&currentTab==="calendar"?visibleDayCount:shown.length;
+      document.getElementById("orderCount").textContent=unified?masterOrderCount(displayedCount):displayedCount+" шт.";
       ordersNode.replaceChildren();
       renderMasterOverview(currentTab==="calendar"&&currentRole==="master"?
         masterWorkingOrders().filter(o=>o.assignedUserId===currentUser?.id):[]);
@@ -1707,13 +1749,36 @@
         if(currentTab==="calendar")masterUI.renderMasterCompletedDay(completedForDay,selectedDate);
       }
       else if(!shown.length) ordersNode.append(make("div","empty",currentTab==="history"?"Выполненных заказов нет":"Заказов нет"));
-      else shown.forEach(o=>{const card=makeCard(o);window.__rdDecorateOrder?.(card,o);card.dataset.search=(o.name+' '+o.phone+' '+o.address+' '+o.master+' '+(o.referenceCode||'')+' '+(o.id||'')).toLocaleLowerCase('ru');card.dataset.date=o.date||'';card.dataset.master=o.master||'';card.dataset.status=o.status||'';card.dataset.unpaid=String(o.status==='Выполнен'&&!o.paid);card.dataset.pendingPayment=String(o.status==="Выполнен"&&!o.paid);ordersNode.append(card);});
+      else shown.forEach(o=>ordersNode.append(makeCompactOwnerOrder(o)));
+      if(cancelledForDay.length)workspace.renderCancelled(cancelledForDay,
+        currentRole==="master"?makeMasterScheduleRow:makeCompactOwnerOrder);
       renderMasterSettlements();
       window.__rdMasterOrdersRefresh?.();
       refreshMasterOrderDialog();
       window.__rdRefresh?.();
     }
+    function makeCompactOwnerOrder(order){
+      const card=makeCard(order);window.__rdDecorateOrder?.(card,order);
+      card.dataset.search=[order.name,order.phone,order.address,order.master,order.referenceCode||"",order.id||""].join(" ").toLocaleLowerCase("ru");
+      card.dataset.date=order.date||"";card.dataset.master=order.master||"";
+      card.dataset.status=order.status||"";
+      card.dataset.unpaid=String(order.status==="Выполнен"&&!order.paid);
+      card.dataset.pendingPayment=card.dataset.unpaid;
+      return card;
+    }
     let formPaymentChoice=null;
+    function updateOrderDeleteButton(existing){
+      deleteOrderBtn.hidden=currentRole!=="owner"||!existing;
+      if(deleteOrderBtn.hidden)return;
+      if(!financeSnapshotReady||financeLoadError){
+        deleteOrderBtn.disabled=true;
+        deleteOrderBtn.textContent=financeLoadError?"Финансы недоступны":"Проверяем оплаты…";
+        return;
+      }
+      deleteOrderBtn.disabled=orderHasFinancialHistory(existing);
+      deleteOrderBtn.textContent=deleteOrderBtn.disabled
+        ?"Есть оплата или финансы — удалить нельзя":"Удалить заказ";
+    }
     function openForm(id) {
       const raulCreating=raulCanCreateOrder();
       if(!canCreateOrder() || (currentRole==="master" && (id!==undefined || !raulCreating)))return;
@@ -1729,10 +1794,7 @@
       const existing=editingId===null?null:getOrders().find(x=>String(x.id)===editingId);
       controls.source.required=!existing;
       advanced.open=Boolean(existing);
-      deleteOrderBtn.hidden=currentRole!=="owner"||!existing;
-      deleteOrderBtn.disabled=orderHasFinancialHistory(existing);
-      deleteOrderBtn.textContent=deleteOrderBtn.disabled
-        ?"Есть оплата или финансы — удалить нельзя":"Удалить заказ";
+      updateOrderDeleteButton(existing);
       document.getElementById("formTitle").textContent=existing?"Редактировать заказ":"Новый заказ";
       if(existing) {
         controls.name.value=existing.name||"";
@@ -2030,17 +2092,19 @@
       getUserId:()=>currentUser?.id||null,
       nextGeneration:()=>++financeLoadGeneration,
       isCurrentGeneration:g=>g===financeLoadGeneration,
-      onSnapshot:({masterId,operations,collections})=>{
+      onSnapshot:({masterId,operations,collections,deposits})=>{
+        const firstSnapshot=!financeSnapshotReady||Boolean(financeLoadError);
         financeMasterId=masterId;
         financeOperations=operations;
         financeCollections=collections;
+        financeDeposits=deposits;
+        financeSnapshotReady=true;
         financeLoadError="";
         if(currentRole==="master"&&!financeActive){
           renderMasterSettlements();
           if(currentTab==="calendar")renderMasterOverview(masterWorkingOrders());
         }
-        if(financeActive)renderFinance();
-        window.__rdMoneyUpdated?.();
+        updateFinanceViews(firstSnapshot);
       }
     });
     const FINANCE_TIMUR_FEE=financeModel.TIMUR_FEE;
@@ -2048,7 +2112,37 @@
     const money=financeModel.money;
     const sumBy=financeModel.sumBy;
     const roundMoney=financeModel.roundMoney;
+    window.__rdFinanceStatus=()=>({loading:!financeSnapshotReady&&!financeLoadError,error:financeLoadError});
     function financeSplit(price){return financeModel.financeSplit(price);}
+    // Reports and payroll read the same master identity and finance model.
+    window.__rdReportMasterId=()=>currentRole==="owner"?financeMasterId:
+      currentRole==="master"?currentUser?.id||null:null;
+    // Owner payroll in Reports consumes the same authoritative finance snapshot.
+    // No additional ledger, database queries, privileges, or payment path is created.
+    window.__rdOwnerPayrollSnapshot=()=>{
+      if(currentRole!=="owner")return null;
+      if(financeLoadError)return {isOwner:true,error:financeLoadError};
+      if(!financeSnapshotReady)return {isOwner:true,loading:true};
+      if(!financeMasterId)return {isOwner:true,error:"Рауль пока не подключён к начислениям."};
+      const m=financeModel.calculateAccruals({
+        orders:getOrders(),operations:financeOperations,
+        collections:financeCollections,masterId:financeMasterId
+      });
+      return {
+        isOwner:true,
+        raulAccrued:m.raulAccrued,raulPaid:m.raulPaid,raulDue:m.raulDue,
+        timurAccrued:m.timurAccrued,timurPaid:m.timurPaid,timurDue:m.timurDue,
+        operations:financeOperations,
+        orders:m.eligible.map(o=>({
+          date:o.date,name:o.name,price:o.price,
+          raul:financeSplit(o.price).raul,timur:FINANCE_TIMUR_FEE
+        }))
+      };
+    };
+    window.__rdOwnerPayrollReload=async()=>{
+      if(currentRole!=="owner")return;
+      await refreshFinance();
+    };
     function financeLine(label,value) {
       const line=make("div","finance-line");
       line.append(make("span","finance-line-label",label),make("strong","",value));
@@ -2066,6 +2160,31 @@
     // or replace the result of a newer request.
     let financeLoadGeneration=0;
     async function loadFinance() {return financeModel.loadFinance();}
+    function updateFinanceViews(refreshOrder){
+      if(financeActive)renderFinance();
+      if(refreshOrder)refreshMasterOrderDialog();
+      if(editingId&&!overlay.hidden&&!orderSaving&&currentRole==="owner")
+        updateOrderDeleteButton(getOrders().find(o=>String(o.id)===editingId));
+      window.__rdMoneyUpdated?.();
+      window.__rdOwnerPayrollUpdated?.();
+      window.__rdReportUpdated?.();
+    }
+    function refreshFinance(fresh=false){
+      // Navigation can share the initial read. A confirmed write needs a newer snapshot.
+      if(financeRead&&!fresh)return financeRead;
+      const pending=loadFinance().then(()=>{
+        if(financeRead===pending)reportSync(null);
+      }).catch(error=>{
+        if(financeRead!==pending)return;
+        financeLoadError=friendlyError(error);
+        updateFinanceViews(true);
+        reportSync(error,"finance");
+      }).finally(()=>{
+        if(financeRead===pending)financeRead=null;
+      });
+      financeRead=pending;
+      return pending;
+    }
     function financeVisible() {
       const show=currentRole==="owner"|| (currentRole==="master"&&String(currentMasterName||"").trim().toLowerCase()==="рауль");
       // Владелец переключается вкладками. У Рауля только баланс и кнопка возврата.
@@ -2083,8 +2202,14 @@
       const root=document.getElementById("financeContent");
       const history=document.getElementById("financeHistory");
       root.replaceChildren();history.replaceChildren();
+      document.getElementById("financeEntry").hidden=currentRole!=="owner"||!financeActive||!financeSnapshotReady||Boolean(financeLoadError);
       if(financeLoadError) {
         root.append(make("div","error","Ошибка загрузки финансов: "+financeLoadError));
+        return;
+      }
+      if(!financeSnapshotReady){
+        const status=make("p","finance-tip","Загружаем финансы…");
+        status.setAttribute("role","status");root.append(status);
         return;
       }
       const isOwner=currentRole==="owner";
@@ -2102,22 +2227,15 @@
         return;
       }
       root.append(make("h2","finance-title",isOwner?"Финансы бригады Рауля":"Мои выплаты"));
-      root.append(financeMetric("Осталось выплатить",raulDue,"Моя доля: 50% от выполненных и оплаченных заказов",true));
-      if(isOwner){
-        const grid=make("div","finance-grid");
-        grid.append(financeMetric("Тимуру к выплате",timurDue,"1 500 ₽ за заказ"));
-        grid.append(financeMetric("Доля компании",companyEarned,"До прочих расходов"));
-        root.append(grid);
+      // Salary metrics live in Reports for the owner.
+      if(!isOwner){
+        root.append(financeMetric("Осталось выплатить",raulDue,"Моя доля: 50% от выполненных и оплаченных заказов",true));
+        const statement=make("div","finance-hero");
+        statement.append(financeLine("Выполнено и оплачено",eligible.length+" зак."));
+        statement.append(financeLine("Мне начислено",money(raulAccrued)));
+        statement.append(financeLine("Уже выплачено",money(raulPaid)));
+        root.append(statement);
       }
-      const statement=make("div","finance-hero");
-      statement.append(financeLine("Выполнено и оплачено",eligible.length+" зак."+(isOwner?" · "+money(eligibleGross):"")));
-      statement.append(financeLine(isOwner?"Раулю начислено":"Мне начислено",money(raulAccrued)));
-      statement.append(financeLine(isOwner?"Раулю выдано":"Уже выплачено",money(raulPaid)));
-      if(isOwner){
-        statement.append(financeLine("Тимуру начислено",money(timurAccrued)));
-        statement.append(financeLine("Тимуру выдано",money(timurPaid)));
-      }
-      root.append(statement);
       const custody=make("div","finance-hero");
       custody.append(financeLine("Компании ещё нужно передать",money(masterHeld)));
       custody.append(financeLine("Передано, ожидает подтверждения",money(waitingOwner)));
@@ -2135,18 +2253,27 @@
         if(awaiting.length){
           root.append(make("h2","finance-title","Подтвердить поступление от Рауля"));
           for(const collection of awaiting){
+            const {submittedAmount,confirmedAmount,pendingAmount}=financeModel.collectionAmounts(collection);
             const order=getOrders().find(o=>String(o.id)===String(collection.order_id));
             const item=make("div","finance-activity");
             const title=make("div","finance-activity-top");
-            title.append(make("span","",order?.name||"Заказ"),make("strong","",money(collection.company_amount)));
+            title.append(make("span","",[order?.name||"Заказ",order?.referenceCode].filter(Boolean).join(" · ")),make("strong","",money(pendingAmount)));
             item.append(title);
             item.append(make("div","finance-activity-sub","Рауль отметил передачу денег компании. Подтверди только после фактического получения."));
             const btn=make("button","primary","Подтвердить получение в кассу");
             btn.type="button";
             btn.addEventListener("click",async()=>{
-              if(!confirm("Ты действительно получил "+money(collection.company_amount)+" от Рауля?"))return;
+              if(!confirm("Ты действительно получил "+money(pendingAmount)+" от Рауля?"))return;
               btn.disabled=true;
-              try{await dbRequest("rpc/rabota_cash_confirm","POST",{p_order_id:collection.order_id});await reloadOrders();}
+              try{
+                if("submitted_amount" in collection){
+                  await dbRequest("rpc/rabota_cash_confirm_amount","POST",{p_order_id:collection.order_id,
+                    p_expected_submitted:submittedAmount,p_expected_confirmed:confirmedAmount});
+                }else{
+                  await dbRequest("rpc/rabota_cash_confirm","POST",{p_order_id:collection.order_id});
+                }
+                await reloadOrders();
+              }
               catch(error){alert(friendlyError(error));btn.disabled=false;}
             });
             item.append(btn);root.append(item);
@@ -2157,7 +2284,8 @@
         cash.append(financeLine("Поступило напрямую компании",money(directReceipts)));
         cash.append(financeLine("Получено мастером, ещё не распределено",money(sumBy(masterUnallocated,o=>o.price))));
         cash.append(financeLine("Подтверждено от мастера",money(confirmedDeposits)));
-        cash.append(financeLine("Деньги компании ещё у мастера / в пути",money(sumBy(unconfirmedCash,c=>c.company_amount))));
+        cash.append(financeLine("Деньги компании ещё у мастера / в пути",
+          money(sumBy(unconfirmedCash,c=>Number(c.company_amount)-financeModel.collectionAmounts(c).confirmedAmount))));
         cash.append(financeLine("Выдано Раулю и Тимуру",money(allPayouts)));
         cash.append(financeLine("Другие расходы",money(expenses)));
         cash.append(financeLine("Долги Раулю и Тимуру",money(raulDue+timurDue)));
@@ -2169,19 +2297,22 @@
         root.append(make("p","finance-tip","После выполнения заказа можешь распределить фактически полученную наличную оплату: твоя доля и выплата Тимуру фиксируются сразу, а доля компании остаётся к сдаче до подтверждения владельцем. Администратор также может вести выплаты вручную."));
       }
 
-      root.append(make("h2","finance-title","Расчёт по заказам"));
-      if(!eligible.length)root.append(make("div","empty","Пока нет выполненных и оплаченных заказов."));
-      for(const order of eligible.slice().sort((a,b)=>String(b.date).localeCompare(String(a.date)))){
-        const item=make("div","finance-activity");
-        const top=make("div","finance-activity-top");
-        top.append(make("span","",order.name||"Без имени"),make("span","",money(order.price)));
-        item.append(top);
-        const breakdown=isOwner?
-          "Раулю: "+money(financeSplit(order.price).raul)+" · Тимуру: 1 500 ₽ · Компании: "+money(financeSplit(order.price).company):
-          "Моя доля: "+money(financeSplit(order.price).raul);
-        item.append(make("div","finance-activity-sub",(order.date?formatDate(order.date)+" · ":"")+breakdown));
-        root.append(item);
-      }
+      // Order-level salary/profit breakdown belongs in Reports.
+      if(!isOwner){
+        root.append(make("h2","finance-title","Расчёт по заказам"));
+        if(!eligible.length)root.append(make("div","empty","Пока нет выполненных и оплаченных заказов."));
+        for(const order of eligible.slice().sort((a,b)=>String(b.date).localeCompare(String(a.date)))){
+          const item=make("div","finance-activity");
+          const top=make("div","finance-activity-top");
+          top.append(make("span","",order.name||"Без имени"),make("span","",money(order.price)));
+          item.append(top);
+          const breakdown=isOwner?
+            "Раулю: "+money(financeSplit(order.price).raul)+" · Тимуру: 1 500 ₽ · Компании: "+money(financeSplit(order.price).company):
+            "Моя доля: "+money(financeSplit(order.price).raul);
+          item.append(make("div","finance-activity-sub",(order.date?formatDate(order.date)+" · ":"")+breakdown));
+          root.append(item);
+        }
+        }
       const logs=isOwner?financeOperations:financeOperations.filter(o=>o.master_user_id===financeMasterId&&o.kind==="raul_payout");
       if(!logs.length)history.append(make("div","empty","Операций пока нет."));
       for(const row of logs.slice(0,70)){
@@ -2228,7 +2359,7 @@
     document.getElementById("viewFinanceBtn").addEventListener("click",async()=>{
       financeActive=true;financeVisible();
       restoreVerticalScroll(0);
-      try{await loadFinance();}catch(error){financeLoadError=friendlyError(error);renderFinance();}
+      await refreshFinance();
     });
     // Payroll payouts use one awaited operation, not a hidden form submission.
     // The backend validates the owner, the available balance and prevents overpayment.
@@ -2296,12 +2427,14 @@
     });
 
     async function loadTeam() {
+      const generation=accessGeneration;
       const panel=document.getElementById("teamPanel");
-      panel.hidden=currentRole!=="owner" || (window.__rdCurrentPage!=null && window.__rdCurrentPage!=="orders");
+      panel.hidden=currentRole!=="owner" || window.__rdCurrentPage!=="settings";
       if (currentRole!=="owner") return;
       const requests=document.getElementById("teamRequests");
       const active=document.getElementById("teamMembers");
       const rows=await dbRequest("rabota_members?select=user_id,email,role,active,master_name&order=created_at.desc&limit=200","GET");
+      if(generation!==accessGeneration||currentRole!=="owner")return;
       if(!Array.isArray(rows)) throw new Error("Не удалось загрузить сотрудников.");
       requests.replaceChildren();active.replaceChildren();
       const pending=rows.filter(m=>!m.active);
@@ -2420,12 +2553,16 @@
     const loginMessage=document.getElementById("authMessage");
     const accessMessage=document.getElementById("accessMessage");
     async function checkAccess() {
+      resetAccountData();
+      const generation=accessGeneration;
       const user=await authRequest("user","GET",null,true);
+      if(generation!==accessGeneration)return;
       if(!user||!user.id) throw new Error("Не удалось проверить аккаунт.");
       currentUser=user;
       document.getElementById("currentEmail").textContent=user.email||"";
       const rows=await dbRequest("rabota_members?select=user_id,role,active,master_name&user_id=eq."+
         encodeURIComponent(user.id)+"&limit=1","GET");
+      if(generation!==accessGeneration)return;
       if(!Array.isArray(rows)||!rows.length||!rows[0].active){
         showScreen("accessScreen");return;
       }
@@ -2450,6 +2587,7 @@
       document.querySelector('[data-tab="calendar"]').textContent="По дням";
       document.getElementById("appScreen").classList.toggle("master-mode",currentRole==="master");
       document.getElementById("appScreen").classList.toggle("rd-owner",currentRole==="owner");
+      document.getElementById("appScreen").classList.toggle("rd-manager",currentRole==="manager");
       document.getElementById("masterBrand").hidden=currentRole!=="master";
       document.getElementById("masterPushPanel").hidden=currentRole!=="master";
       // Only the master's floating button uses the short visible label.
@@ -2461,8 +2599,11 @@
       if (currentRole==="master") { currentTab="calendar"; selectedDate=masterClock().date; masterFollowsToday=true; }
       financeActive=false;
       financeVisible();
-      await reloadOrders();
+      await loadOrderData();
+      if(generation!==accessGeneration)return;
+      reportSync(null);
       showScreen("appScreen");
+      if(currentRole==="owner"||currentRole==="master")void refreshFinance();
       if(currentRole==="master")window.__rdInitMasterPush?.();
       window.__rdAccess?.();
       window.__rdMoneyAccess?.();
@@ -2473,7 +2614,44 @@
 
     // Role-aware adapters: the database RPC/RLS remains the final authority.
     // Keep credentials inside dbRequest; UI modules never read localStorage tokens.
+    const handoffPreview=/^rabota-(?:git-[a-z0-9-]+-|[a-z0-9]{7,}-)sonkort19-6069s-projects\.vercel\.app$/i.test(location.hostname);
+    async function submitMasterHandoff(amount,requestId,orderId=null){
+      if(handoffPreview)throw Error("В предпросмотре передача не записывается.");
+      if(currentRole!=="master"||!currentUser?.id||financeMasterId!==currentUser.id)
+        throw Error("Передачу может отметить только мастер, принявший деньги.");
+      if(!Number.isFinite(amount)||amount<=0||roundMoney(amount)!==amount)
+        throw Error("Укажите положительную сумму с точностью до копеек.");
+      // Keep the same id across a dropped response and a reload in this tab.
+      const key=["rabota.handoff",currentUser.id,orderId||"all",Math.round(amount*100)].join(".");
+      const previousId=sessionStorage.getItem(key);
+      if(previousId&&previousId!==requestId){
+        // A new form may represent a second real handoff for the same amount.
+        // Resolve the first receipt without writing before accepting a new intent.
+        const receipt=await dbRequest("rabota_cash_transfer_events?select=id&kind=eq.submitted"+
+          "&request_id=eq."+encodeURIComponent(previousId)+"&master_user_id=eq."+encodeURIComponent(currentUser.id)+"&limit=1","GET");
+        if(!Array.isArray(receipt))throw Error("Не удалось проверить предыдущую передачу.");
+        if(receipt.length){
+          sessionStorage.removeItem(key);
+          await reloadOrders();
+          throw Error("Предыдущая передача "+money(amount)+" уже записана. Если вы передали столько же ещё раз, подтвердите новую передачу.");
+        }
+      }
+      const id=previousId||requestId;
+      sessionStorage.setItem(key,id);
+      const payload={p_amount:amount,p_request_id:id};
+      if(orderId)payload.p_order_id=orderId;
+      const accepted=await dbRequest("rpc/rabota_cash_submit_amount","POST",payload);
+      if(accepted!==true)throw Error("Не удалось подтвердить запись передачи. Повторите попытку.");
+      sessionStorage.removeItem(key);
+      try{await reloadOrders();}
+      catch(error){
+        financeLoadError=friendlyError(error);
+        window.__rdMoneyUpdated?.();
+      }
+      return {refreshError:financeLoadError};
+    }
     window.__rdMoneyUi={
+      submitMasterHandoff,
       snapshot(){
         const mine=getOrders().filter(o=>o.assignedUserId===financeMasterId
           &&o.status==="Выполнен"&&o.paid&&Number.isFinite(o.price)&&o.price>=0);
@@ -2482,26 +2660,38 @@
         const paid=roundMoney(sumBy(payouts,o=>o.amount));
         return {
           role:currentRole,masterName:currentMasterName,masterId:financeMasterId,
+          loading:!financeSnapshotReady&&!financeLoadError,
           error:financeLoadError,accrued,paid,due:roundMoney(accrued-paid),
           orders:mine.map(o=>({name:o.name,date:o.date,id:o.id,amount:financeSplit(o.price).raul,price:o.price})),
           payouts:payouts.map(o=>({id:o.id,amount:Number(o.amount),note:o.note,
             payment_method:o.payment_method,created_at:o.created_at,order_id:o.order_id}))
         };
       },
+      masterReportOrders(){
+        // The order report is read-only and exclusively about Raul's assigned orders.
+        // The database's RLS still enforces access before these rows reach the browser.
+        const id=currentUser?.id;
+        if(currentRole!=="master" || String(currentMasterName||"").trim().toLocaleLowerCase("ru")!=="рауль" || !id)
+          return [];
+        return getOrders().filter(o=>o.assignedUserId===id);
+      },
       masterPayments(){
         if(currentRole!=="master")throw Error("Доступно только мастеру");
         const orders=getOrders().filter(o=>o.assignedUserId===currentUser?.id);
-        const ids=new Set(orders.map(o=>String(o.id)));
+        const collections=financeCollections.filter(c=>c.master_user_id===currentUser?.id);
         return {
+          loading:!financeSnapshotReady&&!financeLoadError,
           error:financeLoadError,
+          preview:handoffPreview,
+          canSubmit:financeMasterId===currentUser?.id&&(handoffPreview||collections.some(c=>"submitted_amount" in c)),
           orders:orders.map(o=>({
-            id:o.id,name:o.name,date:o.date,time:o.time,status:o.status,
+            id:o.id,reference:o.referenceCode,name:o.name,date:o.date,time:o.time,status:o.status,
             paid:o.paid,amount:o.paymentAmount??o.price,method:o.paymentMethod,
             paidAt:o.paidAt,receivedBy:o.paymentReceivedBy
           })),
-          collections:financeCollections.filter(c=>ids.has(String(c.order_id))).map(c=>({
+          collections:collections.map(c=>({
             orderId:c.order_id,companyAmount:Number(c.company_amount)||0,
-            submittedAt:c.submitted_at,confirmedAt:c.confirmed_at
+            ...financeModel.collectionAmounts(c)
           })),
           payouts:financeOperations.filter(o=>!o.voided_at &&
             o.master_user_id===currentUser?.id && o.kind==="raul_payout").map(o=>({
@@ -2513,6 +2703,7 @@
       ownerSnapshot(){
         if(currentRole!=="owner")throw Error("Нет доступа");
         return {
+          loading:!financeSnapshotReady&&!financeLoadError,
           error:financeLoadError,
           paidOrders:getOrders().filter(o=>o.paid&&o.status!=="Отменён").map(o=>({
             id:o.id,name:o.name,amount:o.paymentAmount??o.price,method:o.paymentMethod,
@@ -2522,9 +2713,8 @@
             id:o.id,kind:o.kind,amount:Number(o.amount),payment_method:o.payment_method,
             note:o.note,created_at:o.created_at,order_id:o.order_id
           })),
-          collections:financeCollections.map(c=>({
-            id:c.order_id,amount:Number(c.company_amount),confirmed_at:c.confirmed_at
-          }))
+          collections:financeCollections.map(c=>({id:c.order_id})),
+          deposits:financeDeposits
         };
       },
       async payout({kind="raul_payout",amount,method,note,requestId,masterId}){
@@ -2658,11 +2848,14 @@
   <script src="/whatsapp-order.js?v=20261111-master-notes"></script>
   <script src="/whatsapp-client.js?v=20261118-safety-fix-v1"></script>
   <script src="/whatsapp-settings.js?v=20261118-wa-icon-v3"></script>
-  <script src="/redesign.js?v=20261118-settings-v1"></script>
-  <script src="/master-notifications.js?v=20261117-review-v1"></script>
-  <script src="/orders-list.js?v=20261117-seq5-v1"></script>
-  <script src="/finance-payroll.js"></script>
-  <script src="/money-workspace.js?v=20261118-settings-v1"></script>
+  <script src="/profit-report.js?v=20261124-fast-start"></script>
+  <script src="/redesign.js?v=20261124-unified-v1"></script>
+  <script src="/master-notifications.js?v=20261124-fast-start"></script>
+  <script src="/orders-list.js?v=20261124-unified-v1"></script>
+  <script src="/owner-parity.js?v=20261124-unified-v1"></script>
+  <script src="/finance-payroll.js?v=20261124-fast-start"></script>
+  <script src="/money-workspace.js?v=20261124-unified-v1"></script>
   <script src="/lead-assistant.js"></script>
+  <script src="/orders-workspace.js?v=20261124-unified-v1"></script>
 </body>
 </html>

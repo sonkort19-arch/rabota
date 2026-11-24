@@ -1,0 +1,384 @@
+/* Unified orders workspace. These overrides only style the shared orders screen;
+   existing order actions, role checks and native calendar scrolling stay intact. */
+body.rd #appScreen.rd-unified-orders{
+  --ow-ink:#17243e;--ow-muted:#72819c;--ow-blue:#315cd9;
+  --ow-border:#dce4f5;--ow-surface:#fff;--ow-background:#f3f6fd;
+  color:var(--ow-ink);background:var(--ow-background);
+  padding-bottom:calc(156px + env(safe-area-inset-bottom,0px));
+}
+body.rd #appScreen.rd-unified-orders :is(#ordersArea,#orders,#owViewSwitch,#owSearch){min-width:0;max-width:100%;box-sizing:border-box}
+body.rd #appScreen.rd-unified-orders :is(#masterBrand,.rd-top,#rdOrdersIntro,#rdOrderStats,#rdOrderToolbar,#rdOrdersDayPicker,#mwMasterFilterbar,#rdOrdersFilterToggle),
+body.rd #appScreen.rd-unified-orders #ordersArea>.tabs,
+body.rd #appScreen.rd-unified-orders #orders>.rd-list-columns{display:none!important}
+body.rd #appScreen.rd-unified-orders [hidden]{display:none!important}
+
+/* One useful header, with the original notifications/profile controls. */
+body.rd #appScreen.rd-unified-orders>header,
+body.rd #appScreen.rd-master.master-mode.rd-unified-orders>header{
+  display:flex;align-items:center;justify-content:space-between;gap:12px;
+  min-height:66px;margin:0 0 12px;padding:6px 0;
+  border:0;box-shadow:none;background:var(--ow-background);border-radius:0;
+}
+body.rd #appScreen.rd-unified-orders>header .master-header-info,
+body.rd #appScreen.rd-master.master-mode.rd-unified-orders>header .master-header-info{
+  display:block;flex:1 1 auto;min-width:0;width:auto;
+}
+body.rd #appScreen.rd-unified-orders>header #appTitle{
+  display:block;max-width:none;margin:0;color:var(--ow-ink);
+  font-size:26px;line-height:1.12;font-weight:800;letter-spacing:-.65px;
+}
+body.rd #appScreen.rd-unified-orders>header .master-header-meta{display:block;margin-top:3px;min-width:0}
+body.rd #appScreen.rd-unified-orders>header #roleName{
+  display:block;margin:0;font-size:13px;line-height:1.3;color:var(--ow-muted);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+body.rd #appScreen.rd-unified-orders>header #roleName:before,
+body.rd #appScreen.rd-master.master-mode.rd-unified-orders>header #roleName:not(:empty):before{content:none}
+body.rd #appScreen.rd-unified-orders>header .master-header-actions,
+body.rd #appScreen.rd-master.master-mode.rd-unified-orders>header .master-header-actions{
+  position:relative;top:auto;right:auto;display:flex;align-items:center;
+  justify-content:flex-end;gap:7px;flex:0 0 auto;min-width:0;pointer-events:auto;
+}
+body.rd #appScreen.rd-unified-orders .ow-icon-button,
+body.rd #appScreen.rd-unified-orders>header #pushBellBtn{
+  display:inline-flex;align-items:center;justify-content:center;
+  flex:0 0 40px;box-sizing:border-box;width:40px;height:40px;
+  min-width:40px;min-height:40px;margin:0;padding:9px;
+  border:1px solid #d7e1f6;border-radius:12px;
+  color:#355caa;background:#f8faff;box-shadow:none;cursor:pointer;
+}
+body.rd #appScreen.rd-unified-orders .ow-icon-button svg,
+body.rd #appScreen.rd-unified-orders>header #pushBellBtn svg{display:block;width:22px;height:22px;flex:none}
+body.rd #appScreen.rd-unified-orders>header .rd-profile{position:relative;flex:0 0 42px;width:42px;min-width:42px}
+body.rd #appScreen.rd-unified-orders>header .rd-profile-trigger{
+  position:relative;display:grid;place-items:center;box-sizing:border-box;
+  min-width:42px;width:42px;min-height:42px;height:42px;
+  padding:0;margin:0;border:1px solid #dce5f7;border-radius:50%;
+  overflow:hidden;background:#edf3ff;color:#355caa;
+}
+body.rd #appScreen.rd-unified-orders>header .rd-profile-photo{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;border-radius:50%}
+body.rd #appScreen.rd-unified-orders>header .rd-profile-menu{
+  position:absolute;top:calc(100% + 10px);right:0;z-index:200;
+  width:min(250px,calc(100vw - 24px));padding:12px;
+  border:1px solid var(--ow-border);border-radius:16px;background:#fff;
+  box-shadow:0 12px 35px #23396120;color:var(--ow-ink);
+}
+body.rd #appScreen.rd-unified-orders>header .rd-profile-identity{display:flex;gap:9px;align-items:center;padding:2px 0 11px}
+body.rd #appScreen.rd-unified-orders>header .rd-profile-text{display:flex;flex-direction:column;gap:2px;min-width:0}
+body.rd #appScreen.rd-unified-orders>header .rd-profile-text small{font-size:12px;color:var(--ow-muted)}
+body.rd #appScreen.rd-unified-orders>header .rd-profile-logout{display:flex;align-items:center;gap:9px;min-height:42px;width:100%;border:0;border-radius:9px;background:#f0f4fc;color:#335787}
+body.rd #appScreen.rd-unified-orders>header .rd-profile-logout svg{flex:none;width:21px;height:21px}
+
+/* The two views share one list and one selected appointment date. */
+body.rd #appScreen.rd-unified-orders #owViewSwitch{
+  display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px;
+  margin:0 0 13px;padding:4px;border:1px solid #d6e0f5;
+  border-radius:15px;background:#f9fbff;
+}
+body.rd #appScreen.rd-unified-orders #owViewSwitch button{
+  min-width:0;min-height:39px;margin:0;padding:8px 5px;
+  border:0;border-radius:11px;background:transparent;color:#61718e;
+  font-size:14px;font-weight:750;line-height:1.3;box-shadow:none;
+}
+body.rd #appScreen.rd-unified-orders #owViewSwitch button[aria-selected="true"]{color:#284cc7;background:#e4ebff}
+body.rd #appScreen.rd-unified-orders #owSearch{margin:0 0 12px}
+body.rd #appScreen.rd-unified-orders #owSearch>label{display:block;margin:0 0 7px;font-size:12px;font-weight:650;color:#627490}
+body.rd #appScreen.rd-unified-orders #owSearch>div{display:flex;align-items:center;gap:7px;min-width:0}
+body.rd #appScreen.rd-unified-orders #owSearchInput{
+  box-sizing:border-box;flex:1 1 0;min-width:0;width:100%;height:44px;
+  margin:0;padding:9px 12px;border:1px solid #cbd9f4;border-radius:12px;
+  background:#fff;color:var(--ow-ink);font-size:16px;box-shadow:none;
+}
+body.rd #appScreen.rd-unified-orders #owSearchClose{flex:0 0 40px;min-width:40px;min-height:42px;padding:5px;border-radius:11px;border:1px solid var(--ow-border);background:#fff;color:#4e6388;font-size:21px}
+
+/* Retain the native horizontal strip and its seven-cell geometry. */
+body.rd #appScreen.rd-unified-orders:is(.rd-master.master-mode,.rd-owner,.rd-manager) #calendarPanel.master-calendar-compact{
+  box-sizing:border-box;width:100%;min-width:0;padding:11px 10px 10px;
+  margin:0 0 10px;border:1px solid var(--ow-border);border-radius:17px;
+  background:#fcfdff;box-shadow:none;
+}
+body.rd #appScreen.rd-unified-orders:is(.rd-master.master-mode,.rd-owner,.rd-manager) #calendarPanel.master-calendar-compact .panel-top{
+  display:grid;grid-template-columns:28px minmax(0,1fr) 28px auto;
+  align-items:center;gap:5px;margin:0 0 10px;min-width:0;
+}
+body.rd #appScreen.rd-unified-orders:is(.rd-master.master-mode,.rd-owner,.rd-manager) #calendarPanel.master-calendar-compact .panel-top h2{grid-column:4;grid-row:1;margin:0;min-width:0}
+body.rd #appScreen.rd-unified-orders:is(.rd-master.master-mode,.rd-owner,.rd-manager) #calendarPanel.master-calendar-compact .nav{display:contents}
+body.rd #appScreen.rd-unified-orders:is(.rd-master.master-mode,.rd-owner,.rd-manager) #calendarPanel #prevWeek{grid-column:1;grid-row:1}
+body.rd #appScreen.rd-unified-orders:is(.rd-master.master-mode,.rd-owner,.rd-manager) #calendarPanel #nextWeek{grid-column:3;grid-row:1}
+body.rd #appScreen.rd-unified-orders:is(.rd-master.master-mode,.rd-owner,.rd-manager) #calendarPanel.master-calendar-compact .nav>.secondary{
+  display:grid;place-items:center;box-sizing:border-box;min-width:28px;
+  width:28px;height:38px;min-height:38px;margin:0;padding:0;
+  border:0;border-radius:8px;background:transparent;color:#526c9c;font-size:24px;box-shadow:none;
+}
+body.rd #appScreen.rd-unified-orders:is(.rd-master.master-mode,.rd-owner,.rd-manager) #calendarPanel.master-calendar-compact .master-calendar-date-trigger{
+  grid-column:2;grid-row:1;justify-content:center;gap:4px;
+  min-width:0;width:100%;height:38px;min-height:38px;padding:0 2px;
+  background:transparent;border:0;border-radius:8px;color:#20345a;
+  font-size:14px;font-weight:780;
+}
+body.rd #appScreen.rd-unified-orders:is(.rd-master.master-mode,.rd-owner,.rd-manager) #calendarPanel #masterCalendarDateText{overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
+body.rd #appScreen.rd-unified-orders:is(.rd-master.master-mode,.rd-owner,.rd-manager) #calendarPanel .master-calendar-date-chevron{color:#355ed3;font-size:17px}
+body.rd #appScreen.rd-unified-orders:is(.rd-master.master-mode,.rd-owner,.rd-manager) #calendarPanel #goToday.master-calendar-title-button{
+  justify-content:center;box-sizing:border-box;min-width:55px;min-height:36px;
+  height:36px;margin:0;padding:0 8px;border:1px solid #dae4fa;border-radius:10px;
+  background:#edf2ff;color:#315cc8;font-size:12px;font-weight:750;white-space:nowrap;
+}
+body.rd #appScreen.rd-unified-orders:is(.rd-master.master-mode,.rd-owner,.rd-manager) #calendarPanel #goToday .master-calendar-icon{display:none}
+body.rd #appScreen.rd-unified-orders:is(.rd-master.master-mode,.rd-owner,.rd-manager) #calendarPanel #weekDays{
+  width:100%;min-width:0;margin:0;gap:3px;
+}
+body.rd #appScreen.rd-unified-orders:is(.rd-master.master-mode,.rd-owner,.rd-manager) #calendarPanel #weekDays>.day{
+  position:relative;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;
+  box-sizing:border-box;min-width:0;min-height:61px;height:61px;max-height:61px;
+  padding:7px 0 15px;gap:3px;border:1px solid #dce5f7;border-radius:11px;
+  background:#fff;color:#273857;box-shadow:none;
+}
+body.rd #appScreen.rd-unified-orders:is(.rd-master.master-mode,.rd-owner,.rd-manager) #calendarPanel #weekDays>.day .weekday{font-size:11px;line-height:1.1;color:#617493}
+body.rd #appScreen.rd-unified-orders:is(.rd-master.master-mode,.rd-owner,.rd-manager) #calendarPanel #weekDays>.day strong{font-size:18px;line-height:1.1;font-weight:780;color:inherit}
+body.rd #appScreen.rd-unified-orders:is(.rd-master.master-mode,.rd-owner,.rd-manager) #calendarPanel #weekDays>.day.active{
+  padding-top:6px;border:2px solid #3d62df;background:#e9efff;color:#244bcc;box-shadow:none;
+}
+body.rd #appScreen.rd-unified-orders:is(.rd-master.master-mode,.rd-owner,.rd-manager) #calendarPanel #weekDays>.day.active .weekday{color:#3156c7}
+/* Existing workload styles deliberately hide the old marker; a small dot now
+   carries load information independently of the blue date selection. */
+body.rd #appScreen.rd-unified-orders:is(.rd-master.master-mode,.rd-owner,.rd-manager) #calendarPanel #weekDays>.day::after{
+  content:""!important;display:block!important;position:absolute;bottom:6px;left:50%;
+  transform:translateX(-50%);width:5px;height:5px;margin:0;border:0;border-radius:50%;
+  background:#22a868;box-shadow:none;
+}
+body.rd #appScreen.rd-unified-orders:is(.rd-master.master-mode,.rd-owner,.rd-manager) #calendarPanel #weekDays>.day:is(.workload-light,.workload-yellow)::after{background:#e7b621}
+body.rd #appScreen.rd-unified-orders:is(.rd-master.master-mode,.rd-owner,.rd-manager) #calendarPanel #weekDays>.day:is(.workload-busy,.workload-orange)::after{background:#ed8d28}
+body.rd #appScreen.rd-unified-orders:is(.rd-master.master-mode,.rd-owner,.rd-manager) #calendarPanel #weekDays>.day:is(.workload-full,.workload-red)::after{background:#d95760}
+body.rd #appScreen.rd-unified-orders:is(.rd-master.master-mode,.rd-owner,.rd-manager) #calendarPanel #weekDays>.day:is(.workload-completed,.workload-gray)::after{background:#9ba7b7}
+
+/* Nearest visit and compact list heading. */
+body.rd #appScreen.rd-unified-orders #masterTodaySummary{
+  min-width:0;width:100%;margin:0 0 12px;padding:0;background:none;border:0;box-shadow:none;
+}
+body.rd #appScreen.rd-unified-orders #masterTodaySummary .master-next-jump{
+  position:relative;display:flex;align-items:center;justify-content:flex-start;gap:6px;
+  box-sizing:border-box;width:100%;min-height:43px;height:auto;margin:0;
+  padding:10px 25px 10px 31px;border:0;border-radius:12px;
+  background:#e7efff;color:#315aab;text-align:left;box-shadow:none;
+}
+body.rd #appScreen.rd-unified-orders #masterTodaySummary .master-next-jump:before{
+  content:"";position:absolute;left:9px;top:50%;transform:translateY(-50%);
+  width:16px;height:19px;background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23446bd0' stroke-width='1.8'%3E%3Cpath d='M20 10c0 6-8 12-8 12S4 16 4 10a8 8 0 1 1 16 0Z'/%3E%3Ccircle cx='12' cy='10' r='3'/%3E%3C/svg%3E") center/contain no-repeat;
+}
+body.rd #appScreen.rd-unified-orders #masterTodaySummary .master-next-jump:after{content:"›";position:absolute;right:10px;top:50%;transform:translateY(-50%);font-size:23px;line-height:1;color:#4167c2}
+body.rd #appScreen.rd-unified-orders #masterTodaySummary .master-next-caption{flex:none;font-size:11px;line-height:1.3;color:#71819c}
+body.rd #appScreen.rd-unified-orders #masterTodaySummary .master-next-value{flex:1 1 auto;min-width:0;font-size:12px;line-height:1.35;font-weight:750;color:#2c55ac;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+body.rd #appScreen.rd-unified-orders #ordersArea>.list-head{
+  display:flex;align-items:center;justify-content:space-between;gap:7px;
+  min-height:42px;margin:9px 0 7px;padding:0;min-width:0;
+}
+body.rd #appScreen.rd-unified-orders #ordersArea>.list-head #listTitle{
+  display:block!important;flex:1 1 auto;min-width:0;margin:0;font-size:17px;
+  line-height:1.25;font-weight:800;letter-spacing:-.25px;color:var(--ow-ink);
+}
+body.rd #appScreen.rd-unified-orders #ordersArea>.list-head #orderCount{flex:none;margin:0;padding:0;background:transparent;color:#7b89a1;font-size:11px;white-space:nowrap;font-weight:500}
+body.rd #appScreen.rd-unified-orders #ordersArea>.list-head .rd-orders-list-actions{display:contents}
+body.rd #appScreen.rd-unified-orders #owFilterToggle{flex:0 0 36px;min-width:36px;width:36px;min-height:36px;height:36px;padding:8px;border-radius:11px}
+body.rd #appScreen.rd-unified-orders #owFilterToggle[aria-expanded="true"],
+body.rd #appScreen.rd-unified-orders #owFilterToggle.has-filters{background:#e4ecff;border-color:#b6c9ef;color:#2c57c9}
+body.rd #appScreen.rd-unified-orders #owFilterSummary{display:flex;align-items:center;justify-content:space-between;gap:7px;margin:0 0 9px;padding:7px 9px;border-radius:10px;background:#e9effb;color:#52688d;font-size:12px;line-height:1.35;overflow-wrap:anywhere}
+body.rd #appScreen.rd-unified-orders #owFilterSummary button{flex:none;min-height:32px;padding:4px 7px;border:0;background:transparent;color:#315ac7;font-size:12px;font-weight:650}
+
+/* Both roles retain their original actionable DOM, styled to one geometry. */
+body.rd #appScreen.rd-unified-orders #orders{display:flex;flex-direction:column;gap:9px;margin:0;min-width:0}
+body.rd #appScreen.rd-unified-orders #orders :is(.master-schedule-card,.rd-list-row){
+  box-sizing:border-box;width:100%;min-width:0;margin:0!important;padding:0!important;
+  border:1px solid #d9e3f5;border-radius:15px;background:#fff;
+  box-shadow:0 2px 8px #29477806;overflow:hidden;
+}
+body.rd #appScreen.rd-unified-orders #orders .master-schedule-card .master-schedule-toggle,
+body.rd #appScreen.rd-unified-orders #orders .rd-list-row .rd-list-toggle{
+  display:grid;grid-template-columns:77px minmax(0,1fr) 16px;
+  grid-template-areas:"time who arrow" "address address address" "work work work" "state price price" "note note note";
+  align-items:center;gap:6px 8px;box-sizing:border-box;width:100%;min-width:0;
+  min-height:0;height:auto;margin:0;padding:12px;border:0;border-radius:0;
+  color:var(--ow-ink);background:transparent;box-shadow:none;text-align:left;
+}
+body.rd #appScreen.rd-unified-orders #orders .master-schedule-toggle :is(.master-schedule-main,.master-schedule-identity),
+body.rd #appScreen.rd-unified-orders #orders .rd-list-toggle :is(.rd-list-person,.rd-list-identity,.rd-list-when){display:contents}
+body.rd #appScreen.rd-unified-orders #orders .master-schedule-toggle .master-schedule-avatar,
+body.rd #appScreen.rd-unified-orders #orders .rd-list-toggle :is(.rd-list-avatar,.rd-list-master,.rd-list-meta),
+body.rd #appScreen.rd-unified-orders #orders .rd-list-toggle .rd-list-when>strong,
+body.rd #appScreen.rd-unified-orders #orders .rd-list-toggle .rd-list-price>small{display:none!important}
+body.rd #appScreen.rd-unified-orders #orders .master-schedule-toggle .master-schedule-time,
+body.rd #appScreen.rd-unified-orders #orders .rd-list-toggle .rd-list-when>small{
+  grid-area:time;justify-self:start;display:inline-flex;align-items:center;gap:4px;min-width:0;padding:0;margin:0;
+  color:#192d50;font-size:17px;line-height:1.25;font-weight:800;letter-spacing:-.15px;
+  font-variant-numeric:tabular-nums;white-space:nowrap;
+}
+body.rd #appScreen.rd-unified-orders #orders .master-schedule-toggle .master-schedule-time:before,
+body.rd #appScreen.rd-unified-orders #orders .rd-list-toggle .rd-list-when>small:before{
+  content:"";display:inline-block;flex:0 0 13px;width:13px;height:13px;
+  background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%237788a3' stroke-width='1.8'%3E%3Ccircle cx='12' cy='12' r='9'/%3E%3Cpath d='M12 7v5l4 3'/%3E%3C/svg%3E") center/contain no-repeat;
+}
+body.rd #appScreen.rd-unified-orders #orders .master-schedule-toggle .master-schedule-name,
+body.rd #appScreen.rd-unified-orders #orders .rd-list-toggle .rd-list-name{
+  grid-area:who;display:block;min-width:0;font-size:17px;line-height:1.25;font-weight:800;
+  color:#1a2a46;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+body.rd #appScreen.rd-unified-orders #orders .master-schedule-toggle .master-schedule-address,
+body.rd #appScreen.rd-unified-orders #orders .rd-list-toggle .rd-list-address{
+  grid-area:address;position:relative;display:block;min-width:0;max-width:100%;margin:1px 0 0;padding-left:18px;
+  color:#7a89a3;font-size:12px;line-height:1.4;font-weight:400;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+body.rd #appScreen.rd-unified-orders #orders .master-schedule-toggle .master-schedule-address:before,
+body.rd #appScreen.rd-unified-orders #orders .rd-list-toggle .rd-list-address:before{
+  content:"";position:absolute;left:0;top:1px;width:13px;height:15px;
+  background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%237788a3' stroke-width='1.8'%3E%3Cpath d='M20 10c0 6-8 12-8 12S4 16 4 10a8 8 0 1 1 16 0Z'/%3E%3Ccircle cx='12' cy='10' r='3'/%3E%3C/svg%3E") center/contain no-repeat;
+}
+body.rd #appScreen.rd-unified-orders #orders .master-schedule-toggle .master-schedule-work,
+body.rd #appScreen.rd-unified-orders #orders .rd-list-toggle .owner-list-work{
+  grid-area:work;position:relative;display:block;min-width:0;max-width:100%;padding:0 0 0 20px;margin:0;
+  color:#637793;font-size:12px;line-height:1.4;font-weight:500;
+  white-space:normal;overflow-wrap:anywhere;
+}
+body.rd #appScreen.rd-unified-orders #orders .master-schedule-toggle .master-schedule-work:not(:empty):before,
+body.rd #appScreen.rd-unified-orders #orders .rd-list-toggle .owner-list-work:not(:empty):before{
+  content:"";position:absolute;left:0;top:1px;width:15px;height:15px;
+  background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%237788a3' stroke-width='1.6'%3E%3Crect x='3' y='6' width='18' height='13' rx='2'/%3E%3Cpath d='M7 3v19M12 3v19M17 3v19M1 10h2m18 0h2'/%3E%3C/svg%3E") center/contain no-repeat;
+}
+body.rd #appScreen.rd-unified-orders #orders .master-schedule-toggle .master-schedule-work:empty{display:none}
+body.rd #appScreen.rd-unified-orders #orders .master-schedule-toggle .master-schedule-meta,
+body.rd #appScreen.rd-unified-orders #orders .rd-list-toggle .rd-list-state{grid-area:state;justify-self:start;display:flex;min-width:0;padding:0;margin:1px 0 0}
+body.rd #appScreen.rd-unified-orders #orders .master-schedule-toggle .status-badge,
+body.rd #appScreen.rd-unified-orders #orders .rd-list-toggle .rd-list-status{
+  min-height:22px;margin:0;padding:3px 7px;border:0;border-radius:8px;
+  font-size:10px;line-height:1.3;font-weight:750;white-space:nowrap;
+}
+body.rd #appScreen.rd-unified-orders #orders .master-schedule-toggle .master-schedule-price,
+body.rd #appScreen.rd-unified-orders #orders .rd-list-toggle .rd-list-price{
+  grid-area:price;justify-self:end;display:block!important;min-width:0;max-width:100%;
+  margin:1px 0 0;padding:0;color:#192b49;font-size:15px;font-weight:800;
+  line-height:1.3;text-align:right;white-space:normal;overflow-wrap:anywhere;
+}
+body.rd #appScreen.rd-unified-orders #orders .rd-list-toggle .rd-list-price strong{color:inherit;font-size:15px;line-height:1.3;font-weight:800;white-space:normal}
+body.rd #appScreen.rd-unified-orders #orders .master-schedule-toggle .master-schedule-chevron,
+body.rd #appScreen.rd-unified-orders #orders .rd-list-toggle .rd-list-arrow{grid-area:arrow;justify-self:end;font-size:23px;line-height:1;color:#7c8da9}
+body.rd #appScreen.rd-unified-orders #orders .master-schedule-toggle .master-money-note,
+body.rd #appScreen.rd-unified-orders #orders .rd-list-toggle .rd-list-paid{grid-area:note;justify-self:start;min-width:0;margin:0;padding:0;font-size:11px;color:#7e8da5;background:transparent}
+body.rd #appScreen.rd-unified-orders #orders .rd-list-toggle .rd-list-paid[aria-hidden="true"]{display:none!important}
+body.rd #appScreen.rd-unified-orders #orders :is(.master-schedule-card,.order-card.rd-list-row)[data-status="Выполнен"]{background:#f2f4f8;border-color:#dde3ed;box-shadow:none}
+body.rd #appScreen.rd-unified-orders #orders [data-status="Выполнен"] :is(.status-badge,.rd-list-status){background:#e1e6ee;color:#6c7b91}
+body.rd #appScreen.rd-unified-orders #orders :is(.master-day-heading,.owner-day-heading){display:flex;align-items:center;justify-content:space-between;gap:8px;margin:7px 1px 0;padding:0;color:#233656}
+body.rd #appScreen.rd-unified-orders #orders :is(.master-day-heading h3,.owner-day-label){font-size:14px;font-weight:750;line-height:1.3;margin:0}
+body.rd #appScreen.rd-unified-orders #orders :is(.master-day-heading h3,.owner-day-label):before{display:none;content:none}
+body.rd #appScreen.rd-unified-orders #orders :is(.master-day-heading .muted,.owner-day-count){font-size:11px;color:#8290a8}
+body.rd #appScreen.rd-unified-orders #orders .empty{box-sizing:border-box;width:100%;min-height:0;margin:0;padding:20px 12px;border:0;border-radius:12px;background:#ecf1fa;color:#75849d;font-size:14px;line-height:1.5;text-align:center}
+body.rd #appScreen.rd-unified-orders #orders .ow-empty-next{display:block;width:auto;max-width:100%;min-height:40px;margin:9px auto 0;padding:8px 10px;border:1px solid #d3dff6;border-radius:10px;background:#fff;color:#365dc6;font-size:12px;line-height:1.35;font-weight:650}
+body.rd #appScreen.rd-unified-orders .ow-cancelled{width:100%;min-width:0;margin:1px 0 0}
+body.rd #appScreen.rd-unified-orders .ow-cancelled-toggle{display:flex;align-items:center;justify-content:space-between;gap:8px;box-sizing:border-box;width:100%;min-height:39px;padding:9px 11px;border:1px solid #e0e7f4;border-radius:12px;background:transparent;color:#73829c;text-align:left;font-size:12px;line-height:1.4;font-weight:650}
+body.rd #appScreen.rd-unified-orders .ow-cancelled-toggle:after{content:"⌄";flex:none;font-size:20px;line-height:1}
+body.rd #appScreen.rd-unified-orders .ow-cancelled-toggle[aria-expanded="true"]:after{transform:rotate(180deg)}
+body.rd #appScreen.rd-unified-orders .ow-cancelled-body{display:flex;flex-direction:column;gap:8px;padding-top:8px;min-width:0}
+
+/* Four top-level destinations. Their existing fixed-position/scroll treatment
+   remains owned by the navigation styles. */
+body.rd #mwMasterNav{grid-template-columns:repeat(4,minmax(0,1fr))}
+@media(max-width:790px){
+  body.rd #rdMobileNav{grid-template-columns:repeat(4,minmax(0,1fr))}
+  body.rd #appScreen.rd-unified-orders ~ #rdMobileNav{gap:4px}
+  body.rd #appScreen.rd-unified-orders ~ #rdMobileNav .rd-nav-btn{min-width:0;font-size:11px}
+  body.rd #appScreen.rd-unified-orders,
+  body.rd #appScreen.rd-owner.rd-view-orders.rd-unified-orders,
+  body.rd #appScreen.rd-manager.rd-view-orders.rd-unified-orders{
+    padding:calc(74px + env(safe-area-inset-top,0px)) 12px calc(156px + env(safe-area-inset-bottom,0px))!important;
+    scroll-padding-top:calc(74px + env(safe-area-inset-top,0px));
+  }
+  body.rd #appScreen.rd-unified-orders>header{
+    position:fixed;z-index:97;top:0;left:0;right:0;transform:none;box-sizing:border-box;
+    width:100%;max-width:none;height:calc(65px + env(safe-area-inset-top,0px));
+    min-height:65px;margin:0;padding:calc(5px + env(safe-area-inset-top,0px)) 12px 7px;
+  }
+  html.rd-master-scroll-locked body.rd #appScreen.rd-master.master-mode.rd-unified-orders:not([hidden]){
+    --master-brand-height:0px;--master-heading-height:65px;
+    padding-top:calc(74px + env(safe-area-inset-top,0px))!important;
+    padding-bottom:calc(156px + env(safe-area-inset-bottom,0px));
+    scroll-padding-top:calc(74px + env(safe-area-inset-top,0px));
+  }
+  html.rd-master-scroll-locked body.rd #appScreen.rd-master.master-mode.rd-unified-orders:not([hidden])::before{content:none;display:none}
+  html.rd-master-scroll-locked body.rd #appScreen.rd-master.master-mode.rd-unified-orders:not([hidden])>header{
+    display:flex;position:fixed;top:0;left:50%;right:auto;transform:translateX(-50%);
+    width:min(100vw,670px);height:calc(65px + env(safe-area-inset-top,0px))!important;
+    min-height:65px!important;margin:0!important;
+    padding:calc(5px + env(safe-area-inset-top,0px)) 12px 7px!important;
+    background:var(--ow-background)!important;pointer-events:auto;
+  }
+  body.rd #appScreen.rd-master.master-mode.rd-unified-orders>header .master-header-info{display:block!important}
+  html.rd-master-scroll-locked body.rd #appScreen.rd-master.master-mode.rd-unified-orders>header .master-header-actions{position:relative;top:auto;right:auto;gap:7px}
+  body.rd #appScreen.rd-unified-orders #ordersArea>#newOrderBtn{
+    position:fixed;z-index:34;right:max(14px,env(safe-area-inset-right,0px));
+    bottom:calc(83px + env(safe-area-inset-bottom,0px));left:auto;
+    display:inline-flex;align-items:center;justify-content:center;gap:6px;
+    box-sizing:border-box;width:auto;min-width:111px;max-width:145px;min-height:45px;height:45px;
+    margin:0;padding:0 16px;border:0;border-radius:999px;
+    background:linear-gradient(110deg,#4079f3,#603be9);color:#fff;
+    font-size:14px;line-height:1;font-weight:750;white-space:nowrap;
+    box-shadow:0 6px 16px #445de72e;animation:none;
+  }
+  body.rd #appScreen.rd-master.master-mode.rd-unified-orders #ordersArea>#newOrderBtn{right:max(14px,calc((100vw - 670px)/2 + 14px))}
+  body.rd #appScreen.rd-unified-orders #ordersArea>#newOrderBtn .plus{display:inline-block;margin:0;font-size:23px;line-height:1}
+  body.rd #appScreen.rd-unified-orders #ordersArea>#newOrderBtn .new-order-label{display:inline;font-size:14px}
+}
+@media(min-width:791px){
+  body.rd #appScreen.rd-unified-orders>header,
+  body.rd #appScreen.rd-unified-orders #ordersArea{max-width:760px;margin-left:auto;margin-right:auto}
+  body.rd #appScreen.rd-unified-orders #ordersArea>#newOrderBtn{position:fixed;z-index:34;right:28px;bottom:28px;width:auto;min-width:122px;min-height:46px;padding:10px 18px;border-radius:999px;background:linear-gradient(110deg,#4079f3,#603be9);font-size:14px;box-shadow:0 6px 16px #445de72e}
+  body.rd #appScreen.rd-master.master-mode.rd-unified-orders #ordersArea>#newOrderBtn{bottom:100px;right:max(22px,calc((100vw - 690px)/2 + 20px))}
+}
+@media(max-width:350px){
+  body.rd #appScreen.rd-unified-orders>header #appTitle{font-size:24px}
+  body.rd #appScreen.rd-unified-orders>header .master-header-actions{gap:5px}
+  body.rd #appScreen.rd-unified-orders:is(.rd-master.master-mode,.rd-owner,.rd-manager) #calendarPanel.master-calendar-compact{padding:9px 7px}
+  body.rd #appScreen.rd-unified-orders:is(.rd-master.master-mode,.rd-owner,.rd-manager) #calendarPanel.master-calendar-compact .panel-top{grid-template-columns:24px minmax(0,1fr) 24px auto;gap:2px}
+  body.rd #appScreen.rd-unified-orders:is(.rd-master.master-mode,.rd-owner,.rd-manager) #calendarPanel.master-calendar-compact .nav>.secondary{min-width:24px;width:24px}
+  body.rd #appScreen.rd-unified-orders:is(.rd-master.master-mode,.rd-owner,.rd-manager) #calendarPanel.master-calendar-compact .master-calendar-date-trigger{font-size:12px}
+  body.rd #appScreen.rd-unified-orders:is(.rd-master.master-mode,.rd-owner,.rd-manager) #calendarPanel #goToday.master-calendar-title-button{min-width:50px;padding:0 6px;font-size:11px}
+  body.rd #appScreen.rd-unified-orders #ordersArea>.list-head #listTitle{font-size:15px}
+  body.rd #appScreen.rd-unified-orders #orders .master-schedule-card .master-schedule-toggle,
+  body.rd #appScreen.rd-unified-orders #orders .rd-list-row .rd-list-toggle{grid-template-columns:70px minmax(0,1fr) 13px;padding:10px;column-gap:6px}
+  body.rd #appScreen.rd-unified-orders #orders .master-schedule-toggle .master-schedule-name,
+  body.rd #appScreen.rd-unified-orders #orders .rd-list-toggle .rd-list-name{font-size:16px}
+  body.rd #appScreen.rd-unified-orders #masterTodaySummary .master-next-caption{font-size:10px}
+  body.rd #appScreen.rd-unified-orders #masterTodaySummary .master-next-value{font-size:11px}
+}
+
+/* Native modal: editable filter draft is separate from the displayed list. */
+dialog#owFilters.ow-filters-dialog{
+  box-sizing:border-box;width:min(440px,calc(100vw - 24px));max-width:calc(100vw - 24px);
+  max-height:calc(100dvh - 32px);padding:18px;margin:auto;
+  border:1px solid #dae3f4;border-radius:20px;background:#fbfcff;
+  color:#203250;box-shadow:0 18px 60px #1a305b30;overflow:auto;
+}
+dialog#owFilters::backdrop{background:rgba(20,35,65,.32);backdrop-filter:blur(3px)}
+dialog#owFilters .ow-dialog-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:0 0 15px}
+dialog#owFilters .ow-dialog-head h2{margin:0;font-size:19px;line-height:1.25;color:#1c2e4f}
+dialog#owFilters .ow-dialog-head button{display:grid;place-items:center;flex:none;min-width:38px;min-height:38px;padding:5px;border:1px solid #dce4f3;border-radius:11px;background:#fff;color:#596e90;font-size:19px}
+dialog#owFilters .ow-dialog-head button svg{display:block;width:20px;height:20px}
+dialog#owFilters #owFilterForm{display:flex;flex-direction:column;gap:14px;min-width:0}
+dialog#owFilters #owFilterForm label{display:flex;flex-direction:column;gap:6px;margin:0;font-size:13px;line-height:1.3;color:#536785;font-weight:650}
+dialog#owFilters #owFilterForm :is(input,select){box-sizing:border-box;width:100%;min-width:0;max-width:100%;min-height:44px;margin:0;padding:10px 11px;border:1px solid #d3def2;border-radius:11px;background:#fff;color:#203553;font-size:16px;font-family:inherit}
+dialog#owFilters #owFilterForm [hidden]{display:none!important}
+dialog#owFilters .ow-dialog-actions{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:4px}
+dialog#owFilters .ow-dialog-actions button{display:flex;align-items:center;justify-content:center;min-width:0;min-height:44px;padding:9px 11px;border:1px solid #d4e0f4;border-radius:12px;background:#fff;color:#47618e;font-size:14px;font-weight:700}
+dialog#owFilters .ow-dialog-actions button[type="submit"]{border-color:transparent;background:#4165df;color:#fff}
+@media(max-width:540px){
+  dialog#owFilters.ow-filters-dialog{position:fixed;inset:auto 0 0;box-sizing:border-box;width:100%;max-width:100%;max-height:85dvh;margin:0;padding:18px 16px calc(18px + env(safe-area-inset-bottom,0px));border-radius:22px 22px 0 0;border-bottom:0}
+}
+/* Existing appointment utilities keep their own handlers in Settings. */
+body.rd #rdSettings>.ow-settings-tools{box-sizing:border-box;min-width:0;margin:14px 0;padding:16px;border:1px solid #dde5f3;border-radius:15px;background:#fff;color:#223453}
+body.rd #rdSettings>.ow-settings-tools h2{margin:0 0 12px;font-size:16px;line-height:1.3;font-weight:750;color:#223453}
+body.rd #rdSettings>.ow-settings-tools button{box-sizing:border-box;min-width:0;max-width:100%;min-height:42px;margin:0;padding:10px 12px;border:1px solid #d9e3f5;border-radius:11px;background:#f4f7fd;color:#3e5c8c;font:inherit;font-size:13px;line-height:1.4;font-weight:650;text-align:center;white-space:normal;overflow-wrap:anywhere;cursor:pointer}
+body.rd #rdSettings>.ow-settings-tools>.rd-orders-quick-slots{display:block;width:100%;margin:0 0 8px;background:#edf3ff;color:#345cc1}
+body.rd #rdSettings>.ow-settings-tools .rd-raul-share-tools{display:flex;flex-wrap:wrap;align-items:stretch;gap:8px;min-width:0;width:100%;margin:0}
+body.rd #rdSettings>.ow-settings-tools .rd-raul-share-tomorrow{flex:1 1 250px;border-color:#cbe7d6;background:#edf8f1;color:#27794d}
+body.rd #rdSettings>.ow-settings-tools .rd-raul-share-settings{flex:1 1 130px}
+body.rd #rdSettings>.ow-settings-tools button:focus-visible{outline:3px solid #92aff4;outline-offset:2px}
+body.rd #appScreen.rd-unified-orders :is(button,input,select):focus-visible,
+dialog#owFilters :is(button,input,select):focus-visible{outline:3px solid #92aff4;outline-offset:2px}
+@media(prefers-reduced-motion:reduce){body.rd #appScreen.rd-unified-orders *{animation:none!important;scroll-behavior:auto!important}}

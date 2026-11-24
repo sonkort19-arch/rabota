@@ -7,7 +7,7 @@ const {readFileSync,existsSync}=require("node:fs");
 const path=require("node:path");
 const assert=require("node:assert/strict");
 const root=path.resolve(__dirname,"..");
-const today=new Date().toISOString().slice(0,10);
+const today=new Intl.DateTimeFormat("sv-SE",{timeZone:"Europe/Moscow"}).format(new Date());
 const orders=Array.from({length:86},(_,i)=>({
  id:"fake-"+i,name:"Тестовый клиент "+i,address:"Тестовая улица "+i,
  phone:"79990000000",master:"Рауль",assigned_user_id:"master",
@@ -53,8 +53,24 @@ async function setup(browser,device){
  const mobileOrders=page.locator('.rd-mobilebar [data-page="orders"]');
  if(await mobileOrders.isVisible())await mobileOrders.click();
  else await page.locator('.rd-shell [data-page="orders"]').click();
- await page.locator("#rdOrdersFilterToggle").waitFor({state:"visible"});
+ await page.locator('#owViewSwitch [data-ow-mode="all"]').click();
+ await page.locator("#owFilterToggle").waitFor({state:"visible"});
  return {page,context,writes,errors};
+}
+
+async function goSection(page,section){
+ if(section==="calendar"){
+  await page.locator('#rdMobileNav [data-page="orders"]').click();
+  await page.locator('#owViewSwitch [data-ow-mode="calendar"]').click();
+  return;
+ }
+ const direct=page.locator('#rdMobileNav [data-page="'+section+'"]');
+ if(await direct.count())await direct.click();
+ else{
+  await page.locator('#rdMobileNav [data-page="settings"]').click();
+  await page.locator("#rdMobileMoreBtn").click();
+  await page.locator('#rdMobileMoreSheet [data-page="'+section+'"]').click();
+ }
 }
 
 async function assertDocked(page,label){
@@ -81,7 +97,9 @@ async function runOne(browser,label,device){
  try{
   await assertDocked(page,label+" initial");
   const tabs=page.locator("#rdMobileNav .rd-nav-btn");
-  assert.equal(await tabs.count(),5,label+": five navigation actions");
+  assert.equal(await tabs.count(),4,label+": four navigation actions");
+  assert.deepEqual(await tabs.evaluateAll(items=>items.map(item=>item.dataset.page)),
+    ["orders","finance","reports","settings"],label+": unified owner destinations");
   const metrics=await page.evaluate(()=>({scrollHeight:document.documentElement.scrollHeight,innerHeight:innerHeight}));
   assert.ok(metrics.scrollHeight>metrics.innerHeight+700,label+": has long scrollable orders list");
   for(const fraction of [0,.15,.5,1,.25,1,0]){
@@ -90,14 +108,50 @@ async function runOne(browser,label,device){
    await assertDocked(page,label+" scroll "+fraction);
   }
   for(const section of ["calendar","orders","leads","orders","home","orders"]){
-   await page.locator('#rdMobileNav [data-page="'+section+'"]').click();
+   await goSection(page,section);
    await assertDocked(page,label+" switch "+section);
   }
+  // On non-search screens the header must not occupy any space.
+  await goSection(page,"home");
+  const head=await page.evaluate(()=>{
+    const app=document.getElementById("appScreen");
+    const top=app.querySelector(":scope > .rd-top");
+    const toggle=document.getElementById("rdProfileToggle");
+    const title=document.querySelector("#rdHome .rd-view-title");
+    const rect=top.getBoundingClientRect();
+    const avatar=toggle.getBoundingClientRect();
+    return {headerHeight:rect.height,background:getComputedStyle(top).backgroundColor,
+      visibleSearch:getComputedStyle(document.getElementById("rdTopSearch")).display!=="none",
+      syncDisplayed:getComputedStyle(document.getElementById("syncStatus")).display!=="none",
+      avatarWidth:avatar.width,avatarHeight:avatar.height,titleTop:title.getBoundingClientRect().top};
+  });
+  assert.ok(head.headerHeight<=1,label+": no empty header height "+JSON.stringify(head));
+  assert.equal(head.background,"rgba(0, 0, 0, 0)",label+": header is transparent");
+  assert.equal(head.visibleSearch,false,label+": no unused global search");
+  assert.equal(head.syncDisplayed,false,label+": routine sync label does not waste space");
+  assert.ok(head.avatarWidth>=40&&head.avatarHeight>=40,label+": floating avatar stays tappable");
+  // On standalone iPhones top safe area can be nonzero; no artificial toolbar should be added.
+  const expectedTopLimit=await page.evaluate(()=>{
+    const avatarTop=document.getElementById("rdProfileToggle").getBoundingClientRect().top;
+    return avatarTop+52;
+  });
+  assert.ok(head.titleTop<expectedTopLimit,label+": content begins beside avatar without spacer "+JSON.stringify(head));
+  await page.locator("#rdProfileToggle").click();
+  assert.equal(await page.locator("#appScreen > section#rdProfileMenu").isVisible(),true,label+": floating profile opens");
+  await page.locator("#rdProfileToggle").click();
+  await page.locator('#rdMobileNav [data-page="orders"]').click();
+  assert.equal(await page.locator("#owSearchToggle").isVisible(),true,label+": orders still have search");
+  assert.equal(await page.locator("#rdTopSearch").isVisible(),false,label+": no duplicate orders search");
+  await page.locator('#rdMobileNav [data-page="settings"]').click();
   await page.locator("#rdMobileMoreBtn").click();
   assert.equal(await page.locator("#rdMobileMoreSheet").isVisible(),true,label+": more menu opens");
   await assertDocked(page,label+" menu");
-  await page.locator("#rdMobileMoreBtn").click();
+  await page.locator("#rdMobileMoreSheet .rd-more-close").click();
+  assert.equal(await page.locator("#rdMobileMoreBtn").getAttribute("aria-expanded"),"false",label+": more menu closes");
   await assertDocked(page,label+" menu closes");
+  assert.equal(await page.locator("#rdShareRaulTomorrow").isVisible(),true,label+": existing WhatsApp schedule tool remains accessible");
+  assert.equal(await page.locator("#rdRaulWhatsAppSettings").isVisible(),true,label+": existing recipient settings remain accessible");
+  await page.locator('#rdMobileNav [data-page="orders"]').click();
   const initial=await page.evaluate(()=>window.innerHeight);
   const size=page.viewportSize();
   if(size){
@@ -106,9 +160,65 @@ async function runOne(browser,label,device){
    await page.setViewportSize(size);
    await assertDocked(page,label+" restored viewport");
   }
-  await page.locator("#rdTopSearch").focus();
+  await page.locator("#owSearchToggle").click();
+  await page.locator("#owSearchInput").focus();
   await assertDocked(page,label+" search focused");
-  await page.locator("#rdTopSearch").blur();
+  await page.locator("#owSearchInput").blur();
+  await page.locator("#owSearchClose").click();
+
+  // Every owner destination must avoid the old empty top strip.
+  for(const section of ["home","calendar","clients","finance","reports","settings"]){
+    await goSection(page,section);
+    const info=await page.evaluate(()=>{
+      const app=document.getElementById("appScreen");
+      const header=app.querySelector(":scope > .rd-top");
+      const unified=app.classList.contains("rd-unified-orders");
+      const avatar=document.getElementById(unified?"rdProfileTrigger":"rdProfileToggle");
+      return {
+        unified,
+        noSearchClass:app.classList.contains("rd-no-global-search"),
+        height:header.getBoundingClientRect().height,
+        background:getComputedStyle(header).backgroundColor,
+        searchVisible:getComputedStyle(document.getElementById("rdTopSearch")).display!=="none",
+        syncVisible:getComputedStyle(document.getElementById("syncStatus")).display!=="none",
+        avatarWidth:avatar.getBoundingClientRect().width,
+        avatarHeight:avatar.getBoundingClientRect().height,
+        appTopPadding:parseFloat(getComputedStyle(app).paddingTop)
+      };
+    });
+    assert.equal(info.noSearchClass,true,label+": "+section+" activates compact header mode");
+    assert.ok(info.height<=1,label+": "+section+" empty toolbar must be zero-height: "+JSON.stringify(info));
+    if(!info.unified)assert.equal(info.background,"rgba(0, 0, 0, 0)",label+": "+section+" transparent header");
+    assert.equal(info.searchVisible,false,label+": "+section+" does not display unrelated search");
+    assert.equal(info.syncVisible,false,label+": "+section+" does not display routine sync status");
+    assert.ok(info.avatarWidth>=40 && info.avatarHeight>=40,label+": "+section+" profile remains usable");
+    assert.ok(info.appTopPadding<110,label+": "+section+" top content uses available space");
+    if(info.unified){
+      assert.equal(await page.locator("#appTitle").innerText(),"Заказы",label+": useful unified heading");
+      assert.equal(await page.locator("#calendarPanel").isVisible(),true,label+": calendar remains accessible within Orders");
+    }
+    await assertDocked(page,label+" "+section+" without empty top");
+  }
+  await goSection(page,"leads");
+  assert.equal(await page.locator("#rdTopSearch").isVisible(),true,label+": leads search remains");
+  await page.locator('#rdMobileNav [data-page="orders"]').click();
+  await page.locator("#owSearchToggle").click();
+  assert.equal(await page.locator("#owSearchInput").isVisible(),true,label+": orders search remains");
+  await page.locator("#owSearchClose").click();
+  await page.locator('#owViewSwitch [data-ow-mode="all"]').click();
+  assert.ok(await page.locator("#orders .owner-day-heading").count()>0,label+": orders grouped by appointment day");
+  await page.locator("#owFilterToggle").click();
+  assert.equal(await page.locator("#owFilterStatus option").count(),6,label+": all statuses and unpaid filter remain available");
+  await page.locator("#owFilterStatus").selectOption("Записан");
+  await page.locator("#owFilterApply").click();
+  const filtered=page.locator("#orders .rd-list-row:visible");
+  assert.equal(await filtered.count(),orders.filter(order=>order.status==="Записан").length,label+": status filter preserves the actual result set");
+  assert.deepEqual(await filtered.evaluateAll(rows=>[...new Set(rows.map(row=>row.dataset.status))]),["Записан"],label+": filtered cards have the requested status");
+  await page.locator("#owFilterSummary button").click();
+  assert.equal(await page.locator("#orders .rd-list-row:visible").count(),orders.length,label+": clearing filters restores all orders");
+  assert.ok(await page.locator("#orders .rd-list-row").count()>0,label+": actual owner order rows are preserved");
+
+
   await page.evaluate(()=>document.getElementById("appScreen").hidden=true);
   await page.waitForFunction(()=>document.getElementById("rdMobileNav").hidden);
   assert.equal(await page.locator("#rdMobileNav").isVisible(),false,label+": nav hidden when app screen hidden");

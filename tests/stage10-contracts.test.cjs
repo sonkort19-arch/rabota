@@ -10,7 +10,7 @@ const html=read("index.html");
 const beforeInline=html.indexOf("<script>\n");
 const scripts=[...html.matchAll(/<script\s+src="(\/[^"]+\.js(?:\?[^"]*)?)"/g)].map(m=>m[1].split("?")[0].slice(1));
 const modules=[
- "order-notes.js","order-sync.js","order-model.js","calendar-model.js",
+ "order-notes.js","order-sync.js","order-model.js","calendar-load.js","calendar-model.js",
  "finance-model.js","master-ui.js","lead-ai-bridge.js","app-services.js"
 ];
 test("all extracted modules load before the main application",()=>{
@@ -42,7 +42,7 @@ test("one order form, calendar and master summary remain wired",()=>{
   assert.equal((html.match(/id="formStatus"/g)||[]).length,1);
   assert.match(html,/window\.__rdOrderSync/);
   assert.match(html,/calendarModule\.renderCalendar\(\)/);
-  assert.match(html,/masterUI\.renderMasterSchedule\(rows\)/);
+  assert.match(html,/function renderMasterSchedule\(rows,options\)\{return masterUI\.renderMasterSchedule\(rows,options\);\}/);
 });
 test("payment and master action calls remain server-side RPC paths",()=>{
   for(const rpc of [

@@ -1,0 +1,273 @@
+/* Owner reports use the same permanently LIGHT palette as CRM «Работа».
+   Do not follow the device dark preference: the rest of the CRM is light.
+   Scoped to #rdReports so orders, finance, calendar and the master UI are unchanged. */
+body.rd :is(#rdReports,.pr-report-scope) {
+  --pr-bg:var(--ui-surface,#fff);
+  --pr-soft:var(--ui-muted-surface,#f7f7f8);
+  --pr-ink:var(--ui-ink,#202123);
+  --pr-muted:var(--ui-muted,#686b72);
+  --pr-border:var(--ui-border,#e7e7e7);
+  --pr-blue:var(--rd-brand,#4656f5);
+  max-width:1100px;
+  width:100%;
+  min-width:0;
+  color:var(--pr-ink);
+  color-scheme:light;
+}
+body.rd :is(#rdReports,.pr-report-scope) .pr-detail[hidden],
+body.rd :is(#rdReports,.pr-report-scope) .pr-menu[hidden] {display:none!important}
+body.rd :is(#rdReports,.pr-report-scope) .pr-menu {margin-top:8px}
+body.rd :is(#rdReports,.pr-report-scope) .pr-report-link {
+  appearance:none;
+  width:100%;display:flex;align-items:center;justify-content:space-between;
+  min-height:50px;padding:9px 12px;
+  border:1px solid var(--pr-border);border-radius:16px;
+  background:var(--pr-bg);color:var(--pr-ink);
+  font:inherit;font-size:14px;font-weight:700;text-align:left;
+  cursor:pointer;box-shadow:0 1px 4px #18264508;
+}
+body.rd :is(#rdReports,.pr-report-scope) .pr-report-arrow {font-size:20px;color:var(--pr-blue)}
+body.rd :is(#rdReports,.pr-report-scope) .pr-description {font-size:13px;color:var(--pr-muted);margin:5px 3px 0;line-height:1.4}
+body.rd :is(#rdReports,.pr-report-scope) .pr-heading {display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:0 0 8px}
+body.rd :is(#rdReports,.pr-report-scope) .pr-heading h2 {font-size:17px;font-weight:750;letter-spacing:-.35px;margin:0;color:var(--pr-ink)}
+body.rd :is(#rdReports,.pr-report-scope) .pr-back,
+body.rd :is(#rdReports,.pr-report-scope) .pr-export,
+body.rd :is(#rdReports,.pr-report-scope) .pr-more-btn {
+  appearance:none;min-height:34px;padding:6px 10px;border-radius:9px;
+  border:1px solid var(--pr-border);background:var(--pr-bg);
+  color:var(--pr-ink);font:inherit;font-size:12px;font-weight:650;cursor:pointer;
+  box-shadow:none;
+}
+body.rd :is(#rdReports,.pr-report-scope) .pr-back {background:var(--pr-soft);border-color:var(--pr-border);color:var(--pr-ink)}
+body.rd :is(#rdReports,.pr-report-scope) .pr-controls {
+  display:grid;grid-template-columns:repeat(3,minmax(0,1fr));
+  gap:6px;margin:0 0 6px;
+}
+body.rd :is(#rdReports,.pr-report-scope) .pr-controls select,
+body.rd :is(#rdReports,.pr-report-scope) .pr-controls input,
+body.rd :is(#rdReports,.pr-report-scope) .pr-custom input {
+  appearance:auto;box-sizing:border-box;min-width:0;width:100%;min-height:36px;
+  padding:6px 9px;border:1px solid #dedee1;border-radius:9px;
+  background:var(--pr-bg);color:var(--pr-ink);
+  font:inherit;font-size:12px;font-weight:500;
+  box-shadow:none;color-scheme:light;
+}
+body.rd :is(#rdReports,.pr-report-scope) .pr-controls input::placeholder {color:#858890;opacity:1}
+body.rd :is(#rdReports,.pr-report-scope) .pr-controls input {grid-column:span 2}
+body.rd :is(#rdReports,.pr-report-scope) .pr-export {width:auto;min-width:68px;background:#eff1ff;border-color:#e3e7ff;color:#4055ee}
+body.rd :is(#rdReports,.pr-report-scope) .pr-export:hover {background:#e8edff}
+body.rd :is(#rdReports,.pr-report-scope) .pr-custom {display:flex;gap:6px;margin:0 0 6px}
+body.rd :is(#rdReports,.pr-report-scope) .pr-custom[hidden] {display:none!important}
+body.rd :is(#rdReports,.pr-report-scope) .pr-note {font-size:11px;color:var(--pr-muted);margin:6px 0 8px}
+body.rd :is(#rdReports,.pr-report-scope) .pr-scroll {
+  max-width:100%;overflow-x:auto;overflow-y:auto;overscroll-behavior-x:contain;
+  -webkit-overflow-scrolling:touch;
+  border:1px solid var(--pr-border);border-radius:10px;
+  background:var(--pr-bg);
+}
+body.rd :is(#rdReports,.pr-report-scope) .pr-table {
+  width:818px;min-width:818px;max-width:818px;border-collapse:separate;border-spacing:0;
+  background:var(--pr-bg);color:var(--pr-ink);
+  font:inherit;font-size:12px;table-layout:fixed;
+}
+body.rd :is(#rdReports,.pr-report-scope) .pr-table th {
+  box-sizing:border-box;line-height:1.4;
+  padding:8px 7px;white-space:nowrap;text-align:left;
+  background:#f7f8fc;color:#5f6775;
+  font-weight:700;border-bottom:1px solid var(--pr-border);
+}
+body.rd :is(#rdReports,.pr-report-scope) .pr-table td {
+  box-sizing:border-box;line-height:1.4;
+  padding:7px 7px;background:var(--pr-bg);color:var(--pr-ink);
+  border-bottom:1px solid #edeef1;vertical-align:middle;
+}
+/* Column headings and figures must share one horizontal center.
+   Previously headings were left-aligned while financial values were right-aligned. */
+body.rd :is(#rdReports,.pr-report-scope) .pr-table thead th:nth-child(n+5),
+body.rd :is(#rdReports,.pr-report-scope) .pr-table tbody td.pr-number {
+  text-align:center;
+  white-space:nowrap;
+  font-variant-numeric:tabular-nums;
+}
+body.rd :is(#rdReports,.pr-report-scope) .pr-table tbody tr:not(.pr-expanded):not(.pr-total-row) > td:nth-child(3),
+body.rd :is(#rdReports,.pr-report-scope) .pr-table tbody tr:not(.pr-expanded):not(.pr-total-row) > td:nth-child(4) {
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+}
+body.rd :is(#rdReports,.pr-report-scope) .pr-table tr:last-child td {border-bottom:0}
+body.rd :is(#rdReports,.pr-report-scope) .pr-table th:first-child,
+body.rd :is(#rdReports,.pr-report-scope) .pr-table td:first-child {
+  position:sticky;left:0;z-index:1;
+  width:78px;min-width:78px;max-width:78px;white-space:nowrap;
+  background:var(--pr-bg);
+  box-shadow:1px 0 #e3e5eb,6px 0 12px -12px #252b3b66;
+}
+body.rd :is(#rdReports,.pr-report-scope) .pr-table th:first-child {z-index:2;background:#f7f8fc}
+body.rd :is(#rdReports,.pr-report-scope) .pr-table .pr-total-row > th,
+body.rd :is(#rdReports,.pr-report-scope) .pr-table .pr-total-row > td {
+  background:#eef1ff;color:#26335d;font-weight:800;
+  border-bottom:2px solid #dce2f7;
+  padding-top:9px;padding-bottom:9px;
+  white-space:nowrap;font-variant-numeric:tabular-nums;
+}
+body.rd :is(#rdReports,.pr-report-scope) .pr-table .pr-total-row > th:first-child {
+  position:sticky;left:0;z-index:3;background:#eef1ff;
+  box-shadow:1px 0 #dce2f7,6px 0 12px -12px #252b3b66;
+}
+body.rd :is(#rdReports,.pr-report-scope) .pr-row-open {
+  border:0;padding:0;background:transparent;
+  color:var(--pr-blue);font:inherit;font-size:12px;
+  font-weight:700;cursor:pointer;
+}
+body.rd :is(#rdReports,.pr-report-scope) .pr-row-open[aria-expanded="true"] {text-decoration:underline}
+body.rd :is(#rdReports,.pr-report-scope) .pr-table .pr-expanded td {
+  background:#f9faff;color:var(--pr-ink);padding:12px;
+}
+body.rd :is(#rdReports,.pr-report-scope) .pr-expanded-content {font-size:12px;line-height:1.6;max-width:770px}
+body.rd :is(#rdReports,.pr-report-scope) .pr-table .pr-empty {text-align:center;padding:30px;color:var(--pr-muted)}
+body.rd :is(#rdReports,.pr-report-scope) .pr-more {display:flex;justify-content:center;margin:8px 0}
+body.rd :is(#rdReports,.pr-report-scope) .pr-explain {font-size:11px;line-height:1.5;color:var(--pr-muted);margin:5px 0 0}
+body.rd :is(#rdReports,.pr-report-scope) .pr-report-link:focus-visible,
+body.rd :is(#rdReports,.pr-report-scope) button:focus-visible,
+body.rd :is(#rdReports,.pr-report-scope) input:focus-visible,
+body.rd :is(#rdReports,.pr-report-scope) select:focus-visible {
+  outline:2px solid var(--pr-blue);outline-offset:2px;
+}
+@media(max-width:790px) {
+  body.rd #appScreen.rd-view-reports {padding-bottom:calc(95px + env(safe-area-inset-bottom))}
+  body.rd :is(#rdReports,.pr-report-scope) .pr-heading {gap:8px}
+  body.rd :is(#rdReports,.pr-report-scope) .pr-heading h2 {font-size:16px}
+  body.rd :is(#rdReports,.pr-report-scope) .pr-controls {grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}
+  body.rd :is(#rdReports,.pr-report-scope) .pr-controls input {grid-column:span 2}
+  body.rd :is(#rdReports,.pr-report-scope) .pr-quick-actions .pr-export {grid-column:auto}
+  body.rd :is(#rdReports,.pr-report-scope) .pr-table th,
+  body.rd :is(#rdReports,.pr-report-scope) .pr-table td {padding:8px 7px}
+  body.rd :is(#rdReports,.pr-report-scope) .pr-table th:first-child,
+  body.rd :is(#rdReports,.pr-report-scope) .pr-table td:first-child {width:78px;min-width:78px;max-width:78px}
+}
+
+/* Compact, iPhone-friendly report controls and dense fixed-width finance grid. */
+body.rd :is(#rdReports,.pr-report-scope) .pr-quick-actions{
+  grid-column:1/-1;display:flex;align-items:stretch;gap:6px;min-width:0;
+}
+body.rd :is(#rdReports,.pr-report-scope) .pr-quick-actions input{
+  flex:1 1 auto;min-width:0;width:auto;grid-column:auto;
+}
+body.rd :is(#rdReports,.pr-report-scope) .pr-quick-actions .pr-export{
+  display:inline-flex;align-items:center;justify-content:center;
+  flex:0 0 auto;min-height:36px;min-width:70px;white-space:nowrap;
+}
+body.rd :is(#rdReports,.pr-report-scope) .pr-info{
+  margin:8px 1px 0;color:var(--pr-muted);font-size:11px;
+}
+body.rd :is(#rdReports,.pr-report-scope) .pr-info summary{
+  cursor:pointer;list-style:revert;color:#57647c;font-size:11px;
+}
+body.rd :is(#rdReports,.pr-report-scope) .pr-table tbody tr:not(.pr-total-row):not(.pr-expanded)>td{
+  height:35px;
+}
+body.rd :is(#rdReports,.pr-report-scope) .pr-table .pr-total-row>th,
+body.rd :is(#rdReports,.pr-report-scope) .pr-table .pr-total-row>td{
+  height:39px;padding-top:8px;padding-bottom:8px;
+}
+body.rd :is(#rdReports,.pr-report-scope) .pr-table th:first-child,
+body.rd :is(#rdReports,.pr-report-scope) .pr-table td:first-child{width:78px;min-width:78px;max-width:78px}
+body.rd #appScreen.rd-view-reports #rdReports>.rd-view-title{
+  font-size:22px;line-height:1.2;margin:0 0 4px;
+}
+body.rd #appScreen.rd-view-reports #rdReports>.rd-view-subtitle{
+  font-size:12px;line-height:1.35;margin:0 0 10px;
+}
+body.rd #mwMasterReports .pr-report-scope {max-width:100%;width:100%}
+body.rd #mwMasterReports .pr-detail {margin:0;padding:0}
+@media(max-width:790px){
+  body.rd :is(#rdReports,.pr-report-scope) .pr-quick-actions{gap:6px}
+  body.rd :is(#rdReports,.pr-report-scope) .pr-quick-actions input{grid-column:auto}
+  body.rd :is(#rdReports,.pr-report-scope) .pr-quick-actions .pr-export{min-height:36px}
+  body.rd :is(#rdReports,.pr-report-scope) .pr-controls{gap:6px}
+  body.rd :is(#rdReports,.pr-report-scope) .pr-table th,
+  body.rd :is(#rdReports,.pr-report-scope) .pr-table td{padding:7px}
+}
+
+
+/* Dense sectioned report index (owner only); no empty navigation destinations. */
+body.rd #rdReports > .rd-view-kicker,
+body.rd #rdReports > .rd-view-subtitle{display:none}
+body.rd #rdReports > .rd-view-title{
+  font-size:21px;line-height:1.2;margin:0 0 13px;
+}
+body.rd #rdReports .pr-menu{margin-top:0;display:flex;flex-direction:column;gap:12px}
+body.rd #rdReports .rd-report-section{min-width:0}
+body.rd #rdReports .rd-report-section-title{
+  color:var(--pr-ink);font-size:14px;line-height:1.25;
+  margin:0 0 6px;font-weight:750;letter-spacing:-.15px;
+}
+body.rd #rdReports .rd-report-section-items{
+  border:1px solid var(--pr-border);border-radius:11px;
+  overflow:hidden;background:var(--pr-bg);
+}
+body.rd #rdReports .rd-report-section-items .pr-report-link{
+  border:0;border-radius:0;box-shadow:none;
+  background:var(--pr-bg);min-height:44px;height:auto;
+  padding:8px 11px;display:flex;align-items:center;justify-content:flex-start;
+  gap:10px;font-size:13px;font-weight:600;line-height:1.3;
+}
+body.rd #rdReports .rd-report-section-items .pr-report-link + .pr-report-link{
+  border-top:1px solid var(--pr-border);
+}
+body.rd #rdReports .rd-report-item-icon{
+  flex:none;width:18px;height:18px;color:var(--pr-muted);
+}
+body.rd #rdReports .rd-report-item-label{flex:1;min-width:0}
+body.rd #rdReports .rd-report-section-items .pr-report-arrow{
+  flex:none;font-size:19px;line-height:1;color:var(--pr-muted);
+}
+@media(max-width:790px){
+  body.rd #rdReports .rd-report-section-title{font-size:14px}
+  body.rd #rdReports .rd-report-section-items .pr-report-link{min-height:44px}
+}
+
+
+/* Report drill-down navigation like HelloClient: one compact breadcrumb, no duplicate page title. */
+body.rd #rdReports.rd-reports-detail-open > .rd-view-title{display:none}
+body.rd #rdReports .pr-detail .pr-heading,
+body.rd #rdReports #rdSalaryReport .fp-report-head{
+  display:flex;align-items:center;flex-wrap:wrap;column-gap:8px;row-gap:0;
+  margin:0 0 10px;min-width:0;
+}
+body.rd #rdReports .pr-detail .pr-heading .pr-back,
+body.rd #rdReports #rdSalaryReport .fp-report-head .fp-crumb-back{
+  appearance:none;box-sizing:border-box;display:inline-flex;align-items:center;
+  justify-content:flex-start;min-height:44px;padding:0 1px;
+  margin:0;border:0;border-radius:0;box-shadow:none;
+  background:transparent;color:var(--pr-muted,#686b72);
+  font:inherit;font-size:15px;font-weight:500;line-height:1.25;
+  text-decoration:none;cursor:pointer;
+}
+body.rd #rdReports .pr-detail .pr-heading .pr-back:hover,
+body.rd #rdReports #rdSalaryReport .fp-report-head .fp-crumb-back:hover{
+  color:var(--pr-blue,#4656f5);
+}
+body.rd #rdReports .pr-detail .pr-heading .pr-crumb-sep,
+body.rd #rdReports #rdSalaryReport .fp-report-head .fp-crumb-sep{
+  color:var(--pr-muted,#686b72);opacity:.7;font-size:16px;
+}
+body.rd #rdReports .pr-detail .pr-heading h2,
+body.rd #rdReports #rdSalaryReport .fp-report-head .fp-report-title{
+  margin:0;color:var(--pr-ink,#202123);
+  font-size:17px;line-height:1.25;font-weight:650;letter-spacing:-.2px;
+}
+/* The entire native iPhone select remains tappable; only its chevron is restyled. */
+body.rd #rdReports .pr-detail .pr-controls select{
+  appearance:none;-webkit-appearance:none;
+  padding-right:28px;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='m3 6 5 5 5-5' stroke='%235b6373' stroke-width='2' stroke-linecap='round' stroke-linejoin='round' fill='none'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;background-size:12px 12px;
+  background-position:right 9px center;
+}
+body.rd #rdReports .pr-detail .pr-controls select:focus-visible,
+body.rd #rdReports .pr-detail .pr-heading .pr-back:focus-visible,
+body.rd #rdReports #rdSalaryReport .fp-report-head .fp-crumb-back:focus-visible{
+  outline:2px solid var(--pr-blue,#4656f5);outline-offset:2px;
+}

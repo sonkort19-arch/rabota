@@ -8,7 +8,7 @@ const index=fs.readFileSync(path.join(__dirname,"..","index.html"),"utf8");
 test("Master day and nearest banner use only assigned user's active orders",()=>{
   assert.match(index,/o\.assignedUserId===currentUser\?\.id&&\s*o\.status!=="Выполнен"/);
   assert.match(index,/masterWorkingOrders\(\)\.filter\(o=>o\.assignedUserId===currentUser\?\.id\)/);
-  assert.match(index,/master-ui\.js\?v=20261118-day-audit-v1/);
+  assert.match(index,/src="\/master-ui\.js\?v=[A-Za-z0-9_-]+"/);
 });
 test("Nearest order correctly changes from date to Сегодня after Moscow midnight",()=>{
   let now=new Date("2026-11-19T20:30:00Z"); // Moscow: Nov 19 23:30.

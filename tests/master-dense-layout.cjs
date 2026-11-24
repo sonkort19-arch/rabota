@@ -1,12 +1,16 @@
-/* Synthetic CSS-only WebKit check; never accesses production or Supabase. */
+/* Synthetic CSS-only check; defaults to WebKit for CI.
+ * TEST_BROWSER / TEST_BROWSER_PATH allow a local browser without network access.
+ * Never accesses production or Supabase.
+ */
 "use strict";
-const {webkit}=require("playwright"),fs=require("node:fs"),path=require("node:path");
+const {webkit,chromium}=require("playwright"),fs=require("node:fs"),path=require("node:path");
 const assert=require("node:assert/strict");
 const root=path.resolve(__dirname,".."),html=fs.readFileSync(path.join(root,"index.html"),"utf8");
 const inline=html.match(/<style>([\s\S]*?)<\/style>/)?.[1];
 assert.ok(inline,"base inline style");
 const links=[...html.matchAll(/<link rel="stylesheet" href="\/([^"?]+)(?:\?[^"]*)?">/g)].map(m=>m[1]);
-assert.equal(links.at(-1),"money-workspace.css");
+assert.ok(links.includes("money-workspace.css"),"master UI stylesheet loaded");
+assert.ok(links.indexOf("money-workspace.css")>links.indexOf("master-dense-enhancements.css"),"master patches load after base styles");
 const i=links.indexOf("master-dense.css");
 assert.deepEqual(links.slice(i,i+2),["master-dense.css","master-dense-enhancements.css"]);
 const styles=[inline,...links.map(file=>fs.readFileSync(path.join(root,file),"utf8"))].join("\n");
@@ -18,7 +22,7 @@ const fixture=[
 '<div class="master-header-actions"><section id="masterPushPanel" class="push-panel push-compact">',
 '<button class="push-bell" aria-label="Уведомления">☼</button></section><button class="secondary" id="logoutBtn">Выйти</button></div></header>',
 '<div class="sync-note" id="syncStatus">Обновлено 17:33</div><div id="ordersArea">',
-'<section class="mw-master-filterbar"><input class="mw-filter-search" placeholder="Поиск по заказам"><div class="mw-status-filters">',
+'<section id="mwMasterFilterbar" class="mw-master-filterbar"><input class="mw-filter-search" placeholder="Поиск по заказам"><div class="mw-status-filters">',
 ...["Все","Записаны","В работе","Выполнены","Отменены"].map(label=>'<button type="button" class="mw-filter-chip" aria-label="Фильтр: '+label+'"><span class="mw-filter-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="22" height="22"><circle cx="12" cy="12" r="9"></circle></svg></span></button>'),
 '</div></section>',
 '<button class="primary new-order" id="newOrderBtn"><span class="plus">+</span>Новый заказ</button>',
@@ -49,7 +53,13 @@ const fixture=[
 '</div></div><nav id="mwMasterNav" class="mw-bottom-nav"><button class="mw-nav-btn is-active"><span class="mw-icon">▣</span>Расписание</button><button class="mw-nav-btn">Заказы</button><button class="mw-nav-btn">Финансы</button><button class="mw-nav-btn">Профиль</button></nav></main>'
 ].join("");
 (async()=>{
-const browser=await webkit.launch({headless:true});
+const browserName=process.env.TEST_BROWSER||"webkit";
+assert.ok(["webkit","chromium"].includes(browserName),"TEST_BROWSER must be webkit or chromium");
+const browser=await ({webkit,chromium})[browserName].launch({
+  headless:true,
+  executablePath:process.env.TEST_BROWSER_PATH||(browserName==="chromium"?process.env.CHROMIUM_PATH:undefined),
+  args:browserName==="chromium"?["--no-sandbox"]:[]
+});
 try{
  for(const width of [320,350,375,390,430,768]){
   const page=await browser.newPage({viewport:{width,height:844},isMobile:true,hasTouch:true});
@@ -127,10 +137,15 @@ try{
     const r=selector=>document.querySelector(selector).getBoundingClientRect();
     const display=selector=>getComputedStyle(document.querySelector(selector)).display;
     const view=r("#appScreen"),topbar=r("#appScreen > header"),search=r(".mw-filter-search");
+    const bellRect=r(".push-bell"), profileRect=r("#logoutBtn");
+    const chipRect=r(".mw-status-filters"),searchBox=r(".mw-filter-search");
     return {brand:display("#masterBrand"),title:display(".master-header-info"),
       listTitle:display("#listTitle"),count:display("#orderCount"),
       toolbar:topbar.height,searchTop:search.top,headerBottom:topbar.bottom,
-      bell:r(".push-bell").height,logout:r("#logoutBtn").height,
+      searchRight:searchBox.right,bellLeft:bellRect.left,
+      statusTop:chipRect.top,searchBottom:searchBox.bottom,
+      bellTop:bellRect.top,profileTop:profileRect.top,
+      bell:bellRect.height,logout:profileRect.height,
       appWidth:view.width,scrollWidth:document.documentElement.scrollWidth,
       viewportWidth:document.documentElement.clientWidth};
   });
@@ -138,14 +153,18 @@ try{
   assert.equal(clean.title,"none","orders remove upper heading at "+width);
   assert.equal(clean.listTitle,"none","orders hide duplicate list heading at "+width);
   assert.notEqual(clean.count,"none","order counter stays visible at "+width);
-  assert.ok(clean.toolbar>=53&&clean.toolbar<=57,"single-row fixed header at "+width+": "+clean.toolbar);
-  assert.ok(clean.searchTop>=clean.headerBottom-1&&clean.searchTop-clean.headerBottom<35,
-    "no redundant header gap above search at "+width+": "+JSON.stringify(clean));
+  assert.ok(clean.toolbar<=1,"empty header must occupy zero height at "+width+": "+JSON.stringify(clean));
+  assert.ok(Math.abs(clean.searchTop-clean.bellTop)<8&&Math.abs(clean.searchTop-clean.profileTop)<8,
+    "search, bell, profile share one row at "+width+": "+JSON.stringify(clean));
+  assert.ok(clean.searchRight<=clean.bellLeft-5,
+    "search must not overlap notification button at "+width+": "+JSON.stringify(clean));
+  assert.ok(clean.statusTop>=clean.searchBottom-2&&clean.statusTop-clean.searchBottom<28,
+    "status icons follow the top row without blank strip at "+width+": "+JSON.stringify(clean));
   assert.ok(clean.bell>=43.5&&clean.logout>=43.5,"alerts and profile remain tappable at "+width);
   assert.ok(clean.scrollWidth<=clean.viewportWidth+1,"no horizontal overflow with clean header at "+width);
 
   await page.close();
  }
- console.log("Master dense layout: PASS (WebKit, 320/350/375/390/430/768)");
+ console.log("Master dense layout: PASS ("+browserName+", 320/350/375/390/430/768)");
 }finally{await browser.close();}
 })().catch(e=>{console.error(e);process.exitCode=1});

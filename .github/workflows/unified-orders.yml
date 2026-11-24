@@ -1,0 +1,64 @@
+name: Unified orders workspace
+
+on:
+  pull_request:
+    paths:
+      - 'index.html'
+      - 'orders-workspace.*'
+      - 'calendar-model.js'
+      - 'master-ui.js'
+      - 'money-workspace.js'
+      - 'redesign.js'
+      - 'orders-list.js'
+      - 'owner-parity.js'
+      - 'tests/unified-orders-browser.cjs'
+      - '.github/workflows/unified-orders.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'index.html'
+      - 'orders-workspace.*'
+      - 'calendar-model.js'
+      - 'master-ui.js'
+      - 'money-workspace.js'
+      - 'redesign.js'
+      - 'orders-list.js'
+      - 'owner-parity.js'
+      - 'tests/unified-orders-browser.cjs'
+      - '.github/workflows/unified-orders.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  orders-browser:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    container:
+      image: mcr.microsoft.com/playwright:v1.56.1-noble
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium, webkit]
+    steps:
+      - name: Checkout candidate
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Install matching browser library
+        run: npm install --no-save --ignore-scripts playwright@1.56.1
+      - name: Check changed JavaScript
+        run: |
+          node --check orders-workspace.js
+          node --check calendar-model.js
+          node --check money-workspace.js
+          node --check redesign.js
+          node --check orders-list.js
+          node --check owner-parity.js
+      - name: Calendar and synchronization regressions
+        if: matrix.browser == 'chromium'
+        run: node --test tests/calendar-model.test.cjs tests/calendar-load.test.cjs tests/order-sync.test.cjs tests/order-notes.test.js
+      - name: Owner, manager and master workflows with isolated data
+        env:
+          TEST_BROWSER: ${{ matrix.browser }}
+        run: node tests/unified-orders-browser.cjs

@@ -32,8 +32,15 @@
   const api=()=>window.__rdMoneyUi;
   const token=()=>{if(typeof window.crypto?.randomUUID!=="function")throw Error("Браузер не поддерживает безопасный идентификатор операции");return window.crypto.randomUUID()};
   const isPreview=()=>/^rabota-[a-z0-9]{7,}-sonkort19-6069s-projects\.vercel\.app$/i.test(String(window.location?.hostname||""));
-  let page="day",step="menu",salaryTab="accruals",masterReady=false;
-  let orderQuery="",orderStatus="all",paymentMethod="all";
+  let page="day",step="menu",salaryTab="accruals",masterReady=false,masterProfitReport=null;
+  let orderQuery="",orderStatus="all",paymentMethod="all",navigationUser=null;
+  let paymentBreakdownOpen=false, handoffMessage="", handoffRefreshError="";
+  const paymentCurrency=new Intl.NumberFormat("ru-RU",{style:"currency",currency:"RUB",
+    minimumFractionDigits:2,maximumFractionDigits:2,trailingZeroDisplay:"stripIfInteger"});
+  const paymentDay=new Intl.DateTimeFormat("ru-RU",{timeZone:"Europe/Moscow",
+    day:"numeric",month:"long",year:"numeric"});
+  const paymentTime=new Intl.DateTimeFormat("ru-RU",{timeZone:"Europe/Moscow",
+    hour:"2-digit",minute:"2-digit",hourCycle:"h23"});
   const scrollPositions=new Map();
   const statusOptions=[["all","Все"],["Записан","Записаны"],
     ["В работе","В работе"],["Выполнен","Выполнены"],["Отменён","Отменены"]];
@@ -95,10 +102,11 @@
     app.insertBefore(reports,finance);app.insertBefore(payments,finance);app.insertBefore(settings,finance);
     const nav=el("nav","mw-bottom-nav");nav.id="mwMasterNav";
     nav.setAttribute("aria-label","Разделы мастера");
-    for(const [key,label,icon] of [["day","По дням","day"],["orders","Заказы","orders"],
+    for(const [key,label,icon] of [["orders","Заказы","orders"],
       ["payments","Платежи","payments"],["reports","Отчёты","reports"],
       ["settings","Настройки","settings"]]){
-      const item=btn("","mw-nav-btn",()=>switchPage(key));
+      const item=btn("","mw-nav-btn",()=>switchPage(key==="orders"&&
+        window.__rdOrdersWorkspace?.currentMode?.()==="calendar"?"day":key));
       item.dataset.mwPage=key;
       item.append(navIcon(icon),el("span","",label));nav.append(item);
     }
@@ -112,6 +120,7 @@
     }
   }
   function filterRows(){
+    if(window.__rdOrdersWorkspace?.isActive?.())return;
     if(page!=="orders"||api()?.snapshot()?.role!=="master")return;
     const root=$("orders");if(!root)return;
     let heading=null,shown=0,visibleInGroup=0;
@@ -148,9 +157,10 @@
     // Only Raul's order list uses the simplified header. Restore headings on other pages.
     $("appScreen")?.classList.toggle("mw-orders-minimal-header",
       page==="orders"&&api()?.snapshot()?.role==="master");
+    $("appScreen")?.classList.toggle("mw-payments-header",page==="payments"&&api()?.snapshot()?.role==="master");
     const nav=$("mwMasterNav");if(!nav)return;
     for(const b of nav.querySelectorAll("button")){
-      const active=b.dataset.mwPage===page;
+      const active=b.dataset.mwPage===(page==="day"||page==="orders"?"orders":page);
       b.classList.toggle("is-active",active);
       b.setAttribute("aria-current",active?"page":"false");
     }
@@ -163,10 +173,13 @@
     if(restore&&which!==page){
       scrollPositions.set(page,window.__rdMasterViewportScroll?.position?.()??window.scrollY??0);
     }
-    page=which;reports.hidden=which!=="reports";payments.hidden=which!=="payments";
+    page=which;
+    window.__rdMasterCurrentPage=page;
+    window.__rdCurrentPage=which==="day"||which==="orders"?"orders":which;
+    reports.hidden=which!=="reports";payments.hidden=which!=="payments";
     if(settings)settings.hidden=which!=="settings";
     const filters=$("mwMasterFilterbar");
-    if(filters)filters.hidden=which!=="orders";
+    if(filters)filters.hidden=which!=="orders"||Boolean(window.__rdOrdersWorkspace?.isActive?.());
     const title=$("appTitle");
     if(which==="reports"||which==="payments"||which==="settings"){
       orders.hidden=true;finance.hidden=true;
@@ -175,91 +188,260 @@
       else if(which==="payments")renderMasterPayments();
       else window.__rdWhatsAppSettings?.refresh();
     }else{
-      if(title)title.textContent=which==="day"?"По дням":"Мои заказы";
+      if(title)title.textContent="Заказы";
       // Legacy tab handlers remain for calendar calculations, but tabs are not visible to master.
       if(!finance.hidden)$("masterFinanceBack")?.click();
       orders.hidden=false;finance.hidden=true;
       if(which==="day")window.__rdSyncMasterToday?.();
       const tab=orders.querySelector('.tab[data-tab="'+(which==="day"?"calendar":"all")+'"]');
+      const sameTab=tab?.dataset.tab===currentTab;
       tab?.click();
+      if(sameTab&&window.__rdOrdersWorkspace?.isActive?.())render();
       if(which==="orders")filterRows();
     }
     updateNav();
+    window.__rdOrdersWorkspace?.refresh?.();
     if(restore){
       const y=scrollPositions.get(which)||0;
       if(window.__rdMasterViewportScroll?.restore)window.__rdMasterViewportScroll.restore(y);
       else window.scrollTo({top:y,behavior:"instant"});
     }
   }
+  window.__rdMasterNavigate=(which,restore=false)=>switchPage(which,restore);
+  function settlementTotals(collections){
+    const sums={waiting:0,pending:0,confirmed:0};
+    for(const c of collections){
+      // Before partial handoffs, one status covered the whole collection.
+      const legacy=c.confirmedAt?"confirmed":c.submittedAt?"pending":"waiting";
+      for(const key of Object.keys(sums)){
+        const value=c[key+"Amount"]??(key===legacy?c.companyAmount:0);
+        sums[key]+=Math.round(Number(value)*100);
+      }
+    }
+    return {waiting:sums.waiting/100,pending:sums.pending/100,confirmed:sums.confirmed/100};
+  }
+
+  function openMasterHandoff(available,preview){
+    const {sheet,close,header}=modalBase(preview?"Проверить сумму":"Отметить передачу",()=>{
+      $("mwMasterPayments")?.querySelector(".mw-handoff-action:not(:disabled), summary")?.focus({preventScroll:true});
+    });
+    header.querySelector("button").setAttribute("aria-label","Закрыть");
+    const form=el("form","mw-handoff-form");
+    const amount=el("input","mw-input");
+    amount.type="text";amount.inputMode="decimal";amount.autocomplete="off";
+    amount.value=Number.isInteger(available)?String(available):available.toFixed(2).replace(".",",");
+    const error=el("p","mw-error");error.id="mwHandoffError";error.setAttribute("role","alert");
+    const save=el("button","mw-main-button",preview?"Проверить сумму":"Подтвердить передачу");save.type="submit";
+    const cancel=btn("Отмена","mw-minor",close);
+    form.append(field("Переданная сумма, ₽",amount),
+      el("p","mw-handoff-limit","Доступно к передаче "+paymentCurrency.format(available)),
+      error,box("mw-modal-actions",cancel,save));
+    if(preview)form.insertBefore(el("p","mw-handoff-limit","Предпросмотр · проверка суммы без записи."),error);
+    sheet.append(form);
+    let requestId=null,requestAmount=null;
+    sheet.addEventListener("keydown",event=>{
+      if(event.key==="Escape"){event.preventDefault();close();return;}
+      if(event.key!=="Tab")return;
+      const controls=[...sheet.querySelectorAll("button:not(:disabled), input:not(:disabled)")];
+      const first=controls[0],last=controls.at(-1);
+      if(!first||event.shiftKey&&document.activeElement===first||!event.shiftKey&&document.activeElement===last){
+        event.preventDefault();(event.shiftKey?last:first)?.focus();
+      }
+    });
+    form.addEventListener("submit",async event=>{
+      event.preventDefault();
+      if(sheet.dataset.busy==="1")return;
+      const value=parseSum(amount.value);
+      if(!value||value>available){
+        error.textContent=value?"Сумма больше доступного остатка.":"Укажите положительную сумму с точностью до копеек.";
+        amount.setAttribute("aria-invalid","true");amount.setAttribute("aria-describedby",error.id);amount.focus();return;
+      }
+      amount.removeAttribute("aria-invalid");amount.removeAttribute("aria-describedby");
+      error.textContent="";
+      if(preview){
+        handoffMessage="Сумма проверена. В предпросмотре передача не записывается.";
+        renderMasterPayments();close();return;
+      }
+      sheet.dataset.busy="1";sheet.setAttribute("aria-busy","true");
+      for(const control of [amount,save,cancel,header.querySelector("button")])control.disabled=true;
+      save.textContent="Сохраняем…";
+      try{
+        if(!requestId||requestAmount!==value){requestId=token();requestAmount=value;}
+        const result=await api().submitMasterHandoff(value,requestId);
+        handoffRefreshError=result?.refreshError||"";
+        handoffMessage="Передача "+paymentCurrency.format(value)+" отмечена.";
+        sheet.dataset.busy="0";renderMasterPayments();close();
+      }catch(e){
+        sheet.dataset.busy="0";sheet.removeAttribute("aria-busy");
+        for(const control of [amount,save,cancel,header.querySelector("button")])control.disabled=false;
+        save.textContent="Подтвердить передачу";
+        error.textContent=e?.message||"Не удалось подтвердить передачу. Проверьте соединение и повторите.";
+        save.focus();
+      }
+    });
+    amount.focus({preventScroll:true});amount.select();
+  }
+
+  function renderPaymentHistory(list,orders){
+    list.replaceChildren();
+    const filtered=orders.filter(o=>paymentMethod==="all"||(paymentMethod==="unknown"?
+      !validMethod(o.method):o.method===paymentMethod));
+    if(!filtered.length){
+      list.append(el("p","mw-notice",orders.length?"Оплат с таким способом нет.":"Оплат по заказам пока нет."));
+      return;
+    }
+    const payments=filtered.map(order=>{
+      const timestamp=Date.parse(order.paidAt||"");
+      return {order,timestamp:Number.isFinite(timestamp)?timestamp:null};
+    });
+    payments.sort((a,b)=>(b.timestamp??-Infinity)-(a.timestamp??-Infinity));
+    let currentDay="",rows;
+    for(const {order,timestamp} of payments){
+      const day=timestamp===null?"Дата оплаты не указана":paymentDay.format(timestamp);
+      if(day!==currentDay){
+        currentDay=day;
+        const group=el("section","mw-payment-day");
+        rows=el("div","mw-payment-day-rows");
+        group.append(el("h3","mw-payment-date",day),rows);list.append(group);
+      }
+      const name=box("mw-payment-name",el("strong","",order.name||"Клиент"));
+      if(order.reference)name.append(el("span","mw-payment-reference",order.reference));
+      const method=validMethod(order.method)?accountName(order.method):"Способ не указан";
+      const recipient=order.receivedBy==="master"?"Принял мастер":
+        order.receivedBy==="company"?"Получено компанией":"Получатель не указан";
+      const item=btn("","mw-payment-row",()=>window.__rdOpenMasterOrder?.(order.id));
+      item.dataset.orderId=order.id;
+      const chevron=el("span","mw-payment-chevron","›");chevron.setAttribute("aria-hidden","true");
+      item.append(name,el("strong","mw-payment-amount","+"+paymentCurrency.format(order.amount)),chevron,
+        el("small","mw-payment-meta",timestamp===null?method:paymentTime.format(timestamp)+" · "+method),
+        el("small","mw-payment-recipient",recipient));
+      rows.append(item);
+    }
+  }
+
+  function showFinanceLoading(root){
+    const message=el("p","mw-help","Загружаем финансовые данные…");
+    message.setAttribute("role","status");
+    root.replaceChildren(message);
+  }
   function renderMasterPayments(){
     const root=$("mwMasterPayments");if(!root||root.hidden)return;
-    root.replaceChildren();
+    const cards=document.createDocumentFragment();
     let m;
-    try{m=api()?.masterPayments?.()}catch(error){
-      root.append(el("p","mw-error",error.message));return;
+    try{
+      m=api()?.masterPayments?.();
+      if(!m)throw Error("Данные платежей пока недоступны.");
+    }catch(error){
+      const message=el("p","mw-error",error.message||"Не удалось загрузить платежи.");
+      message.setAttribute("role","alert");root.replaceChildren(message);return;
     }
-    if(!m)return;
-    root.append(el("h2","mw-heading","Платежи"));
-    if(m.error)root.append(el("p","mw-error","Финансовые данные не обновились: "+m.error));
-    const paid=m.orders.filter(o=>o.paid&&o.status!=="Отменён"&&
+    if(m.loading&&!m.error){showFinanceLoading(root);return;}
+    const dataError=m.error||handoffRefreshError;
+    if(handoffMessage){
+      const status=el("p","mw-handoff-status",handoffMessage);
+      status.setAttribute("role","status");cards.append(status);
+    }
+    if(dataError){
+      const warning=el("p","mw-error","Не удалось обновить расчёты передачи. "+dataError);
+      warning.setAttribute("role","alert");cards.append(warning);
+    }
+    const totals=settlementTotals(m.collections);
+    const balance=value=>dataError?"—":paymentCurrency.format(value);
+    const transfer=btn("Отметить передачу","mw-handoff-action",()=>openMasterHandoff(totals.waiting,m.preview));
+    const writeUnavailable=m.canSubmit===false||typeof api()?.submitMasterHandoff!=="function";
+    transfer.disabled=Boolean(dataError)||!(totals.waiting>0)||(!m.preview&&writeUnavailable);
+    const hero=el("section","mw-handoff-card");hero.setAttribute("aria-label","Расчёты с компанией");
+    hero.append(el("h2","mw-handoff-label","Осталось передать компании"),
+      el("strong","mw-handoff-amount",balance(totals.waiting)),transfer);
+    if(!dataError&&totals.waiting>0&&transfer.disabled)
+      hero.append(el("p","mw-handoff-limit","Отметить передачу сейчас недоступно."));
+    hero.append(box("mw-handoff-lines",
+      box("",el("span","","Ждёт подтверждения"),el("strong","",balance(totals.pending))),
+      box("",el("span","","Компания подтвердила"),el("strong","",balance(totals.confirmed)))));
+    cards.append(hero);
+
+    const paid=m.orders.filter(o=>o.paid&&o.status!=="Отменён"&&o.amount!=null&&
       Number.isFinite(Number(o.amount))&&Number(o.amount)>=0);
-    const sum=rows=>Math.round(rows.reduce((total,o)=>total+(Number(o.amount)||0),0)*100)/100;
-    const cash=paid.filter(o=>o.method==="cash"),card=paid.filter(o=>o.method==="card"),
-      unknown=paid.filter(o=>!validMethod(o.method));
-    const total=sum(paid);
-    const confirmed=m.collections.filter(c=>c.confirmedAt).reduce((t,c)=>t+c.companyAmount,0);
-    const pending=m.collections.filter(c=>c.submittedAt&&!c.confirmedAt)
-      .reduce((t,c)=>t+c.companyAmount,0);
-    const waiting=m.collections.filter(c=>!c.submittedAt&&!c.confirmedAt)
-      .reduce((t,c)=>t+c.companyAmount,0);
-    root.append(box("mw-money-stats",
-      box("mw-money-stat",el("small","","Оплачено клиентами"),el("strong","",rub(total))),
-      box("mw-money-stat",el("small","","Наличные"),el("strong","",rub(sum(cash)))),
-      box("mw-money-stat",el("small","","Карта"),el("strong","",rub(sum(card)))),
-      box("mw-money-stat",el("small","","Не указан способ"),el("strong","",rub(sum(unknown))))));
-    root.append(el("p","mw-help","Это суммы платежей по твоим заказам, а не баланс банковского счёта или кассы."));
-    root.append(box("mw-settlement-summary",
-      box("",el("small","","Подтверждено компанией"),el("strong","",rub(confirmed))),
-      box("",el("small","","Ожидает подтверждения"),el("strong","",rub(pending))),
-      box("",el("small","","Осталось передать"),el("strong","",rub(waiting)))));
-    root.append(el("h3","mw-subheading","Оплаты заказов"));
-    const tabs=el("div","mw-payment-filters");
-    for(const [key,label] of [["all","Все"],["cash","Наличные"],["card","Карта"],["unknown","Без способа"]]){
-      const b=btn(label,"mw-filter-chip"+(paymentMethod===key?" active":""),()=>{
-        paymentMethod=key;renderMasterPayments();
-      });b.setAttribute("aria-pressed",String(paymentMethod===key));tabs.append(b);
+    const amounts={cash:0,card:0,unknown:0};
+    for(const o of paid)amounts[validMethod(o.method)?o.method:"unknown"]+=Math.round(Number(o.amount)*100);
+    const total=(amounts.cash+amounts.card+amounts.unknown)/100;
+    const breakdown=el("details","mw-payment-breakdown");
+    breakdown.open=paymentBreakdownOpen;
+    const summary=el("summary");
+    summary.append(el("span","","Оплачено клиентами"),el("strong","",paymentCurrency.format(total)));
+    const methodRows=el("div","mw-breakdown-lines");
+    for(const [method,label] of [["cash","Наличные"],["card","Карта"],["unknown","Способ не указан"]]){
+      methodRows.append(box("",el("span","",label),el("strong","",paymentCurrency.format(amounts[method]/100))));
     }
-    root.append(tabs);
-    const list=el("div","mw-owner-history");
-    const filtered=paid.filter(o=>paymentMethod==="all"|| (paymentMethod==="unknown"?
-      !validMethod(o.method):o.method===paymentMethod));
-    filtered.sort((a,b)=>String(b.paidAt||b.date||"").localeCompare(String(a.paidAt||a.date||"")));
-    if(!filtered.length)list.append(el("p","mw-notice","Оплат по выбранному фильтру нет."));
-    for(const o of filtered){
-      const item=btn("","mw-payment-row",()=>window.__rdOpenMasterOrder?.(o.id));
-      item.append(box("mw-payment-row-main",
-        el("strong","","Заказ · "+(o.name||"Клиент")),
-        el("small","",date(o.paidAt||o.date)),
-        el("small","",accountName(o.method)+" · "+
-          (o.receivedBy==="master"?"Принял мастер":"Получено компанией"))),
-        box("mw-payment-row-value",el("strong","mw-plus","+"+rub(o.amount)),
-          el("span","","›")));
-      list.append(item);
+    breakdown.append(summary,methodRows);
+    breakdown.addEventListener("toggle",()=>{if(breakdown.isConnected)paymentBreakdownOpen=breakdown.open;});
+    cards.append(breakdown);
+    // Keep the filter mounted while its native iOS picker is open.
+    let heading=root.querySelector(".mw-payments-list-head");
+    let list,select;
+    if(heading){
+      list=heading.nextElementSibling;select=heading.querySelector("select");
+      while(root.firstChild!==heading)root.firstChild.remove();
+      root.insertBefore(cards,heading);
+    }else{
+      list=el("div","mw-payments-history");
+      select=el("select","mw-method-select");select.setAttribute("aria-label","Способ оплаты заказов");
+      for(const [key,label] of [["all","Все способы"],["cash","Наличные"],["card","Карта"],["unknown","Без способа"]]){
+        const option=el("option","",label);option.value=key;select.append(option);
+      }
+      heading=box("mw-payments-list-head",el("h2","mw-payments-heading","Оплаты заказов"),
+        box("mw-method-control",select));
+      root.replaceChildren(cards,heading,list);
     }
-    root.append(list);
-    root.append(el("p","mw-help","Платежи клиентов, передача денег компании и выплаты зарплаты учитываются отдельно. Зарплату смотри в «Отчётах»."));
+    select.value=paymentMethod;
+    select.onchange=()=>{paymentMethod=select.value;renderPaymentHistory(list,paid);};
+    renderPaymentHistory(list,paid);
   }
   function renderMaster(){
     const root=$("mwMasterReports");if(!root||root.hidden)return;
-    const m=api()?.snapshot();root.replaceChildren();
+    const m=api()?.snapshot();
     if(!m||m.role!=="master")return;
+    if(m.loading&&!m.error){showFinanceLoading(root);return;}
+    if(m.error&&!m.masterId){
+      const message=el("p","mw-error","Не удалось загрузить расчёты. "+m.error);
+      message.setAttribute("role","alert");root.replaceChildren(message);return;
+    }
+    if(step==="orderProfit"&&masterProfitReport?.container?.isConnected){
+      masterProfitReport.api.render();return;
+    }
+    masterProfitReport=null;
+    root.replaceChildren();
     const back=(label,fn)=>btn("‹ "+label,"mw-back",fn);
+    const isRaul=String(m.masterName||"").trim().toLocaleLowerCase("ru")==="рауль";
     if(step==="menu"){
       // The authenticated master only has one report: no extra staff directory.
       const entry=btn("","mw-entry",()=>{step="detail";salaryTab="accruals";renderMaster()});
       entry.append(el("span","mw-entry-icon","▤"),box("mw-entry-copy",
         el("strong","","Зарплата"),el("small","","Баланс, начисления и выплаты")),el("span","mw-chevron","›"));
       root.append(entry);
+      if(isRaul){
+        const orderProfit=btn("","mw-entry",()=>{step="orderProfit";renderMaster()});
+        orderProfit.append(el("span","mw-entry-icon","▤"),box("mw-entry-copy",
+          el("strong","","Прибыль по заказам"),
+          el("small","","Мои заказы, оплаты и начисления")),el("span","mw-chevron","›"));
+        root.append(orderProfit);
+      }
+      return;
+    }
+    if(step==="orderProfit"){
+      if(!isRaul){step="menu";renderMaster();return;}
+      const container=el("div","mw-profit-report");root.append(container);
+      const maker=window.__rdCreateProfitReport;
+      if(typeof maker!=="function"){
+        root.append(back("Отчёты",()=>{step="menu";renderMaster()}),
+          el("p","mw-error","Отчёт временно недоступен."));return;
+      }
+      const report=maker(container,{
+        getOrders:()=>api()?.masterReportOrders?.()||[],
+        getRaulMasterId:()=>api()?.snapshot()?.masterId||null,
+        startOpen:true,onBack:()=>{step="menu";masterProfitReport=null;renderMaster()}
+      });
+      masterProfitReport={container,api:report};
       return;
     }
     root.append(back("Отчёты",()=>{step="menu";renderMaster()}));
@@ -362,7 +544,7 @@
       if(o.receivedBy==="master"||cashOrders.has(String(o.id)))continue;
       add("income",o.amount,o.method,"Оплата заказа · "+(o.name||"Клиент"),o.paidAt||o.date,"По выполненным/оплаченным заказам");
     }
-    for(const c of d.collections)if(c.confirmed_at)
+    for(const c of d.deposits)
       add("income",c.amount,"cash","Сдача компании от мастера",c.confirmed_at,"Подтверждена владельцем");
     for(const row of d.operations){
       if(row.order_id)continue; // auto cash distribution already accounts for retained funds
@@ -456,16 +638,26 @@
       }
     });
   }
-  window.__rdMasterOrdersRefresh=()=>{filterRows()};
+  window.__rdMasterOrdersRefresh=()=>{
+    filterRows();
+    if(page==="reports"&&step==="orderProfit")masterProfitReport?.api.render();
+  };
   window.__rdMoneyAccess=()=>{
-    const isMaster=api()?.snapshot()?.role==="master";
-    if(isMaster){
+    const member=api()?.snapshot();
+    if(member?.role==="master"){
+      const user=typeof currentUser!=="undefined"&&currentUser?.id||member.masterName||"master";
+      if(masterReady&&navigationUser===user)return;
       setupMaster();
+      if(!masterReady)return;
+      navigationUser=user;
       const nav=$("mwMasterNav");if(nav)nav.hidden=false;
-      page="day";step="menu";
+      page="day";step="menu";paymentMethod="all";paymentBreakdownOpen=false;
+      handoffMessage="";handoffRefreshError="";
       switchPage("day",false);
     }else{
+      navigationUser=null;
       $("appScreen")?.classList.remove("mw-orders-minimal-header");
+      $("appScreen")?.classList.remove("mw-payments-header");
       const nav=$("mwMasterNav"),reports=$("mwMasterReports"),
         payments=$("mwMasterPayments"),settings=$("mwMasterSettings");
       if(nav)nav.hidden=true;
@@ -475,9 +667,21 @@
     }
   };
   window.__rdMoneyUpdated=()=>{
+    handoffRefreshError="";
     const focus=document.activeElement;
     if(page==="reports"&&$("mwMasterReports")&&!focus?.closest?.("#mwMasterReports"))renderMaster();
-    if(page==="payments"&&$("mwMasterPayments")&&!focus?.closest?.("#mwMasterPayments"))renderMasterPayments();
+    if(page!=="payments")return;
+    const payments=$("mwMasterPayments");
+    if(!payments||payments.hidden)return;
+    const paymentControl=payments.contains(focus)?focus.closest(".mw-payment-row, summary, .mw-handoff-action"):null;
+    renderMasterPayments();
+    if(paymentControl){
+      const replacement=paymentControl.matches(".mw-payment-row")?
+        [...payments.querySelectorAll(".mw-payment-row")].find(row=>row.dataset.orderId===paymentControl.dataset.orderId):
+        payments.querySelector(paymentControl.matches("summary")?"summary":".mw-handoff-action:not(:disabled), summary");
+      replacement?.focus({preventScroll:true});
+    }
   };
   window.__rdPaymentsRender=ownerPayments;
+  if($("appScreen")?.hidden===false)window.__rdMoneyAccess();
 })();

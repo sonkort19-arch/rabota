@@ -1,0 +1,74 @@
+name: Profit report regression checks
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - profit-report.js
+      - profit-report.css
+      - finance-payroll.js
+      - finance-payroll.css
+      - finance-model.js
+      - money-workspace.js
+      - redesign.js
+      - index.html
+      - tests/profit-report.test.cjs
+      - tests/finance-payroll-preview.js
+      - tests/profit-report-browser.cjs
+      - .github/workflows/profit-report.yml
+  pull_request:
+    paths:
+      - profit-report.js
+      - profit-report.css
+      - finance-payroll.js
+      - finance-payroll.css
+      - finance-model.js
+      - money-workspace.js
+      - redesign.js
+      - index.html
+      - tests/profit-report.test.cjs
+      - tests/finance-payroll-preview.js
+      - tests/profit-report-browser.cjs
+      - .github/workflows/profit-report.yml
+
+permissions:
+  contents: read
+
+jobs:
+  report-unit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Verify JavaScript parsing
+        run: |
+          node --check profit-report.js
+          node --check redesign.js
+          node --check finance-payroll.js
+          node --check finance-model.js
+          node --check money-workspace.js
+      - name: Test report calculations, filters and missing payment metadata
+        run: node --test tests/profit-report.test.cjs
+      - name: Run finance model regression tests
+        run: node --test tests/finance-model.test.cjs
+      - name: Validate payroll, balance and payout confirmation
+        run: node --test tests/finance-payroll-preview.js
+
+  report-browser:
+    runs-on: ubuntu-24.04
+    needs: report-unit
+    timeout-minutes: 20
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Install Chromium and iPhone Safari engines
+        run: |
+          npm install --no-save --ignore-scripts playwright@1.56.1
+          npx playwright install --with-deps chromium webkit
+      - name: Test reports in desktop and iPhone Safari browsers
+        run: node tests/profit-report-browser.cjs
