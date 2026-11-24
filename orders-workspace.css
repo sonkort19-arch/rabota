@@ -277,13 +277,9 @@ body.rd #appScreen.rd-unified-orders .ow-cancelled-toggle:after{content:"⌄";fl
 body.rd #appScreen.rd-unified-orders .ow-cancelled-toggle[aria-expanded="true"]:after{transform:rotate(180deg)}
 body.rd #appScreen.rd-unified-orders .ow-cancelled-body{display:flex;flex-direction:column;gap:8px;padding-top:8px;min-width:0}
 
-/* Four top-level destinations. Their existing fixed-position/scroll treatment
-   remains owned by the navigation styles. */
+/* Master has four destinations. Owner and manager navigation belong to ui-alignment-mobile.css. */
 body.rd #mwMasterNav{grid-template-columns:repeat(4,minmax(0,1fr))}
 @media(max-width:790px){
-  body.rd #rdMobileNav{grid-template-columns:repeat(4,minmax(0,1fr))}
-  body.rd #appScreen.rd-unified-orders ~ #rdMobileNav{gap:4px}
-  body.rd #appScreen.rd-unified-orders ~ #rdMobileNav .rd-nav-btn{min-width:0;font-size:11px}
   body.rd #appScreen.rd-unified-orders,
   body.rd #appScreen.rd-owner.rd-view-orders.rd-unified-orders,
   body.rd #appScreen.rd-manager.rd-view-orders.rd-unified-orders{
