@@ -264,7 +264,7 @@
         selectedMonth = item.start_on.slice(0, 7);
         mode = "month";
         render();
-        window.scrollTo({ top: 0, behavior: "instant" });
+        document.querySelector(".gw-app")?.scrollTo({ top: 0, behavior: "instant" });
       });
       list.append(button);
     });
