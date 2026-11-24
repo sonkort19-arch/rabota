@@ -55,9 +55,6 @@ async function fixture(browser, source, width, role) {
   const member = role === "master" ? fixtureMaster : { user_id: "fixture-" + role, role, active: true };
   const requests = [], documents = [], writes = [], errors = [];
   await context.addInitScript(() => {
-    localStorage.setItem("rabota-auth-session-v1", JSON.stringify({
-      access_token: "fixture-access", refresh_token: "fixture-refresh", expires_at: 4102444800,
-    }));
     window.fixtureDocument = crypto.randomUUID();
     window.observeFixtureNavigation = () => {
       const transition = JSON.parse(sessionStorage.getItem("fixture-transition") || "null");
@@ -130,15 +127,25 @@ async function fixture(browser, source, width, role) {
     }
     return route.fulfill({ json });
   });
-  const page = await context.newPage();
-  page.setDefaultTimeout(8000);
-  page.on("pageerror", error => errors.push(error.message));
+  async function newPage() {
+    const tab = await context.newPage();
+    tab.setDefaultTimeout(8000);
+    tab.on("pageerror", error => errors.push(error.message));
+    return tab;
+  }
+  const page = await newPage();
+  await page.addInitScript(() => {
+    if (!localStorage.getItem("rabota-auth-session-v1"))
+      localStorage.setItem("rabota-auth-session-v1", JSON.stringify({
+        access_token: "fixture-access", refresh_token: "fixture-refresh", expires_at: 4102444800,
+      }));
+  });
   async function close() {
     for (const gate of state.gates.values()) gate.release();
     await context.close();
     assert.deepEqual(errors, []);
   }
-  return { page, state, requests, documents, writes, close };
+  return { page, state, requests, documents, writes, close, newPage };
 }
 
 function navigation(page, view) {
@@ -410,19 +417,22 @@ async function roleLayout(browser, width, role) {
     }
     const reopenedView = role === "owner" ? "growth" : role === "manager" ? "leads" : "settings";
     await switchSection(page, role, reopenedView);
-    // Validate the new document and usable shell independently of other assets.
-    await page.reload({waitUntil:"commit",timeout:20000});
-    await page.waitForFunction(previous=>Boolean(window.fixtureDocument&&window.fixtureDocument!==previous),
+    // Reopen in the same browser profile with only the session the app persisted.
+    const reopenUrl=page.url();
+    await page.close();
+    const reopened=await s.newPage();
+    await reopened.goto(reopenUrl,{waitUntil:"commit",timeout:20000});
+    await reopened.waitForFunction(previous=>Boolean(window.fixtureDocument&&window.fixtureDocument!==previous),
       identity,{timeout:20000});
-    await page.locator(sectionRoots[role === "master" ? "orders" : reopenedView]).waitFor({timeout:20000});
-    await assertDock(page, role);
+    await reopened.locator(sectionRoots[role === "master" ? "orders" : reopenedView]).waitFor({timeout:20000});
+    await assertDock(reopened, role);
     assert.equal(documents.length, 2, "only the explicit reopen requested a new document");
     assert.equal(requests.filter(name => name === "user").length, 2);
     if (role === "owner") {
-      await page.getByRole("checkbox", { name: task.title }).waitFor();
-      await page.locator('.gw-tabs [data-period="week"]').click();
-      await assertPeriodControls(page, ".gw-period-selector button", 2);
-      await assertDock(page, role);
+      await reopened.getByRole("checkbox", { name: task.title }).waitFor();
+      await reopened.locator('.gw-tabs [data-period="week"]').click();
+      await assertPeriodControls(reopened, ".gw-period-selector button", 2);
+      await assertDock(reopened, role);
     }
     assert.deepEqual(s.writes, []);
   } finally { await s.close(); }
