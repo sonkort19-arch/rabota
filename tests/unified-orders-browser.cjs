@@ -352,14 +352,14 @@ async function checkWhatsAppSettings({ page, role }, nav, attribute) {
   await entry.tap();
   const back = settings.getByRole("button", { name: "← Настройки", exact: true });
   assert.equal(await heading.evaluate(element => document.activeElement === element), true, "tap focuses the heading");
-  assert.equal(await back.evaluate(element => element.matches(":focus-visible")), false, "tap does not outline the back button");
+  assert.equal(await back.evaluate(element => getComputedStyle(element).outlineStyle), "none", "tap does not outline the back button");
   await capture(page, role + "-whatsapp-settings-390");
   await back.tap();
   assert.equal(await entry.getAttribute("aria-expanded"), "false");
 
   await entry.press("Enter");
   assert.equal(await back.evaluate(element => document.activeElement === element), true, "keyboard opens at the back button");
-  assert.equal(await back.evaluate(element => element.matches(":focus-visible")), true, "keyboard focus remains visible");
+  assert.equal(await back.evaluate(element => getComputedStyle(element).outlineStyle), "solid", "keyboard focus remains visible");
   await back.press("Enter");
   assert.equal(await entry.evaluate(element => document.activeElement === element), true, "closing restores focus to the entry");
 }

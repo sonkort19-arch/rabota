@@ -142,8 +142,10 @@
     entry.addEventListener("click",(event)=>{
       setValues(wa().getSettings());status.textContent="";
       editor.hidden=false;entry.hidden=true;entry.setAttribute("aria-expanded","true");
-      // Keep the keyboard path accessible without forcing a focus ring on touch users.
-      if(!event||event.detail===0)back.focus({preventScroll:true});
+      const keyboardActivation=!event||event.detail===0;
+      // WebKit may not show :focus-visible after programmatic focus.
+      back.setAttribute("data-keyboard-open",String(keyboardActivation));
+      if(keyboardActivation)back.focus({preventScroll:true});
       else heading.focus({preventScroll:true});
     });
     back.addEventListener("click",closeEditor);
