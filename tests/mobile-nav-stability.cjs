@@ -232,6 +232,20 @@ async function runOne(browser,label,device){
   await page.evaluate(()=>document.getElementById("appScreen").hidden=false);
   await page.waitForFunction(()=>!document.getElementById("rdMobileNav").hidden);
   await assertDocked(page,label+" restored app");
+  // Verify the newly added owner modules also keep the same five-item dock.
+  await page.locator('#rdMobileNav [data-page="expenses"]').click();
+  await page.locator("#exBottom").waitFor({state:"visible"});
+  assert.equal(await page.locator("#exBottom > a, #exBottom > button").count(),5,label+": expenses dock");
+  await page.locator("#exMoreButton").click();
+  await page.locator('#exMore a[href="/growth.html"]').click();
+  await page.locator("#gwBottom").waitFor({state:"visible"});
+  assert.equal(await page.locator("#gwBottom > a, #gwBottom > button").count(),5,label+": development dock");
+  await page.locator("#gwMoreBtn").click();
+  assert.ok(await page.locator("#gwMenu").isVisible(),label+": development menu opens");
+  await page.locator("#gwMenuVeil").click({position:{x:10,y:10}});
+  await page.locator('#gwBottom a[href="/?view=orders"]').click();
+  await page.locator("#rdMobileNav").waitFor({state:"visible"});
+  await assertDocked(page,label+" after visiting expenses and development");
   assert.deepEqual(writes,[],label+": no database writes");
   assert.deepEqual(errors,[],label+": no page errors");
   console.log("PASS",label,"initial viewport",initial);
