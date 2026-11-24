@@ -1,7 +1,7 @@
 /* CRM «Работа»: компактное подтверждение оплаты без автоматической клавиатуры. */
 "use strict";
 (()=>{
-  let active=false;
+  let active=false,cancelActive=null;
   const fmt=value=>Number(value).toLocaleString("ru-RU",{maximumFractionDigits:2})+" ₽";
   function promptPayment(order,{complete=true,canUnpaid=true,receiver="company"}={}){
     if(active)return Promise.resolve(null);
@@ -104,7 +104,7 @@
       let settled=false;
       const finish=value=>{
         if(settled)return;
-        settled=true;active=false;
+        settled=true;active=false;cancelActive=null;
         document.removeEventListener("keydown",onKey,true);
         viewport?.removeEventListener("resize",syncViewport);
         viewport?.removeEventListener("scroll",syncViewport);
@@ -112,6 +112,7 @@
         if(previousFocus?.isConnected)previousFocus.focus({preventScroll:true});
         resolve(value);
       };
+      cancelActive=()=>finish(null);
       const onKey=event=>{
         if(event.key==="Escape"){event.preventDefault();finish(null);return;}
         if(event.key!=="Tab")return;
@@ -143,4 +144,5 @@
     });
   }
   window.__rdPaymentPrompt=promptPayment;
+  window.__rdClosePaymentPrompt=()=>cancelActive?.();
 })();

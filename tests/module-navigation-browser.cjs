@@ -410,8 +410,11 @@ async function roleLayout(browser, width, role) {
     }
     const reopenedView = role === "owner" ? "growth" : role === "manager" ? "leads" : "settings";
     await switchSection(page, role, reopenedView);
-    await page.reload();
-    await page.locator(sectionRoots[role === "master" ? "orders" : reopenedView]).waitFor();
+    // Validate the new document and usable shell independently of other assets.
+    await page.reload({waitUntil:"commit",timeout:20000});
+    await page.waitForFunction(previous=>Boolean(window.fixtureDocument&&window.fixtureDocument!==previous),
+      identity,{timeout:20000});
+    await page.locator(sectionRoots[role === "master" ? "orders" : reopenedView]).waitFor({timeout:20000});
     await assertDock(page, role);
     assert.equal(documents.length, 2, "only the explicit reopen requested a new document");
     assert.equal(requests.filter(name => name === "user").length, 2);

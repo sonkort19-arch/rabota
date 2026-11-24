@@ -20,7 +20,7 @@ function setup({role="owner",paid=false,reply={ok:true},typed="УДАЛИТЬ",c
   const order={id:"test-id",name:"Test Client",date:"2026-11-11",time:"18:00",
     paid,paymentAmount:null,paidAt:null};
   const context={
-    currentRole:role,editingId:"test-id",orderSaving:false,
+    currentRole:role,editingId:"test-id",orderSaving:false,accessGeneration:1,
     deleteOrderBtn:deleteBtn,formStatus,form:{querySelector:()=>saveBtn},
     getOrders:()=>[order],orderHasFinancialHistory:o=>Boolean(o.paid||o.paymentAmount!=null||o.paidAt),
     confirm:()=>confirmed,prompt:()=>typed,

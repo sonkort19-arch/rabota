@@ -81,6 +81,8 @@ async function session(browser, role, width, writeFixture = null) {
     const request = route.request(), url = new URL(request.url());
     if (request.method() !== "GET") {
       writes.push(request.method() + " " + url.pathname);
+      if (writeFixture?.expireAuth && url.pathname === "/auth/v1/token")
+        return route.fulfill({ status: 401, json: { message: "Synthetic expired session" } });
       if (writeFixture && url.pathname === "/rest/v1/rabota_orders" && request.method() === "POST") {
         assert.equal(writeFixture.saved, undefined, "the form sent a duplicate write");
         const fields = request.postDataJSON();
@@ -424,6 +426,37 @@ async function checkSavedOrderAfterReconnect(browser) {
   }
 }
 
+async function checkDialogsCloseOnExpiredSession(browser, role) {
+  const s = await session(browser, role, 390, { expireAuth: true });
+  try {
+    const { page, writes } = s;
+    if (role === "manager") {
+      await page.locator("#owSearchToggle").click();
+      await page.locator("#owSearchInput").fill("Тест конфиденциального поиска");
+      await page.locator("#newOrderBtn").click();
+      await page.locator("#clientName").fill("Тест конфиденциального черновика");
+      await page.locator("#orderAdvanced > summary").click();
+      await page.locator("#orderStatus").selectOption("Выполнен");
+      await page.locator(".rd-pay-overlay").getByText("Тест конфиденциального черновика").waitFor();
+    } else {
+      await cards(page).filter({ hasText: "Клиент Сегодня" }).locator("button").first().click();
+      await page.locator(role === "master" ? ".master-order-sheet" : ".rd-order-dialog").waitFor();
+    }
+    await page.evaluate(() => {
+      session.expires_at = 0;
+      window.dispatchEvent(new Event("online"));
+    });
+    await page.locator("#loginScreen").waitFor();
+    assert.equal(await page.locator("#orderOverlay").isVisible(), false);
+    assert.equal(await page.locator(".master-order-sheet, .rd-order-dialog, .rd-pay-overlay").count(), 0);
+    assert.equal(await page.locator("#clientName").inputValue(), "");
+    assert.equal(await page.locator("#owSearchInput").inputValue(), "");
+    assert.deepEqual(writes, ["POST /auth/v1/token"], "no order/payment mutation on expiry");
+  } finally {
+    await s.close();
+  }
+}
+
 (async () => {
   const kind = process.env.TEST_BROWSER || "chromium";
   const browser = await (kind === "webkit" ? webkit : chromium).launch({
@@ -450,6 +483,10 @@ async function checkSavedOrderAfterReconnect(browser) {
     }
     await checkSavedOrderAfterReconnect(browser);
     console.log("PASS", kind, "confirmed save, failed refresh and reconnect");
+    for (const role of roles) {
+      await checkDialogsCloseOnExpiredSession(browser, role);
+      console.log("PASS", kind, role, "private dialogs close on expired session");
+    }
     console.log("Passed unified orders: Moscow startup, roles, dates, history, search, filters, original dialogs and draft cancellation");
   } finally {
     await browser.close();

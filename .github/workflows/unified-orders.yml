@@ -5,6 +5,9 @@ on:
     paths:
       - 'index.html'
       - 'orders-workspace.*'
+      - 'order-payment.js'
+      - 'order-model.js'
+      - 'order-sync.js'
       - 'calendar-model.js'
       - 'master-ui.js'
       - 'money-workspace.js'
@@ -14,10 +17,13 @@ on:
       - 'tests/unified-orders-browser.cjs'
       - '.github/workflows/unified-orders.yml'
   push:
-    branches: [main]
+    branches: [main, fix/crm-stability]
     paths:
       - 'index.html'
       - 'orders-workspace.*'
+      - 'order-payment.js'
+      - 'order-model.js'
+      - 'order-sync.js'
       - 'calendar-model.js'
       - 'master-ui.js'
       - 'money-workspace.js'

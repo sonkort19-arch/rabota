@@ -311,6 +311,7 @@
     openDialog(id,trigger);
     return true;
   };
+  window.__rdCloseOrderDetail=()=>closeDialog({focus:false});
   window.__rdRefresh=(...args)=>{
     if(typeof originalRefresh==="function")originalRefresh(...args);
     if(activeDialog){

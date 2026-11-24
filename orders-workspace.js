@@ -9,7 +9,8 @@
     if(text!==undefined)value.textContent=String(text);
     return value;
   };
-  const state={mode:"calendar",searchOpen:false,query:"",status:"",master:"",date:"",quick:"",searchReturn:null};
+  const initialState={mode:"calendar",searchOpen:false,query:"",status:"",master:"",date:"",quick:"",searchReturn:null};
+  const state={...initialState};
   const cancelledOpen=new Set();
   let mounted=false,sourceCache=null,nextOrder=null;
   const icon=kind=>{
@@ -110,6 +111,14 @@
   function closeFilters(){
     if($("owFilters")?.open)$("owFilters").close();
     $("owFilterToggle")?.setAttribute("aria-expanded","false");
+  }
+  function resetForAccount(){
+    closeFilters();
+    Object.assign(state,initialState);
+    cancelledOpen.clear();
+    sourceCache=null;nextOrder=null;
+    if($("owSearchInput"))$("owSearchInput").value="";
+    if($("owSearch"))$("owSearch").hidden=true;
   }
   function openFilters(){
     const dialog=$("owFilters");if(!dialog||dialog.open)return;
@@ -288,7 +297,7 @@
     return Boolean(window.__rdOpenOrderDetail?.(String(orderId)));
   }
   window.__rdOrdersWorkspace={isActive,currentMode,beforeRender,filterOrders,calendarOrders,
-    selectMode,show,refresh,refreshOverview:refreshNext,renderCancelled,status:()=>state.status};
+    selectMode,show,refresh,refreshOverview:refreshNext,renderCancelled,closeFilters,resetForAccount,status:()=>state.status};
   const previousRefresh=window.__rdRefresh;
   window.__rdRefresh=(...args)=>{const value=previousRefresh?.(...args);refresh();return value;};
   const previousAccess=window.__rdAccess;

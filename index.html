@@ -1005,6 +1005,16 @@
       });
       document.documentElement.classList.toggle("rd-master-scroll-locked",
         which==="appScreen"&&currentRole==="master");
+      // Order dialogs live outside appScreen and must also leave the account view.
+      if(which!=="appScreen"){
+        window.__rdClosePaymentPrompt?.();
+        if(!overlay.hidden)closeForm(true);
+        closeMasterOrderDialog();
+        window.__rdCloseOrderDetail?.();
+        window.__rdOrdersWorkspace?.closeFilters?.();
+        window.__rdCloseOrderFilters?.();
+        window.__rdQuickSlots?.close();
+      }
     }
     function setSession(data) {
       session = {access_token:data.access_token,refresh_token:data.refresh_token,
@@ -1013,10 +1023,18 @@
     }
     function resetAccountData() {
       accessGeneration++;
+      if(orderSaving){
+        orderSaving=false;
+        const saveBtn=form.querySelector('button[type="submit"]');
+        saveBtn.disabled=false;saveBtn.textContent="Сохранить заказ";
+        deleteOrderBtn.disabled=false;formStatus.classList.remove("is-saving");
+      }
       currentUser=null;currentRole=null;currentMasterName="";cloudOrders=[];ordersLoaded=false;
       backgroundSync=null;backgroundSyncAt=0;
       resetStaffData();
       window.__rdOrderSync?.reset();
+      window.__rdOrdersWorkspace?.resetForAccount?.();
+      currentTab="calendar";orderListDateFilter="";orderHistoryDateFilter="";
       window.__rdOrderAvailability?.refresh([]);
       window.__rdQuickSlots?.close();
       window.__rdResetLeads?.();
@@ -1917,6 +1935,7 @@
       if(orderSaving && force!==true)return;
       overlay.hidden=true;overlay.classList.remove("master-quick");window.__rdOrderAvailability?.close();document.body.style.overflow="";form.reset();delete form.dataset.leadPreview;delete form.dataset.leadId;editingId=null;
       if(previousFocus&&typeof previousFocus.focus==="function")previousFocus.focus();
+      previousFocus=null;formPaymentChoice=null;formStatus.textContent="";
     }
     deleteOrderBtn.addEventListener("click",async()=>{
       if(currentRole!=="owner"||editingId===null||orderSaving||deleteOrderBtn.disabled||deleteOrderBtn.hidden)return;
@@ -1939,20 +1958,24 @@
       orderSaving=true;deleteOrderBtn.disabled=true;saveBtn.disabled=true;
       formStatus.classList.add("is-saving");
       formStatus.textContent="Удаляем заказ…";
+      const generation=accessGeneration;
       try{
         const result=await dbRequest("rpc/rabota_delete_order","POST",{p_order_id:id});
         if(!result||result.ok!==true)throw new Error("База не подтвердила удаление. Проверьте заказ.");
         let syncError=null;
         try{await reloadOrders();}catch(error){syncError=error;}
+        if(generation!==accessGeneration)return;
         closeForm(true);
         try{await window.__rdLeadsRefresh?.();}catch(error){console.warn("Leads refresh after deletion",error);}
         alert(syncError?"Заказ удалён, но обновить список не удалось. Перезагрузите страницу.":
           "Заказ удалён.");
       }catch(error){
-        formStatus.textContent=friendlyError(error);
+        if(generation===accessGeneration)formStatus.textContent=friendlyError(error);
       }finally{
-        orderSaving=false;saveBtn.disabled=false;deleteOrderBtn.disabled=false;
-        formStatus.classList.remove("is-saving");
+        if(generation===accessGeneration){
+          orderSaving=false;saveBtn.disabled=false;deleteOrderBtn.disabled=false;
+          formStatus.classList.remove("is-saving");
+        }
       }
     });
     document.getElementById("newOrderBtn").addEventListener("click",()=>openForm());
@@ -2118,8 +2141,14 @@
         if(!existing && order.status==="Записан")openClientDraft(order,"booking");
         else if(existing && existing.status!=="Выполнен" && order.status==="Выполнен")
           openCompletedClientDraft(existing);
-      } catch(error) {formStatus.classList.remove("is-saving");formStatus.textContent=friendlyError(error);}
-      finally {orderSaving=false;saveBtn.disabled=false;saveBtn.textContent="Сохранить заказ";formStatus.classList.remove("is-saving");}
+      }catch(error){
+        if(generation===accessGeneration)formStatus.textContent=friendlyError(error);
+      }finally{
+        if(generation===accessGeneration){
+          orderSaving=false;saveBtn.disabled=false;saveBtn.textContent="Сохранить заказ";
+          formStatus.classList.remove("is-saving");
+        }
+      }
     });
 
     function updateImportButton() {
@@ -3100,7 +3129,7 @@
     initialize();
 
   </script>
-  <script src="/order-payment.js"></script>
+  <script src="/order-payment.js?v=20261124-account-dialogs"></script>
   <script src="/booking-timeline.js?v=20261117-v1"></script>
   <script src="/order-availability.js?v=20261124-indexed-bookings"></script>
   <script src="/master-quick-order.js?v=20261117-mock-v1"></script>
@@ -3113,11 +3142,11 @@
   <script src="/growth.js?v=20261124-integrated-modules"></script>
   <script src="/redesign.js?v=20261124-stability"></script>
   <script src="/master-notifications.js?v=20261124-fast-start"></script>
-  <script src="/orders-list.js?v=20261124-unified-v1"></script>
+  <script src="/orders-list.js?v=20261124-account-dialogs"></script>
   <script src="/owner-parity.js?v=20261124-unified-v1"></script>
   <script src="/finance-payroll.js?v=20261124-stability"></script>
   <script src="/money-workspace.js?v=20261124-stability"></script>
   <script src="/lead-assistant.js?v=20261124-stability"></script>
-  <script src="/orders-workspace.js?v=20261124-unified-v1"></script>
+  <script src="/orders-workspace.js?v=20261124-account-dialogs"></script>
 </body>
 </html>
