@@ -232,19 +232,20 @@ async function runOne(browser,label,device){
   await page.evaluate(()=>document.getElementById("appScreen").hidden=false);
   await page.waitForFunction(()=>!document.getElementById("rdMobileNav").hidden);
   await assertDocked(page,label+" restored app");
-  // Verify the newly added owner modules also keep the same five-item dock.
+  // The owner modules use the existing dock and menu in the same document.
+  await page.evaluate(()=>{window.fixtureMobileNavigation=document.getElementById("rdMobileNav")});
   await page.locator('#rdMobileNav [data-page="expenses"]').click();
-  await page.locator("#exBottom").waitFor({state:"visible"});
-  assert.equal(await page.locator("#exBottom > a, #exBottom > button").count(),5,label+": expenses dock");
-  await page.locator("#exMoreButton").click();
-  await page.locator('#exMore a[href="/growth.html"]').click();
-  await page.locator("#gwBottom").waitFor({state:"visible"});
-  assert.equal(await page.locator("#gwBottom > a, #gwBottom > button").count(),5,label+": development dock");
-  await page.locator("#gwMoreBtn").click();
-  assert.ok(await page.locator("#gwMenu").isVisible(),label+": development menu opens");
-  await page.locator("#gwMenuVeil").click({position:{x:10,y:10}});
-  await page.locator('#gwBottom a[href="/?view=orders"]').click();
-  await page.locator("#rdMobileNav").waitFor({state:"visible"});
+  await page.locator("#exMain").waitFor();
+  await assertDocked(page,label+" expenses dock");
+  await goSection(page,"growth");
+  await page.locator("#gwMain").waitFor();
+  await assertDocked(page,label+" development dock");
+  await page.locator("#rdMobileMoreBtn").click();
+  assert.ok(await page.locator("#rdMobileMoreSheet").isVisible(),label+": development menu opens");
+  await page.locator("#rdMobileMoreVeil").click({position:{x:10,y:10}});
+  await page.locator('#rdMobileNav [data-page="orders"]').click();
+  assert.ok(await page.evaluate(()=>window.fixtureMobileNavigation===document.getElementById("rdMobileNav")),
+    label+": the original dock stays mounted");
   await assertDocked(page,label+" after visiting expenses and development");
   assert.deepEqual(writes,[],label+": no database writes");
   assert.deepEqual(errors,[],label+": no page errors");
@@ -259,7 +260,7 @@ async function runOne(browser,label,device){
   args:kind==="chromium"?["--no-sandbox"]:[]
  });
  try{
-  for(const width of [320,390,430,768]){
+  for(const width of [320,375,390,430,768]){
    await runOne(browser,kind+" viewport "+width,{viewport:{width,height:820}});
   }
   await runOne(browser,kind+" iPhone 13 emulation",devices["iPhone 13"]);

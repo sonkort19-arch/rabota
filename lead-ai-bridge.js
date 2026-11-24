@@ -5,7 +5,7 @@
 "use strict";
 (function(root){
   const MASTER_MATERIALS=["Алюминиевые","Биметаллические","Чугунные","Другие"];
-  const ALLOWED_RETURN_PAGES=new Set(["home","orders","calendar","leads","clients","finance"]);
+  const ALLOWED_RETURN_PAGES=new Set(["home","orders","calendar","leads","clients","finance","reports","settings","expenses","growth"]);
   const PREVIEW_HOST=/^rabota-[a-z0-9]{7,}-sonkort19-6069s-projects\.vercel\.app$/i;
   const isAllowedRole=role=>role==="owner"||role==="manager";
   const safeText=value=>String(value||"");

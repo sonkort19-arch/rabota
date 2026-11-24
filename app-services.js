@@ -1,6 +1,6 @@
 /* CRM «Работа» — общие сервисы, этап 9.
  * Supabase transport and pure display/error helpers only.
- * Session lifecycle, token refresh, RLS, RPC and business decisions remain unchanged.
+ * Session lifecycle, token refresh and business decisions live in the callers.
  */
 "use strict";
 (function(root){
@@ -37,7 +37,11 @@
         method:method||"GET",headers,body:payload?JSON.stringify(payload):undefined
       });
       const value=await response.json().catch(()=>({}));
-      if(!response.ok)throw new Error(value.msg||value.error_description||value.message||value.error||"Ошибка авторизации");
+      if(!response.ok){
+        const error=new Error(value?.msg||value?.error_description||value?.message||value?.error||"Ошибка авторизации");
+        error.status=response.status;
+        throw error;
+      }
       return value;
     }
     async function dbRequest(path,method,payload){
@@ -53,6 +57,7 @@
       if(!response.ok){
         const err=new Error(value&&(value.message||value.error)||"Ошибка базы данных ("+response.status+")");
         err.code=value&&value.code;
+        err.status=response.status;
         throw err;
       }
       return value;

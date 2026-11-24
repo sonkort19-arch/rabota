@@ -75,7 +75,7 @@ test("HTML links CSS parts adjacently and preserves downstream precedence",()=>{
   const html=read("index.html");
   const files=[...html.matchAll(/<link\s+rel="stylesheet"\s+href="(\/[^"]+\.css(?:\?[^"]*)?)"/g)]
     .map(match=>match[1].split("?")[0].slice(1));
-  assert.equal(files.length,31,"30 accepted baseline styles plus the unified orders override");
+  assert.equal(files.length,33,"30 baseline styles, two integrated module styles and the shared workspace overrides");
   assert.equal(new Set(files).size,files.length,"each stylesheet is loaded once");
   const start=files.indexOf("ui-alignment.css");
   assert.deepEqual(files.slice(start,start+4),alignment);
@@ -85,7 +85,8 @@ test("HTML links CSS parts adjacently and preserves downstream precedence",()=>{
   assert.deepEqual(files.slice(masterStart+2,masterStart+4),[
     "master-completed-day.css","money-workspace.css"
   ]);
-  assert.equal(files.at(-1),"orders-workspace.css","unified overrides follow the existing cascade");
+  assert.deepEqual(files.slice(-3),["expenses.css","growth.css","orders-workspace.css"],
+    "shared workspace overrides follow the integrated module styles");
   for(const file of files)assert.ok(fs.existsSync(path.join(root,file)),file);
 });
 test("core JS modules and PWA remain wired without behavior changes",()=>{

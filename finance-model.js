@@ -72,23 +72,54 @@
        typeof deps.getUserId!=="function"||typeof deps.nextGeneration!=="function"||
        typeof deps.isCurrentGeneration!=="function"||typeof deps.onSnapshot!=="function")
       throw new TypeError("Неверные зависимости финансового модуля");
-    async function loadFinance(){
+    let operationsRead=null;
+    let operationsGeneration=0;
+    function resetOperations(){
+      operationsGeneration++;
+      operationsRead=null;
+    }
+    function readOperations({fresh=false}={}){
+      const role=deps.getRole(),userId=deps.getUserId();
+      if(role!=="owner"&&role!=="master")
+        return Promise.reject(new Error("Финансовые операции недоступны."));
+      if(!fresh&&operationsRead?.role===role&&operationsRead.userId===userId)
+        return operationsRead.promise;
+      const generation=operationsGeneration;
+      const read={role,userId,promise:null};
+      read.promise=(async()=>{
+        const rows=new Map();
+        for(let offset=0;offset<100000;offset+=1000){
+          const page=await deps.dbRequest(
+            "rabota_finance_operations?select=*&order=created_at.desc,id.desc&limit=1000&offset="+offset,"GET");
+          if(generation!==operationsGeneration)
+            throw new Error("Аккаунт изменился во время загрузки операций.");
+          if(!Array.isArray(page))throw Error("Не удалось загрузить финансовые операции");
+          for(const row of page)rows.set(String(row.id),row);
+          if(page.length<1000)break;
+        }
+        return [...rows.values()];
+      })().finally(()=>{
+        if(operationsRead===read)operationsRead=null;
+      });
+      operationsRead=read;
+      return read.promise;
+    }
+    async function loadFinance({fresh=true}={}){
       const currentRole=deps.getRole();
       if(currentRole!=="owner"&&currentRole!=="master")return;
       const generation=deps.nextGeneration();
+      const [operations,masters]=await Promise.all([
+        readOperations({fresh}),
+        currentRole==="owner"
+          ?deps.dbRequest("rabota_members?select=user_id,role,active,master_name&role=eq.master&limit=100","GET")
+          :null
+      ]);
+      if(!deps.isCurrentGeneration(generation))return;
       let masterId=null;
       if(currentRole==="owner"){
-        const masters=await deps.dbRequest("rabota_members?select=user_id,role,active,master_name&role=eq.master&limit=100","GET");
         masterId=masters.find(m=>m.active&&String(m.master_name||"").trim().toLowerCase()==="рауль")?.user_id||null;
       }else{
         masterId=String(deps.getMasterName()||"").trim().toLowerCase()==="рауль"?deps.getUserId():null;
-      }
-      const operations=[];
-      for(let offset=0;offset<100000;offset+=1000){
-        const page=await deps.dbRequest("rabota_finance_operations?select=*&order=created_at.desc&limit=1000&offset="+offset,"GET");
-        if(!Array.isArray(page))throw Error("Не удалось загрузить финансовые операции");
-        operations.push(...page);
-        if(page.length<1000)break;
       }
       const collections=[];
       for(let offset=0;offset<100000;offset+=1000){
@@ -118,14 +149,13 @@
         }
       }
       if(!deps.isCurrentGeneration(generation))return;
-      const uniqueOperations=new Map(operations.map(row=>[String(row.id),row]));
       deps.onSnapshot({
         masterId,
-        operations:[...uniqueOperations.values()],
+        operations,
         collections:currentCollections,deposits
       });
     }
-    return {loadFinance,money,sumBy,roundMoney,collectionAmounts,financeSplit,calculateAccruals,
+    return {loadFinance,readOperations,resetOperations,money,sumBy,roundMoney,collectionAmounts,financeSplit,calculateAccruals,
       calculateCompanyCash,TIMUR_FEE:FINANCE_TIMUR_FEE,RAUL_PERCENT:FINANCE_RAUL_PERCENT};
   }
   if(root){root.__rdCreateFinanceModel=createFinanceModel;root.__rdFinanceSplit=financeSplit;}

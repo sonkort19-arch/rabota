@@ -1,21 +1,17 @@
 "use strict";
-(() => {
-  const BASE = "https://yedzfmibceboncrytbqz.supabase.co";
-  const KEY = "sb_publishable_tSqbw3aeAgxYuzHhQurCuw_yDze4ZNn";
-  const SESSION_KEY = "rabota-auth-session-v1";
+window.__rdCreateGrowth = function createGrowth({root, dbRequest, scrollToTop = () => window.scrollTo(0, 0)}) {
   const ZONE = "Europe/Moscow";
-  const $ = id => document.getElementById(id);
-  let session = null;
-  let refreshPromise = null;
+  const $ = id => root.querySelector("#" + id);
+  const periodButtons = root.querySelectorAll("[data-period]");
+  const pendingTasks = new Map();
   let ownerId = null;
-  let rows = [];
+  let generation = 0;
+  let rows = null;
   let mode = "day";
   let selectedMonth = "";
   let selectedWeek = "";
-  let loading = false;
-
-  try { session = JSON.parse(localStorage.getItem(SESSION_KEY) || "null"); }
-  catch (_) { session = null; }
+  let renderedOn = "";
+  let read = null;
 
   const el = (tag, className, text) => {
     const node = document.createElement(tag);
@@ -23,9 +19,10 @@
     if (text !== undefined && text !== null) node.textContent = String(text);
     return node;
   };
-  const moscowToday = () => new Intl.DateTimeFormat("sv-SE", {
+  const todayFormat = new Intl.DateTimeFormat("sv-SE", {
     timeZone: ZONE, year: "numeric", month: "2-digit", day: "2-digit"
-  }).format(new Date());
+  });
+  const moscowToday = () => todayFormat.format(new Date());
   const datePlus = (iso, days) => {
     const date = new Date(iso + "T12:00:00Z");
     date.setUTCDate(date.getUTCDate() + days);
@@ -63,99 +60,55 @@
   };
   const notice = message => { $("gwNotice").textContent = message || ""; };
 
-  function saveSession(data) {
-    session = {
-      access_token: data.access_token, refresh_token: data.refresh_token,
-      expires_at: Math.floor(Date.now() / 1000) + Number(data.expires_in || 3600)
-    };
-    localStorage.setItem(SESSION_KEY, JSON.stringify(session));
+  function setLoadStatus(message, error = false) {
+    $("gwLoadStatus").textContent = message;
+    $("gwRetry").hidden = !error;
+    $("gwLoad").hidden = !message;
   }
-  async function ensureSession() {
-    if (!session || !session.refresh_token)
-      throw new Error("Войдите в CRM «Работа», затем откройте раздел снова.");
-    if (Number(session.expires_at || 0) > Math.floor(Date.now() / 1000) + 90) return;
-    if (!refreshPromise) {
-      refreshPromise = (async () => {
-        const response = await fetch(BASE + "/auth/v1/token?grant_type=refresh_token", {
-          method: "POST",
-          headers: { apikey: KEY, "Content-Type": "application/json" },
-          body: JSON.stringify({ refresh_token: session.refresh_token })
-        });
-        const result = await response.json().catch(() => ({}));
-        if (!response.ok || !result.access_token)
-          throw new Error("Сессия истекла. Повторите вход в CRM «Работа».");
-        saveSession(result);
-      })().finally(() => { refreshPromise = null; });
-    }
-    await refreshPromise;
-  }
-  async function request(path, method = "GET", payload) {
-    await ensureSession();
-    const headers = {
-      apikey: KEY, Authorization: "Bearer " + session.access_token, Accept: "application/json"
-    };
-    if (payload !== undefined) headers["Content-Type"] = "application/json";
-    if (method !== "GET") headers.Prefer = "return=representation";
-    const response = await fetch(BASE + "/rest/v1/" + path, {
-      method, headers, body: payload === undefined ? undefined : JSON.stringify(payload)
-    });
-    const data = await response.json().catch(() => null);
-    if (!response.ok) throw new Error(data?.message || "Ошибка загрузки плана (HTTP " + response.status + ").");
-    return data;
-  }
-  async function verifyOwner() {
-    await ensureSession();
-    const response = await fetch(BASE + "/auth/v1/user", {
-      headers: { apikey: KEY, Authorization: "Bearer " + session.access_token }
-    });
-    if (!response.ok) throw new Error("Нужно войти в CRM заново.");
-    const user = await response.json();
-    if (!user?.id) throw new Error("Не удалось проверить аккаунт.");
-    const members = await request("rabota_members?select=user_id&user_id=eq." +
-      encodeURIComponent(user.id) + "&role=eq.owner&active=is.true&limit=1");
-    if (!Array.isArray(members) || members.length !== 1)
-      throw new Error("Раздел «Развитие MOBA» доступен только владельцу.");
-    ownerId = user.id;
-  }
-  async function fetchPlan() {
-    const result = await request("rabota_growth_plan?select=id,owner_id,kind,title,details,start_on,end_on,parent_id,sort_order,target_rub,completed,completed_at" +
-      "&order=start_on.asc,sort_order.asc&limit=600");
-    if (!Array.isArray(result)) throw new Error("Ошибка формата плана.");
-    rows = result;
-    const year = rows.find(x => x.kind === "year" && x.start_on === "2027-01-01");
+  function drawTarget() {
+    const year = rows?.find(item => item.kind === "year" && item.start_on === "2027-01-01");
     $("gwTarget").textContent = year?.target_rub != null
       ? new Intl.NumberFormat("ru-RU", { maximumFractionDigits: 0 }).format(Number(year.target_rub)) + " ₽/мес."
-      : "Цель не задана";
-    const months = rows.filter(x => x.kind === "month" && x.start_on.startsWith("2027-"));
-    $("gwYearMeta").textContent = "Цели по месяцам: " + months.filter(x => x.completed).length +
-      " из " + months.length + " выполнено. Прибыль проверяем отдельно по отчётам.";
+      : rows ? "Цель не задана" : "—";
+    const months = rows?.filter(item => item.kind === "month" && item.start_on.startsWith("2027-"));
+    $("gwYearMeta").textContent = months
+      ? "Цели по месяцам: " + months.filter(item => item.completed).length +
+        " из " + months.length + " выполнено. Прибыль проверяем отдельно по отчётам."
+      : "—";
   }
   async function toggleTask(item, checked, input) {
+    if (!ownerId || pendingTasks.has(item.id)) return;
+    const account = generation;
+    pendingTasks.set(item.id, checked);
     input.disabled = true;
     notice("");
     try {
-      const payload = {
-        completed: checked, completed_at: checked ? new Date().toISOString() : null,
-        updated_at: new Date().toISOString()
-      };
-      const updated = await request("rabota_growth_plan?id=eq." + encodeURIComponent(item.id) +
+      const stamp = new Date().toISOString();
+      const payload = { completed: checked, completed_at: checked ? stamp : null, updated_at: stamp };
+      const updated = await dbRequest("rabota_growth_plan?id=eq." + encodeURIComponent(item.id) +
         "&owner_id=eq." + encodeURIComponent(ownerId), "PATCH", payload);
+      if (account !== generation) return;
       if (!Array.isArray(updated) || updated.length !== 1)
-        throw new Error("Не удалось сохранить отметку. Обновите страницу.");
-      item.completed = Boolean(updated[0].completed);
-      item.completed_at = updated[0].completed_at;
-      render();
+        throw new Error("Не удалось сохранить отметку. Проверьте доступ и повторите попытку.");
+      const completion = { completed: Boolean(updated[0].completed), completed_at: updated[0].completed_at };
+      if (rows) rows = rows.map(row => row.id === item.id ? { ...row, ...completion } : row);
+      // A read that started before the write may still return the previous mark.
+      read?.completions.set(item.id, completion);
     } catch (error) {
-      input.checked = !checked;
-      input.disabled = false;
-      notice(error.message);
+      if (account === generation) notice(error?.message || "Не удалось сохранить отметку.");
+    } finally {
+      if (account === generation) {
+        pendingTasks.delete(item.id);
+        render();
+      }
     }
   }
   function taskRow(item, info) {
     const row = el("label", "gw-task" + (item.completed ? " is-complete" : ""));
     const input = el("input", "gw-check");
     input.type = "checkbox";
-    input.checked = Boolean(item.completed);
+    input.checked = pendingTasks.get(item.id) ?? Boolean(item.completed);
+    input.disabled = pendingTasks.has(item.id);
     input.setAttribute("aria-label", item.title);
     input.addEventListener("change", () => void toggleTask(item, input.checked, input));
     const copy = el("span", "gw-task-label");
@@ -264,77 +217,88 @@
         selectedMonth = item.start_on.slice(0, 7);
         mode = "month";
         render();
-        document.querySelector(".gw-app")?.scrollTo({ top: 0, behavior: "instant" });
+        scrollToTop();
       });
       list.append(button);
     });
     container.append(list);
   }
   function render() {
+    renderedOn = moscowToday();
     const content = $("gwContent");
     content.replaceChildren();
-    document.querySelectorAll("[data-period]").forEach(button => {
+    periodButtons.forEach(button => {
       const active = button.dataset.period === mode;
       button.classList.toggle("is-active", active);
       button.setAttribute("aria-selected", String(active));
     });
+    drawTarget();
+    if (!rows) return;
     if (mode === "day") showDay(content);
     if (mode === "week") showWeek(content);
     if (mode === "month") showMonth(content);
     if (mode === "year") showYear(content);
   }
-  function setupNavigation() {
-    document.querySelectorAll("[data-period]").forEach(button => {
-      button.addEventListener("click", () => {
-        mode = button.dataset.period;
-        render();
+  function refresh() {
+    if (!ownerId) return;
+    if (rows && renderedOn !== moscowToday()) render();
+    if (read) return read.promise;
+    setLoadStatus(rows ? "" : "Загружаем задачи…");
+    const pending = { completions: new Map() };
+    pending.promise = dbRequest("rabota_growth_plan?select=id,owner_id,kind,title,details,start_on,end_on,parent_id,sort_order,target_rub,completed,completed_at" +
+      "&order=start_on.asc,sort_order.asc,id.asc&limit=600", "GET").then(result => {
+      if (read !== pending) return;
+      if (!Array.isArray(result)) throw new Error("Ошибка формата плана.");
+      const next = result.map(item => {
+        const completion = pending.completions.get(item.id);
+        return completion ? { ...item, ...completion } : item;
       });
+      if (JSON.stringify(rows) !== JSON.stringify(next)) {
+        rows = next;
+        render();
+      }
+      setLoadStatus("");
+    }).catch(error => {
+      if (read !== pending) return;
+      if (error?.status === 401 || error?.status === 403 || error?.code === "42501") {
+        rows = null;
+        render();
+      }
+      const message = error instanceof TypeError ? "Проверьте подключение к интернету." : error?.message;
+      setLoadStatus("Не удалось обновить план. " + (message || ""), true);
+    }).finally(() => {
+      if (read === pending) read = null;
     });
-    const moreBtn = $("gwMoreBtn"), menu = $("gwMenu"), veil = $("gwMenuVeil");
-    const close = () => {
-      menu.hidden = true;
-      veil.hidden = true;
-      moreBtn.setAttribute("aria-expanded", "false");
-    };
-    moreBtn.addEventListener("click", () => {
-      const open = menu.hidden;
-      menu.hidden = !open;
-      veil.hidden = !open;
-      moreBtn.setAttribute("aria-expanded", String(open));
-    });
-    veil.addEventListener("click", close);
-    document.addEventListener("keydown", event => { if (event.key === "Escape") close(); });
+    read = pending;
+    return pending.promise;
   }
-  async function refreshData() {
-    if (loading || !ownerId) return;
-    loading = true;
-    try {
-      await fetchPlan();
-      render();
-      notice("");
-    } catch (error) { notice(error.message || "Не удалось обновить план."); }
-    finally { loading = false; }
+  function reset() {
+    generation++;
+    ownerId = null;
+    rows = null;
+    read = null;
+    pendingTasks.clear();
+    mode = "day";
+    selectedMonth = "";
+    selectedWeek = "";
+    notice("");
+    setLoadStatus("");
+    render();
   }
-  async function init() {
-    setupNavigation();
-    selectedMonth = moscowToday().slice(0, 7);
-    selectedWeek = weekStart(moscowToday());
-    try {
-      await verifyOwner();
-      await fetchPlan();
-      $("gwGate").hidden = true;
-      $("gwMain").hidden = false;
-      $("gwBottom").hidden = false;
-      render();
-    } catch (error) {
-      $("gwGate").replaceChildren(el("div", "", error.message || "Не удалось открыть раздел."));
-      const link = el("a", "", "Открыть CRM «Работа»");
-      link.href = "/";
-      $("gwGate").append(link);
+  function open(userId) {
+    if (!userId) return;
+    if (ownerId !== userId) {
+      reset();
+      ownerId = userId;
     }
-    document.addEventListener("visibilitychange", () => {
-      if (!document.hidden) void refreshData();
-    });
+    return refresh();
   }
-  void init();
-})();
+  periodButtons.forEach(button => {
+    button.addEventListener("click", () => {
+      mode = button.dataset.period;
+      render();
+    });
+  });
+  $("gwRetry").addEventListener("click", () => void refresh());
+  return { open, refresh, reset };
+};

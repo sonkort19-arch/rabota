@@ -277,20 +277,30 @@ body.rd #appScreen.rd-unified-orders .ow-cancelled-toggle:after{content:"⌄";fl
 body.rd #appScreen.rd-unified-orders .ow-cancelled-toggle[aria-expanded="true"]:after{transform:rotate(180deg)}
 body.rd #appScreen.rd-unified-orders .ow-cancelled-body{display:flex;flex-direction:column;gap:8px;padding-top:8px;min-width:0}
 
-/* Master has four destinations. Owner and manager navigation belong to ui-alignment-mobile.css. */
+/* The master's four destinations have their own dock. */
 body.rd #mwMasterNav{grid-template-columns:repeat(4,minmax(0,1fr))}
 @media(max-width:790px){
+  body.rd{
+    --rd-mobile-dock-padding-bottom:max(8px,env(safe-area-inset-bottom,0px));
+    --rd-mobile-dock-height:calc(64px + var(--rd-mobile-dock-padding-bottom));
+    --rd-mobile-more-gap:6px;
+  }
+  body.rd #appScreen.rd-unified-orders:is(.rd-owner,.rd-manager){
+    --ow-orders-bottom-padding:calc(var(--rd-mobile-dock-height) + 84px);
+  }
   body.rd #appScreen.rd-unified-orders,
   body.rd #appScreen.rd-owner.rd-view-orders.rd-unified-orders,
   body.rd #appScreen.rd-manager.rd-view-orders.rd-unified-orders{
-    padding:calc(74px + env(safe-area-inset-top,0px)) 12px calc(156px + env(safe-area-inset-bottom,0px))!important;
+    padding:calc(74px + env(safe-area-inset-top,0px)) 12px var(--ow-orders-bottom-padding,calc(156px + env(safe-area-inset-bottom,0px)))!important;
     scroll-padding-top:calc(74px + env(safe-area-inset-top,0px));
   }
   body.rd #appScreen.rd-unified-orders>header{
     position:fixed;z-index:97;top:0;left:0;right:0;transform:none;box-sizing:border-box;
     width:100%;max-width:none;height:calc(65px + env(safe-area-inset-top,0px));
-    min-height:65px;margin:0;padding:calc(5px + env(safe-area-inset-top,0px)) 12px 7px;
+    min-height:65px;margin:0;
+    padding:calc(5px + env(safe-area-inset-top,0px)) max(12px,env(safe-area-inset-right,0px)) 7px max(12px,env(safe-area-inset-left,0px));
   }
+  body.rd > #orderOverlay:not(.master-quick){z-index:110}
   html.rd-master-scroll-locked body.rd #appScreen.rd-master.master-mode.rd-unified-orders:not([hidden]){
     --master-brand-height:0px;--master-heading-height:65px;
     padding-top:calc(74px + env(safe-area-inset-top,0px))!important;
@@ -311,12 +321,17 @@ body.rd #mwMasterNav{grid-template-columns:repeat(4,minmax(0,1fr))}
     position:fixed;z-index:34;right:max(14px,env(safe-area-inset-right,0px));
     bottom:calc(83px + env(safe-area-inset-bottom,0px));left:auto;
     display:inline-flex;align-items:center;justify-content:center;gap:6px;
-    box-sizing:border-box;width:auto;min-width:111px;max-width:145px;min-height:45px;height:45px;
+    box-sizing:border-box;width:auto;min-width:111px;min-height:45px;
     margin:0;padding:0 16px;border:0;border-radius:999px;
     background:linear-gradient(110deg,#4079f3,#603be9);color:#fff;
     font-size:14px;line-height:1;font-weight:750;white-space:nowrap;
-    box-shadow:0 6px 16px #445de72e;animation:none;
+    box-shadow:0 6px 16px #445de72e;animation:none;touch-action:manipulation;
   }
+  body.rd #appScreen.rd-unified-orders:is(.rd-owner,.rd-manager) #ordersArea>#newOrderBtn{
+    bottom:calc(var(--rd-mobile-dock-height) + 10px);
+    right:max(14px,env(safe-area-inset-right,0px),calc((100vw - 670px) / 2 + 16px));
+  }
+  body.rd #appScreen.rd-unified-orders:is(.rd-owner,.rd-manager) #ordersArea>#newOrderBtn:active{transform:translateY(1px)}
   body.rd #appScreen.rd-master.master-mode.rd-unified-orders #ordersArea>#newOrderBtn{right:max(14px,calc((100vw - 670px)/2 + 14px))}
   body.rd #appScreen.rd-unified-orders #ordersArea>#newOrderBtn .plus{display:inline-block;margin:0;font-size:23px;line-height:1}
   body.rd #appScreen.rd-unified-orders #ordersArea>#newOrderBtn .new-order-label{display:inline;font-size:14px}
@@ -380,11 +395,15 @@ dialog#owFilters :is(button,input,select):focus-visible{outline:3px solid #92aff
 @media(prefers-reduced-motion:reduce){body.rd #appScreen.rd-unified-orders *{animation:none!important;scroll-behavior:auto!important}}
 
 
-/* Authoritative owner/manager mobile dock and secondary-menu layout.
-   Keep this geometry independent of the currently selected workspace. */
+/* The dock, menu and floating create action use the same viewport geometry. */
 @media(max-width:790px){
+ body.rd #appScreen:not(.rd-master){
+   padding-bottom:calc(var(--rd-mobile-dock-height) + 29px);
+ }
+ body.rd #appScreen :is(#exTitle,#exMain > .ex-subtitle,#gwMain > .gw-heading){
+   padding-inline-end:calc(44px + max(0px,env(safe-area-inset-right,0px) - 12px));
+ }
  body.rd > #rdMobileNav:not([hidden]){
-   --rd-mobile-nav-height:calc(64px + max(8px,env(safe-area-inset-bottom,0px)));
    box-sizing:border-box;
    display:grid;
    grid-template-columns:repeat(5,minmax(0,1fr));
@@ -392,11 +411,12 @@ dialog#owFilters :is(button,input,select):focus-visible{outline:3px solid #92aff
    align-items:stretch;
    gap:2px;
    min-width:0;
-   height:var(--rd-mobile-nav-height);
-   padding:7px max(5px,env(safe-area-inset-right,0px)) max(8px,env(safe-area-inset-bottom,0px)) max(5px,env(safe-area-inset-left,0px));
+   height:var(--rd-mobile-dock-height);
+   padding:7px max(5px,env(safe-area-inset-right,0px)) var(--rd-mobile-dock-padding-bottom) max(5px,env(safe-area-inset-left,0px));
    border-top:1px solid #e6eaf3;
    background:#fff;
    overflow:hidden;
+   scroll-snap-type:none;
  }
  body.rd > #rdMobileNav > .rd-nav-btn{
    box-sizing:border-box;
@@ -430,12 +450,12 @@ dialog#owFilters :is(button,input,select):focus-visible{outline:3px solid #92aff
    position:fixed;
    left:max(9px,env(safe-area-inset-left,0px));
    right:max(9px,env(safe-area-inset-right,0px));
-   bottom:calc(70px + max(8px,env(safe-area-inset-bottom,0px)));
+   bottom:calc(var(--rd-mobile-dock-height) + var(--rd-mobile-more-gap));
    z-index:103;
    height:auto;
    min-height:0;
-   max-height:calc(100vh - 88px - env(safe-area-inset-top,0px) - max(8px,env(safe-area-inset-bottom,0px)));
-   max-height:calc(100dvh - 88px - env(safe-area-inset-top,0px) - max(8px,env(safe-area-inset-bottom,0px)));
+   max-height:calc(100vh - var(--rd-mobile-dock-height) - var(--rd-mobile-more-gap) - env(safe-area-inset-top,0px) - 18px);
+   max-height:calc(100dvh - var(--rd-mobile-dock-height) - var(--rd-mobile-more-gap) - env(safe-area-inset-top,0px) - 18px);
    overflow-y:auto;
    overscroll-behavior:contain;
    -webkit-overflow-scrolling:touch;

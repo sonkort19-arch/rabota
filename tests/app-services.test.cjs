@@ -38,7 +38,7 @@ test("authenticated auth request uses the current access token",async()=>{
 });
 test("auth server errors keep localized original error handling",async()=>{
   const x=fixture({status:401,data:{error:"invalid_grant"}});
-  await assert.rejects(x.service.authRequest("token","POST",{},false),/invalid_grant/);
+  await assert.rejects(x.service.authRequest("token","POST",{},false),{message:"invalid_grant",status:401});
 });
 test("auth non-JSON error falls back to Ошибка авторизации",async()=>{
   const x=fixture({status:401,jsonThrows:true});
@@ -112,8 +112,9 @@ test("new shared service requires explicit dependencies",()=>{
 });
 test("main screen delegates requests and errors but owns session lifecycle",()=>{
   const html=fs.readFileSync(path.join(__dirname,"..","index.html"),"utf8");
-  assert.match(html,/src="\/app-services\.js\?v=20261114-stage9"/);
-  assert.ok(html.indexOf('src="/app-services.js?v=20261114-stage9"')<
+  const sharedScript=html.match(/src="\/app-services\.js\?v=[^"]+"/);
+  assert.ok(sharedScript);
+  assert.ok(sharedScript.index<
     html.indexOf("const sharedServices=window.__rdCreateSharedServices"));
   assert.match(html,/async function ensureSession\(\)/);
   assert.match(html,/localStorage\.removeItem\(AUTH_KEY\)/);

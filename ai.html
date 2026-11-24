@@ -137,7 +137,7 @@ const SUPABASE_KEY="sb_publishable_tSqbw3aeAgxYuzHhQurCuw_yDze4ZNn";
 const AUTH_KEY="rabota-auth-session-v1";
 let session=null,refreshPromise=null,activeChat=null,chats=[],messages=[],busy=false,pendingDraft=null,pendingImageData=null,photoProcessing=false,photoSequence=0;
 const $=id=>document.getElementById(id);
-const allowedReturnPages=new Set(["home","orders","calendar","leads","clients","finance"]);
+const allowedReturnPages=new Set(["home","orders","calendar","leads","clients","finance","reports","settings","expenses","growth"]);
 const sourcePage=new URLSearchParams(window.location.search).get("from");
 const returnPage=allowedReturnPages.has(sourcePage)?sourcePage:"home";
 $("crmBack").href=returnPage==="home"?"/":"/?view="+encodeURIComponent(returnPage);

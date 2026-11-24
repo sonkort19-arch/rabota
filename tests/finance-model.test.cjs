@@ -224,12 +224,41 @@ test("finance operations fetch over 1000 rows safely",async()=>{
   assert.deepEqual(offsets,[0,1000]);
   assert.equal(snapshots[0].operations.length,1001);
 });
+test("Expenses shares the in-flight ledger request with Finance",async()=>{
+  let releaseLedger;
+  const ledger=new Promise(resolve=>{releaseLedger=resolve;});
+  const {model,calls,snapshots}=setup({request:async path=>
+    path.startsWith("rabota_finance_operations")?ledger:[]
+  });
+  const finance=model.loadFinance({fresh:false});
+  const expenses=model.readOperations();
+  assert.equal(model.readOperations(),expenses);
+  const row={id:"expense-a",kind:"expense",amount:450};
+  releaseLedger([row]);
+  assert.deepEqual(await expenses,[row]);
+  await finance;
+  assert.deepEqual(snapshots[0].operations,[row]);
+  assert.equal(calls.filter(([path])=>path.startsWith("rabota_finance_operations")).length,1);
+});
+test("resetting account operations isolates an outstanding ledger read",async()=>{
+  let releasePrevious;
+  const previous=new Promise(resolve=>{releasePrevious=resolve;});
+  let callCount=0;
+  const {model}=setup({request:async()=>++callCount===1?previous:[{id:"new-account"}]});
+  const previousRead=model.readOperations();
+  const previousRejected=assert.rejects(previousRead,/Аккаунт изменился/);
+  model.resetOperations();
+  assert.deepEqual(await model.readOperations(),[{id:"new-account"}]);
+  releasePrevious([{id:"previous-account"}]);
+  await previousRejected;
+  assert.equal(callCount,2);
+});
 test("index uses the new finance module but retains existing RPC payment paths",()=>{
   const html=fs.readFileSync(path.join(__dirname,"..","index.html"),"utf8");
   assert.match(html,/src="\/finance-model\.js\?v=[A-Za-z0-9_-]+"/);
   assert.match(html,/financeModel\.calculateAccruals/);
   assert.match(html,/financeModel\.calculateCompanyCash/);
-  assert.match(html,/return financeModel\.loadFinance\(\)/);
+  assert.match(html,/return financeModel\.loadFinance\(\{fresh\}\)/);
   for(const rpc of ["rabota_record_order_payment","rabota_salary_payout_v2",
     "rabota_cash_distribute","rabota_cash_confirm","rabota_finance_void"])
     assert.ok(html.includes("rpc/"+rpc),"Missing RPC: "+rpc);

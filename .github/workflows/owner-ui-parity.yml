@@ -1,21 +1,34 @@
 name: Owner UI parity with Raul
 on:
+  workflow_dispatch:
   pull_request:
     paths:
       - 'owner-parity.js'
       - 'contextual-search.css'
       - 'redesign.js'
       - 'index.html'
+      - 'app-services.js'
+      - 'finance-model.js'
+      - 'expenses.*'
+      - 'growth.*'
+      - 'orders-workspace.css'
+      - 'tests/module-navigation-browser.cjs'
       - 'tests/mobile-nav-stability.cjs'
       - 'tests/ui-smoke-v2.js'
       - '.github/workflows/owner-ui-parity.yml'
   push:
-    branches: [main]
+    branches: [main, fix/integrated-crm-sections]
     paths:
       - 'owner-parity.js'
       - 'contextual-search.css'
       - 'redesign.js'
       - 'index.html'
+      - 'app-services.js'
+      - 'finance-model.js'
+      - 'expenses.*'
+      - 'growth.*'
+      - 'orders-workspace.css'
+      - 'tests/module-navigation-browser.cjs'
       - 'tests/mobile-nav-stability.cjs'
       - 'tests/ui-smoke-v2.js'
       - '.github/workflows/owner-ui-parity.yml'
@@ -41,13 +54,19 @@ jobs:
           node --check redesign.js
           node --check orders-list.js
           node --check owner-parity.js
+      - name: Shared session and finance model contracts
+        run: node --test tests/app-services.test.cjs tests/finance-model.test.cjs
       - name: Install matching Playwright library
         run: npm install --no-save --ignore-scripts playwright@1.56.1
       - name: Owner order list, status icons and fixed navigation in Chromium
         env:
           TEST_BROWSER: chromium
-        run: node tests/mobile-nav-stability.cjs
+        run: |
+          node tests/mobile-nav-stability.cjs
+          node tests/module-navigation-browser.cjs
       - name: Owner order list, status icons and fixed navigation in iPhone Safari
         env:
           TEST_BROWSER: webkit
-        run: node tests/mobile-nav-stability.cjs
+        run: |
+          node tests/mobile-nav-stability.cjs
+          node tests/module-navigation-browser.cjs

@@ -9,10 +9,18 @@ const $=id=>document.getElementById(id);
 const makeNode=(tag,className,text)=>{const n=document.createElement(tag);if(className)n.className=className;if(text!=null)n.textContent=String(text);return n};
 const sections=["home","leads","orders","expenses","calendar","clients","finance","reports","growth","settings","ai"];
 const titles={home:"Главная",leads:"Лиды",orders:"Заказы",expenses:"Расходы",calendar:"Календарь",clients:"Клиенты",finance:"Платежи",reports:"Отчёты",growth:"Развитие MOBA",settings:"Настройки",ai:"ИИ-чат"};
-const crmReturnPages=new Set(["home","leads","orders","calendar","clients","finance","reports","settings"]);
+const ownerSections=new Set(["expenses","finance","reports","growth","ai"]);
+const moduleRoots={expenses:"exMain",growth:"gwMain"};
+const ownerModules=new Map();
+function canOpen(key){
+ return sections.includes(key)&&(!ownerSections.has(key)||currentRole==="owner");
+}
+function locationPage(){
+ const key=new URLSearchParams(window.location.search).get("view");
+ return key!=="ai"&&canOpen(key)?key:"orders";
+}
 function aiChatUrl(draft){
- const source=crmReturnPages.has(activePage)?activePage:"home";
- const query=new URLSearchParams({from:source});
+ const query=new URLSearchParams({from:activePage});
  if(draft)query.set("draft",draft);
  return "/ai.html?"+query.toString();
 }
@@ -163,9 +171,9 @@ function stats(node,items){
 }
 function navButton(key){const btn=makeNode("button","rd-nav-btn");btn.type="button";btn.dataset.page=key;
  const emblem=makeNode("span","rd-icon");emblem.append(uiIcon(key));
- btn.append(emblem,boxText("span",titles[key]));btn.addEventListener("click",()=>key==="growth"?window.location.assign("/growth.html"):key==="expenses"?window.location.assign("/expenses.html"):navigate(key));return btn}
+ btn.append(emblem,boxText("span",titles[key]));btn.addEventListener("click",()=>navigate(key));return btn}
 function permittedSections(){
- return sections.filter(key=>!(["finance","reports","growth","expenses","ai"].includes(key)&&currentRole!=="owner"));
+ return sections.filter(canOpen);
 }
 function makeProfileMenu(){
  const toggle=makeNode("button","rd-user rd-profile-trigger");
@@ -590,20 +598,39 @@ function build(){
  settings.append($("teamPanel"));
  // Original order editor, calendar state, and financial forms are retained.
  $("ordersArea").insertBefore($("newOrderBtn"),$("ordersArea").querySelector(".tabs"));
+ if(currentRole==="owner"){
+  const moduleRequest=async(path,method,payload)=>{
+   if(currentRole!=="owner"||!currentUser?.id)throw Error("Раздел доступен только владельцу.");
+   return dbRequest(path,method,payload);
+  };
+  ownerModules.set("expenses",window.__rdCreateExpenses({
+   root:$(moduleRoots.expenses),dbRequest:moduleRequest,
+   loadExpenses:()=>financeModel.readOperations(),
+   getExpensesSnapshot:()=>financeSnapshotReady?financeOperations:null,
+   onExpenseChanged:()=>refreshFinance(true)
+  }));
+  ownerModules.set("growth",window.__rdCreateGrowth({
+   root:$(moduleRoots.growth),dbRequest:moduleRequest,scrollToTop:()=>restoreVerticalScroll(0)
+  }));
+ }
  builtRole=currentRole;ready=true;
- const requested=new URLSearchParams(window.location.search).get("view");
- const initial=crmReturnPages.has(requested)&&(!["finance","reports"].includes(requested)||currentRole==="owner")?requested:"orders";
- navigate(initial);
+ navigate(locationPage(),false);
 }
-function navigate(key){
+function navigate(key,updateHistory=true){
+ if(!ready||app.hidden||!canOpen(key))return;
+ closeMobileMore();
+ if(key==="ai"){openAiChat();return}
+ if(updateHistory&&locationPage()!==key){
+  const url=new URL(window.location.href);
+  url.searchParams.set("view",key);
+  window.history.pushState(null,"",url);
+ }
  const requestedCalendar=key==="calendar";
  if(requestedCalendar)key="orders";
- closeMobileMore();
  if(key!=="orders"&&$("rdOrdersFilterDialog")?.open)
   window.__rdCloseOrderFilters?.();
- if(key==="ai"){openAiChat();return}
- if(!ready)return;
- if(["finance","reports"].includes(key)&&currentRole!=="owner")return;
+ const changed=activePage!==key;
+ if(!changed&&ownerModules.has(key))return;
  if(activePage==="orders"&&key!=="orders")storeOrderFilters(currentTab);
  const globalSearch=$("rdTopSearch");
  const searchNeeded=key==="leads"||(key==="orders"&&!window.__rdOrdersWorkspace);
@@ -638,6 +665,7 @@ function navigate(key){
  $("rdLeads").hidden=key!=="leads";
  $("rdSettings").hidden=key!=="settings";
  $("rdReports").hidden=key!=="reports";
+ for(const [section,id] of Object.entries(moduleRoots))$(id).hidden=key!==section;
  $("rdOrdersIntro").hidden=!isOrders;
  $("rdOrderStats").hidden=!isOrders;
  $("rdOrderToolbar").hidden=!isOrders;
@@ -669,10 +697,20 @@ function navigate(key){
  else if(key==="leads")window.__rdLeadsRender?.();
  else if(key==="settings")window.__rdWhatsAppSettings?.refresh();
  else if(key==="reports"){profitReport?.render();if(salaryRoot&&!salaryRoot.hidden)ownerSalaryReport?.render();}
+ else ownerModules.get(key)?.open(currentUser.id);
  window.__rdOrdersWorkspace?.refresh();
  window.scrollTo({top:0,behavior:"instant"});
 }
 window.__rdNavigate=navigate;
+window.addEventListener("popstate",()=>navigate(locationPage(),false));
+function refreshVisibleModule(){
+ if(!document.hidden&&!app.hidden&&currentRole==="owner")ownerModules.get(activePage)?.refresh();
+}
+window.addEventListener("online",refreshVisibleModule);
+document.addEventListener("visibilitychange",refreshVisibleModule);
+window.__rdResetOwnerModules=()=>{
+ for(const module of ownerModules.values())module.reset();
+};
 function drawChart(parent,values,month){
  // Draw the real month's orders. SVG is self-contained; no chart dependency,
  // network requests, hard-coded counts, or writes to customer/finance data.
@@ -1360,7 +1398,12 @@ window.__rdAccess=()=>{
  if(builtRole&&builtRole!==currentRole){window.location.reload();return}
  if(currentRole==="master"){builtRole=currentRole;app.classList.add("rd-master");return}
  if(!["owner","manager"].includes(currentRole))return;
- build();
+ if(!ready)build();
+ else {
+  const requested=locationPage();
+  if(requested!==activePage)navigate(requested,false);
+  else ownerModules.get(activePage)?.open(currentUser.id);
+ }
  window.__rdLeadsSyncNav?.();
 };
 window.__rdQuickSlotsRefresh=()=>{if(ready&&activePage==="home")drawHome();};
