@@ -239,7 +239,7 @@ function build(){
  navMore.append(moreIcon,boxText("span","Ещё"));
  // Fifth owner tab is part of the bottom navigation, never moved into Settings.
  mobile.append(navMore);
- const veil=makeNode("button","rd-more-veil");veil.type="button";
+ const veil=makeNode("button","rd-more-veil");veil.type="button";veil.id="rdMobileMoreVeil";
  veil.setAttribute("aria-label","Закрыть дополнительные разделы");
  veil.hidden=true;
  const moreSheet=makeNode("nav","rd-more-sheet");
@@ -255,31 +255,41 @@ function build(){
  for(const key of permittedSections().filter(section=>section!=="calendar"&&!primaryMobileSections.includes(section))){
   moreSheet.append(navButton(key));
  }
- const closeMore=()=>{
-  moreSheet.hidden=true;veil.hidden=true;
-  navMore.setAttribute("aria-expanded","false");
- };
- closeMobileMore=closeMore;
- moreClose.addEventListener("click",()=>{closeMore();navMore.focus()});
- navMore.addEventListener("click",()=>{
-  const opening=moreSheet.hidden;
-  moreSheet.hidden=!opening;veil.hidden=!opening;
+ const setMoreOpen=opening=>{
+  moreSheet.hidden=!opening;
+  veil.hidden=!opening;
   navMore.setAttribute("aria-expanded",String(opening));
-  if(opening)moreSheet.querySelector(".rd-nav-btn")?.focus();
+  body.classList.toggle("rd-more-open",opening);
+  // The menu is outside the app; background controls must not receive input.
+  app.inert=opening;
+ };
+ const closeMore=()=>setMoreOpen(false);
+ closeMobileMore=closeMore;
+ moreClose.addEventListener("click",()=>{closeMore();navMore.focus({preventScroll:true})});
+ navMore.addEventListener("click",event=>{
+  const opening=moreSheet.hidden;
+  setMoreOpen(opening);
+  // Touch does not need a large focus ring on the first item.
+  if(opening&&event.detail===0)moreClose.focus({preventScroll:true});
  });
- veil.addEventListener("click",()=>{closeMore();navMore.focus()});
+ veil.addEventListener("click",()=>{closeMore();navMore.focus({preventScroll:true})});
  document.addEventListener("keydown",event=>{
   if(event.key==="Escape"&&!moreSheet.hidden){closeMore();navMore.focus()}
  });
  window.addEventListener("resize",()=>{
   if(window.innerWidth>790&&!moreSheet.hidden)closeMore();
  });
- app.prepend(top,side,profile.menu,veil,moreSheet);
+ app.prepend(top,side,profile.menu);
  // Keep mobile navigation outside the main scrolling/content container.
  // Mobile Safari can otherwise paint a fixed descendant at an incorrect
  // vertical position after long-list scrolls or browser viewport changes.
- body.append(mobile);
- const syncMobileNavigationVisibility=()=>{mobile.hidden=app.hidden;};
+ // Keep backdrop and sheet outside the scrolling/stacking context as well.
+ body.append(veil,moreSheet,mobile);
+ window.addEventListener("pagehide",closeMore);
+ const syncMobileNavigationVisibility=()=>{
+  if(app.hidden)closeMore();
+  mobile.hidden=app.hidden;
+ };
  new MutationObserver(syncMobileNavigationVisibility).observe(app,{
   attributes:true,attributeFilter:["hidden"]
  });
@@ -646,7 +656,10 @@ function navigate(key){
  document.querySelectorAll(".rd-nav-btn[data-page]").forEach(btn=>
   btn.setAttribute("aria-current",btn.dataset.page===key?"page":"false"));
  const moreButton=$("rdMobileMoreBtn");
- if(moreButton)moreButton.setAttribute("aria-current",["home","leads","clients","settings"].includes(key)?"page":"false");
+ if(moreButton){
+  const secondary=[...$("rdMobileMoreSheet").querySelectorAll("[data-page]")].some(btn=>btn.dataset.page===key);
+  moreButton.setAttribute("aria-current",secondary?"page":"false");
+ }
  if(isOrders||isCalendar){
   currentTab=requestedCalendar||isCalendar?"calendar":window.__rdOrdersWorkspace?.currentMode()||"calendar";
   if(isOrders)restoreOrderFilters(currentTab);
