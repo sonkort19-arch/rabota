@@ -69,7 +69,10 @@ async function fixture(browser,{source=root,latency=0,role="owner",width=390,pay
     refunds:[{order_id:"refunded-order",amount:refundedAmount,refunded_at:stamp,
       earned_reversed:reversedEarnings,earned_at:stamp}],
     payouts:[{id:"existing-payout",order_id:null,amount:priorPayout,payment_method:"card",
-      note:"Первая тестовая выплата",created_at:stamp,kind:"raul_payout"}]
+      note:"Первая тестовая выплата",created_at:stamp,kind:"raul_payout"}],
+    holds:role==="owner"?[{order_id:"historical-hold",order_number:104,payroll_on_hold:true,cash_on_hold:true,
+      reason:"Проверить старую выплату и местонахождение наличных",earned_amount:9000,credited_amount:4000,
+      linked_recorded_amount:4000,payment_amount:15000}]:[]
   };
   const calls=[],writes=[],errors=[];
   page.on("pageerror",error=>errors.push(error.message));
@@ -401,6 +404,12 @@ async function v3Owner(browser,width){
     await assertPhoneFit(report);
     await salaryValues(report,priorPayout,amountDue);
     await assertAccrual(report);
+    await report.getByText(/На сверке · 1/).click();
+    const review=report.locator(".fp-cutover-review");
+    await review.getByText("№00104",{exact:true}).waitFor();
+    assert.match(await review.innerText(),/сумма наличных к передаче уточняется/);
+    await assertPhoneFit(review);
+    await report.getByText(/На сверке · 1/).click();
     if(interrupted){
       await assertRefunds(report);
       await v3Revalidation(f,report);

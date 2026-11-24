@@ -54,6 +54,60 @@ test("confirmed refund clears profit and net received while preserving the order
   assert.equal(filterRows([item],{payroll,status:"unpaid"}).length,0);
   assert.match(csvFor([row]),/Подтверждён возврат/);
 });
+test("payroll holds leave customer receipts visible and exclude earnings and margin",()=>{
+  const payroll={version:3,state:"active",orders:[
+    {orderId:"cash-only",earned:9500,actualPaid:16000,companyShare:6500}
+  ],holds:[
+    {orderId:"cash-only",payrollOnHold:false,cashOnHold:true,paymentAmount:16000,
+      reason:"Проверяется остаток у мастера"},
+    {orderId:"review",orderNumber:"313",payrollOnHold:true,cashOnHold:true,paymentAmount:10000,
+      earned:6500,credited:1000,linkedRecorded:6600,reason:"Не подтверждена выплата"},
+    {orderId:"unknown",payrollOnHold:true,cashOnHold:false,paymentAmount:null,
+      reason:"Не подтверждена сумма оплаты"}
+  ]};
+  const records=[
+    order({id:"cash-only",price:16000,paymentAmount:null}),
+    order({id:"review",orderNumber:null,referenceCode:"",paymentAmount:null}),
+    order({id:"unknown",price:20000,paymentAmount:null})
+  ];
+  const rows=filterRows(records,{payroll});
+  const cash=rows.find(row=>row.id==="cash-only");
+  assert.equal(cash.reportCashOnHold,true);
+  assert.equal(cash.reportReceived,16000);
+  assert.equal(cash.reportPaymentVerified,true);
+  assert.equal(cash.reportPaymentMissing,false);
+  assert.equal(cash.reportProfit,6500,"a cash-only hold does not change confirmed company share");
+  const held=rows.find(row=>row.id==="review");
+  assert.equal(held.referenceCode,"№00313");
+  assert.equal(held.reportReceived,10000,"customer receipt is independent of the custody hold");
+  assert.equal(held.reportPayrollOnHold,true);
+  assert.equal(held.reportCalculated,false);
+  assert.equal(held.reportSalary,null);
+  assert.equal(held.reportProfit,null);
+  const previousProjection={orderId:"review",earned:6500,actualPaid:10000,companyShare:3500};
+  const overlapping=reportRow(records[1],{payroll:{...payroll,orders:[...payroll.orders,previousProjection]}});
+  assert.equal(overlapping.reportProfit,null,"the payroll hold prevails over an overlapping earlier projection");
+  const unknown=rows.find(row=>row.id==="unknown");
+  assert.equal(unknown.reportPaymentUnverified,true);
+  assert.equal(unknown.reportReceived,0,"an unverified receipt must not add a price estimate to totals");
+  assert.equal(summary(rows).received,26000);
+  assert.equal(summary(rows).salary,9500);
+  assert.equal(summary(rows).profit,6500);
+  assert.match(csvFor([held]),/"На сверке";"";".*Не подтверждена выплата"/);
+  assert.doesNotMatch(csvFor([held]),/6600|6500/,"draft earnings and linked ledger amounts stay outside the profit export");
+  assert.equal(filterRows(records,{payroll,search:"№00313"})[0]?.id,"review");
+});
+test("verified order payment supersedes a missing raw amount in v3",()=>{
+  const payroll={version:3,state:"active",orders:[
+    {orderId:"a",earned:6500,actualPaid:10000,companyShare:3500}
+  ]};
+  const row=reportRow(order({price:null,paymentAmount:null}),{payroll});
+  assert.equal(row.reportReceived,10000);
+  assert.equal(row.reportPaymentVerified,true);
+  assert.equal(row.reportPaymentMissing,false);
+  assert.equal(row.reportProfit,3500);
+  assert.match(csvFor([row]),/Сумма подтверждена сверкой/);
+});
 test("other master and invalid price cannot generate profit; payment mismatch is flagged",()=>{
   assert.equal(reportRow(order({master:"Алекс"})).reportProfit,null);
   const partial=reportRow(order({paymentAmount:5000}));

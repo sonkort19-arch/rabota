@@ -635,7 +635,7 @@
       return;
     }
     const revision=JSON.stringify([d.revision??[d.paidOrders,d.operations,d.collections,d.deposits],
-      d.payrollV3,d.heldCash,d.pendingCash,d.masterCardReceived]);
+      d.payrollV3,d.heldCash,d.pendingCash,d.masterCardReceived,d.cashReviewCount,d.cashReviewReceipts]);
     if(ownerView.revision===revision&&ownerView.book===book.rows)return;
     ownerView.revision=revision;ownerView.book=book.rows;
     renderOwner(content,book.rows,d);
@@ -687,6 +687,10 @@
       root.append(box("mw-money-stat mw-cash-held",
         el("small","","Передано наличными, ждёт подтверждения"),
         el("strong","",rub(d.pendingCash))));
+    }
+    if(d.payrollV3&&d.cashReviewCount>0){
+      root.append(el("p","mw-notice","Наличные на сверке по "+d.cashReviewCount+" заказам. Клиенты оплатили "+
+        rub(d.cashReviewReceipts)+". Сумма к передаче уточняется."));
     }
     if(Number(d.masterCardReceived)>0){
       root.append(box("mw-money-stat mw-cash-held",

@@ -290,6 +290,7 @@ async function checkVersionedReport(browserType){
     const page=await context.newPage();
     await page.setContent('<meta name="viewport" content="width=device-width,initial-scale=1"><section id="rdReports"></section>');
     await page.addStyleTag({path:reportCss});
+    await page.addScriptTag({path:path.join(__dirname,"..","order-model.js")});
     await page.addScriptTag({path:path.join(__dirname,"..","finance-model.js")});
     await page.addScriptTag({path:reportJs});
     await page.evaluate(()=>{
@@ -297,13 +298,23 @@ async function checkVersionedReport(browserType){
       const defaults={status:"Выполнен",master:"Рауль",assignedUserId:"raul",paid:true,
         price:10000,paymentAmount:10000,completedAt:stamp,createdAt:stamp};
       const orders=[
-        {...defaults,id:"earned",referenceCode:"№00001",name:"Полная оплата",price:16000,paymentAmount:16000},
+        {...defaults,id:"earned",referenceCode:"№00001",name:"Полная оплата",price:16000,paymentAmount:null},
         {...defaults,id:"partial",referenceCode:"№00002",name:"Частичная оплата",paymentAmount:5000},
-        {...defaults,id:"refunded",referenceCode:"№00003",name:"Возврат",status:"Отменён"}
+        {...defaults,id:"refunded",referenceCode:"№00003",name:"Возврат",status:"Отменён"},
+        {...defaults,id:"payroll-hold",referenceCode:"№00004",name:"Проверка начисления"},
+        {...defaults,id:"cash-hold",name:"Проверка передачи",price:20000,paymentAmount:null}
       ];
-      const payroll={state:"active",version:3,earned:9500,paid:5000,due:4500,
-        orders:[{orderId:"earned",actualPaid:16000,earned:9500,companyShare:6500,ruleVersion:"v3-50pct-plus-1500"}],
-        refunds:[{orderId:"refunded",amount:10000,occurredAt:stamp}]};
+      const payroll={state:"active",version:3,earned:21000,paid:5000,due:16000,
+        orders:[
+          {orderId:"earned",actualPaid:16000,earned:9500,companyShare:6500,ruleVersion:"v3-50pct-plus-1500"},
+          {orderId:"cash-hold",actualPaid:20000,earned:11500,companyShare:8500,ruleVersion:"legacy_verified"}
+        ],
+        refunds:[{orderId:"refunded",amount:10000,occurredAt:stamp}],
+        holds:[
+          {orderId:"payroll-hold",orderNumber:"4",payrollOnHold:true,cashOnHold:false,reason:"Находится подтверждение выплаты"},
+          {orderId:"cash-hold",orderNumber:"315",payrollOnHold:false,cashOnHold:true,paymentAmount:20000,
+            reason:"Не подтверждён остаток у мастера"}
+        ]};
       window.__rdCreateProfitReport(document.getElementById("rdReports"),{
         startOpen:true,getOrders:()=>orders,getRaulMasterId:()=>"raul",getPayroll:()=>payroll,
         getFinanceStatus:()=>({ready:true,revision:1})
@@ -316,10 +327,16 @@ async function checkVersionedReport(browserType){
     assert.deepEqual((await normalized(row("№00001").locator("td"))).slice(-3),["16000₽","9500₽","6500₽"]);
     assert.deepEqual((await normalized(row("№00002").locator("td"))).slice(-3),["5000₽","—","—"]);
     assert.deepEqual((await normalized(row("№00003").locator("td"))).slice(-3),["Возврат","—","—"]);
+    assert.deepEqual((await normalized(row("№00004").locator("td"))).slice(-3),["10000₽","Насверке","—"]);
+    assert.deepEqual((await normalized(row("№00315").locator("td"))).slice(-3),["20000₽","11500₽","8500₽"]);
+    await row("№00004").getByRole("button").click();
+    assert.match(await body.locator(".pr-expanded:visible").innerText(),/Находится подтверждение выплаты/);
     const total=await normalized(body.locator(".pr-total-row > *"));
-    assert.deepEqual(total.slice(-3),["21000₽","9500₽","6500₽"]);
+    assert.deepEqual(total.slice(-3),["51000₽","21000₽","15000₽"]);
     await page.getByLabel("Статус заказов").selectOption("paid");
     assert.equal(await row("№00003").count(),0,"a refunded order is excluded from net paid orders");
+    await page.getByLabel("Поиск по заказам").fill("№00004");
+    assert.deepEqual((await normalized(body.locator(".pr-total-row > *"))).slice(-3),["10000₽","—","—"]);
     await context.close();
   }finally{await browser.close()}
 }
@@ -332,5 +349,5 @@ async function checkVersionedReport(browserType){
   await checkOwnerPayroll(webkit,true);
   await checkVersionedReport(chromium);
   await checkVersionedReport(webkit);
-  process.stdout.write("Reports browser checks passed: orders, owner salary, Raul permissions and versioned refund/profit\n");
+  process.stdout.write("Reports browser checks passed: orders, owner salary, Raul permissions, versioned holds, refunds and profit\n");
 })().catch(err=>{console.error(err);process.exitCode=1});

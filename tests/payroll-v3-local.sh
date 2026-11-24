@@ -40,6 +40,7 @@ db <<'SQL'
 ALTER TABLE public.rabota_finance_operations
   ADD COLUMN created_at timestamptz NOT NULL DEFAULT now(),
   ADD COLUMN voided_by uuid;
+ALTER TABLE public.rabota_orders ADD COLUMN order_number integer;
 ALTER TABLE public.rabota_cash_collections
   ADD COLUMN created_at timestamptz NOT NULL DEFAULT now(),
   ADD COLUMN confirmed_by uuid,
@@ -52,6 +53,7 @@ ALTER TABLE public.rabota_cash_collections
 SQL
 db -f sql/20261123210808_cash_partial_transfers.sql
 db -f sql/20261124231133_rabota_payroll_v3.sql
+db -f tests/sql/payroll-v3-cutover-holds.sql
 db -f tests/sql/payroll-v3.sql
 
 owner='00000000-0000-4000-8000-000000000001'

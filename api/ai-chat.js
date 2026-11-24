@@ -119,6 +119,8 @@ async function businessSnapshot(tokenHeaders, question) {
   new_order_payroll_rule:"Начисление Раулю за выполненный и полностью оплаченный заказ: 50% полной фактической оплаты плюс 1 500 ₽. Отдельное новое начисление Тимуру отсутствует.",
   raul_financial_orders:payroll.orders.length,
   raul_accrued:payroll.earned,raul_paid:payroll.paid,raul_due:payroll.due,
+  payroll_orders_under_review:payroll.holds.filter(row=>row.payrollOnHold).length,
+  cash_orders_under_review:payroll.holds.filter(row=>row.cashOnHold).length,
   company_share_before_expenses:sum(payroll.orders,row=>row.companyShare),
   confirmed_refunds:sum(payroll.refunds,row=>row.amount)
  }:{
@@ -178,7 +180,7 @@ async function businessSnapshot(tokenHeaders, question) {
     newly_created:"Заказы по created_at, время Москвы. Отменённые исключены из сравнений.",
     unique_clients:"Уникальные номера телефона, а при отсутствии телефона — нормализованные имена; оценка, не гарантированное число реальных людей.",
     money:"Суммы в рублях. Показатели оплаченных заказов по датам визита или создания отражают отметку paid и стоимость заказа. Для кассы используй отдельные данные о поступлениях. Подтверждённый возврат исключает исходный заказ из поступлений и начислений.",
-    accounting:"Касса — расчётный показатель приложения с нулевым начальным остатком. Прямые поступления, подтверждённые передачи и фактические выплаты относятся к движению денег. Доля компании по заказам рассчитана уже за вычетом начисленной зарплаты до расходов. Не вычитай из неё выплаченную зарплату повторно."
+    accounting:"Касса — расчётный показатель приложения с нулевым начальным остатком. Прямые поступления, подтверждённые передачи и фактические выплаты относятся к движению денег. Доля компании по заказам рассчитана уже за вычетом начисленной зарплаты до расходов. Не вычитай из неё выплаченную зарплату повторно. Если есть заказы на сверке, поясни, что подтверждённый остаток зарплаты исключает эти заказы, а остаток наличных по ним уточняется."
   },
   all_time:{orders:orders.length,unique_clients:new Set(orders.map(clientKey)).size,status_counts:statusCounts,
     marked_paid_orders:receivedOrders.length,marked_paid_rub:sum(receivedOrders,o=>o.price)},

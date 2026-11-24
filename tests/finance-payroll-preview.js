@@ -97,6 +97,23 @@ test("active payroll shows Raul only and leaves the payout controls out of the m
  assert.match(master.textContent,/Моя зарплата.*Осталось получить/);
 });
 
+test("only the owner sees disputed historical entries separate from the payable balance",()=>{
+ const activePayroll={active:true,ready:true,actorId:"owner",employeeId:"raul",
+  earned:5500,paid:5500,due:0,accruals:[],payouts:[],holds:[
+   {orderNumber:101,payrollOnHold:true,cashOnHold:false,earned:6500,credited:6500,
+    linkedRecorded:6500,reason:"Проверить повторную запись"},
+   {orderNumber:102,payrollOnHold:false,cashOnHold:true,paymentAmount:8000,
+    reason:"Уточнить местонахождение наличных"}
+  ]};
+ const f=fixture({activePayroll});
+ const review=select(f.salaryRoot,"fp-cutover-review")[0];
+ assert.match(review.textContent.replace(/\s/g," "),/На сверке · 2 заказов.*№00101.*в старом журнале по заказу 6 500,00 ₽.*№00102.*Получено от клиента 8 000,00 ₽.*сумма наличных к передаче уточняется/);
+ assert.equal(select(f.salaryRoot,"fp-balance-payout")[0].disabled,true);
+ const master=mk("div");
+ f.window.__rdPayrollReport.mount(master,{master:true});
+ assert.equal(select(master,"fp-cutover-review").length,0);
+});
+
 test("after a lost payout response the next page resumes the original intent, even at zero due",async()=>{
  const storage=new Map(),calls=[],committed=new Map();
  const activePayroll={active:true,ready:true,actorId:"original-owner",employeeId:"raul",

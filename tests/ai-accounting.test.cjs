@@ -96,7 +96,10 @@ test("AI presents v3 verified salary and company share separately from recorded 
  const payroll={version:3,state:"active",master_id:"raul",activated_at:"2026-11-24T20:00:00Z",
   earned:6500,paid:2000,due:4500,
   orders:[{order_id:"direct",paid_amount:10000,earned_amount:6500,company_share:3500,rule_version:3}],
-  payouts:[{id:"private-payout",amount:2000,note:"Внутренняя пометка",kind:"raul_payout"}]};
+  payouts:[{id:"private-payout",amount:2000,note:"Внутренняя пометка",kind:"raul_payout"}],
+  holds:[{order_id:"held",order_number:112,payroll_on_hold:true,cash_on_hold:true,
+    reason:"Приватные сведения сверки",earned_amount:6500,credited_amount:0,
+    linked_recorded_amount:0,payment_amount:10000}]};
  const orderData=orders.map(row=>row.id==="advance"?{...row,payment_amount:3900}:row);
  const f=fixture(t,{payroll,orderData});
  await f.run();
@@ -108,13 +111,15 @@ test("AI presents v3 verified salary and company share separately from recorded 
  assert.equal(accounting.raul_accrued,6500);
  assert.equal(accounting.raul_paid,2000);
  assert.equal(accounting.raul_due,4500);
+ assert.equal(accounting.payroll_orders_under_review,1);
+ assert.equal(accounting.cash_orders_under_review,1);
  assert.equal(accounting.company_share_before_expenses,3500);
  assert.equal(accounting.direct_receipts,13900);
  assert.equal(accounting.advances_on_incomplete_orders,3900);
  assert.equal(accounting.recorded_cash_balance,13300);
  assert.equal(accounting.payouts_recorded,2000);
  assert.equal(accounting.timur_due,undefined);
- assert.doesNotMatch(prompt,/private-payout|Внутренняя пометка/);
+ assert.doesNotMatch(prompt,/private-payout|Внутренняя пометка|Приватные сведения сверки/);
 });
 
 test("AI counts a verified refund once even when the order request still has the original status",async t=>{

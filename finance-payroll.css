@@ -464,3 +464,8 @@ body.rd :is(#rdSalaryReport,.fp-master-payroll) .fp-v3-actions > button{
 }
 body.rd :is(#rdSalaryReport,.fp-master-payroll) .fp-v3-actions > button:only-child{grid-column:1/-1}
 body.rd :is(#rdSalaryReport,.fp-master-payroll) .fp-v3-payroll .fp-subtabs{margin:2px 0}
+.fp-cutover-review{padding:10px 12px;border:1px solid #dbe3ef;border-radius:10px;background:#f8faff}
+.fp-cutover-review summary{min-height:28px;font-size:13px;font-weight:700;cursor:pointer}
+.fp-cutover-list{display:grid;gap:8px;margin:8px 0 0;padding:0;list-style:none}
+.fp-cutover-list li{display:grid;gap:3px;padding:8px 0 0;border-top:1px solid #dbe3ef;font-size:12px;overflow-wrap:anywhere}
+.fp-cutover-list small{color:#456195;font-size:11px;line-height:1.4}

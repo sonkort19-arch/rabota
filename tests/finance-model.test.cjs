@@ -91,6 +91,26 @@ test("v3 payroll uses the server snapshot, with explicit compatibility and fail-
   await assert.rejects(readPayrollSnapshot(async()=>({...active,refunds:[{...active.refunds[0],order_id:"order-a"}]})),/запись возврата/);
   await assert.rejects(readPayrollSnapshot(async()=>({...active,orders:[active.orders[0],active.orders[0]]})),/начисление по заказу/);
 });
+test("payroll reconciliation preserves original payout amounts separately from the payable balance",async()=>{
+  const payout={id:"payout-a",amount:"3000",recorded_amount:"5000",held_amount:"2000",kind:"legacy"};
+  const hold={order_id:"order-held",order_number:101,payroll_on_hold:true,cash_on_hold:false,
+    reason:"Проверить повторную запись",earned_amount:"2000",credited_amount:"2000",linked_recorded_amount:"2000",payment_amount:null};
+  const cashHold={...hold,order_id:"order-active",order_number:102,payroll_on_hold:false,cash_on_hold:true,
+    reason:"Уточнить местонахождение наличных",earned_amount:null,credited_amount:null,linked_recorded_amount:null,payment_amount:"8000"};
+  const active={version:3,state:"active",master_id:"raul",activated_at:"2026-11-24T20:00:00Z",
+    earned:"5500",paid:"3000",due:"2500",orders:[{order_id:"order-active",paid_amount:"8000",
+      earned_amount:"5500",company_share:"2500"}],payouts:[payout],holds:[hold,cashHold]};
+  const snapshot=await readPayrollSnapshot(async()=>active);
+  assert.equal(snapshot.due,2500);
+  assert.equal(snapshot.payouts[0].held,2000);
+  assert.equal(snapshot.payouts[0].recorded,5000);
+  assert.deepEqual(snapshot.holds[0],{orderId:"order-held",orderNumber:101,payrollOnHold:true,cashOnHold:false,
+    reason:hold.reason,earned:2000,credited:2000,linkedRecorded:2000,paymentAmount:null});
+  assert.equal(snapshot.holds[1].paymentAmount,8000);
+  await assert.rejects(readPayrollSnapshot(async()=>({...active,holds:[hold,hold]})),/запись на сверке/);
+  await assert.rejects(readPayrollSnapshot(async()=>({...active,holds:[{...hold,order_id:"order-active"}]})),/запись на сверке/);
+  await assert.rejects(readPayrollSnapshot(async()=>({...active,payouts:[{...payout,held_amount:2001}]})),/выплаты на сверке/);
+});
 test("canonical cash movements use the recorded receipt and preserve historical collections without counting wages twice",()=>{
   const orders=[
     r("card",10000),r("held",8000,{receivedBy:"master"}),r("legacy",5000,{receivedBy:"master"})

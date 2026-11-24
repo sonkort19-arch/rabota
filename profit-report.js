@@ -10,6 +10,8 @@
   // independently implemented calculation in a report.
   const sharedSplit=root?.__rdFinanceSplit ||
     (typeof require==="function"?require("./finance-model.js").financeSplit:null);
+  const orderReference=root?.__rdOrderReference ||
+    (typeof require==="function"?require("./order-model.js").orderReference:null);
   const PAGE_SIZE=100;
   const round=n=>Math.round((Number(n)+Number.EPSILON)*100)/100;
   const money=n=>Number(n||0).toLocaleString("ru-RU",{minimumFractionDigits:0,maximumFractionDigits:2})+" ₽";
@@ -34,9 +36,17 @@
     const orderId=String(order.id);
     const refund=versioned?(options.refundsByOrder?
       options.refundsByOrder.get(orderId):options.payroll.refunds?.find(item=>item.orderId===orderId)):null;
-    const paymentAmountMissing=paid&&(order.paymentAmount==null||order.paymentAmount==="");
-    const amount=paymentAmountMissing?price:Number(order.paymentAmount);
-    const received=!refund&&paid&&validPrice&&Number.isFinite(amount)&&amount>=0?round(amount):0;
+    const hold=versioned?(options.holdsByOrder?
+      options.holdsByOrder.get(orderId):options.payroll.holds?.find(item=>item.orderId===orderId)):null;
+    const projection=versioned?(options.payrollByOrder?
+      options.payrollByOrder.get(orderId):options.payroll.orders.find(item=>item.orderId===orderId)):null;
+    const paymentIsMissing=paid&&(order.paymentAmount==null||order.paymentAmount==="");
+    const confirmedPayment=projection?.actualPaid??(hold?.cashOnHold?hold.paymentAmount:null);
+    const paymentVerified=paymentIsMissing&&confirmedPayment!=null;
+    const paymentAmountMissing=paymentIsMissing&&!paymentVerified;
+    const paymentUnverified=Boolean(hold&&paymentAmountMissing);
+    const amount=paymentIsMissing?(confirmedPayment??(paymentUnverified?null:price)):Number(order.paymentAmount);
+    const received=!refund&&paid&&(validPrice||paymentVerified)&&Number.isFinite(amount)&&amount>=0?round(amount):0;
     const paymentMismatch=paid&&validPrice&&!paymentAmountMissing&&
       Number.isFinite(amount)&&Math.abs(amount-price)>=.01;
     const completed=order.status==="Выполнен";
@@ -47,13 +57,12 @@
     const raul=scoped
       ?Boolean(options.masterId)&&order.assignedUserId===options.masterId
       :txt(order.master).trim().toLocaleLowerCase("ru-RU")==="рауль";
-    const projection=versioned?(options.payrollByOrder?
-      options.payrollByOrder.get(orderId):options.payroll.orders.find(item=>item.orderId===orderId)):null;
     const split=!versioned&&earned&&raul&&validPrice&&typeof sharedSplit==="function"?sharedSplit(price):null;
-    const calculated=Boolean(projection||split);
-    const salary=projection?round(projection.actualPaid-projection.companyShare):split?round(split.raul+split.timur):null;
-    const profit=projection?projection.companyShare:split?split.company:null;
-    return Object.assign({},order,{
+    const calculated=!hold?.payrollOnHold&&Boolean(projection||split);
+    const salary=calculated?(projection?round(projection.actualPaid-projection.companyShare):round(split.raul+split.timur)):null;
+    const profit=calculated?(projection?projection.companyShare:split.company):null;
+    const holdReference=!order.referenceCode?orderReference?.code(hold?.orderNumber):null;
+    return Object.assign({},order,holdReference?{orderNumber:hold.orderNumber,referenceCode:holdReference}:null,{
       reportPrice:validPrice?price:null,
       reportReceived:received,reportEarned:earned||Boolean(projection),reportCalculated:calculated,
       reportSalary:salary,reportProfit:profit,
@@ -61,7 +70,10 @@
       reportRuleVersion:projection?.ruleVersion??null,
       reportRefundedAmount:refund?.amount??null,
       reportPaymentMissing:!refund&&paymentAmountMissing,reportPaymentMismatch:!refund&&paymentMismatch,
-      reportReason:!earned||calculated?"":versioned?
+      reportPaymentVerified:!refund&&paymentVerified,reportPaymentUnverified:!refund&&paymentUnverified,
+      reportPayrollOnHold:Boolean(hold?.payrollOnHold),reportCashOnHold:Boolean(hold?.cashOnHold),
+      reportHoldReason:hold?.reason??"",
+      reportReason:!earned||calculated||hold?.payrollOnHold?"":versioned?
         "В расчёте зарплаты нет подтверждённого начисления по этому заказу":
         !validPrice?"Не указана цена":!raul?
         "Нет расчёта: заказ назначен другому мастеру или мастер не найден":
@@ -107,7 +119,8 @@
     const payrollByOrder=options.payroll?.state==="active"?
       new Map(options.payroll.orders.map(item=>[item.orderId,item])):null;
     const rowOptions=payrollByOrder?{...options,payrollByOrder,
-      refundsByOrder:new Map((options.payroll.refunds??[]).map(item=>[item.orderId,item]))}:options;
+      refundsByOrder:new Map((options.payroll.refunds??[]).map(item=>[item.orderId,item])),
+      holdsByOrder:new Map((options.payroll.holds??[]).map(item=>[item.orderId,item]))}:options;
     return orders.map(order=>reportRow(order,rowOptions)).filter(row=>{
       const day=getDate(row,options.basis||"closed");
       if(from&&(!day||day<from))return false;
@@ -128,13 +141,25 @@
     if(/^[\s]*[=+\-@]/.test(s))s="'"+s;
     return '"'+s.replace(/"/g,'""')+'"';
   }
+  function holdDetails(row){
+    return [
+      row.reportPayrollOnHold?"Начисление на сверке":"",
+      row.reportCashOnHold?"Наличные у мастера на сверке":"",
+      row.reportHoldReason
+    ].filter(Boolean);
+  }
   function csvFor(rows){
     const cols=["Заказ","Дата создания","Дата записи","Дата закрытия","Клиент","Мастер","Статус","Цена","Оплачено (по отметке)","Зарплата","Доля компании","Сведения о сумме оплаты"];
     const data=rows.map(r=>[r.referenceCode||r.orderNumber||"",getDate(r,"created"),r.date||"",
       getDate(r,"closed"),r.name,r.master,r.status,r.reportPrice==null?"":r.reportPrice,
-      r.reportReceived,r.reportSalary==null?"":r.reportSalary,r.reportProfit==null?"":r.reportProfit,
-       r.reportRefundedAmount?"Подтверждён возврат "+money(r.reportRefundedAmount):
-       !r.paid?"Не оплачено":r.reportPaymentMissing?"Сумма платежа не указана":r.reportPaymentMismatch?"Оплата отличается от цены":"Сумма указана"]);
+      r.reportPaymentUnverified?"":r.reportReceived,r.reportPayrollOnHold?"На сверке":r.reportSalary??"",r.reportProfit??"",
+      [
+        r.reportRefundedAmount?"Подтверждён возврат "+money(r.reportRefundedAmount):
+        !r.paid?"Не оплачено":r.reportPaymentMissing?"Сумма платежа не указана":
+        r.reportPaymentMismatch?"Оплата отличается от цены":
+        r.reportPaymentVerified?"Сумма подтверждена сверкой":"Сумма указана",
+        ...holdDetails(r)
+      ].join(" · ")]);
     return "\uFEFF"+[cols,...data].map(row=>row.map(quoteCsv).join(";")).join("\r\n");
   }
   function node(tag,cls,value){
@@ -279,7 +304,10 @@
       renderKey=key;renderedOrders=orders;
       const rows=queryRows(orders,masterId,today,payroll);
       const totals=summary(rows);
+      const heldCount=rows.filter(row=>row.reportPayrollOnHold||row.reportCashOnHold).length;
+      const hasOnlyUnverifiedMargin=rows.some(row=>row.reportPayrollOnHold)&&!rows.some(row=>row.reportCalculated);
       caption.textContent="Показаны "+Math.min(state.visible,rows.length)+" из "+rows.length+
+        (heldCount?" · На сверке: "+heldCount:"")+
         (totals.uncalculated?" · Без расчёта доли: "+totals.uncalculated:"")+
          (totals.missingPayments?" · Нет суммы платежа: "+totals.missingPayments:"")+
          (totals.mismatchedPayments?" · Оплата отличается от цены: "+totals.mismatchedPayments:"");
@@ -288,7 +316,8 @@
       // Totals include every matching order, not just the visible page of 100.
       const totalRow=node("tr","pr-total-row");
       const totalCells=["Итого","","","",money(totals.price),
-        money(totals.received)+(totals.missingPayments?"*":""),money(totals.salary),money(totals.profit)];
+        money(totals.received)+(totals.missingPayments?"*":""),hasOnlyUnverifiedMargin?"—":money(totals.salary),
+        hasOnlyUnverifiedMargin?"—":money(totals.profit)];
       totalCells.forEach((value,index)=>{
         const cell=node(index===0?"th":"td",index>=4?"pr-number":"",value);
         if(index===0)cell.scope="row";
@@ -298,7 +327,7 @@
         totalRow.append(cell);
       });
       if(totals.missingPayments)totalRow.children[5].title=
-        "В части оплаченных заказов сумма платежа отсутствует. Общая сумма включает стоимость этих заказов по отметке «Оплачено».";
+        "В части заказов нет подтверждённой суммы платежа. Уточнения указаны в строках отчёта.";
       tbody.append(totalRow);
       if(!rows.length){
         const empty=node("tr");const cell=node("td","pr-empty","Заказов по выбранным фильтрам нет.");
@@ -317,7 +346,9 @@
         const first=node("td");first.append(open);tr.append(first);
         const values=[getDate(row,state.basis)||"—",row.name||"Без имени",
           row.status||"—",row.reportPrice==null?"—":money(row.reportPrice),
-          row.reportRefundedAmount?"Возврат":money(row.reportReceived)+(row.reportPaymentMissing?"*":""),row.reportSalary==null?"—":money(row.reportSalary),
+          row.reportRefundedAmount?"Возврат":row.reportPaymentUnverified?"—":
+            money(row.reportReceived)+(row.reportPaymentMissing?"*":""),
+          row.reportPayrollOnHold?"На сверке":row.reportSalary==null?"—":money(row.reportSalary),
           row.reportProfit==null?"—":money(row.reportProfit)];
         values.forEach((value,i)=>tr.append(node("td",i>=3?"pr-number":"",value)));
         tbody.append(tr);
@@ -333,9 +364,13 @@
           "Источник: "+(row.clientSource||"не указан")
         ];
         if(row.reportCalculated)parts.push("Расчёт: "+money(row.reportCalculationAmount)+" − "+money(row.reportSalary)+" = "+money(row.reportProfit));
-        if(row.reportPaymentMissing)parts.push("Сумма фактической оплаты не записана; показана стоимость заказа по отметке «Оплачено»");
+        if(row.reportPaymentVerified)parts.push("Сумма оплаты подтверждена сверкой");
+        if(row.reportPaymentMissing)parts.push(row.reportPaymentUnverified?
+          "Сумма оплаты пока не подтверждена":
+          "Сумма фактической оплаты не записана; показана стоимость заказа по отметке «Оплачено»");
         if(row.reportPaymentMismatch)parts.push("Внимание: сумма оплаты отличается от стоимости заказа");
         if(row.reportReason)parts.push(row.reportReason);
+        parts.push(...holdDetails(row));
         td.append(node("div","pr-expanded-content",parts.join(" · ")));
         extra.append(td);tbody.append(extra);
       }

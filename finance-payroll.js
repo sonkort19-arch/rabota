@@ -401,6 +401,23 @@
  }
  const historyMonth=new Intl.DateTimeFormat("sv-SE",{timeZone:"Europe/Moscow",year:"numeric",month:"2-digit"});
  const monthLabel=new Intl.DateTimeFormat("ru-RU",{year:"numeric",month:"long",timeZone:"UTC"});
+ function cutoverReview(holds){
+   const review=el("details","fp-cutover-review");
+   review.append(el("summary","","На сверке · "+holds.length+" заказов"),
+     el("p","fp-hint","Спорные начисления и выплаты исключены из доступной суммы. Местонахождение наличных указано в журнале передач по мере подтверждения."));
+   const list=el("ul","fp-cutover-list");
+   for(const hold of holds){
+     const title=hold.reference||(hold.orderNumber!=null?"№"+String(hold.orderNumber).padStart(5,"0"):"Заказ");
+     const item=el("li","");
+     item.append(el("strong","",title),el("span","",hold.reason));
+     if(hold.payrollOnHold) item.append(el("small","","Начисление на сверке "+money(hold.earned)+
+       (hold.credited?" · подтверждено выплат "+money(hold.credited):"")+
+       (hold.linkedRecorded?" · в старом журнале по заказу "+money(hold.linkedRecorded):"")));
+     if(hold.cashOnHold) item.append(el("small","","Получено от клиента "+money(hold.paymentAmount)+" · сумма наличных к передаче уточняется"));
+     list.append(item);
+   }
+   review.append(list);return review;
+ }
  function v3Payroll(m,owner,state,redraw){
    const wrap=el("section","fp-screen fp-v3-payroll");
    const name=m.employeeName||"Рауль";
@@ -426,6 +443,7 @@
    wrap.append(hero,div("fp-person-summary",
      div("fp-person-summary-item",el("span","","Начислено"),el("strong","",money(m.earned))),
      div("fp-person-summary-item",el("span","","Выплачено"),el("strong","",money(m.paid)))));
+   if(owner&&m.holds?.length)wrap.append(cutoverReview(m.holds));
    const tabs=el("div","fp-subtabs");
    const views=[["accruals","Начисления"],["payments","Выплаты"]];
    if(m.refunds?.length)views.push(["refunds","Возвраты"]);
@@ -450,7 +468,8 @@
      amount:item.earnedReversed
    })):(m.payouts??[]).map(item=>{
      const method=item.method==="cash"?"Наличные":item.method==="card"?"Карта":"";
-     const details=[item.kind==="legacy_on_behalf"?"Учтено по исторической сверке":"",method].filter(Boolean);
+     const details=[item.kind==="legacy_on_behalf"?"Учтено по исторической сверке":"",method,
+       owner&&item.held>0?"Из исходной выплаты на сверке "+money(item.held):""].filter(Boolean);
      return {stamp:item.occurredAt,title:item.note||"Выплата зарплаты",
        detail:details.join(" · ")||"Способ не указан",amount:item.amount};
    });

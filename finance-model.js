@@ -71,7 +71,14 @@
       if(typeof id!=="string"||!id||payoutIds.has(id)||amount===null||amount<=0)
         throw Error("Сервер вернул неверную запись выплаты.");
       payoutIds.add(id);
-      return {id,orderId:orderId??null,amount,occurredAt:occurredAt??null,method:method??null,note:note??"",kind:kind??null};
+      const entry={id,orderId:orderId??null,amount,occurredAt:occurredAt??null,method:method??null,note:note??"",kind:kind??null};
+      if(row.recorded_amount!==undefined||row.held_amount!==undefined){
+        const recorded=monetaryValue(row.recorded_amount),held=monetaryValue(row.held_amount);
+        if(recorded===null||held===null||held<0||roundMoney(amount+held)>recorded)
+          throw Error("Сервер вернул неверную сумму выплаты на сверке.");
+        Object.assign(entry,{recorded,held});
+      }
+      return entry;
     });
     if(snapshot.refunds!==undefined&&!Array.isArray(snapshot.refunds))
       throw Error("Сервер вернул неверный список возвратов.");
@@ -88,7 +95,25 @@
       refundedIds.add(orderId);
       return {orderId,amount,occurredAt,earnedReversed,earnedAt:earnedAt??null};
     });
-    return {version,state,masterId,activatedAt,earned,paid,due,orders,payouts,refunds};
+    if(snapshot.holds!==undefined&&!Array.isArray(snapshot.holds))
+      throw Error("Сервер вернул неверный список операций на сверке.");
+    const heldIds=new Set();
+    const holds=(snapshot.holds??[]).map(row=>{
+      const {order_id:orderId,order_number:orderNumber,payroll_on_hold:payrollOnHold,
+        cash_on_hold:cashOnHold,reason}=row??{};
+      const heldEarned=monetaryValue(row?.earned_amount),credited=monetaryValue(row?.credited_amount);
+      const linkedRecorded=monetaryValue(row?.linked_recorded_amount),paymentAmount=monetaryValue(row?.payment_amount);
+      if(typeof orderId!=="string"||!orderId||heldIds.has(orderId)||refundedIds.has(orderId)||
+         typeof payrollOnHold!=="boolean"||typeof cashOnHold!=="boolean"||!(payrollOnHold||cashOnHold)||
+         typeof reason!=="string"||!reason.trim()||
+         (payrollOnHold&&(orderIds.has(orderId)||[heldEarned,credited,linkedRecorded].some(n=>n===null||n<0)||credited>heldEarned))||
+         (cashOnHold&&(paymentAmount===null||paymentAmount<=0)))
+        throw Error("Сервер вернул неверную запись на сверке.");
+      heldIds.add(orderId);
+      return {orderId,orderNumber:orderNumber??null,payrollOnHold,cashOnHold,reason,
+        earned:heldEarned,credited,linkedRecorded,paymentAmount};
+    });
+    return {version,state,masterId,activatedAt,earned,paid,due,orders,payouts,refunds,holds};
   }
   async function readPayrollSnapshot(dbRequest){
     let snapshot;

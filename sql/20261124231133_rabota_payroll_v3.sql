@@ -74,6 +74,17 @@ CREATE TABLE private.rabota_payroll_cash_review_v3 (
   evidence_reference text NOT NULL CHECK (length(btrim(evidence_reference)) BETWEEN 1 AND 240)
 );
 
+-- Preserve the actual order and ledger records when opening payroll or
+-- cash custody is disputed. A hold does not assert an outstanding amount.
+CREATE TABLE private.rabota_payroll_cutover_holds_v3 (
+  order_id uuid PRIMARY KEY REFERENCES private.rabota_payroll_earnings_v3(order_id),
+  payroll_on_hold boolean NOT NULL DEFAULT false,
+  cash_on_hold boolean NOT NULL DEFAULT false,
+  reason text NOT NULL CHECK (length(btrim(reason)) BETWEEN 1 AND 240),
+  verified_by uuid NOT NULL,
+  CHECK (payroll_on_hold OR cash_on_hold)
+);
+
 CREATE TABLE private.rabota_payroll_refunds_v3 (
   order_id uuid PRIMARY KEY REFERENCES private.rabota_payroll_earnings_v3(order_id),
   request_id uuid UNIQUE NOT NULL,
@@ -87,10 +98,12 @@ ALTER TABLE private.rabota_payroll_policy_v3 ENABLE ROW LEVEL SECURITY;
 ALTER TABLE private.rabota_payroll_earnings_v3 ENABLE ROW LEVEL SECURITY;
 ALTER TABLE private.rabota_payroll_payout_review_v3 ENABLE ROW LEVEL SECURITY;
 ALTER TABLE private.rabota_payroll_cash_review_v3 ENABLE ROW LEVEL SECURITY;
+ALTER TABLE private.rabota_payroll_cutover_holds_v3 ENABLE ROW LEVEL SECURITY;
 ALTER TABLE private.rabota_payroll_refunds_v3 ENABLE ROW LEVEL SECURITY;
 REVOKE ALL ON TABLE private.rabota_payroll_policy_v3, private.rabota_payroll_earnings_v3,
   private.rabota_payroll_payout_review_v3, private.rabota_payroll_cash_review_v3,
-  private.rabota_payroll_refunds_v3 FROM PUBLIC, anon, authenticated;
+  private.rabota_payroll_cutover_holds_v3, private.rabota_payroll_refunds_v3
+FROM PUBLIC, anon, authenticated;
 
 -- The pre-v3 cash collection required two payroll amounts. Use an explicit
 -- branch for custody-only rows while retaining all checks for existing ones.
@@ -104,6 +117,29 @@ ALTER TABLE public.rabota_cash_collections
     (NOT payroll_separate AND gross>3000 AND raul_amount>0 AND timur_amount=1500)
     OR (payroll_separate AND gross>0 AND raul_amount=0 AND timur_amount=0 AND company_amount=gross)
   );
+
+-- A custody hold has no verified opening cash balance. Keep it out of
+-- transfer selection and stop later writes even through older RPCs.
+CREATE FUNCTION private.rabota_guard_held_cash_custody_v3()
+RETURNS trigger
+LANGUAGE plpgsql SECURITY DEFINER SET search_path TO ''
+AS $cash_hold$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM private.rabota_payroll_cutover_holds_v3 h
+    WHERE h.order_id=NEW.order_id AND h.cash_on_hold
+  ) THEN
+    RAISE EXCEPTION 'По заказу продолжается сверка наличных. Запись передачи пока недоступна'
+      USING ERRCODE='23514';
+  END IF;
+  RETURN NEW;
+END;
+$cash_hold$;
+REVOKE ALL ON FUNCTION private.rabota_guard_held_cash_custody_v3()
+FROM PUBLIC,anon,authenticated;
+CREATE TRIGGER rabota_guard_held_cash_custody_v3
+BEFORE INSERT OR UPDATE ON public.rabota_cash_collections
+FOR EACH ROW EXECUTE FUNCTION private.rabota_guard_held_cash_custody_v3();
 
 CREATE FUNCTION private.rabota_payroll_activate_v3(
   p_master_user_id uuid, p_approved_by uuid, p_backup_reference text
@@ -150,6 +186,24 @@ BEGIN
   END IF;
 
   IF EXISTS (
+    SELECT 1 FROM private.rabota_payroll_cutover_holds_v3 h
+    JOIN private.rabota_payroll_earnings_v3 e ON e.order_id=h.order_id
+    JOIN public.rabota_orders o ON o.id=h.order_id
+    WHERE h.verified_by IS DISTINCT FROM p_approved_by
+       OR e.master_user_id IS DISTINCT FROM p_master_user_id
+       OR e.rule_version IS DISTINCT FROM 'legacy_verified'
+       OR o.assigned_user_id IS DISTINCT FROM p_master_user_id
+       OR (h.cash_on_hold AND (
+         o.payment_method IS DISTINCT FROM 'cash' OR o.payment_received_by IS DISTINCT FROM 'master'
+         OR EXISTS(SELECT 1 FROM public.rabota_cash_collections c WHERE c.order_id=o.id)
+         OR EXISTS(SELECT 1 FROM private.rabota_payroll_cash_review_v3 r WHERE r.order_id=o.id)
+       ))
+  ) THEN
+    RAISE EXCEPTION 'Спорная операция не совпадает с подтверждённым заказом или сверкой наличных'
+      USING ERRCODE='23514';
+  END IF;
+
+  IF EXISTS (
     SELECT 1 FROM public.rabota_finance_operations f
     LEFT JOIN private.rabota_payroll_payout_review_v3 r ON r.operation_id=f.id
     WHERE f.master_user_id=p_master_user_id AND f.voided_at IS NULL
@@ -165,7 +219,8 @@ BEGIN
     CROSS JOIN LATERAL jsonb_each(r.allocations) a
     LEFT JOIN private.rabota_payroll_earnings_v3 e ON e.order_id::text=a.key
     WHERE f.master_user_id=p_master_user_id AND f.voided_at IS NULL
-      AND (jsonb_typeof(a.value)<>'number' OR e.master_user_id IS DISTINCT FROM p_master_user_id)
+      AND (jsonb_typeof(a.value)<>'number' OR e.master_user_id IS DISTINCT FROM p_master_user_id
+           OR (f.order_id IS NOT NULL AND e.order_id IS DISTINCT FROM f.order_id))
   ) THEN
     RAISE EXCEPTION 'Неверная сверка прежних выплат по заказам' USING ERRCODE='23514';
   END IF;
@@ -194,10 +249,11 @@ BEGIN
     SELECT 1 FROM public.rabota_orders o
     JOIN private.rabota_payroll_earnings_v3 e ON e.order_id=o.id
     LEFT JOIN private.rabota_payroll_cash_review_v3 r ON r.order_id=o.id
+    LEFT JOIN private.rabota_payroll_cutover_holds_v3 h ON h.order_id=o.id AND h.cash_on_hold
     WHERE o.assigned_user_id=p_master_user_id AND o.paid AND o.status='Выполнен'
       AND o.payment_method='cash' AND o.payment_received_by='master'
       AND NOT EXISTS(SELECT 1 FROM public.rabota_cash_collections c WHERE c.order_id=o.id)
-      AND (r.order_id IS NULL OR r.held_amount>e.paid_amount)
+      AND h.order_id IS NULL AND (r.order_id IS NULL OR r.held_amount>e.paid_amount)
   ) THEN
     RAISE EXCEPTION 'Не подтверждены прежние суммы наличных у мастера' USING ERRCODE='23514';
   END IF;
@@ -216,6 +272,8 @@ BEGIN
   JOIN public.rabota_orders o ON o.id=r.order_id
   WHERE o.assigned_user_id=p_master_user_id AND o.paid AND o.status='Выполнен'
     AND o.payment_method='cash' AND o.payment_received_by='master' AND r.held_amount>0
+    AND NOT EXISTS (SELECT 1 FROM private.rabota_payroll_cutover_holds_v3 h
+                    WHERE h.order_id=o.id AND h.cash_on_hold)
     AND NOT EXISTS(SELECT 1 FROM public.rabota_cash_collections c WHERE c.order_id=o.id);
   RETURN v_cutoff;
 END;
@@ -269,20 +327,28 @@ EXECUTE FUNCTION private.rabota_capture_payroll_payment_v3();
 CREATE FUNCTION private.rabota_payroll_operations_v3(p_master_user_id uuid, p_activated_at timestamptz)
 RETURNS TABLE(
   id uuid, order_id uuid, amount numeric, created_at timestamptz,
-  payment_method text, note text, kind text
+  payment_method text, note text, kind text, recorded_amount numeric, held_amount numeric
 )
 LANGUAGE sql STABLE SET search_path TO ''
 AS $operations$
-  SELECT f.id,f.order_id,coalesce(r.credited_amount,f.amount),f.created_at,f.payment_method,f.note,
+  SELECT f.id,f.order_id,coalesce(r.credited_amount-hold.amount,f.amount),
+    f.created_at,f.payment_method,f.note,
     CASE WHEN r.operation_id IS NULL THEN 'v3'
          WHEN f.kind='timur_payout' THEN 'legacy_on_behalf'
-         ELSE 'legacy' END
+         ELSE 'legacy' END,
+    f.amount,hold.amount
   FROM public.rabota_finance_operations f
   LEFT JOIN private.rabota_payroll_payout_review_v3 r ON r.operation_id=f.id
+  CROSS JOIN LATERAL (
+    SELECT coalesce(sum(a.value::numeric),0) AS amount
+    FROM jsonb_each(r.allocations) a
+    JOIN private.rabota_payroll_cutover_holds_v3 h
+      ON h.order_id::text=a.key AND h.payroll_on_hold
+  ) hold
   WHERE f.master_user_id=p_master_user_id AND f.voided_at IS NULL
     AND f.kind IN ('raul_payout','timur_payout')
-    AND (r.credited_amount>0 OR (r.operation_id IS NULL AND f.kind='raul_payout'
-                               AND f.created_at>=p_activated_at))
+    AND (r.credited_amount>hold.amount OR (r.operation_id IS NULL AND f.kind='raul_payout'
+                                          AND f.created_at>=p_activated_at))
 $operations$;
 
 CREATE FUNCTION private.rabota_payroll_totals_v3(p_master_user_id uuid, p_activated_at timestamptz)
@@ -293,6 +359,8 @@ AS $totals$
     (SELECT coalesce(sum(e.earned_amount),0)
      FROM private.rabota_payroll_earnings_v3 e
      WHERE e.master_user_id=p_master_user_id
+       AND NOT EXISTS(SELECT 1 FROM private.rabota_payroll_cutover_holds_v3 h
+                      WHERE h.order_id=e.order_id AND h.payroll_on_hold)
        AND NOT EXISTS(SELECT 1 FROM private.rabota_payroll_refunds_v3 r WHERE r.order_id=e.order_id)),
     (SELECT coalesce(sum(p.amount),0) FROM private.rabota_payroll_operations_v3(p_master_user_id,p_activated_at) p)
 $totals$;
@@ -328,6 +396,8 @@ BEGIN
         ) ORDER BY e.earned_at DESC,e.order_id)
         FROM private.rabota_payroll_earnings_v3 e
         WHERE e.master_user_id=v_policy.master_user_id
+          AND NOT EXISTS(SELECT 1 FROM private.rabota_payroll_cutover_holds_v3 h
+                         WHERE h.order_id=e.order_id AND h.payroll_on_hold)
           AND NOT EXISTS(SELECT 1 FROM private.rabota_payroll_refunds_v3 r WHERE r.order_id=e.order_id)
       ),'[]'::jsonb),
       'payouts',coalesce((
@@ -342,7 +412,32 @@ BEGIN
         FROM private.rabota_payroll_refunds_v3 r
         JOIN private.rabota_payroll_earnings_v3 e ON e.order_id=r.order_id
         WHERE e.master_user_id=v_policy.master_user_id
-      ),'[]'::jsonb)
+      ),'[]'::jsonb),
+      'holds',CASE WHEN v_role='owner' THEN coalesce((
+        SELECT jsonb_agg(jsonb_build_object(
+          'order_id',h.order_id,'order_number',o.order_number,
+          'payroll_on_hold',h.payroll_on_hold,'cash_on_hold',h.cash_on_hold,
+          'reason',h.reason,
+          'earned_amount',CASE WHEN h.payroll_on_hold THEN e.earned_amount END,
+          'credited_amount',CASE WHEN h.payroll_on_hold THEN coalesce((
+            SELECT sum((r.allocations->>(h.order_id::text))::numeric)
+            FROM private.rabota_payroll_payout_review_v3 r
+            JOIN public.rabota_finance_operations f ON f.id=r.operation_id
+            WHERE f.master_user_id=v_policy.master_user_id AND f.voided_at IS NULL
+              AND f.kind IN ('raul_payout','timur_payout')
+          ),0) END,
+          'linked_recorded_amount',CASE WHEN h.payroll_on_hold THEN coalesce((
+            SELECT sum(f.amount) FROM public.rabota_finance_operations f
+            WHERE f.order_id=h.order_id AND f.master_user_id=v_policy.master_user_id
+              AND f.voided_at IS NULL AND f.kind IN ('raul_payout','timur_payout')
+          ),0) END,
+          'payment_amount',CASE WHEN h.cash_on_hold THEN e.paid_amount END
+        ) ORDER BY e.earned_at DESC,h.order_id)
+        FROM private.rabota_payroll_cutover_holds_v3 h
+        JOIN private.rabota_payroll_earnings_v3 e ON e.order_id=h.order_id
+        JOIN public.rabota_orders o ON o.id=h.order_id
+        WHERE e.master_user_id=v_policy.master_user_id
+      ),'[]'::jsonb) ELSE '[]'::jsonb END
     )
     FROM private.rabota_payroll_totals_v3(v_policy.master_user_id,v_policy.activated_at) t
   );
@@ -450,6 +545,10 @@ BEGIN
     OR v_order.paid IS NOT TRUE OR v_order.status<>'Выполнен'
     OR v_order.payment_amount IS DISTINCT FROM p_amount OR v_earning.paid_amount<>p_amount THEN
     RAISE EXCEPTION 'Можно подтвердить только полный возврат по однозначно оплаченному заказу' USING ERRCODE='23514';
+  END IF;
+  IF EXISTS (SELECT 1 FROM private.rabota_payroll_cutover_holds_v3 h WHERE h.order_id=p_order_id) THEN
+    RAISE EXCEPTION 'По заказу продолжается сверка. Возврат пока недоступен'
+      USING ERRCODE='23514';
   END IF;
   IF v_order.payment_received_by IS DISTINCT FROM 'company'
     OR EXISTS(SELECT 1 FROM public.rabota_cash_collections c WHERE c.order_id=p_order_id) THEN

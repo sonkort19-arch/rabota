@@ -273,7 +273,7 @@
   <link rel="stylesheet" href="/order-payment.css">
   <link rel="stylesheet" href="/master-notifications.css?v=20261117-review-v1">
   <link rel="stylesheet" href="/orders-list.css">
-  <link rel="stylesheet" href="/finance-payroll.css?v=20261124-payroll-v3">
+  <link rel="stylesheet" href="/finance-payroll.css?v=20261124-payroll-review">
   <link rel="stylesheet" href="/lead-assistant.css">
   <link rel="stylesheet" href="/ui-alignment.css?v=20261124-stability">
   <link rel="stylesheet" href="/ui-alignment-orders.css?v=20261113-stage8">
@@ -869,7 +869,7 @@
   <script src="/order-model.js?v=20261124-payroll-v3"></script>
   <script src="/calendar-load.js?v=20261117-completed-v1"></script>
    <script src="/calendar-model.js?v=20261124-unified-v1"></script>
-  <script src="/finance-model.js?v=20261124-payroll-v3"></script>
+  <script src="/finance-model.js?v=20261124-payroll-review"></script>
   <script src="/master-ui.js?v=20261124-handoff"></script>
   <script src="/lead-ai-bridge.js?v=20261124-stability"></script>
   <script src="/app-services.js?v=20261124-stability"></script>
@@ -1290,6 +1290,7 @@
       if(currentRole!=="owner"||orderPaymentMode()!=="v3"||order.status!=="Выполнен"||
         !order.paid||order.paymentReceivedBy!=="company"||collectionForOrder(order.id)||
         order.assignedUserId!==payrollLookup?.snapshot?.masterId)return null;
+      if(payrollLookup?.snapshot?.holds?.some(row=>row.orderId===String(order.id)))return null;
       const amount=window.__rdPayableOrderAmount(order.paymentAmount);
       return amount===window.__rdPayableOrderAmount(order.price)?amount:null;
     }
@@ -2607,7 +2608,7 @@
         cash.append(financeLine("Поступило напрямую компании",money(directReceipts)));
         if(v3){
           const otherCash=masterUnallocated.filter(o=>o.paymentMethod==="cash");
-          if(otherCash.length)cash.append(financeLine("Наличные вне журнала передач",
+          if(otherCash.length)cash.append(financeLine("Принято наличными вне журнала передач",
             money(sumBy(otherCash,o=>o.paymentAmount??o.price))));
           const cardReceived=masterUnallocated.filter(o=>o.paymentMethod==="card");
           if(cardReceived.length)cash.append(financeLine("Принято на карту мастера по журналу",
@@ -3107,7 +3108,8 @@
         canPay:currentRole==="owner"&&!handoffPreview,
         accruals:payroll.orders.map(describeOrder),
         refunds:(payroll.refunds??[]).map(describeOrder),
-        payouts:payroll.payouts
+        payouts:payroll.payouts,
+        holds:currentRole==="owner"?(payroll.holds??[]).map(describeOrder):[]
       };
     }
     function masterCardReceived(orders){
@@ -3200,13 +3202,17 @@
       },
       ownerSnapshot(){
         if(currentRole!=="owner")throw Error("Нет доступа");
-        const refunded=new Set((acceptedPayroll()?.refunds??[]).map(refund=>String(refund.orderId)));
+        const payroll=acceptedPayroll();
+        const refunded=new Set((payroll?.refunds??[]).map(refund=>String(refund.orderId)));
+        const cashReview=(payroll?.holds??[]).filter(row=>row.cashOnHold);
         return {
           ...financeStatus(),
           payrollV3:payrollMode()==="v3",
           masterCardReceived:masterCardReceived(financeOrders),
           heldCash:roundMoney(sumBy(financeCollections,c=>financeModel.collectionAmounts(c).waitingAmount)),
           pendingCash:roundMoney(sumBy(financeCollections,c=>financeModel.collectionAmounts(c).pendingAmount)),
+          cashReviewCount:cashReview.length,
+          cashReviewReceipts:roundMoney(sumBy(cashReview,row=>row.paymentAmount)),
           paidOrders:financeOrders.filter(o=>o.paid&&o.status!=="Отменён"&&!refunded.has(String(o.id))).map(o=>({
             id:o.id,name:o.name,amount:o.paymentAmount??o.price,method:o.paymentMethod,
             receivedBy:o.paymentReceivedBy,paidAt:o.paidAt,date:o.date
@@ -3388,15 +3394,15 @@
   <script src="/whatsapp-order.js?v=20261111-master-notes"></script>
   <script src="/whatsapp-client.js?v=20261118-safety-fix-v1"></script>
   <script src="/whatsapp-settings.js?v=20261124-wa-focus-v1"></script>
-  <script src="/profit-report.js?v=20261124-payroll-v3"></script>
+  <script src="/profit-report.js?v=20261124-payroll-review"></script>
   <script src="/expenses.js?v=20261124-stability"></script>
   <script src="/growth.js?v=20261124-integrated-modules"></script>
   <script src="/redesign.js?v=20261124-payroll-v3"></script>
   <script src="/master-notifications.js?v=20261124-fast-start"></script>
   <script src="/orders-list.js?v=20261124-payroll-v3"></script>
   <script src="/owner-parity.js?v=20261124-unified-v1"></script>
-  <script src="/finance-payroll.js?v=20261124-payroll-v3"></script>
-  <script src="/money-workspace.js?v=20261124-payroll-v3"></script>
+  <script src="/finance-payroll.js?v=20261124-payroll-review"></script>
+  <script src="/money-workspace.js?v=20261124-payroll-review"></script>
   <script src="/lead-assistant.js?v=20261124-stability"></script>
   <script src="/orders-workspace.js?v=20261124-account-dialogs"></script>
 </body>
