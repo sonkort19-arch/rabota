@@ -15,15 +15,19 @@
     const rootBox=create("div","wa-settings-root");
     const entry=create("button","wa-settings-entry");
     entry.type="button";entry.setAttribute("aria-expanded","false");
-    const icon=create("span","wa-settings-symbol","▣");icon.setAttribute("aria-hidden","true");
+    const icon=create("span","wa-settings-symbol");icon.setAttribute("aria-hidden","true");
+    // Inline vector icon: no external font, emoji fallback, or extra network request.
+    icon.innerHTML='<svg viewBox="0 0 24 24" width="24" height="24" focusable="false" aria-hidden="true" xmlns="http://www.w3.org/2000/svg"><path fill="currentColor" d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.966-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.198-.347.223-.644.075-.297-.149-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.058-.173-.297-.018-.458.13-.606.133-.133.297-.347.446-.52.149-.174.198-.298.297-.496.099-.198.05-.372-.025-.52-.074-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.67-.51-.173-.008-.372-.01-.57-.01-.198 0-.52.075-.792.372s-1.04 1.016-1.04 2.479 1.065 2.876 1.213 3.074c.149.198 2.095 3.2 5.077 4.487.709.306 1.262.488 1.693.625.712.227 1.36.195 1.872.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.86 9.86 0 0 1-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 0 1-1.51-5.26c.002-5.447 4.435-9.88 9.884-9.88a9.84 9.84 0 0 1 6.99 2.894 9.84 9.84 0 0 1 2.89 6.992c-.003 5.448-4.436 9.881-9.885 9.881m8.413-18.297A11.82 11.82 0 0 0 12.008 0C5.495 0 .193 5.3.19 11.814c0 2.083.544 4.117 1.577 5.912L.092 23.84l6.259-1.642a11.83 11.83 0 0 0 5.65 1.44h.005c6.512 0 11.814-5.3 11.817-11.814a11.82 11.82 0 0 0-3.466-8.386z"/></svg>';
     const copy=create("span","wa-settings-entry-copy");
     copy.append(create("strong","","WhatsApp"),create("small","","Тексты при записи и завершении заказа"));
     entry.append(icon,copy,create("span","wa-settings-chevron","›"));
     const editor=create("section","wa-settings-editor");
     editor.id="wa-settings-editor-"+id;editor.hidden=true;
     entry.setAttribute("aria-controls",editor.id);
-    const back=create("button","wa-settings-back","‹ Назад к настройкам");back.type="button";
-    editor.append(back,create("h2","wa-settings-heading","WhatsApp · сообщения клиентам"),
+    const back=create("button","wa-settings-back","← Настройки");back.type="button";
+    const heading=create("h2","wa-settings-heading","WhatsApp · сообщения клиентам");
+    heading.tabIndex=-1;
+    editor.append(back,heading,
       create("p","wa-settings-intro",
         "Измени текст один раз. При создании и закрытии заказа он подставится в WhatsApp автоматически. Отправка остаётся ручной."));
     const tokenNames={имя:"Имя",дата:"Дата",время:"Время",мастер:"Мастер",адрес:"Адрес",ссылка:"Ссылка на отзыв"};
@@ -135,10 +139,14 @@
       editor.hidden=true;entry.hidden=false;entry.setAttribute("aria-expanded","false");
       entry.focus({preventScroll:true});
     }
-    entry.addEventListener("click",()=>{
+    entry.addEventListener("click",(event)=>{
       setValues(wa().getSettings());status.textContent="";
       editor.hidden=false;entry.hidden=true;entry.setAttribute("aria-expanded","true");
-      back.focus({preventScroll:true});
+      const keyboardActivation=!event||event.detail===0;
+      // WebKit may not show :focus-visible after programmatic focus.
+      back.setAttribute("data-keyboard-open",String(keyboardActivation));
+      if(keyboardActivation)back.focus({preventScroll:true});
+      else heading.focus({preventScroll:true});
     });
     back.addEventListener("click",closeEditor);
     save.addEventListener("click",()=>{

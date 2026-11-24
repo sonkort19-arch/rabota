@@ -340,6 +340,28 @@ async function checkInteraction(s) {
   await capture(page, role + "-filters-390");
   await page.locator("#owFilterCancel").click();
   if (role === "owner") await checkOwnerDashboard(page);
+  if (role === "owner" || role === "master") await checkWhatsAppSettings(s, nav, attribute);
+}
+
+async function checkWhatsAppSettings({ page, role }, nav, attribute) {
+  await nav.locator('button[' + attribute + '="settings"]').tap();
+  const settings = page.locator(role === "master" ? "#mwMasterSettings" : "#rdSettings");
+  const entry = settings.getByRole("button", { name: /^WhatsApp/ });
+  const heading = settings.getByRole("heading", { name: "WhatsApp · сообщения клиентам" });
+
+  await entry.tap();
+  const back = settings.getByRole("button", { name: "← Настройки", exact: true });
+  assert.equal(await heading.evaluate(element => document.activeElement === element), true, "tap focuses the heading");
+  assert.equal(await back.evaluate(element => getComputedStyle(element).outlineStyle), "none", "tap does not outline the back button");
+  await capture(page, role + "-whatsapp-settings-390");
+  await back.tap();
+  assert.equal(await entry.getAttribute("aria-expanded"), "false");
+
+  await entry.press("Enter");
+  assert.equal(await back.evaluate(element => document.activeElement === element), true, "keyboard opens at the back button");
+  assert.equal(await back.evaluate(element => getComputedStyle(element).outlineStyle), "solid", "keyboard focus remains visible");
+  await back.press("Enter");
+  assert.equal(await entry.evaluate(element => document.activeElement === element), true, "closing restores focus to the entry");
 }
 
 async function checkOwnerDashboard(page) {

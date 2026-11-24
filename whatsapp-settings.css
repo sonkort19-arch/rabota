@@ -8,11 +8,16 @@
 .wa-settings-entry-copy strong{font-size:16px}
 .wa-settings-entry-copy small{font-size:12px;color:#69788f;line-height:1.35}
 .wa-settings-symbol{display:grid;place-items:center;flex:0 0 42px;height:42px;border-radius:13px;
-  background:#e6faf0;color:#13875a;font-size:23px}
+  background:#25d366;color:#fff}
+.wa-settings-symbol svg{display:block;width:24px;height:24px;flex:none}
 .wa-settings-chevron{font-size:25px;color:#8191ac}
 .wa-settings-editor{display:block;min-width:0}
 .wa-settings-editor[hidden],.mw-master-settings[hidden]{display:none!important}
-.wa-settings-back{border:0;background:none;color:#4166bf;font-size:14px;font-weight:750;padding:8px 0;min-height:40px}
+.wa-settings-back{appearance:none;display:inline-flex;align-items:center;justify-content:flex-start;
+  width:auto;min-height:36px;margin:0 0 6px;padding:6px 8px;border:0;border-radius:8px;
+  background:transparent;box-shadow:none;color:#4166bf;font-size:13px;font-weight:650;line-height:1.2}
+.wa-settings-back:focus-visible,.wa-settings-back[data-keyboard-open="true"]:focus{
+  outline:2px solid #9db8ff;outline-offset:1px}
 .wa-settings-heading{font-size:21px;color:#253650;margin:8px 0}
 .wa-settings-intro,.wa-settings-hint{font-size:12px;color:#64718a;line-height:1.5;margin:4px 0 11px}
 .wa-template-card{background:#fff;border:1px solid #e0e7f2;border-radius:16px;padding:15px;margin:16px 0}
