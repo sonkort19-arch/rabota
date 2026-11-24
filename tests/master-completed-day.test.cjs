@@ -107,7 +107,8 @@ test("days with only completed jobs skip the empty active section",()=>{
 test("integration restricts completed history to Raul's selected date and assigned jobs",()=>{
   const html=fs.readFileSync(path.join(__dirname,"..","index.html"),"utf8");
   const css=fs.readFileSync(path.join(__dirname,"..","master-completed-day.css"),"utf8");
-  assert.match(html,/src="\/master-ui\.js\?v=20261117-completed-visible-v1"/);
+  assert.match(html,/<script src="\/master-ui\.js\?v=[A-Za-z0-9_-]+"><\/script>/,
+    "the page must load master-ui.js with a cache version");
   assert.match(html,/masterUI\.renderMasterCompletedDay\(completedForDay,selectedDate\)/);
   assert.match(html,/o\.date===selectedDate&&o\.status==="Выполнен"/);
   assert.match(html,/o\.assignedUserId===currentUser\?\.id/);
