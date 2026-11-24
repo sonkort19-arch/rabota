@@ -3,6 +3,7 @@ on:
   push:
     branches:
       - fix/ios-bottom-nav-anchor-20261111
+      - fix/mobile-navigation-regression-20261125
   workflow_dispatch:
 
 permissions:
