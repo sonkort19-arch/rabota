@@ -7,8 +7,8 @@ const body=document.body;
 body.classList.add("rd");
 const $=id=>document.getElementById(id);
 const makeNode=(tag,className,text)=>{const n=document.createElement(tag);if(className)n.className=className;if(text!=null)n.textContent=String(text);return n};
-const sections=["home","leads","orders","calendar","clients","finance","reports","growth","settings","ai"];
-const titles={home:"Главная",leads:"Лиды",orders:"Заказы",calendar:"Календарь",clients:"Клиенты",finance:"Платежи",reports:"Отчёты",growth:"Развитие MOBA",settings:"Настройки",ai:"ИИ-чат"};
+const sections=["home","leads","orders","expenses","calendar","clients","finance","reports","growth","settings","ai"];
+const titles={home:"Главная",leads:"Лиды",orders:"Заказы",expenses:"Расходы",calendar:"Календарь",clients:"Клиенты",finance:"Платежи",reports:"Отчёты",growth:"Развитие MOBA",settings:"Настройки",ai:"ИИ-чат"};
 const crmReturnPages=new Set(["home","leads","orders","calendar","clients","finance","reports","settings"]);
 function aiChatUrl(draft){
  const source=crmReturnPages.has(activePage)?activePage:"home";
@@ -19,6 +19,7 @@ function aiChatUrl(draft){
 function openAiChat(draft){window.location.assign(aiChatUrl(draft))}
 /* Consistent, accessible outline icons: no third-party library and no remote assets. */
 const iconPaths={
+ expenses:'<rect x="3" y="3" width="18" height="18" rx="3"/><path d="M7 8h10M7 12h6M7 16h6"/>',
  home:'<path d="m3 10 9-7 9 7v10a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1z"/>',
  leads:'<path d="M5 5h14v14H5z"/><path d="M8 9h8M8 13h5"/><circle cx="19" cy="18" r="3"/>',
  orders:'<rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 7h6M9 12h6M9 17h4"/>',
@@ -162,9 +163,9 @@ function stats(node,items){
 }
 function navButton(key){const btn=makeNode("button","rd-nav-btn");btn.type="button";btn.dataset.page=key;
  const emblem=makeNode("span","rd-icon");emblem.append(uiIcon(key));
- btn.append(emblem,boxText("span",titles[key]));btn.addEventListener("click",()=>key==="growth"?window.location.assign("/growth.html"):navigate(key));return btn}
+ btn.append(emblem,boxText("span",titles[key]));btn.addEventListener("click",()=>key==="growth"?window.location.assign("/growth.html"):key==="expenses"?window.location.assign("/expenses.html"):navigate(key));return btn}
 function permittedSections(){
- return sections.filter(key=>!(["finance","reports","growth","ai"].includes(key)&&currentRole!=="owner"));
+ return sections.filter(key=>!(["finance","reports","growth","expenses","ai"].includes(key)&&currentRole!=="owner"));
 }
 function makeProfileMenu(){
  const toggle=makeNode("button","rd-user rd-profile-trigger");
@@ -226,7 +227,7 @@ function build(){
  const mobile=makeNode("nav","rd-mobilebar");mobile.id="rdMobileNav";
  mobile.setAttribute("aria-label","Основные разделы приложения");
  const primaryMobileSections=currentRole==="owner"?
-  ["orders","finance","reports","settings"]:["orders","leads","clients","settings"];
+  ["orders","expenses","finance","reports"]:["orders","leads","clients","settings"];
  for(const key of primaryMobileSections)mobile.append(navButton(key));
  const navMore=makeNode("button","rd-nav-btn rd-mobile-more-trigger");
  navMore.type="button";navMore.id="rdMobileMoreBtn";
