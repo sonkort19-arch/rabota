@@ -3,6 +3,7 @@
  */
 "use strict";
 const {chromium,devices}=require("playwright");
+const {mockLegacyPayrollSnapshot}=require("./fixtures/legacy-payroll.cjs");
 const {readFileSync,existsSync}=require("node:fs");
 const path=require("node:path");
 const assert=require("node:assert/strict");
@@ -48,6 +49,7 @@ async function setup(browser,device){
   if(u.pathname.endsWith("/rabota_ai_messages"))value=[];
   return route.fulfill({contentType:"application/json",body:JSON.stringify(value)});
  });
+ await mockLegacyPayrollSnapshot(context);
  await page.goto("https://crm.test/");
  await page.locator("#appScreen").waitFor({state:"visible"});
  const mobileOrders=page.locator('.rd-mobilebar [data-page="orders"]');

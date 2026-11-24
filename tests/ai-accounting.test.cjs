@@ -20,7 +20,7 @@ const operations=[
 const receipt={order_id:"confirmed",company_amount:4500,confirmed_amount:2000,submitted_amount:3200};
 const master={user_id:"raul",role:"master",active:true,master_name:"Рауль"};
 
-function fixture(t,{authorized=true}={}){
+function fixture(t,{authorized=true,payroll=null,payrollError=null,orderData=orders}={}){
  const oldKey=process.env.OPENAI_API_KEY;
  process.env.OPENAI_API_KEY="isolated-fixture";
  t.after(()=>{
@@ -41,9 +41,14 @@ function fixture(t,{authorized=true}={}){
   if(table==="user")return Response.json({id:"fixture-owner"});
   if(authMembership)return Response.json(authorized?[{user_id:"fixture-owner"}]:[]);
   if(table==="rabota_members")return Response.json([master]);
-  if(table==="rabota_orders")return Response.json(orders);
+  if(table==="rabota_orders")return Response.json(orderData);
   if(table==="rabota_finance_operations")return Response.json([...operations,operations[0]]);
   if(table==="rabota_cash_collections")return Response.json([receipt,receipt]);
+  if(table==="rabota_payroll_snapshot_v3"){
+   if(payrollError)return Response.json({code:payrollError.code},{status:payrollError.status});
+   if(payroll)return Response.json(payroll);
+   return Response.json({code:"PGRST202"},{status:404});
+  }
   assert.fail("Unexpected fixture request: "+url);
  });
  const response={
@@ -85,6 +90,60 @@ test("AI accounting reuses canonical cash and payroll numbers without double cou
  assert.equal(summary.by_master.__proto__.orders,1);
  assert.equal(Object.prototype.orders,undefined);
  assert.equal(request.store,false);
+});
+
+test("AI presents v3 verified salary and company share separately from recorded cash outflows",async t=>{
+ const payroll={version:3,state:"active",master_id:"raul",activated_at:"2026-11-24T20:00:00Z",
+  earned:6500,paid:2000,due:4500,
+  orders:[{order_id:"direct",paid_amount:10000,earned_amount:6500,company_share:3500,rule_version:3}],
+  payouts:[{id:"private-payout",amount:2000,note:"Внутренняя пометка",kind:"raul_payout"}]};
+ const orderData=orders.map(row=>row.id==="advance"?{...row,payment_amount:3900}:row);
+ const f=fixture(t,{payroll,orderData});
+ await f.run();
+ assert.equal(f.response.code,200);
+ const openai=f.calls.find(call=>call.url.hostname==="api.openai.com");
+ const prompt=JSON.parse(openai.options.body).input[0].content;
+ const {accounting_rub:accounting}=JSON.parse(prompt.slice(prompt.indexOf("{")));
+ assert.equal(accounting.payroll_rule_version,3);
+ assert.equal(accounting.raul_accrued,6500);
+ assert.equal(accounting.raul_paid,2000);
+ assert.equal(accounting.raul_due,4500);
+ assert.equal(accounting.company_share_before_expenses,3500);
+ assert.equal(accounting.direct_receipts,13900);
+ assert.equal(accounting.advances_on_incomplete_orders,3900);
+ assert.equal(accounting.recorded_cash_balance,13300);
+ assert.equal(accounting.payouts_recorded,2000);
+ assert.equal(accounting.timur_due,undefined);
+ assert.doesNotMatch(prompt,/private-payout|Внутренняя пометка/);
+});
+
+test("AI counts a verified refund once even when the order request still has the original status",async t=>{
+ const payroll={version:3,state:"active",master_id:"raul",activated_at:"2026-11-24T20:00:00Z",
+  earned:0,paid:0,due:0,orders:[],payouts:[],
+  refunds:[{order_id:"direct",amount:10000,refunded_at:"2026-11-25T20:00:00Z"}]};
+ const f=fixture(t,{payroll});
+ await f.run();
+ assert.equal(f.response.code,200);
+ const openai=f.calls.find(call=>call.url.hostname==="api.openai.com");
+ const prompt=JSON.parse(openai.options.body).input[0].content;
+ const {accounting_rub:accounting}=JSON.parse(prompt.slice(prompt.indexOf("{")));
+ assert.equal(accounting.confirmed_refunds,10000);
+ assert.equal(accounting.direct_receipts,4000);
+ assert.equal(accounting.recorded_cash_balance,3400);
+ assert.equal(accounting.company_share_before_expenses,0);
+});
+
+test("v3 payroll authorization and malformed data never fall back to the previous salary",async t=>{
+ for(const options of [
+  {payrollError:{code:"42501",status:403}},
+  {payroll:{version:3,state:"active",orders:[]}},
+  {payroll:{version:3,state:"not_applicable"}}
+ ])await t.test(JSON.stringify(options),async subtest=>{
+  const f=fixture(subtest,options);
+  await f.run();
+  assert.equal(f.response.code,502);
+  assert.ok(!f.calls.some(call=>call.url.hostname==="api.openai.com"));
+ });
 });
 
 test("only a verified owner reaches the accounting tables or provider",async t=>{

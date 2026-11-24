@@ -2,6 +2,7 @@
 const test=require("node:test");
 const assert=require("node:assert/strict");
 const wa=require("../whatsapp-order.js");
+const notes=require("../order-notes.js");
 const seed={id:"f2f24242-aaaa",master:"Рауль",name:"Алан",phone:"+7 900 000-00-00",address:"Тестовая улица 15",date:"2026-11-14",time:"18:00",radiators:5,floorLoops:2,radiatorType:"Алюминиевые",price:20000,status:"Записан",details:"Позвонить заранее"};
 test("Russian WhatsApp number input normalized without guessing foreign numbers",()=>{
  assert.equal(wa.normalizePhone("+7 (918) 123-45-67"),"79181234567");
@@ -15,14 +16,24 @@ test("Raul detection exact and case insensitive",()=>{
  assert.equal(wa.isRaul({...seed,master:"Рауль и Тимур"}),false);
 });
 test("single-job draft puts date/time on line 1 and new-order title on line 2",()=>{
- const message=wa.singleDraft(seed);
+ const previous=globalThis.__rdOrderNotes;
+ let message,legacy;
+ try{
+  globalThis.__rdOrderNotes=notes;
+  message=wa.singleDraft({...seed,details:notes.pack(seed.details,"Внутренняя заметка")});
+  legacy=wa.singleDraft(seed);
+ }finally{
+  if(previous===undefined)delete globalThis.__rdOrderNotes;
+  else globalThis.__rdOrderNotes=previous;
+ }
  const lines=message.split("\n");
  assert.equal(lines[0],"Дата и время: 14.11.2026 · 18:00 МСК");
  assert.equal(lines[1],"Новый заказ");
  for(const fragment of ["Алан","Тестовая улица 15","14.11.2026","18:00 МСК","20 000 ₽","Промывка 5 радиаторов + 2 контуров тёплого пола","Позвонить заранее"])
   assert.ok(message.includes(fragment),fragment);
- for(const forbidden of ["Заказ №","Статус:","Контуры тёплого пола:","Проверь время и адрес","не указаны","Алюминиевые"])
+ for(const forbidden of ["Заказ №","Статус:","Контуры тёплого пола:","Проверь время и адрес","не указаны","Алюминиевые","Внутренняя заметка"])
   assert.ok(!message.includes(forbidden),"must omit "+forbidden);
+ assert.doesNotMatch(legacy,/Позвонить заранее/,"unclassified legacy notes stay internal");
  assert.match(wa.singleDraft({...seed,status:"Отменён"}),/^Дата и время:.*\nОтмена заказа/);
  assert.throws(()=>wa.singleDraft({...seed,master:"Олег"}),/Раулем/);
 });

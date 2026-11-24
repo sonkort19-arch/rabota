@@ -4,6 +4,7 @@ const assert = require("node:assert/strict");
 const path = require("node:path");
 const fs = require("node:fs");
 const {chromium} = require("playwright");
+const {mockLegacyPayrollSnapshot}=require("./fixtures/legacy-payroll.cjs");
 const root = path.resolve(__dirname, "..");
 const member = {user_id: "qa-master", role: "master", master_name: "Рауль", active: true};
 const orders = [
@@ -96,6 +97,7 @@ async function startSession(browser, width) {
     }
     return route.fulfill({json: result});
   });
+  await mockLegacyPayrollSnapshot(context);
   async function open() {
     active = member;
     await page.goto("https://crm.test/");

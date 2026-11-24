@@ -21,6 +21,39 @@ test("pending or unpaid order is never presented as earned profit",()=>{
     assert.equal(row.reportSalary,null);
   }
 });
+test("v3 report reads the verified per-order allocation, not legacy or cash payout totals",()=>{
+  const payroll={version:3,state:"active",paid:19500,orders:[
+    {orderId:"new",earned:9500,actualPaid:16000,companyShare:6500,ruleVersion:3},
+    {orderId:"historical",earned:5000,actualPaid:10000,companyShare:3500,ruleVersion:1}
+  ]};
+  const rows=filterRows([
+    order({id:"new",price:16000,paymentAmount:16000}),order({id:"historical"}),
+    order({id:"partial",price:10000,paymentAmount:5000}),order({id:"unknown",paymentAmount:null})
+  ],{payroll});
+  const byId=new Map(rows.map(row=>[row.id,row]));
+  assert.equal(byId.get("new").reportSalary,9500);
+  assert.equal(byId.get("new").reportProfit,6500);
+  assert.equal(byId.get("historical").reportSalary,6500,"historical total wage cost includes archived Timur allocation");
+  assert.equal(byId.get("historical").reportProfit,3500);
+  assert.equal(byId.get("partial").reportProfit,null);
+  assert.equal(byId.get("unknown").reportProfit,null);
+  const total=summary(rows);
+  assert.equal(total.salary,16000);
+  assert.equal(total.profit,10000);
+  assert.equal(total.uncalculated,2);
+});
+test("confirmed refund clears profit and net received while preserving the order and its audit label",()=>{
+  const payroll={version:3,state:"active",orders:[],refunds:[{orderId:"a",amount:10000}]};
+  const item=order({status:"Отменён"});
+  const row=reportRow(item,{payroll});
+  assert.equal(row.reportReceived,0);
+  assert.equal(row.reportProfit,null);
+  assert.equal(row.paid,true,"keep the original payment marker on the order");
+  assert.equal(row.reportRefundedAmount,10000);
+  assert.equal(filterRows([item],{payroll,status:"paid"}).length,0);
+  assert.equal(filterRows([item],{payroll,status:"unpaid"}).length,0);
+  assert.match(csvFor([row]),/Подтверждён возврат/);
+});
 test("other master and invalid price cannot generate profit; payment mismatch is flagged",()=>{
   assert.equal(reportRow(order({master:"Алекс"})).reportProfit,null);
   const partial=reportRow(order({paymentAmount:5000}));

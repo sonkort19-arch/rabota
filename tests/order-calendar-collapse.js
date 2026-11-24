@@ -18,6 +18,8 @@ assert.match(js,/toggle.addEventListener\("click"/,"toggle is interactive");
 assert.match(js,/setExpanded\(false\);\s*if\(document.activeElement/,"date selection folds calendar");
 assert.match(js,/visible=true;\s*setMonthFromDate\(dayInput.value\);\s*setExpanded\(false\)/,"new form starts folded");
 assert.match(js,/dayLoad.textContent=count===null/,"availability badge derives from live orders");
-assert.match(js,/if\(!stats.canBook\)return "full"/,"full-day time conflict remains blocked");
+assert.match(js,/if\(booked===start\)return "busy"/,"an exact appointment collision remains blocked");
+assert.match(js,/const selectable=!estimatedBusy&&\(state==="available"\|\|state==="tight"\)/,
+  "occupied slots cannot be selected");
 assert.match(css,/\.oa-calendar-body\[hidden\] \{ display:none!important; \}/,"hidden calendar stays hidden in CSS");
 console.log("Collapsible order calendar: source checks PASS");

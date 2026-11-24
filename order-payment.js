@@ -3,7 +3,7 @@
 (()=>{
   let active=false,cancelActive=null;
   const fmt=value=>Number(value).toLocaleString("ru-RU",{maximumFractionDigits:2})+" ₽";
-  function promptPayment(order,{complete=true,canUnpaid=true,receiver="company"}={}){
+  function promptPayment(order,{complete=true,canUnpaid=true,receiver="company",fullPaymentOnly=false,canPay=true}={}){
     if(active)return Promise.resolve(null);
     active=true;
     return new Promise(resolve=>{
@@ -40,15 +40,28 @@
       const dialog=$(".rd-pay-dialog");
       const input=$("#rdPayAmount");
       const total=Number(order.price);
-      const originalAmount=Number.isFinite(total)&&total>0?total:null;
+      const originalAmount=fullPaymentOnly?window.__rdPayableOrderAmount(order.price):
+        Number.isFinite(total)&&total>0?total:null;
       const error=$(".rd-pay-error");
       const change=$(".rd-pay-change");
       const view=$(".rd-pay-sum-view");
       const editor=$(".rd-pay-sum-edit");
       const confirm=$(".rd-pay-confirm");
+      const adjust=$("#rdPayAdjust");
       $("#rdPayTitle").textContent=complete?"Завершение заказа":"Получение оплаты";
       $("#rdPayClient").textContent=order.name||"Клиент";
       input.value=originalAmount===null?"":String(originalAmount);
+      if(fullPaymentOnly){
+        $("#rdPaySumLabel").textContent="Полная стоимость заказа";
+        adjust.textContent=!canPay
+          ?"Не удалось проверить режим оплаты. Можно сохранить заказ без оплаты."
+          :originalAmount===null
+          ?"Укажите стоимость заказа перед приёмом оплаты."
+          :"Подтвердите получение всей суммы. Если стоимость изменилась, сначала сохраните новую цену заказа.";
+        adjust.hidden=false;
+        change.hidden=true;
+        input.disabled=true;
+      }
       $("#rdPayReceiver").textContent=receiver==="master"?
         "Деньги получает мастер. Передача доли компании учитывается отдельно.":
         "Оплата отмечается как поступившая компании.";
@@ -67,6 +80,7 @@
       syncViewport();
 
       const currentValue=()=>{
+        if(fullPaymentOnly)return originalAmount;
         if(!input.value.trim())return null;
         const amount=Number(input.value);
         return Number.isFinite(amount)&&amount>0&&amount<=10000000&&
@@ -76,8 +90,8 @@
         const amount=currentValue();
         $("#rdPaySumValue").textContent=amount===null?"Сумма не указана":fmt(amount);
         confirm.textContent=amount===null?"Укажите сумму":"Получено "+fmt(amount);
-        confirm.disabled=amount===null;
-        $("#rdPayAdjust").hidden=amount===null||originalAmount===null||amount===originalAmount;
+        confirm.disabled=!canPay||amount===null;
+        if(!fullPaymentOnly)adjust.hidden=amount===null||originalAmount===null||amount===originalAmount;
         return amount;
       };
       const setEditing=editing=>{
@@ -129,6 +143,7 @@
       $(".rd-pay-unpaid").addEventListener("click",()=>finish({kind:"unpaid"}));
       $("#rdPayForm").addEventListener("submit",event=>{
         event.preventDefault();
+        if(!canPay)return;
         const amount=currentValue();
         if(amount===null){
           error.textContent="Проверьте сумму оплаты.";

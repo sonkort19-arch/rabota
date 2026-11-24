@@ -91,6 +91,11 @@ jobs:
           docker run --rm --network none --user postgres \
             -v "$GITHUB_WORKSPACE:/workspace:ro" -w /workspace \
             postgres:17 bash tests/cash-payroll-reservation-local.sh
+      - name: Verify v3 payroll activation, custody, payouts and refunds on disposable PostgreSQL
+        run: |
+          docker run --rm --network none --user postgres \
+            -v "$GITHUB_WORKSPACE:/workspace:ro" -w /workspace \
+            postgres:17 bash tests/payroll-v3-local.sh
       - name: Run finance reconciliation safely on fake data
         run: |
           psql -X -v ON_ERROR_STOP=1 -c "CREATE TABLE public.rabota_cashbook_entries (id uuid PRIMARY KEY,amount numeric,kind text)"

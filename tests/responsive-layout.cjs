@@ -3,15 +3,16 @@
  * Optional: CHROMIUM_PATH=/path/to/chromium. No live API requests are allowed.
  */
 const {chromium,devices}=require('playwright');
+const {mockLegacyPayrollSnapshot}=require("./fixtures/legacy-payroll.cjs");
 const fs=require('node:fs'),path=require('node:path');
 const assert=require('node:assert/strict');
 const root=path.resolve(__dirname,'..');
-const today=new Date().toISOString().slice(0,10);
+const today=new Intl.DateTimeFormat("sv-SE",{timeZone:"Europe/Moscow",year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date());
 const long='ОченьДлинноеИмяКлиентаБезПробелов'.repeat(4);
 const orders=Array.from({length:9},(_,i)=>({id:'order-'+i,name:i? 'Тестовый клиент '+i:long,phone:'79990000001',address:long,radiator_type:'Биметаллические',radiators:12,floor_loops:3,master:'Рауль',assigned_user_id:'master',appointment_date:today,appointment_time:(10+i%8)+':00:00',status:i%3?'Записан':'Выполнен',paid:i%3===0,price:12000,details:long,created_at:today+'T10:00:00Z',completed_at:today+'T12:00:00Z'}));
 const members=[{user_id:'owner',role:'owner',active:true,email:'owner@test.invalid'},{user_id:'master',role:'master',active:true,master_name:'Рауль',email:long+'@test.invalid'},{user_id:'pending',role:'master',active:false,email:long+'@test.invalid'}];
 async function setup(browser,device,role='owner'){
- const context=await browser.newContext(device||{});const writes=[],errors=[];
+ const context=await browser.newContext({...device,serviceWorkers:"block"});const writes=[],errors=[];
  await context.addInitScript(()=>localStorage.setItem('rabota-auth-session-v1',JSON.stringify({access_token:'synthetic',refresh_token:'synthetic',expires_at:4102444800})));
  await context.route('**/*',async route=>{
   const r=route.request(),u=new URL(r.url());
@@ -31,6 +32,7 @@ async function setup(browser,device,role='owner'){
   if(u.pathname.endsWith('/rabota_ai_messages'))value=[{id:'m',role:'assistant',content:long,created_at:today}];
   return route.fulfill({contentType:'application/json',body:JSON.stringify(value)});
  });
+ await mockLegacyPayrollSnapshot(context);
  const page=await context.newPage();page.on('pageerror',e=>errors.push(e.message));
  return {context,page,writes,errors};
 }
@@ -54,8 +56,8 @@ async function scan(page,label){
  if(screenshots)fs.mkdirSync(screenshots,{recursive:true});
  for(const width of [320,360,375,390,412,600,768,790,800,820,900,1024,1130,1180,1280,1440]){
   await page.setViewportSize({width,height:800});
-  for(const section of ['home','orders','calendar','clients','finance','leads']){
-   await page.evaluate(s=>document.querySelector('.rd-shell [data-page="'+s+'"]').click(),section);
+  for(const section of ['home','orders','calendar','clients','finance','reports','settings','leads']){
+   await page.locator('.rd-shell [data-page="'+(section==='calendar'?'orders':section)+'"]').evaluate(e=>e.click());
    if(section==='finance')await page.locator('.fp-tabs').waitFor();
    results.push(await scan(page,section));
    if(section==='clients'){
@@ -63,37 +65,41 @@ async function scan(page,label){
     await page.getByRole('button',{name:'‹ Все клиенты',exact:true}).click();
    }
    if(section==='calendar'){
-    if(width<=1180)assert.ok((await page.locator('#rdCalendarDate').boundingBox()).width>=180,'native date text fits');
-    for(const mode of ['day','list','week']){
-     await page.locator('.rd-calendar-mode[data-mode="'+mode+'"]').click();results.push(await scan(page,'calendar-'+mode));
-    }
+    await page.locator('#owViewSwitch [data-ow-mode="calendar"]').click();
+    const date=page.locator('#masterCalendarDateText');
+    assert.ok(await date.evaluate(e=>e.clientWidth>0&&e.scrollWidth<=e.clientWidth+1),'native date text fits');
+    results.push(await scan(page,'calendar-day'));
+    await page.locator('#owViewSwitch [data-ow-mode="all"]').click();
+    results.push(await scan(page,'calendar-to-all-orders'));
    }
    if(screenshots&&[320,800,1440].includes(width))await page.screenshot({path:path.join(screenshots,section+'-'+width+'.png')});
    if(section==='orders'){
+    await page.locator('#owViewSwitch [data-ow-mode="all"]').click();
     if(width<=790){
-     const toggle=page.locator('#rdOrdersFilterToggle');
+     const toggle=page.locator('#owFilterToggle');
      const count=page.locator('#orderCount');
      const initialCount=await count.innerText();
+     await toggle.scrollIntoViewIfNeeded();
      const listBefore=await page.locator('#orders').boundingBox();
      await toggle.click();
-     const dialog=page.locator('#rdOrdersFilterDialog');
+     const dialog=page.locator('#owFilters');
      assert.equal(await dialog.evaluate(el=>el.open),true,'mobile filters use a modal dialog');
      const listAfter=await page.locator('#orders').boundingBox();
      assert.ok(Math.abs(listBefore.y-listAfter.y)<2,'opening filters must not shift the orders list');
-     await page.locator('#rdStatusFilter').selectOption('Выполнен');
+     await page.locator('#owFilterStatus').selectOption('Выполнен');
      assert.equal(await count.innerText(),initialCount,'draft filters do not apply before confirmation');
-     await page.locator('.rd-orders-filter-close').click();
+     await page.locator('#owFilterCancel').click();
      assert.equal(await dialog.evaluate(el=>el.open),false,'close dismisses the filter dialog');
-     assert.equal(await page.locator('#rdStatusFilter').inputValue(),'','cancel restores saved selection');
      await toggle.click();
-     await page.locator('#rdStatusFilter').selectOption('Выполнен');
-     await page.locator('.rd-orders-filter-apply').click();
+     assert.equal(await page.locator('#owFilterStatus').inputValue(),'','reopening restores saved selection');
+     await page.locator('#owFilterStatus').selectOption('Выполнен');
+     await page.locator('#owFilterApply').click();
      assert.notEqual(await count.innerText(),initialCount,'Apply filters visible orders');
-     assert.match(await toggle.innerText(),/Фильтры \(1\)/,'active filter count visible');
+     assert.match(await toggle.getAttribute("aria-label"),/активно: 1/,'active filter count is announced');
      await toggle.click();
-     await dialog.getByRole('button',{name:'Сбросить'}).click();
+     await page.locator('#owFilterReset').click();
      assert.notEqual(await count.innerText(),initialCount,'Reset stays draft until Apply');
-     await page.locator('.rd-orders-filter-apply').click();
+     await page.locator('#owFilterApply').click();
      assert.equal(await count.innerText(),initialCount,'reset and apply restores the full list');
      results.push(await scan(page,'orders-filter-sheet'));
     }
@@ -101,17 +107,24 @@ async function scan(page,label){
     await page.locator('.rd-order-close').click(); // Modal must be closed before testing another action.
     await page.locator('#newOrderBtn').click();results.push(await scan(page,'order-form'));
     await page.locator('#orderOverlay .close').click();
-    // The existing app hides this panel. Inspect its layout without changing source visibility.
-    await page.evaluate(()=>{const p=document.querySelector('#teamPanel');p.hidden=false;p.style.setProperty('display','block','important')});results.push(await scan(page,'team'));
-    await page.evaluate(()=>document.querySelector('#teamPanel').style.removeProperty('display'));
    }
    if(section==='finance'){
-    for(const tab of ['Касса компании','Операции','Зарплата']){await page.getByRole('button',{name:tab,exact:true}).click();results.push(await scan(page,'finance-'+tab))}
+    for(const tab of ['cash','operations','payments']){
+     await page.locator('[data-finance-tab="'+tab+'"]').click();
+     results.push(await scan(page,'finance-'+tab));
+    }
+   }
+   if(section==='reports'){
+    await page.locator('#rdReports .rd-salary-entry').click();
     await page.locator('.fp-person-button').first().click();results.push(await scan(page,'salary-detail'));
     await page.locator('.fp-subtab').nth(1).click();results.push(await scan(page,'salary-payments'));
     await page.locator('.fp-balance-payout').click();results.push(await scan(page,'payout-dialog'));
     await page.locator('.fp-close').click();
-    await page.locator('.fp-link').click();
+    await page.getByRole('button',{name:'Вернуться ко всем отчётам'}).click();
+   }
+   if(section==='settings'){
+    await page.locator('#teamMembers .team-item').first().waitFor();
+    results.push(await scan(page,'team'));
    }
   }
  }
@@ -144,11 +157,15 @@ async function scan(page,label){
    await p.goto('https://crm.test/');await p.locator('#appScreen').waitFor({state:'visible'});
    if(role==='master'){
     await p.locator('.master-schedule-toggle').first().click();results.push(await scan(p,profile+' master schedule'));
-    await p.locator('#viewFinanceBtn').evaluate(e=>e.click());results.push(await scan(p,profile+' master finance'));
+    await p.locator('.master-order-sheet .mw-order-modal-close').click();
+    await p.locator('#mwMasterNav [data-mw-page="payments"]').click();
+    await p.locator('#mwMasterPayments').waitFor();
+    results.push(await scan(p,profile+' master finance'));
    }else{
-    await p.locator('.rd-mobilebar [data-page="more"]').click();results.push(await scan(p,profile+' '+role+' menu'));
-    await p.locator('.rd-more-sheet [data-page="clients"]').click();
+    await p.locator('#rdMobileMoreBtn').click();results.push(await scan(p,profile+' '+role+' menu'));
+    await p.locator('#rdMobileMoreSheet [data-page="'+(role==='owner'?'clients':'home')+'"]').click();
     assert.equal(await p.locator('.rd-more-sheet').isVisible(),false);
+    if(role==='manager')await p.locator('#rdMobileNav [data-page="clients"]').click();
     await p.locator('.rd-mobilebar [data-page="orders"]').click();await p.locator('#newOrderBtn').click();
     await p.locator('#orderOverlay .sheet').evaluate(e=>e.scrollTop=e.scrollHeight);
     assert.equal(await p.locator('.order-submit-bar .save').isVisible(),true);

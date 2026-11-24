@@ -5,6 +5,7 @@ const assert = require("node:assert/strict");
 const path = require("node:path");
 const fs = require("node:fs");
 const { chromium } = require("playwright");
+const {mockLegacyPayrollSnapshot}=require("./fixtures/legacy-payroll.cjs");
 const root = path.resolve(__dirname, "..");
 
 function gate() {
@@ -72,6 +73,7 @@ async function session(browser, {role = "master", active = true, delayModule = f
     if (endpoint === "rabota_order_notifications") await notices.promise;
     return route.fulfill({json: data});
   });
+  await mockLegacyPayrollSnapshot(context);
   await page.goto("https://crm.test/" + (view ? "?view=" + view : ""), {waitUntil: "commit"});
   async function close() {
     finance.release(); notices.release(); module.release();

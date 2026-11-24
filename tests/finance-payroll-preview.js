@@ -7,6 +7,7 @@ const {test}=require("node:test");
 const fs=require("node:fs");
 const vm=require("node:vm");
 const path=require("node:path");
+const {randomUUID}=require("node:crypto");
 const code=fs.readFileSync(path.join(__dirname,"../finance-payroll.js"),"utf8");
 class Element {
  constructor(tag){
@@ -39,7 +40,7 @@ const mk=(tag,cls,txt)=>{const e=new Element(tag);e.className=cls||"";if(txt!==u
 const select=(root,cls)=>{
  const result=[];function visit(e){if(e.className.split(" ").includes(cls))result.push(e);e.children.forEach(visit)}visit(root);return result
 };
-function fixture(){
+function fixture({preview=true,activePayroll=null,storage=new Map(),sendPayout}={}){
  const body=mk("body"),panel=mk("section"),heading=mk("h2","finance-title","История");
  const root=mk("div"),salaryRoot=mk("div"),history=mk("div"),entry=mk("div"),legacy=mk("div","","Оригинальные финансовые расчёты");
  root.append(legacy);panel.append(root,entry,heading,history);
@@ -47,8 +48,15 @@ function fixture(){
  const document={body,createElement:t=>mk(t),getElementById:id=>lookup[id]||null,
   addEventListener(){},removeEventListener(){}};
  let confirmed=0;
- const window={location:{hostname:"rabota-test123456-sonkort19-6069s-projects.vercel.app"},
+ const window={location:{hostname:preview?"rabota-test123456-sonkort19-6069s-projects.vercel.app":"crm.test"},
+  crypto:{randomUUID},
+  sessionStorage:{
+   getItem:key=>storage.get(key)??null,
+   setItem:(key,value)=>storage.set(key,value),
+   removeItem:key=>storage.delete(key)
+  },
   confirm(){confirmed++;return true},alert(){}};
+ if(activePayroll)window.__rdMoneyUi={payroll:()=>activePayroll,payrollPayout:sendPayout};
  vm.runInNewContext(code,{document,window,Intl,Date,Number,String,Array});
  const model={isOwner:true,raulAccrued:22750,raulPaid:15500,raulDue:7250,
   timurAccrued:6000,timurPaid:4500,timurDue:1500,companyEarned:16750,masterHeld:7500,waitingOwner:0,
@@ -63,6 +71,87 @@ function fixture(){
  return {body,panel,heading,root,salaryRoot,payroll,history,entry,legacy,window,model,
   get back(){return back},get confirmed(){return confirmed}}
 }
+
+test("active payroll shows Raul only and leaves the payout controls out of the master's view",()=>{
+ const activePayroll={active:true,ready:true,actorId:"owner",employeeId:"raul",employeeName:"Рауль",
+  earned:6500,paid:2000,due:4500,accruals:[{reference:"№00052",title:"Синтетический заказ",
+  earned:6500,actualPaid:10000,earnedAt:"2026-11-22T21:30:00Z"}],
+  payouts:[{amount:2000,method:"card",note:"Синтетическая выплата",occurredAt:"2026-11-23T10:00:00Z"}],
+  refunds:[{reference:"№00053",title:"Возврат по заказу",amount:4000,earnedReversed:3500,
+    earnedAt:"2026-11-21T10:00:00Z",occurredAt:"2026-11-23T12:00:00Z"}]};
+ const f=fixture({activePayroll});
+ const report=select(f.salaryRoot,"fp-v3-payroll")[0];
+ assert.ok(report);
+ assert.match(report.textContent,/Рауль/);
+ assert.doesNotMatch(report.textContent,/Тимур/);
+ assert.equal(select(report,"fp-v3-actions").length,1);
+ assert.match(report.textContent,/№00052.*Синтетический заказ/);
+ select(report,"fp-subtab")[1].click();
+ assert.match(f.salaryRoot.textContent,/Синтетическая выплата.*Карта/);
+ select(f.salaryRoot,"fp-subtab")[2].click();
+ assert.match(f.salaryRoot.textContent.replace(/\s/g," "),/Возвращено клиенту 4 000,00 ₽.*−3 500,00 ₽/);
+ assert.doesNotMatch(f.salaryRoot.textContent,/Синтетическая выплата/);
+ const master=mk("div");
+ f.window.__rdPayrollReport.mount(master,{master:true});
+ assert.equal(select(master,"fp-v3-actions").length,0);
+ assert.match(master.textContent,/Моя зарплата.*Осталось получить/);
+});
+
+test("after a lost payout response the next page resumes the original intent, even at zero due",async()=>{
+ const storage=new Map(),calls=[],committed=new Map();
+ const activePayroll={active:true,ready:true,actorId:"original-owner",employeeId:"raul",
+  earned:8000.50,paid:0,due:8000.50,accruals:[],payouts:[]};
+ const sendPayout=async intent=>{
+  calls.push(intent);
+  if(!committed.has(intent.requestId)){
+   committed.set(intent.requestId,{id:"fixture-receipt",amount:intent.amount,due:0});
+   throw Error("Соединение потеряно после записи");
+  }
+  return {receipt:committed.get(intent.requestId)};
+ };
+ const first=fixture({preview:false,activePayroll,storage,sendPayout});
+ select(first.salaryRoot,"fp-balance-payout")[0].click();
+ assert.equal(select(first.body,"fp-input")[0].value,"8000,50");
+ select(first.body,"fp-primary")[0].click();
+ await new Promise(setImmediate);
+ assert.equal(select(first.body,"fp-primary")[0].textContent,"Повторить отправку");
+ assert.equal(select(first.body,"fp-input").every(input=>input.disabled),true);
+
+ const nextSnapshot={...activePayroll,paid:8000.50,due:0};
+ const unrelated=fixture({preview:false,activePayroll:{...nextSnapshot,actorId:"other-owner"},storage,sendPayout});
+ assert.doesNotMatch(unrelated.salaryRoot.textContent,/Продолжить выплату/);
+ const resumed=fixture({preview:false,activePayroll:nextSnapshot,storage,sendPayout});
+ const proceed=select(resumed.salaryRoot,"fp-balance-payout")[0];
+ assert.equal(proceed.textContent,"Продолжить выплату");proceed.click();
+ select(resumed.body,"fp-primary")[0].click();
+ await new Promise(setImmediate);
+ assert.equal(calls.length,2);
+ assert.equal(calls[0].requestId,calls[1].requestId);
+ assert.equal(calls[0].amount,calls[1].amount);
+ assert.equal(committed.size,1);
+ assert.equal(storage.size,0);
+ assert.match(resumed.body.textContent,/Выплата проведена/);
+});
+
+test("account reset closes an in-flight payroll dialog and ignores its late receipt",async()=>{
+ const activePayroll={active:true,ready:true,actorId:"owner",employeeId:"raul",
+  earned:6500,paid:0,due:6500,accruals:[],payouts:[]};
+ let confirm;
+ const response=new Promise(resolve=>{confirm=resolve;});
+ const storage=new Map(),f=fixture({preview:false,activePayroll,storage,sendPayout:()=>response});
+ select(f.salaryRoot,"fp-balance-payout")[0].click();
+ select(f.body,"fp-primary")[0].click();
+ assert.equal(select(f.body,"fp-modal").length,1);
+ f.window.__rdResetPayrollUi();
+ assert.equal(select(f.body,"fp-modal").length,0);
+ const [key,previous]=storage.entries().next().value;
+ const replacement=JSON.stringify({...JSON.parse(previous),requestId:randomUUID()});
+ storage.set(key,replacement);
+ confirm({id:"test",amount:6500,due:0});
+ await new Promise(setImmediate);
+ assert.equal(select(f.body,"fp-modal").length,0);
+ assert.equal(storage.get(key),replacement);
+});
 test("owner Finance has three tabs, salary is mounted in Reports with the same numbers",()=>{
  const f=fixture();
  assert.equal(select(f.root,"fp-tab").length,3);

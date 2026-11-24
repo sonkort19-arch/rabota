@@ -32,7 +32,7 @@
   const api=()=>window.__rdMoneyUi;
   const token=()=>{if(typeof window.crypto?.randomUUID!=="function")throw Error("Браузер не поддерживает безопасный идентификатор операции");return window.crypto.randomUUID()};
   const isPreview=()=>/^rabota-(?:git-[a-z0-9-]+-|[a-z0-9]{7,}-)sonkort19-6069s-projects\.vercel\.app$/i.test(String(window.location?.hostname||""));
-  let page="day",step="menu",salaryTab="accruals",masterReady=false,masterProfitReport=null;
+  let page="day",step="menu",salaryTab="accruals",masterReady=false,masterProfitReport=null,masterPayrollReport=null;
   let orderQuery="",orderStatus="all",paymentMethod="all",navigationUser=null;
   let paymentBreakdownOpen=false, handoffMessage="", handoffRefreshError="";
   let ownerView=null, masterPaymentSignature=null;
@@ -358,8 +358,10 @@
       message.setAttribute("role","alert");root.replaceChildren(message);return;
     }
     const ready=hasSnapshot(m),dataError=m.stale||m.refreshError||handoffRefreshError;
+    const v3=Boolean(m.payrollV3??api()?.payroll?.()?.active);
     const signature=JSON.stringify([
-      m.revision,ready,m.error,m.stale,m.refreshError,!!m.canSubmit,handoffMessage,handoffRefreshError,
+      m.revision,ready,m.error,m.stale,m.refreshError,!!m.canSubmit,v3,m.showMasterCash,m.heldCash,m.masterCardReceived,
+      handoffMessage,handoffRefreshError,
       m.revision==null?[m.orders,m.collections]:null
     ]);
     if(masterPaymentSignature===signature&&root.firstChild)return;
@@ -381,15 +383,26 @@
     const transfer=btn("Отметить передачу","mw-handoff-action",()=>openMasterHandoff(totals.waiting,m.preview));
     const writeUnavailable=m.canSubmit===false||typeof api()?.submitMasterHandoff!=="function";
     transfer.disabled=Boolean(dataError)||!(totals.waiting>0)||(!m.preview&&writeUnavailable);
-    const hero=el("section","mw-handoff-card");hero.setAttribute("aria-label","Расчёты с компанией");
-    hero.append(el("h2","mw-handoff-label","Осталось передать компании"),
-      el("strong","mw-handoff-amount",balance(totals.waiting)),transfer);
+    const hero=el("section","mw-handoff-card");hero.setAttribute("aria-label",v3?"Наличные компании":"Расчёты с компанией");
+    hero.append(el("h2","mw-handoff-label",v3?"Наличные к передаче компании":"Осталось передать компании"),
+      el("strong","mw-handoff-amount",balance(totals.waiting)));
+    if(!v3||totals.waiting>0)hero.append(transfer);
     if(!dataError&&totals.waiting>0&&transfer.disabled)
       hero.append(el("p","mw-handoff-limit","Отметить передачу сейчас недоступно."));
     hero.append(box("mw-handoff-lines",
       box("",el("span","","Ждёт подтверждения"),el("strong","",balance(totals.pending))),
       box("",el("span","","Компания подтвердила"),el("strong","",balance(totals.confirmed)))));
-    cards.append(hero);
+    if(!v3||totals.waiting||totals.pending||totals.confirmed)cards.append(hero);
+    if(v3&&Number(m.heldCash)>totals.waiting+totals.pending){
+      cards.append(box("mw-money-stat mw-cash-held",
+        el("small","","Наличные у мастера, ещё не подтверждены компанией"),
+        el("strong","",balance(m.heldCash))));
+    }
+    if(Number(m.masterCardReceived)>0){
+      cards.append(box("mw-money-stat mw-cash-held",
+        el("small","","Принято на карту мастера по журналу"),
+        el("strong","",balance(m.masterCardReceived))));
+    }
 
     const paid=m.orders.filter(o=>o.paid&&o.status!=="Отменён"&&o.amount!=null&&
       Number.isFinite(Number(o.amount))&&Number(o.amount)>=0);
@@ -432,10 +445,15 @@
     const root=$("mwMasterReports");if(!root||root.hidden)return;
     const m=api()?.snapshot();
     if(!m||m.role!=="master")return;
+    const v3=Boolean(api()?.payroll?.()?.active);
     if(step==="orderProfit"&&masterProfitReport?.container?.isConnected){
       masterProfitReport.api.render();return;
     }
+    if(v3&&step==="detail"&&masterPayrollReport?.container?.isConnected){
+      masterPayrollReport.api.render();return;
+    }
     masterProfitReport=null;
+    masterPayrollReport=null;
     root.replaceChildren();
     const back=(label,fn)=>btn("‹ "+label,"mw-back",fn);
     const isRaul=String(m.masterName||"").trim().toLocaleLowerCase("ru")==="рауль";
@@ -466,10 +484,21 @@
         getOrders:()=>api()?.masterReportOrders?.()||[],
         getRaulMasterId:()=>api()?.snapshot()?.masterId||null,
         getFinanceStatus:()=>api()?.snapshot(),
+        getPayroll:()=>window.__rdPayrollSnapshot?.(),
         onRetry:financeRetry,
         startOpen:true,onBack:()=>{step="menu";masterProfitReport=null;renderMaster()}
       });
       masterProfitReport={container,api:report};
+      return;
+    }
+    if(v3&&window.__rdPayrollReport?.mount){
+      const container=el("div","fp-master-payroll");
+      root.append(container);
+      const report=window.__rdPayrollReport.mount(container,{master:true,
+        getSnapshot:()=>api()?.payroll?.(),
+        onBack:()=>{step="menu";masterPayrollReport=null;renderMaster();}
+      });
+      masterPayrollReport={container,api:report};
       return;
     }
     root.append(back("Отчёты",()=>{step="menu";renderMaster()}));
@@ -605,7 +634,8 @@
       ownerView.revision=null;ownerView.book=null;
       return;
     }
-    const revision=d.revision??JSON.stringify([d.paidOrders,d.operations,d.collections,d.deposits]);
+    const revision=JSON.stringify([d.revision??[d.paidOrders,d.operations,d.collections,d.deposits],
+      d.payrollV3,d.heldCash,d.pendingCash,d.masterCardReceived]);
     if(ownerView.revision===revision&&ownerView.book===book.rows)return;
     ownerView.revision=revision;ownerView.book=book.rows;
     renderOwner(content,book.rows,d);
@@ -648,6 +678,21 @@
       box("mw-money-stat",el("small","","Приход"),el("strong","",rub(stat.income))),
       box("mw-money-stat",el("small","","Расход"),el("strong","",rub(stat.expense)))
     ));
+    if(d.payrollV3&&Number(d.heldCash)>0){
+      root.append(box("mw-money-stat mw-cash-held",
+        el("small","","Наличные у мастеров"),
+        el("strong","",rub(d.heldCash))));
+    }
+    if(d.payrollV3&&Number(d.pendingCash)>0){
+      root.append(box("mw-money-stat mw-cash-held",
+        el("small","","Передано наличными, ждёт подтверждения"),
+        el("strong","",rub(d.pendingCash))));
+    }
+    if(Number(d.masterCardReceived)>0){
+      root.append(box("mw-money-stat mw-cash-held",
+        el("small","","Принято на карту мастера по журналу"),
+        el("strong","",rub(d.masterCardReceived))));
+    }
     if(stat.unknown)root.append(el("p","mw-notice","Операции без указанного способа: "+rub(stat.unknown)+
       ". Они есть в истории, но не относятся автоматически к наличным или карте."));
     root.append(el("h3","mw-subheading","История движений"));
@@ -777,7 +822,7 @@
     ownerView?.panel.replaceChildren();ownerView=null;
     for(const id of ["mwMasterReports","mwMasterPayments"])$(id)?.replaceChildren();
     for(const modal of document.querySelectorAll(".mw-modal-backdrop"))modal.remove();
-    masterPaymentSignature=null;masterProfitReport=null;navigationUser=null;
+    masterPaymentSignature=null;masterProfitReport=null;masterPayrollReport=null;navigationUser=null;
     paymentBreakdownOpen=false;handoffMessage="";handoffRefreshError="";
     scrollPositions.clear();
     window.__rdResetPayrollUi?.();

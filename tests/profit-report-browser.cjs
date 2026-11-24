@@ -281,6 +281,48 @@ async function checkOwnerPayroll(browserType,iphone){
     await context.close();
   }finally{await browser.close()}
 }
+async function checkVersionedReport(browserType){
+  const browser=await launch(browserType);
+  try{
+    const context=await browser.newContext({viewport:{width:390,height:844},isMobile:true,
+      hasTouch:true,serviceWorkers:"block"});
+    await context.route("**/*",route=>route.abort());
+    const page=await context.newPage();
+    await page.setContent('<meta name="viewport" content="width=device-width,initial-scale=1"><section id="rdReports"></section>');
+    await page.addStyleTag({path:reportCss});
+    await page.addScriptTag({path:path.join(__dirname,"..","finance-model.js")});
+    await page.addScriptTag({path:reportJs});
+    await page.evaluate(()=>{
+      const stamp=new Date().toISOString();
+      const defaults={status:"Выполнен",master:"Рауль",assignedUserId:"raul",paid:true,
+        price:10000,paymentAmount:10000,completedAt:stamp,createdAt:stamp};
+      const orders=[
+        {...defaults,id:"earned",referenceCode:"№00001",name:"Полная оплата",price:16000,paymentAmount:16000},
+        {...defaults,id:"partial",referenceCode:"№00002",name:"Частичная оплата",paymentAmount:5000},
+        {...defaults,id:"refunded",referenceCode:"№00003",name:"Возврат",status:"Отменён"}
+      ];
+      const payroll={state:"active",version:3,earned:9500,paid:5000,due:4500,
+        orders:[{orderId:"earned",actualPaid:16000,earned:9500,companyShare:6500,ruleVersion:"v3-50pct-plus-1500"}],
+        refunds:[{orderId:"refunded",amount:10000,occurredAt:stamp}]};
+      window.__rdCreateProfitReport(document.getElementById("rdReports"),{
+        startOpen:true,getOrders:()=>orders,getRaulMasterId:()=>"raul",getPayroll:()=>payroll,
+        getFinanceStatus:()=>({ready:true,revision:1})
+      });
+    });
+    await page.getByLabel("Период отчёта").selectOption("all");
+    const body=page.locator(".pr-table tbody");
+    const row=name=>body.locator("tr").filter({has:page.getByRole("button",{name,exact:true})});
+    const normalized=async cells=>(await cells.allInnerTexts()).map(value=>value.replace(/\s+/g,""));
+    assert.deepEqual((await normalized(row("№00001").locator("td"))).slice(-3),["16000₽","9500₽","6500₽"]);
+    assert.deepEqual((await normalized(row("№00002").locator("td"))).slice(-3),["5000₽","—","—"]);
+    assert.deepEqual((await normalized(row("№00003").locator("td"))).slice(-3),["Возврат","—","—"]);
+    const total=await normalized(body.locator(".pr-total-row > *"));
+    assert.deepEqual(total.slice(-3),["21000₽","9500₽","6500₽"]);
+    await page.getByLabel("Статус заказов").selectOption("paid");
+    assert.equal(await row("№00003").count(),0,"a refunded order is excluded from net paid orders");
+    await context.close();
+  }finally{await browser.close()}
+}
 (async()=>{
   await run(chromium,false);
   await run(webkit,true);
@@ -288,5 +330,7 @@ async function checkOwnerPayroll(browserType,iphone){
   await checkRaulPortal("Олег",false);
   await checkOwnerPayroll(chromium,false);
   await checkOwnerPayroll(webkit,true);
-  process.stdout.write("Reports browser checks passed: orders, owner salary and Raul permissions\n");
+  await checkVersionedReport(chromium);
+  await checkVersionedReport(webkit);
+  process.stdout.write("Reports browser checks passed: orders, owner salary, Raul permissions and versioned refund/profit\n");
 })().catch(err=>{console.error(err);process.exitCode=1});

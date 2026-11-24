@@ -3,7 +3,8 @@ const test=require("node:test");
 const assert=require("node:assert/strict");
 const fs=require("node:fs");
 const path=require("node:path");
-const {createFinanceModel,createFinanceReader,financeSplit,calculateAccruals,calculateCompanyCash,
+const {createFinanceModel,createFinanceReader,financeSplit,payrollSplitV3,fullyPaidAmount,
+  readPayrollSnapshot,calculateAccruals,calculateCompanyCash,
   sumBy,roundMoney,TIMUR_FEE,RAUL_PERCENT}=require("../finance-model.js");
 
 const r=(id,price,{paid=true,status="Выполнен",receivedBy="company"}={})=>({
@@ -41,6 +42,75 @@ test("unchanged payroll split and Russian currency",()=>{
 });
 test("a half-cent share follows PostgreSQL rounding instead of binary floating point",()=>{
   assert.deepEqual(financeSplit(4096.11),{gross:4096.11,raul:2048.06,timur:1500,company:548.05});
+});
+test("new payroll accruals credit Raul rather than a separate Timur balance",()=>{
+  for(const [paid,raul,company] of [[10000,6500,3500],[16000,9500,6500],[20000,11500,8500],[4096.11,3548.06,548.05]]){
+    assert.deepEqual(payrollSplitV3(paid),{gross:paid,raul,timur:0,company});
+  }
+  assert.equal(payrollSplitV3(null),null);
+  assert.equal(payrollSplitV3(0),null);
+});
+test("unpaid, partial, missing or unfinished payments do not qualify as full",()=>{
+  const order={status:"Выполнен",paid:true,price:10000,paymentAmount:10000};
+  assert.equal(fullyPaidAmount(order),10000);
+  for(const change of [{paymentAmount:9999.99},{paymentAmount:10000.01},{paymentAmount:null},
+    {paymentAmount:""},{status:"В работе"},{paid:false},{paid:"false"},{paymentAmount:0,price:0}])
+    assert.equal(fullyPaidAmount({...order,...change}),null,JSON.stringify(change));
+});
+test("v3 payroll uses the server snapshot, with explicit compatibility and fail-closed errors",async()=>{
+  const active={
+    version:3,state:"active",master_id:"raul",activated_at:"2026-11-24T20:00:00Z",
+    earned:"6500.00",paid:"2000.00",due:"4500.00",
+    orders:[{order_id:"order-a",paid_amount:"10000",earned_amount:"6500",company_share:"3500",rule_version:3}],
+    payouts:[{id:"payout-a",amount:"2000",payment_method:"card",kind:"raul_payout"}],
+    refunds:[{order_id:"refunded-a",amount:"12000",refunded_at:"2026-11-25T20:00:00Z",
+      earned_reversed:"7500",earned_at:"2026-11-25T10:00:00Z"}]
+  };
+  const snapshot=await readPayrollSnapshot(async (endpoint,method)=>{
+    assert.equal(endpoint,"rpc/rabota_payroll_snapshot_v3");
+    assert.equal(method,"GET");
+    return active;
+  });
+  assert.equal(snapshot.earned,6500);
+  assert.deepEqual(snapshot.orders,[{orderId:"order-a",actualPaid:10000,earned:6500,companyShare:3500,earnedAt:null,ruleVersion:3}]);
+  assert.deepEqual(snapshot.payouts,[{id:"payout-a",orderId:null,amount:2000,occurredAt:null,method:"card",note:"",kind:"raul_payout"}]);
+  assert.deepEqual(snapshot.refunds,[{orderId:"refunded-a",amount:12000,occurredAt:"2026-11-25T20:00:00Z",
+    earnedReversed:7500,earnedAt:"2026-11-25T10:00:00Z"}]);
+  assert.deepEqual(await readPayrollSnapshot(async()=>({version:3,state:"inactive"})),{version:3,state:"inactive"});
+  assert.equal(await readPayrollSnapshot(async()=>{throw Object.assign(Error("missing"),{code:"PGRST202"});}),null);
+  assert.equal(await readPayrollSnapshot(async()=>{
+    throw Object.assign(Error("function public.rabota_payroll_snapshot_v3() does not exist"),{code:"42883"});
+  }),null);
+  await assert.rejects(readPayrollSnapshot(async()=>{
+    throw Object.assign(Error("function private.some_dependency() does not exist"),{code:"42883"});
+  }),/some_dependency/);
+  await assert.rejects(readPayrollSnapshot(async()=>{throw Object.assign(Error("denied"),{code:"42501"});}),/denied/);
+  await assert.rejects(readPayrollSnapshot(async()=>[]),/Неизвестный формат/);
+  await assert.rejects(readPayrollSnapshot(async()=>({...active,earned:null})),/неверную сумму/);
+  await assert.rejects(readPayrollSnapshot(async()=>({...active,due:4000})),/неверную сумму/);
+  await assert.rejects(readPayrollSnapshot(async()=>({...active,refunds:[{...active.refunds[0],order_id:"order-a"}]})),/запись возврата/);
+  await assert.rejects(readPayrollSnapshot(async()=>({...active,orders:[active.orders[0],active.orders[0]]})),/начисление по заказу/);
+});
+test("canonical cash movements use the recorded receipt and preserve historical collections without counting wages twice",()=>{
+  const orders=[
+    r("card",10000),r("held",8000,{receivedBy:"master"}),r("legacy",5000,{receivedBy:"master"})
+  ].map((row,i)=>({...row,paymentAmount:[9500,8000,5000][i]}));
+  const input={
+    orders,collections:[{order_id:"held",company_amount:8000,confirmed_amount:3000},
+      {order_id:"legacy",company_amount:1000,confirmed_amount:1000}],
+    payments:[payout("raul_payout",4000,{orderId:"legacy"}),payout("raul_payout",2000)],
+    raulDue:1800,timurDue:0
+  };
+  const actual=calculateCompanyCash({...input,useRecordedPayments:true});
+  assert.equal(actual.directReceipts,9500);
+  assert.equal(actual.confirmedDeposits,4000);
+  assert.equal(actual.allPayouts,2000);
+  assert.equal(actual.cashBalance,11500);
+  assert.equal(actual.freeBalance,9700);
+  const refunded=calculateCompanyCash({...input,useRecordedPayments:true,refunds:[{orderId:"card"}]});
+  assert.equal(refunded.directReceipts,0,"confirmed refund prevails over a concurrently read order row");
+  assert.equal(refunded.cashBalance,2000,"remove the receipt once rather than also subtract a refund");
+  assert.equal(calculateCompanyCash(input).directReceipts,10000,"legacy interpretation unchanged");
 });
 test("accruals only include Rauls completed paid orders",()=>{
   const x=calculateAccruals({

@@ -44,6 +44,12 @@
       return row;
     }
   };
+  function payableAmount(value){
+    if(typeof value!=="number"&&typeof value!=="string")return null;
+    const amount=Number(value);
+    return Number.isFinite(amount)&&amount>0&&amount<=10000000&&
+      Math.round(amount*100)/100===amount?amount:null;
+  }
   function createOrdersModel(deps){
     if(!deps||!Array.isArray(deps.statuses)||
        typeof deps.dbRequest!=="function"||typeof deps.reloadOrders!=="function"||
@@ -58,6 +64,9 @@
     const getCurrentUserId=deps.getCurrentUserId;
     const getFinanceOperations=deps.getFinanceOperations;
     const getFinanceCollections=deps.getFinanceCollections;
+    const paymentAttempts=new Map(),unconfirmedPayments=new Set(),confirmedPayments=new Map();
+    const refundAttempts=new Map();
+    let paymentGeneration=0;
 
 function readOrder(row) {
       return {
@@ -111,20 +120,141 @@ function orderHasFinancialHistory(order){
         getFinanceCollections().some(row=>String(row.order_id)===String(order.id)));
     }
 
-async function persistOrder(order) {
+async function persistOrder(order,{refresh=true}={}) {
       const existing = getOrders().some(o => String(o.id) === String(order.id));
       const data = serializeOrder(order);
       const path=existing?"rabota_orders?id=eq."+encodeURIComponent(order.id):"rabota_orders";
       const result=await dbRequest(path,existing?"PATCH":"POST",data);
       if(!Array.isArray(result)||!result.length)
         throw new Error(existing?"Заказ не обновлён.":"Заказ не сохранён.");
+      const orderId=result[0]?.id??null;
+      if(!refresh)return {orderId,refreshError:null};
       // A rejected read after an acknowledged write can only fail the refresh.
       try{
         await reloadOrders();
-        return {refreshError:null};
+        return {orderId,refreshError:null};
       }catch(refreshError){
-        return {refreshError};
+        return {orderId,refreshError};
       }
+    }
+
+    function resetPaymentAttempts(){
+      paymentGeneration++;
+      paymentAttempts.clear();
+      unconfirmedPayments.clear();
+      confirmedPayments.clear();
+      refundAttempts.clear();
+    }
+    function recordFullPayment(order,{amount,method},receiver){
+      const id=String(order?.id??""),expected=payableAmount(order?.price),actor=getCurrentUserId();
+      if(!id||!actor)throw new Error("Перед оплатой сохраните заказ и войдите в CRM.");
+      if(order.status==="Отменён")throw new Error("Отменённый заказ нельзя оплатить.");
+      if(expected===null||payableAmount(amount)!==expected)
+        throw new Error("Оплатить можно только полную сохранённую стоимость заказа.");
+      if(!["cash","card"].includes(method)||!["company","master"].includes(receiver))
+        throw new Error("Не указан допустимый способ или получатель оплаты.");
+      const key=JSON.stringify([actor,expected,method,receiver]);
+      if(confirmedPayments.has(id)){
+        if(confirmedPayments.get(id)===key)return Promise.resolve();
+        throw new Error("Оплата уже записана с другими реквизитами.");
+      }
+      const pending=paymentAttempts.get(id);
+      if(pending){
+        if(pending.key===key)return pending.promise;
+        throw new Error("Подождите завершения предыдущей операции с оплатой.");
+      }
+      const generation=paymentGeneration;
+      const ensureAccount=()=>{
+        if(generation!==paymentGeneration||actor!==getCurrentUserId())
+          throw new Error("Сеанс изменился. Проверьте оплату в заказе.");
+      };
+      const readReceipt=async()=>{
+        const rows=await dbRequest(
+          "rabota_orders?select=id,status,price,paid,payment_amount,payment_method,payment_received_by,paid_by&id=eq."+
+          encodeURIComponent(id)+"&limit=1","GET");
+        ensureAccount();
+        const row=Array.isArray(rows)&&rows.length===1?rows[0]:null;
+        if(!row||String(row.id)!==id)throw new Error("Не удалось проверить запись оплаты.");
+        if(row.paid===false&&row.payment_amount==null)return false;
+        if(row.paid===true&&row.status==="Выполнен"&&payableAmount(row.price)===expected&&
+          payableAmount(row.payment_amount)===expected&&row.payment_method===method&&
+          row.payment_received_by===receiver&&row.paid_by===actor)return true;
+        throw new Error("В заказе уже есть платёж с другими реквизитами. Проверьте карточку.");
+      };
+      const attempt={key,promise:null};
+      attempt.promise=(async()=>{
+        if(unconfirmedPayments.has(id)){
+          const recorded=await readReceipt();
+          unconfirmedPayments.delete(id);
+          if(recorded){
+            confirmedPayments.set(id,key);
+            return;
+          }
+        }
+        try{
+          const result=await dbRequest("rpc/rabota_record_order_payment","POST",{
+            p_order_id:id,p_amount:expected,p_method:method
+          });
+          ensureAccount();
+          if(result?.ok!==true)throw new Error("Сервер не подтвердил запись оплаты.");
+          confirmedPayments.set(id,key);
+        }catch(error){
+          ensureAccount();
+          // A 4xx rejection is conclusive except for a request timeout.
+          if(error.status>=400&&error.status<500&&error.status!==408)throw error;
+          unconfirmedPayments.add(id);
+          if(await readReceipt()){
+            unconfirmedPayments.delete(id);
+            confirmedPayments.set(id,key);
+            return;
+          }
+          throw new Error("Запись оплаты не подтверждена. Проверьте заказ перед повтором.");
+        }
+      })().finally(()=>{
+        if(paymentAttempts.get(id)===attempt)paymentAttempts.delete(id);
+      });
+      paymentAttempts.set(id,attempt);
+      return attempt.promise;
+    }
+
+    function recordFullRefund(order,note){
+      const id=String(order?.id??""),amount=payableAmount(order?.paymentAmount),actor=getCurrentUserId();
+      if(!id||!actor||order.paid!==true||order.status!=="Выполнен"||
+        amount===null||amount!==payableAmount(order.price)||order.paymentReceivedBy!=="company")
+        throw new Error("Можно учесть только полный возврат по завершённому заказу, оплаченному компании.");
+      note=String(note??"").trim();
+      if(!note||Array.from(note).length>240)throw new Error("Укажите причину возврата до 240 символов.");
+      let attempt=refundAttempts.get(id);
+      if(attempt){
+        if(attempt.actor!==actor||attempt.note!==note||attempt.amount!==amount)
+          throw new Error("Повторите проверку возврата с теми же реквизитами.");
+        if(attempt.receipt)return Promise.resolve(attempt.receipt);
+        if(attempt.promise)return attempt.promise;
+      }else{
+        attempt={requestId:crypto.randomUUID(),actor,note,amount,promise:null,receipt:null};
+        refundAttempts.set(id,attempt);
+      }
+      const generation=paymentGeneration;
+      attempt.promise=Promise.resolve().then(async()=>{
+        try{
+          if(generation!==paymentGeneration||actor!==getCurrentUserId())
+            throw new Error("Сеанс изменился. Проверьте возврат в заказе.");
+          const receipt=await dbRequest("rpc/rabota_payroll_refund_v3","POST",{
+            p_order_id:id,p_amount:amount,p_note:note,p_request_id:attempt.requestId
+          });
+          if(generation!==paymentGeneration||actor!==getCurrentUserId())
+            throw new Error("Сеанс изменился. Проверьте возврат в заказе.");
+          if(String(receipt?.order_id)!==id||payableAmount(receipt.amount)!==amount||!receipt.refunded_at)
+            throw new Error("Сервер пока не подтвердил возврат. Проверьте его с теми же реквизитами.");
+          attempt.receipt=receipt;
+          return receipt;
+        }catch(error){
+          if(generation===paymentGeneration&&error.status>=400&&error.status<500&&error.status!==408)
+            refundAttempts.delete(id);
+          throw error;
+        }
+      }).finally(()=>{attempt.promise=null;});
+      return attempt.promise;
     }
 
 function hasConflict(date, time, master, excludeId) {
@@ -147,9 +277,13 @@ function findTightBookings(date,time,master,excludeId) {
         Number.isFinite(minutes(o.time)) && Math.abs(minutes(o.time)-target)<200);
     }
 
-    return {readOrder,serializeOrder,orderHasFinancialHistory,persistOrder,hasConflict,findTightBookings};
+    return {readOrder,serializeOrder,orderHasFinancialHistory,persistOrder,recordFullPayment,recordFullRefund,
+      resetPaymentAttempts,hasConflict,findTightBookings};
   }
 
-  if(root){root.__rdCreateOrdersModel=createOrdersModel;root.__rdOrderReference=orderReference;}
-  if(typeof module!=="undefined"&&module.exports)module.exports={createOrdersModel,orderReference};
+  if(root){
+    root.__rdCreateOrdersModel=createOrdersModel;root.__rdOrderReference=orderReference;
+    root.__rdPayableOrderAmount=payableAmount;
+  }
+  if(typeof module!=="undefined"&&module.exports)module.exports={createOrdersModel,orderReference,payableAmount};
 })(typeof window!=="undefined"?window:null);

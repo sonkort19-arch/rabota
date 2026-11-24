@@ -81,7 +81,7 @@ test("saving, conflicts, confirmation, finance guard and role restrictions remai
   assert.match(html,/if\(status!=="Отменён"&&hasConflict/);
   assert.match(html,/const busy=findTightBookings/);
   assert.match(html,/if\(!confirm\("Внимание:/);
-  assert.match(html,/await persistOrder\(order\)/);
+  assert.match(html,/await persistOrder\(order,payment\?\{refresh:false\}:undefined\)/);
   assert.match(html,/price:controls\.price\.value===""\?null:Number\(controls\.price\.value\)/);
   assert.match(html,/advanced\.open=Boolean\(existing\)/);
   assert.match(html,/controls\.master\.readOnly=raulCreating/);

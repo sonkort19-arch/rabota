@@ -9,6 +9,7 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
 const { chromium, webkit } = require("playwright");
+const {mockLegacyPayrollSnapshot}=require("./fixtures/legacy-payroll.cjs");
 
 const ROOT = path.resolve(__dirname, "..");
 const CAPTURE_DIR = process.env.RABOTA_SCREENSHOT_DIR || "/tmp/rabota-unified-qa";
@@ -83,6 +84,28 @@ async function session(browser, role, width, writeFixture = null) {
       writes.push(request.method() + " " + url.pathname);
       if (writeFixture?.expireAuth && url.pathname === "/auth/v1/token")
         return route.fulfill({ status: 401, json: { message: "Synthetic expired session" } });
+      if (writeFixture?.payrollV3 && url.pathname === "/rest/v1/rpc/rabota_record_order_payment") {
+        const fields=request.postDataJSON(),saved=writeFixture.saved;
+        assert.equal(fields.p_order_id,saved.id);
+        assert.equal(fields.p_amount,saved.price);
+        assert.equal(saved.paid,false,"order save must not write an unverified payment");
+        assert.equal(saved.payment_amount,undefined);
+        Object.assign(saved,{paid:true,payment_amount:fields.p_amount,payment_method:fields.p_method,
+          payment_received_by:"company",paid_by:member.user_id,paid_at:FIXED_TIME.toISOString()});
+        return route.fulfill({json:{ok:true,amount:fields.p_amount,method:fields.p_method,receiver:"company"}});
+      }
+      if (writeFixture?.payrollV3 && url.pathname === "/rest/v1/rpc/rabota_payroll_refund_v3") {
+        const fields=request.postDataJSON(),saved=writeFixture.saved;
+        assert.equal(role,"owner");
+        assert.equal(fields.p_order_id,saved.id);
+        assert.equal(fields.p_amount,saved.payment_amount);
+        assert.equal(fields.p_note,"Согласованный полный возврат");
+        assert.match(fields.p_request_id,/^[0-9a-f-]{36}$/i);
+        saved.status="Отменён";
+        saved.updated_at=new Date(FIXED_TIME.getTime()+1000).toISOString();
+        writeFixture.refund={order_id:saved.id,amount:fields.p_amount,refunded_at:saved.updated_at};
+        return route.fulfill({json:{...writeFixture.refund,replayed:false}});
+      }
       if (writeFixture && url.pathname === "/rest/v1/rabota_orders" && request.method() === "POST") {
         assert.equal(writeFixture.saved, undefined, "the form sent a duplicate write");
         const fields = request.postDataJSON();
@@ -104,6 +127,14 @@ async function session(browser, role, width, writeFixture = null) {
     if (url.pathname === "/auth/v1/user")
       return route.fulfill({ json: { id: member.user_id, email: member.email } });
     if (url.pathname.startsWith("/rest/v1/")) {
+      if (endpoint === "rabota_payroll_snapshot_v3" && writeFixture?.payrollV3) {
+        const saved=writeFixture.saved,paid=saved?.paid&&saved.status==="Выполнен";
+        const orders=paid?[{order_id:saved.id,paid_amount:saved.payment_amount,earned_amount:11500,
+          company_share:8500,earned_at:saved.paid_at,rule_version:3}]:[];
+        const earned=paid?11500:0;
+        return route.fulfill({json:{version:3,state:"active",master_id:"fixture-raul",activated_at:"2026-11-24T09:00:00Z",
+          earned,paid:0,due:earned,orders,payouts:[],refunds:writeFixture.refund?[writeFixture.refund]:[]}});
+      }
       if (endpoint === "rabota_members") {
         let members = MEMBERS;
         if (url.searchParams.has("user_id")) {
@@ -128,6 +159,7 @@ async function session(browser, role, width, writeFixture = null) {
     unexpected.push(request.method() + " " + url.origin + url.pathname);
     return route.abort();
   });
+  if(!writeFixture?.payrollV3)await mockLegacyPayrollSnapshot(context);
   await page.goto("https://crm.test/");
   await page.locator("#appScreen.rd-unified-orders").waitFor({ state: "visible" });
   await page.locator("#owViewSwitch").waitFor({ state: "visible" });
@@ -457,6 +489,45 @@ async function checkDialogsCloseOnExpiredSession(browser, role) {
   }
 }
 
+async function checkActivatedPaymentAndRefund(browser) {
+  const fixture={payrollV3:true};
+  const s=await session(browser,"owner",390,fixture);
+  try{
+    const {page,writes}=s;
+    await page.waitForFunction(()=>window.__rdPayrollMode?.()==="v3");
+    await chooseDay(page,EMPTY_DAY);
+    await page.locator("#newOrderBtn").click();
+    await page.locator("#clientName").fill("Тест оплаты и возврата");
+    await page.locator("#clientPhone").fill("+79990000089");
+    await page.locator("#clientSource").selectOption("unknown");
+    await page.locator("#master").fill("Рауль");
+    await page.locator("#orderTime").fill("13:00");
+    await page.locator("#price").fill("20000");
+    await page.locator("#orderAdvanced > summary").click();
+    await page.locator("#orderStatus").selectOption("Выполнен");
+    const payment=page.locator(".rd-pay-overlay");
+    await payment.getByText("Полная стоимость заказа").waitFor();
+    assert.equal(await payment.locator(".rd-pay-change").isVisible(),false);
+    assert.equal(await payment.locator("#rdPayAmount").isDisabled(),true);
+    await payment.getByRole("button",{name:/^Получено 20/}).click();
+    await page.locator("#orderOverlay").waitFor({state:"hidden"});
+    assert.deepEqual(writes,["POST /rest/v1/rabota_orders","POST /rest/v1/rpc/rabota_record_order_payment"]);
+    assert.equal(fixture.saved.payment_amount,20000);
+    await cards(page).filter({hasText:"Тест оплаты и возврата"}).locator("button").first().click();
+    const orderDialog=page.locator(".rd-order-dialog");
+    await orderDialog.getByText("Оплачено · наличные").waitFor();
+    assert.equal(await orderDialog.getByRole("button",{name:"Изменить",exact:true}).count(),0);
+    assert.equal(await orderDialog.locator(".compact-select").isDisabled(),true);
+    page.once("dialog",dialog=>dialog.accept("Согласованный полный возврат"));
+    await orderDialog.getByRole("button",{name:"Учесть полный возврат",exact:true}).click();
+    await page.waitForFunction(ref=>getOrders().some(order=>order.id===ref&&order.status==="Отменён"),fixture.saved.id);
+    assert.deepEqual(writes,["POST /rest/v1/rabota_orders","POST /rest/v1/rpc/rabota_record_order_payment",
+      "POST /rest/v1/rpc/rabota_payroll_refund_v3"]);
+    assert.equal(fixture.saved.paid,true,"refund preserves the original receipt");
+    assert.equal(fixture.saved.payment_amount,20000);
+  }finally{await s.close();}
+}
+
 (async () => {
   const kind = process.env.TEST_BROWSER || "chromium";
   const browser = await (kind === "webkit" ? webkit : chromium).launch({
@@ -483,6 +554,8 @@ async function checkDialogsCloseOnExpiredSession(browser, role) {
     }
     await checkSavedOrderAfterReconnect(browser);
     console.log("PASS", kind, "confirmed save, failed refresh and reconnect");
+    await checkActivatedPaymentAndRefund(browser);
+    console.log("PASS",kind,"active payroll full payment and audited refund");
     for (const role of roles) {
       await checkDialogsCloseOnExpiredSession(browser, role);
       console.log("PASS", kind, role, "private dialogs close on expired session");

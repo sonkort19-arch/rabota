@@ -540,6 +540,7 @@ function build(){
  if(currentRole==="owner"){
    profitReport=window.__rdCreateProfitReport?.(reportsRoot,{getOrders:()=>window.__rdOwnerReportOrders?.()??[],
       getRaulMasterId:()=>window.__rdReportMasterId?.(),
+      getPayroll:()=>window.__rdPayrollSnapshot?.(),
       getFinanceStatus:()=>window.__rdFinanceStatus?.()})||null;
    const menu=reportsRoot.querySelector(".pr-menu");
    if(menu){

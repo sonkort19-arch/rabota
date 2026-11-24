@@ -33,7 +33,7 @@ sed -n '/^CREATE OR REPLACE FUNCTION public\.rabota_finance_record(/,/^\$functio
   sql/rabota_harden_null_role_guards_20261026.sql | db
 db -c 'REVOKE EXECUTE ON FUNCTION public.rabota_finance_record(text,numeric,uuid,text) FROM PUBLIC,anon; GRANT EXECUTE ON FUNCTION public.rabota_finance_record(text,numeric,uuid,text) TO authenticated; TRUNCATE public.rabota_finance_operations,public.rabota_cash_collections,public.rabota_orders;'
 
-migration=sql/20261124224203_cash_payroll_reservation.sql
+migration=tests/sql/superseded-cash-payroll-reservation.sql
 owner='00000000-0000-4000-8000-000000000001'
 raul='00000000-0000-4000-8000-000000000003'
 cash_order='10000000-0000-4000-8000-000000000029'

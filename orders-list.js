@@ -61,7 +61,15 @@
     return row;
   }
   function paymentCaption(order){
+    const refund=window.__rdPayrollSnapshot?.()?.refunds?.find(record=>record.orderId===String(order.id));
+    if(refund&&order.status==="Отменён")
+      return text("span","Возврат учтён · "+formatMoney(refund.amount),"rd-order-payment-state");
     if(order.status!=="Выполнен")return null;
+    if(order.paid&&window.__rdPayrollMode?.()==="v3"){
+      const amount=window.__rdPayableOrderAmount(order.paymentAmount);
+      if(amount===null||amount!==window.__rdPayableOrderAmount(order.price))
+        return text("span","Оплата требует сверки","rd-order-payment-state is-unpaid");
+    }
     return text("span",order.paid?
       ("Оплачено"+(order.paymentMethod==="cash"?" · наличные":order.paymentMethod==="card"?" · карта":"")):
       "Ждём оплату",
@@ -150,7 +158,7 @@
       ctaLabel="Принять оплату";
       existingButton=payload?.controls?.querySelector("button.payment");
     }
-    if(ctaLabel){
+    if(ctaLabel&&!select?.disabled){
       const cta=text("button",ctaLabel,"rd-order-primary");
       cta.type="button";
       cta.addEventListener("click",()=>{

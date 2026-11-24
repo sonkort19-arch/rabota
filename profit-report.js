@@ -30,29 +30,40 @@
     const price=order.price==null||order.price===""?null:Number(order.price);
     const validPrice=price!=null&&Number.isFinite(price)&&price>=0;
     const paid=Boolean(order.paid);
+    const versioned=options.payroll?.state==="active";
+    const orderId=String(order.id);
+    const refund=versioned?(options.refundsByOrder?
+      options.refundsByOrder.get(orderId):options.payroll.refunds?.find(item=>item.orderId===orderId)):null;
     const paymentAmountMissing=paid&&(order.paymentAmount==null||order.paymentAmount==="");
     const amount=paymentAmountMissing?price:Number(order.paymentAmount);
-    const received=paid&&validPrice&&Number.isFinite(amount)&&amount>=0?round(amount):0;
+    const received=!refund&&paid&&validPrice&&Number.isFinite(amount)&&amount>=0?round(amount):0;
     const paymentMismatch=paid&&validPrice&&!paymentAmountMissing&&
       Number.isFinite(amount)&&Math.abs(amount-price)>=.01;
     const completed=order.status==="Выполнен";
-    const earned=completed&&paid;
+    const earned=completed&&paid&&!refund;
     // In the CRM, always supply Raul's authenticated master user_id.
     // Legacy unit-test callers without masterId may still use display names.
     const scoped=Object.prototype.hasOwnProperty.call(options,"masterId");
     const raul=scoped
       ?Boolean(options.masterId)&&order.assignedUserId===options.masterId
       :txt(order.master).trim().toLocaleLowerCase("ru-RU")==="рауль";
-    const calculated=earned&&raul&&validPrice&&typeof sharedSplit==="function";
-    const split=calculated?sharedSplit(price):null;
-    const salary=split?round(split.raul+split.timur):null;
-    const profit=split?split.company:null;
+    const projection=versioned?(options.payrollByOrder?
+      options.payrollByOrder.get(orderId):options.payroll.orders.find(item=>item.orderId===orderId)):null;
+    const split=!versioned&&earned&&raul&&validPrice&&typeof sharedSplit==="function"?sharedSplit(price):null;
+    const calculated=Boolean(projection||split);
+    const salary=projection?round(projection.actualPaid-projection.companyShare):split?round(split.raul+split.timur):null;
+    const profit=projection?projection.companyShare:split?split.company:null;
     return Object.assign({},order,{
       reportPrice:validPrice?price:null,
-      reportReceived:received,reportEarned:earned,reportCalculated:calculated,
+      reportReceived:received,reportEarned:earned||Boolean(projection),reportCalculated:calculated,
       reportSalary:salary,reportProfit:profit,
-      reportPaymentMissing:paymentAmountMissing,reportPaymentMismatch:paymentMismatch,
-      reportReason:!earned?"":calculated?"":!validPrice?"Не указана цена":!raul?
+      reportCalculationAmount:projection?.actualPaid??split?.gross??null,
+      reportRuleVersion:projection?.ruleVersion??null,
+      reportRefundedAmount:refund?.amount??null,
+      reportPaymentMissing:!refund&&paymentAmountMissing,reportPaymentMismatch:!refund&&paymentMismatch,
+      reportReason:!earned||calculated?"":versioned?
+        "В расчёте зарплаты нет подтверждённого начисления по этому заказу":
+        !validPrice?"Не указана цена":!raul?
         "Нет расчёта: заказ назначен другому мастеру или мастер не найден":
         "Не загружены правила финансовых начислений"
     });
@@ -93,11 +104,15 @@
     const search=txt(options.search).trim().toLocaleLowerCase("ru-RU").replace(/^[№#]\s*/,"");
     const today=options.today||moscowDay(new Date());
     const [from,to]=bounds(options.period||"all",today,options.from,options.to);
-    return orders.map(order=>reportRow(order,options)).filter(row=>{
+    const payrollByOrder=options.payroll?.state==="active"?
+      new Map(options.payroll.orders.map(item=>[item.orderId,item])):null;
+    const rowOptions=payrollByOrder?{...options,payrollByOrder,
+      refundsByOrder:new Map((options.payroll.refunds??[]).map(item=>[item.orderId,item]))}:options;
+    return orders.map(order=>reportRow(order,rowOptions)).filter(row=>{
       const day=getDate(row,options.basis||"closed");
       if(from&&(!day||day<from))return false;
       if(to&&(!day||day>to))return false;
-      if(options.status==="paid"&&!row.paid)return false;
+      if(options.status==="paid"&&(!row.paid||row.reportRefundedAmount))return false;
       if(options.status==="unpaid"&&row.paid)return false;
       if(options.status&&options.status!=="paid"&&options.status!=="unpaid"&&row.status!==options.status)return false;
       if(search){
@@ -118,6 +133,7 @@
     const data=rows.map(r=>[r.referenceCode||r.orderNumber||"",getDate(r,"created"),r.date||"",
       getDate(r,"closed"),r.name,r.master,r.status,r.reportPrice==null?"":r.reportPrice,
       r.reportReceived,r.reportSalary==null?"":r.reportSalary,r.reportProfit==null?"":r.reportProfit,
+       r.reportRefundedAmount?"Подтверждён возврат "+money(r.reportRefundedAmount):
        !r.paid?"Не оплачено":r.reportPaymentMissing?"Сумма платежа не указана":r.reportPaymentMismatch?"Оплата отличается от цены":"Сумма указана"]);
     return "\uFEFF"+[cols,...data].map(row=>row.map(quoteCsv).join(";")).join("\r\n");
   }
@@ -137,7 +153,7 @@
     el.value=initial;el.addEventListener("change",()=>changed(el.value));
     return el;
   }
-  function mount(rootEl,{getOrders,getRaulMasterId=null,getFinanceStatus=null,startOpen=false,onBack=null,onRetry=null}){
+  function mount(rootEl,{getOrders,getRaulMasterId=null,getFinanceStatus=null,getPayroll=null,startOpen=false,onBack=null,onRetry=null}){
     if(!rootEl||typeof getOrders!=="function")throw Error("Отчёт не может загрузиться");
     rootEl.classList.add("pr-report-scope");
     const state={open:false,period:"month",basis:"closed",status:"",search:"",from:"",to:"",visible:PAGE_SIZE};
@@ -205,7 +221,8 @@
     financeStatus.append(message,retry);
     const info=node("details","pr-info");
     info.append(node("summary","","Как считается доля компании?"));
-    info.append(node("p","pr-explain","Доля компании = стоимость выполненного и оплаченного заказа − 50% Раулю − 1 500 ₽ Тимуру, до затрат на материалы, дорогу и налоги. Если в старом заказе нет суммы оплаты, расчёт поступлений основан только на отметке «Оплачено», а не на подтверждённом платеже."));
+    const explanation=node("p","pr-explain");
+    info.append(explanation);
     const scroll=node("div","pr-scroll");
     const table=node("table","pr-table");
     // Stable per-column widths prevent jumps when filters change or rows are expanded.
@@ -224,8 +241,8 @@
     const more=node("div","pr-more");
     detail.append(heading,controls,custom,financeStatus,caption,scroll,more,info);
     rootEl.append(menu,detail);
-    function queryRows(orders=getOrders(),masterId=getRaulMasterId?.(),today=moscowDay(new Date())){
-      const options={...state,today};
+    function queryRows(orders=getOrders(),masterId=getRaulMasterId?.(),today=moscowDay(new Date()),payroll=getPayroll?.()){
+      const options={...state,today,payroll};
       if(typeof getRaulMasterId==="function")options.masterId=masterId;
       return filterRows(orders,options);
     }
@@ -251,11 +268,16 @@
         renderKey=null;renderedOrders=null;expanded.clear();
         return;
       }
-      const orders=getOrders(),masterId=getRaulMasterId?.(),today=moscowDay(new Date());
-      const key=JSON.stringify([state,finance?.revision,masterId,today]);
+      const orders=getOrders(),masterId=getRaulMasterId?.(),today=moscowDay(new Date()),payroll=getPayroll?.();
+      const versioned=payroll?.state==="active";
+      const explanationText=versioned?
+        "Для новых начислений зарплата Рауля составляет 50% полной подтверждённой оплаты плюс 1 500 ₽. Доля компании равна оплате за вычетом начисленной зарплаты, до затрат на материалы, дорогу и налоги. Выплаченная зарплата уже учтена в начислении. Исторические расчёты сохранены.":
+        "Доля компании = стоимость выполненного и оплаченного заказа − 50% Раулю − 1 500 ₽ Тимуру, до затрат на материалы, дорогу и налоги. Если в старом заказе нет суммы оплаты, расчёт поступлений основан на отметке «Оплачено».";
+      if(explanation.textContent!==explanationText)explanation.textContent=explanationText;
+      const key=JSON.stringify([state,finance?.revision,masterId,today,versioned]);
       if(renderKey===key&&(finance?.revision!=null||renderedOrders===orders))return;
       renderKey=key;renderedOrders=orders;
-      const rows=queryRows(orders,masterId,today);
+      const rows=queryRows(orders,masterId,today,payroll);
       const totals=summary(rows);
       caption.textContent="Показаны "+Math.min(state.visible,rows.length)+" из "+rows.length+
         (totals.uncalculated?" · Без расчёта доли: "+totals.uncalculated:"")+
@@ -295,7 +317,7 @@
         const first=node("td");first.append(open);tr.append(first);
         const values=[getDate(row,state.basis)||"—",row.name||"Без имени",
           row.status||"—",row.reportPrice==null?"—":money(row.reportPrice),
-          money(row.reportReceived)+(row.reportPaymentMissing?"*":""),row.reportSalary==null?"—":money(row.reportSalary),
+          row.reportRefundedAmount?"Возврат":money(row.reportReceived)+(row.reportPaymentMissing?"*":""),row.reportSalary==null?"—":money(row.reportSalary),
           row.reportProfit==null?"—":money(row.reportProfit)];
         values.forEach((value,i)=>tr.append(node("td",i>=3?"pr-number":"",value)));
         tbody.append(tr);
@@ -306,10 +328,11 @@
           "Адрес: "+(row.address||"не указан"),
           "Дата записи: "+(row.date||"не указана")+(row.time?" в "+row.time:""),
           "Дата закрытия: "+(getDate(row,"closed")||"нет"),
-          "Оплата: "+(row.paid?"да":"нет")+(row.paymentMethod?" · "+row.paymentMethod:""),
+          row.reportRefundedAmount?"Возврат: "+money(row.reportRefundedAmount):
+            "Оплата: "+(row.paid?"да":"нет")+(row.paymentMethod?" · "+row.paymentMethod:""),
           "Источник: "+(row.clientSource||"не указан")
         ];
-        if(row.reportCalculated)parts.push("Расчёт: "+money(row.reportPrice)+" − "+money(row.reportSalary)+" = "+money(row.reportProfit));
+        if(row.reportCalculated)parts.push("Расчёт: "+money(row.reportCalculationAmount)+" − "+money(row.reportSalary)+" = "+money(row.reportProfit));
         if(row.reportPaymentMissing)parts.push("Сумма фактической оплаты не записана; показана стоимость заказа по отметке «Оплачено»");
         if(row.reportPaymentMismatch)parts.push("Внимание: сумма оплаты отличается от стоимости заказа");
         if(row.reportReason)parts.push(row.reportReason);

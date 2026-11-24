@@ -7,6 +7,7 @@ const assert = require("node:assert/strict");
 const { existsSync, readFileSync } = require("node:fs");
 const path = require("node:path");
 const { chromium, webkit, devices } = require("playwright");
+const {mockLegacyPayrollSnapshot}=require("./fixtures/legacy-payroll.cjs");
 
 const root = path.resolve(__dirname, "..");
 const browserName = process.env.TEST_BROWSER || "chromium";
@@ -127,6 +128,7 @@ async function fixture(browser, source, width, role) {
     }
     return route.fulfill({ json });
   });
+  await mockLegacyPayrollSnapshot(context);
   async function newPage() {
     const tab = await context.newPage();
     tab.setDefaultTimeout(8000);
@@ -548,7 +550,8 @@ function summarize(results) {
   return out;
 }
 
-(async () => {
+module.exports = { fixture, go };
+if (require.main === module) (async () => {
   const browser = await (browserName === "webkit" ? webkit : chromium).launch({
     executablePath: process.env.TEST_BROWSER_PATH || undefined,
     args: browserName === "chromium" ? ["--no-sandbox"] : [],

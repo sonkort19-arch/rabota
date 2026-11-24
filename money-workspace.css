@@ -129,6 +129,7 @@ textarea.mw-input{min-height:69px;resize:vertical;line-height:1.4}
 .mw-money-stat{display:flex;flex-direction:column;gap:5px;min-width:0;padding:13px;border:1px solid #e0e8f7;border-radius:12px;background:#fff}
 .mw-money-stat small{font-size:11px;color:#76849d}
 .mw-money-stat strong{font-size:18px;color:#2b3d62;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.mw-cash-held{background:#f5f8ff;border-color:#dbe5f7}
 .mw-subheading{margin:10px 0 2px;font-size:16px}
 .mw-owner-history{display:flex;flex-direction:column;gap:6px}
 .mw-owner-row{display:flex;align-items:flex-start;justify-content:space-between;gap:8px;padding:10px 11px;border:1px solid #e3eaf5;border-radius:11px;background:#fff}
