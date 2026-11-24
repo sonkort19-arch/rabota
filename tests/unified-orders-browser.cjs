@@ -1,6 +1,6 @@
 /* Unified orders workspace browser regression.
  * The real app is served from this checkout. Every request is intercepted:
- * synthetic read responses only, no network fallback, no order/payment writes.
+ * synthetic responses only, with no network fallback.
  * Run with NODE_PATH pointing to Playwright, and optionally CHROMIUM_PATH.
  */
 "use strict";
@@ -59,7 +59,7 @@ const ORDERS = [
   }),
 ];
 
-async function session(browser, role, width) {
+async function session(browser, role, width, writeFixture = null) {
   const context = await browser.newContext({
     viewport: { width, height: 844 }, isMobile: width < 790, hasTouch: width < 790,
     timezoneId: "Europe/Moscow", locale: "ru-RU", serviceWorkers: "block",
@@ -81,6 +81,12 @@ async function session(browser, role, width) {
     const request = route.request(), url = new URL(request.url());
     if (request.method() !== "GET") {
       writes.push(request.method() + " " + url.pathname);
+      if (writeFixture && url.pathname === "/rest/v1/rabota_orders" && request.method() === "POST") {
+        assert.equal(writeFixture.saved, undefined, "the form sent a duplicate write");
+        const fields = request.postDataJSON();
+        writeFixture.saved = { ...order(12, fields.name, fields.appointment_date, fields.appointment_time), ...fields };
+        return route.fulfill({ json: [writeFixture.saved] });
+      }
       return route.abort();
     }
     if (url.origin === "https://crm.test") {
@@ -107,7 +113,11 @@ async function session(browser, role, width) {
         return route.fulfill({ json: members });
       }
       // Deliberately include another master's rows to test the UI's role scope too.
-      if (endpoint === "rabota_orders") return route.fulfill({ json: ORDERS });
+      if (endpoint === "rabota_orders") {
+        if(writeFixture?.saved && writeFixture.offline)
+          return route.fulfill({ status: 503, json: { message: "Test network unavailable" } });
+        return route.fulfill({ json: writeFixture?.saved ? [writeFixture.saved, ...ORDERS] : ORDERS });
+      }
       if (["rabota_finance_operations", "rabota_cash_collections", "rabota_cash_deposits", "rabota_cashbook_entries",
         "rabota_order_notifications", "rabota_push_subscriptions", "rabota_leads",
         "rabota_ai_chats", "rabota_ai_messages", "rabota_ai_order_drafts"].includes(endpoint))
@@ -124,7 +134,7 @@ async function session(browser, role, width) {
     page, context, role, width, writes, unexpected, errors, missing,
     async close() {
       await context.close();
-      assert.deepEqual(writes, [], role + ": no write requests");
+      if (!writeFixture) assert.deepEqual(writes, [], role + ": no write requests");
       assert.deepEqual(unexpected, [], role + ": no unhandled external requests");
       assert.deepEqual(missing, [], role + ": all app assets exist in checkout");
       assert.deepEqual(errors, [], role + ": no JavaScript errors");
@@ -390,6 +400,30 @@ async function checkOwnerDashboard(page) {
   await dialog.getByRole("button", { name: "Закрыть заказ", exact: true }).click();
 }
 
+async function checkSavedOrderAfterReconnect(browser) {
+  const fixture = { offline: true };
+  const s = await session(browser, "manager", 390, fixture);
+  try {
+    const { page, writes } = s;
+    await chooseDay(page, EMPTY_DAY);
+    await page.locator("#newOrderBtn").click();
+    await page.locator("#clientName").fill("Тест подтверждённой записи");
+    await page.locator("#clientPhone").fill("+79990000087");
+    await page.locator("#clientSource").selectOption("unknown");
+    await page.locator("#orderTime").fill("13:00");
+    await page.locator('#orderForm button[type="submit"]').click();
+    await page.locator("#orderOverlay").waitFor({ state: "hidden" });
+    await page.locator("#syncStatus").filter({ hasText: "Заказ сохранён. Список пока не обновился." }).waitFor();
+    assert.deepEqual(writes, ["POST /rest/v1/rabota_orders"]);
+    fixture.offline = false;
+    await page.evaluate(() => window.dispatchEvent(new Event("online")));
+    await namesInclude(page, ["Тест подтверждённой записи"]);
+    assert.deepEqual(writes, ["POST /rest/v1/rabota_orders"], "reconnect reads without resubmitting the form");
+  } finally {
+    await s.close();
+  }
+}
+
 (async () => {
   const kind = process.env.TEST_BROWSER || "chromium";
   const browser = await (kind === "webkit" ? webkit : chromium).launch({
@@ -398,7 +432,7 @@ async function checkOwnerDashboard(page) {
   });
   try {
     const roles = process.env.RABOTA_TEST_ROLES?.split(",") || ["owner", "manager", "master"];
-    const widths = process.env.RABOTA_TEST_WIDTHS?.split(",").map(Number) || [320, 390, 430, 1024];
+    const widths = process.env.RABOTA_TEST_WIDTHS?.split(",").map(Number) || [320, 375, 390, 430, 1024];
     for (const role of roles) {
       for (const width of widths) {
         const s = await session(browser, role, width);
@@ -414,6 +448,8 @@ async function checkOwnerDashboard(page) {
         console.log("PASS", kind, role, width, width === 390 ? "full workflow" : "responsive smoke");
       }
     }
+    await checkSavedOrderAfterReconnect(browser);
+    console.log("PASS", kind, "confirmed save, failed refresh and reconnect");
     console.log("Passed unified orders: Moscow startup, roles, dates, history, search, filters, original dialogs and draft cancellation");
   } finally {
     await browser.close();

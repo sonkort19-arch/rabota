@@ -19,10 +19,10 @@
   }
   function financeSplit(price){
     const gross=roundMoney(price);
-    const raul=roundMoney(gross*FINANCE_RAUL_PERCENT);
-    const timur=FINANCE_TIMUR_FEE;
-    const company=roundMoney(gross-raul-timur);
-    return {gross,raul,timur,company};
+    const grossCents=Math.round(gross*100);
+    const raulCents=Math.round(grossCents*FINANCE_RAUL_PERCENT);
+    const companyCents=grossCents-raulCents-FINANCE_TIMUR_FEE*100;
+    return {gross,raul:raulCents/100,timur:FINANCE_TIMUR_FEE,company:companyCents/100};
   }
   function calculateAccruals({orders,operations,collections,masterId}){
     const relevantOrders=masterId?orders.filter(o=>o.assignedUserId===masterId):[];
@@ -66,11 +66,73 @@
       confirmedDeposits,cashIn,allPayouts,expenses,notCompletedPaid,
       cashBalance,freeBalance,awaiting};
   }
+  // A confirmed write invalidates old reads. Readers share one request and
+  // follow it with one new read if the data changed while it was in flight.
+  function createFinanceReader({load,onUpdate=()=>{},equal=Object.is,now=Date.now}){
+    let value=null,error=null,updatedAt=null,revision=0,account=0,sequence=0,dirty=false,request=null;
+    function state(){
+      const message=error?.message||"";
+      return {
+        value,revision,updatedAt,ready:value!==null,
+        loading:value===null&&!error,refreshing:value!==null&&request!==null,
+        stale:dirty||Boolean(value!==null&&error),
+        error:value===null?message:"",refreshError:message
+      };
+    }
+    function invalidate(){
+      sequence++;
+      dirty=true;
+      onUpdate(state(),"invalidate");
+    }
+    function reset(){
+      account++;
+      revision++;
+      request=null;value=null;error=null;updatedAt=null;dirty=false;sequence=0;
+    }
+    function refresh({maxAge=0}={}){
+      if(request)return request;
+      if(value!==null&&!dirty&&!error&&updatedAt!==null&&now()-updatedAt<maxAge)
+        return Promise.resolve(value);
+      const readerAccount=account;
+      request=Promise.resolve().then(async()=>{
+        try {
+          while(readerAccount===account){
+            const attempt=sequence;
+            const isCurrent=()=>readerAccount===account&&attempt===sequence;
+            try{
+              const next=await load({fresh:dirty,isCurrent});
+              if(!isCurrent())continue;
+              if(next==null)throw Error("Не удалось получить финансовые данные.");
+              if(value===null||!equal(value,next)){value=next;revision++;}
+              updatedAt=now();dirty=false;error=null;
+            }catch(reason){
+              if(!isCurrent())continue;
+              error=reason instanceof Error?reason:new Error(String(reason));
+              if([401,403].includes(error.status)||error.code==="42501"){
+                if(value!==null)revision++;
+                value=null;updatedAt=null;
+              }
+            }
+            return value;
+          }
+          return null;
+        }finally{
+          if(readerAccount===account){
+            request=null;
+            onUpdate(state(),"settle");
+          }
+        }
+      });
+      onUpdate(state(),"start");
+      return request;
+    }
+    return {state,refresh,invalidate,reset};
+  }
   function createFinanceModel(deps){
     if(!deps||typeof deps.dbRequest!=="function"||
        typeof deps.getRole!=="function"||typeof deps.getMasterName!=="function"||
        typeof deps.getUserId!=="function"||typeof deps.nextGeneration!=="function"||
-       typeof deps.isCurrentGeneration!=="function"||typeof deps.onSnapshot!=="function")
+       typeof deps.isCurrentGeneration!=="function")
       throw new TypeError("Неверные зависимости финансового модуля");
     let operationsRead=null;
     let operationsGeneration=0;
@@ -82,11 +144,14 @@
       const role=deps.getRole(),userId=deps.getUserId();
       if(role!=="owner"&&role!=="master")
         return Promise.reject(new Error("Финансовые операции недоступны."));
-      if(!fresh&&operationsRead?.role===role&&operationsRead.userId===userId)
-        return operationsRead.promise;
+      const previous=operationsRead?.role===role&&operationsRead.userId===userId?operationsRead:null;
+      if(!fresh&&previous)return previous.promise;
       const generation=operationsGeneration;
       const read={role,userId,promise:null};
       read.promise=(async()=>{
+        if(previous)await previous.promise.catch(()=>{});
+        if(generation!==operationsGeneration)
+          throw new Error("Аккаунт изменился во время загрузки операций.");
         const rows=new Map();
         for(let offset=0;offset<100000;offset+=1000){
           const page=await deps.dbRequest(
@@ -104,32 +169,30 @@
       operationsRead=read;
       return read.promise;
     }
-    async function loadFinance({fresh=true}={}){
+    async function loadFinance({fresh=true,operations:providedOperations,isCurrent=()=>true}={}){
       const currentRole=deps.getRole();
       if(currentRole!=="owner"&&currentRole!=="master")return;
       const generation=deps.nextGeneration();
-      const [operations,masters]=await Promise.all([
-        readOperations({fresh}),
+      const current=()=>isCurrent()&&deps.isCurrentGeneration(generation);
+      const reads=await Promise.allSettled([
+        providedOperations||readOperations({fresh}),
         currentRole==="owner"
-          ?deps.dbRequest("rabota_members?select=user_id,role,active,master_name&role=eq.master&limit=100","GET")
-          :null
+          ?deps.readMasters?.()||deps.dbRequest("rabota_members?select=user_id,role,active,master_name&role=eq.master&limit=100","GET")
+          :null,
+        readCollections(current)
       ]);
-      if(!deps.isCurrentGeneration(generation))return;
+      if(!current())return;
+      const rejected=reads.find(result=>result.status==="rejected");
+      if(rejected)throw rejected.reason;
+      const [operations,masters,currentCollections]=reads.map(result=>result.value);
       let masterId=null;
       if(currentRole==="owner"){
-        masterId=masters.find(m=>m.active&&String(m.master_name||"").trim().toLowerCase()==="рауль")?.user_id||null;
+        if(!Array.isArray(masters))throw Error("Не удалось загрузить список мастеров.");
+        masterId=masters.find(m=>m.role==="master"&&m.active&&String(m.master_name||"").trim().toLowerCase()==="рауль")?.user_id||null;
       }else{
         masterId=String(deps.getMasterName()||"").trim().toLowerCase()==="рауль"?deps.getUserId():null;
       }
-      const collections=[];
-      for(let offset=0;offset<100000;offset+=1000){
-        const page=await deps.dbRequest("rabota_cash_collections?select=*&order=created_at.desc&limit=1000&offset="+offset,"GET");
-        if(!Array.isArray(page))throw Error("Не удалось загрузить распределения");
-        collections.push(...page);
-        if(page.length<1000)break;
-      }
-      const uniqueCollections=new Map(collections.map(row=>[String(row.order_id),row]));
-      const currentCollections=[...uniqueCollections.values()];
+      const uniqueCollections=new Map(currentCollections.map(row=>[String(row.order_id),row]));
       const deposits=currentCollections.filter(c=>c.confirmed_amount==null&&c.confirmed_at)
         .map(c=>({id:c.order_id,amount:Number(c.company_amount),confirmed_at:c.confirmed_at}));
       if(currentRole==="owner"&&currentCollections.some(c=>Number(c.confirmed_amount)>0)){
@@ -137,6 +200,7 @@
         const seen=new Set();
         for(let offset=0;;offset+=1000){
           const page=await deps.dbRequest("rabota_cash_transfer_events?select=id,order_id,amount,created_at&kind=eq.confirmed&order=created_at.desc,id.desc&limit=1000&offset="+offset,"GET");
+          if(!current())return;
           if(!Array.isArray(page))throw Error("Не удалось загрузить подтверждённые передачи");
           for(const row of page){
             const collection=uniqueCollections.get(String(row.order_id));
@@ -148,19 +212,32 @@
           if(page.length<1000)break;
         }
       }
-      if(!deps.isCurrentGeneration(generation))return;
-      deps.onSnapshot({
+      if(!current())return;
+      const snapshot={
         masterId,
         operations,
         collections:currentCollections,deposits
-      });
+      };
+      deps.onSnapshot?.(snapshot);
+      return snapshot;
+    }
+    async function readCollections(isCurrent){
+      const collections=new Map();
+      for(let offset=0;offset<100000;offset+=1000){
+        const page=await deps.dbRequest("rabota_cash_collections?select=*&order=created_at.desc,order_id.desc&limit=1000&offset="+offset,"GET");
+        if(!isCurrent())return null;
+        if(!Array.isArray(page))throw Error("Не удалось загрузить распределения");
+        for(const row of page)collections.set(String(row.order_id),row);
+        if(page.length<1000)break;
+      }
+      return [...collections.values()];
     }
     return {loadFinance,readOperations,resetOperations,money,sumBy,roundMoney,collectionAmounts,financeSplit,calculateAccruals,
       calculateCompanyCash,TIMUR_FEE:FINANCE_TIMUR_FEE,RAUL_PERCENT:FINANCE_RAUL_PERCENT};
   }
-  if(root){root.__rdCreateFinanceModel=createFinanceModel;root.__rdFinanceSplit=financeSplit;}
+  if(root){root.__rdCreateFinanceModel=createFinanceModel;root.__rdCreateFinanceReader=createFinanceReader;root.__rdFinanceSplit=financeSplit;}
   if(typeof module!=="undefined"&&module.exports)
-    module.exports={createFinanceModel,money,sumBy,roundMoney,collectionAmounts,financeSplit,
+    module.exports={createFinanceModel,createFinanceReader,money,sumBy,roundMoney,collectionAmounts,financeSplit,
       calculateAccruals,calculateCompanyCash,TIMUR_FEE:FINANCE_TIMUR_FEE,
       RAUL_PERCENT:FINANCE_RAUL_PERCENT};
 })(typeof window!=="undefined"?window:null);

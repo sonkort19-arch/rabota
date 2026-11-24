@@ -191,7 +191,7 @@ test("app loads calendar before use while preserving availability scripts",()=>{
   const html=fs.readFileSync(path.join(__dirname,"..","index.html"),"utf8");
   assert.match(html,/src="\/calendar-model\.js\?v=20261124-unified-v1"/);
   assert.match(html,/src="\/order-availability\.js(?:\?[^"]*)?"/);
-  assert.match(html,/src="\/quick-slots\.js"/);
+  assert.match(html,/src="\/quick-slots\.js\?v=[^"]+"/);
   assert.match(html,/calendarModule\.renderCalendar\(\)/);
   assert.match(html,/calendarModule\.bindNavigation\(\)/);
   assert.match(html,/__rdCalendarUtils\.canPrefillSlot/);

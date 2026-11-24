@@ -32,3 +32,22 @@ test("selected-day inspection never queries expired slots and does not mark unce
   assert.deepEqual(slots.map(s=>s.state),["past","past","unknown"]);
   assert.ok(slots.every(s=>s.selectable===false));
 });
+
+test("free-first stops after filling the list but still prefers free hours over tight ones",()=>{
+  const checked=[];
+  const slots=candidateSlots({masters:["Рауль"],now:new Date("2026-11-15T05:00:00Z"),limit:1,
+    checkTime:time=>{checked.push(time);return time==="10:00"?"tight":"available";}});
+  assert.deepEqual(checked,["10:00","15:00"]);
+  assert.deepEqual(slots.map(slot=>slot.time),["15:00"]);
+});
+
+test("earliest mode retains chronological and Cyrillic name order without scanning later days",()=>{
+  const checked=[];
+  const slots=candidateSlots({masters:["Рауль","Алан"],now:new Date("2026-11-15T05:00:00Z"),
+    limit:2,sort:"earliest",checkTime:(time,date,master)=>{
+      checked.push([time,master]);
+      return master==="Алан"?"tight":"available";
+    }});
+  assert.deepEqual(checked,[["10:00","Алан"],["10:00","Рауль"]]);
+  assert.deepEqual(slots.map(slot=>slot.tight),[true,false]);
+});

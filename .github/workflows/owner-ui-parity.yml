@@ -9,15 +9,20 @@ on:
       - 'index.html'
       - 'app-services.js'
       - 'finance-model.js'
+      - 'finance-payroll.*'
+      - 'money-workspace.*'
+      - 'profit-report.*'
       - 'expenses.*'
       - 'growth.*'
       - 'orders-workspace.css'
       - 'tests/module-navigation-browser.cjs'
+      - 'tests/finance-stability-browser.cjs'
+      - 'tests/startup-schedule-browser.cjs'
       - 'tests/mobile-nav-stability.cjs'
       - 'tests/ui-smoke-v2.js'
       - '.github/workflows/owner-ui-parity.yml'
   push:
-    branches: [main, fix/integrated-crm-sections]
+    branches: [main, fix/integrated-crm-sections, fix/crm-stability]
     paths:
       - 'owner-parity.js'
       - 'contextual-search.css'
@@ -25,10 +30,15 @@ on:
       - 'index.html'
       - 'app-services.js'
       - 'finance-model.js'
+      - 'finance-payroll.*'
+      - 'money-workspace.*'
+      - 'profit-report.*'
       - 'expenses.*'
       - 'growth.*'
       - 'orders-workspace.css'
       - 'tests/module-navigation-browser.cjs'
+      - 'tests/finance-stability-browser.cjs'
+      - 'tests/startup-schedule-browser.cjs'
       - 'tests/mobile-nav-stability.cjs'
       - 'tests/ui-smoke-v2.js'
       - '.github/workflows/owner-ui-parity.yml'
@@ -64,9 +74,12 @@ jobs:
         run: |
           node tests/mobile-nav-stability.cjs
           node tests/module-navigation-browser.cjs
+          node tests/finance-stability-browser.cjs
+          node tests/startup-schedule-browser.cjs
       - name: Owner order list, status icons and fixed navigation in iPhone Safari
         env:
           TEST_BROWSER: webkit
         run: |
           node tests/mobile-nav-stability.cjs
           node tests/module-navigation-browser.cjs
+          node tests/finance-stability-browser.cjs

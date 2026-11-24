@@ -16,6 +16,8 @@ test("New order draft only opens after successful database save and not for edit
   const block=between('form.addEventListener("submit",async event => {','function updateImportButton()');
   assert.ok(block.indexOf("await persistOrder(order);")>=0);
   assert.ok(block.indexOf("await persistOrder(order);")<block.indexOf('openClientDraft(order,"booking")'));
+  assert.ok(block.indexOf("if(result.refreshError)return;")>=0);
+  assert.ok(block.indexOf("if(result.refreshError)return;")<block.indexOf('openClientDraft(order,"booking")'));
   assert.match(block,/if\(!existing && order\.status==="Записан"\)openClientDraft\(order,"booking"\)/);
   assert.match(block,/else if\(existing && existing\.status!=="Выполнен" && order\.status==="Выполнен"\)/);
 });

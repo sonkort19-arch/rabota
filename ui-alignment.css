@@ -163,7 +163,7 @@ body.rd .rd-quick{
 
 /* Убираем лишний блок управления мастерами из интерфейса заказов.
    Существующие права доступа, аккаунты и назначения мастеров не изменяются. */
-#teamPanel { display: none !important; }
+#ordersArea > #teamPanel { display: none !important; }
 
 /* Keep intrinsic text widths inside their cards, including imported client data. */
 body.rd .rd-client,

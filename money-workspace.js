@@ -31,10 +31,11 @@
   const validMethod=m=>m==="cash"||m==="card";
   const api=()=>window.__rdMoneyUi;
   const token=()=>{if(typeof window.crypto?.randomUUID!=="function")throw Error("Браузер не поддерживает безопасный идентификатор операции");return window.crypto.randomUUID()};
-  const isPreview=()=>/^rabota-[a-z0-9]{7,}-sonkort19-6069s-projects\.vercel\.app$/i.test(String(window.location?.hostname||""));
+  const isPreview=()=>/^rabota-(?:git-[a-z0-9-]+-|[a-z0-9]{7,}-)sonkort19-6069s-projects\.vercel\.app$/i.test(String(window.location?.hostname||""));
   let page="day",step="menu",salaryTab="accruals",masterReady=false,masterProfitReport=null;
   let orderQuery="",orderStatus="all",paymentMethod="all",navigationUser=null;
   let paymentBreakdownOpen=false, handoffMessage="", handoffRefreshError="";
+  let ownerView=null, masterPaymentSignature=null;
   const paymentCurrency=new Intl.NumberFormat("ru-RU",{style:"currency",currency:"RUB",
     minimumFractionDigits:2,maximumFractionDigits:2,trailingZeroDisplay:"stripIfInteger"});
   const paymentDay=new Intl.DateTimeFormat("ru-RU",{timeZone:"Europe/Moscow",
@@ -319,10 +320,31 @@
     }
   }
 
-  function showFinanceLoading(root){
-    const message=el("p","mw-help","Загружаем финансовые данные…");
-    message.setAttribute("role","status");
-    root.replaceChildren(message);
+  const hasSnapshot=state=>Boolean(state && (state.ready ?? !(state.loading||state.error)));
+  const financeRetry=()=>api()?.refreshFinance?.();
+  function retryRead(read){
+    // Reads publish their error through the snapshot. A retry must not create a
+    // second notification or become an unhandled rejection.
+    void Promise.resolve().then(()=>read?.()).catch(()=>{});
+  }
+  function updateReadStatus(root,message,retry=null){
+    const copy=root.firstElementChild,button=copy.nextElementSibling;
+    root.hidden=!message;
+    if(copy.textContent!==message)copy.textContent=message;
+    copy.setAttribute("role",retry?"alert":"status");
+    button.hidden=!retry;button.onclick=retry?()=>retryRead(retry):null;
+  }
+  function readStatus(){
+    const message=el("span");message.setAttribute("role","status");
+    return box("mw-finance-status",message,btn("Повторить","secondary mw-finance-retry"));
+  }
+  function financeStatusMessage(state){
+    if(state.error)return "Не удалось загрузить финансовые данные. "+state.error;
+    if(!hasSnapshot(state))return "Загружаем финансовые данные…";
+    if(!state.stale&&!state.refreshError)return "";
+    const time=state.updatedAt?" от "+date(new Date(state.updatedAt).toISOString()):"";
+    return "Показаны данные"+time+". Обновите расчёты перед операцией."+
+      (state.refreshError?" "+state.refreshError:"");
   }
   function renderMasterPayments(){
     const root=$("mwMasterPayments");if(!root||root.hidden)return;
@@ -335,18 +357,27 @@
       const message=el("p","mw-error",error.message||"Не удалось загрузить платежи.");
       message.setAttribute("role","alert");root.replaceChildren(message);return;
     }
-    if(m.loading&&!m.error){showFinanceLoading(root);return;}
-    const dataError=m.error||handoffRefreshError;
+    const ready=hasSnapshot(m),dataError=m.stale||m.refreshError||handoffRefreshError;
+    const signature=JSON.stringify([
+      m.revision,ready,m.error,m.stale,m.refreshError,!!m.canSubmit,handoffMessage,handoffRefreshError,
+      m.revision==null?[m.orders,m.collections]:null
+    ]);
+    if(masterPaymentSignature===signature&&root.firstChild)return;
+    masterPaymentSignature=signature;
+    const status=readStatus();
+    const message=financeStatusMessage(m)||(handoffRefreshError?
+      "Показаны последние расчёты передачи. "+handoffRefreshError:"");
+    if(message){
+      updateReadStatus(status,message,(m.error||dataError)?financeRetry:null);
+      cards.append(status);
+    }
+    if(!ready){root.replaceChildren(cards);return;}
     if(handoffMessage){
       const status=el("p","mw-handoff-status",handoffMessage);
       status.setAttribute("role","status");cards.append(status);
     }
-    if(dataError){
-      const warning=el("p","mw-error","Не удалось обновить расчёты передачи. "+dataError);
-      warning.setAttribute("role","alert");cards.append(warning);
-    }
     const totals=settlementTotals(m.collections);
-    const balance=value=>dataError?"—":paymentCurrency.format(value);
+    const balance=value=>paymentCurrency.format(value);
     const transfer=btn("Отметить передачу","mw-handoff-action",()=>openMasterHandoff(totals.waiting,m.preview));
     const writeUnavailable=m.canSubmit===false||typeof api()?.submitMasterHandoff!=="function";
     transfer.disabled=Boolean(dataError)||!(totals.waiting>0)||(!m.preview&&writeUnavailable);
@@ -401,11 +432,6 @@
     const root=$("mwMasterReports");if(!root||root.hidden)return;
     const m=api()?.snapshot();
     if(!m||m.role!=="master")return;
-    if(m.loading&&!m.error){showFinanceLoading(root);return;}
-    if(m.error&&!m.masterId){
-      const message=el("p","mw-error","Не удалось загрузить расчёты. "+m.error);
-      message.setAttribute("role","alert");root.replaceChildren(message);return;
-    }
     if(step==="orderProfit"&&masterProfitReport?.container?.isConnected){
       masterProfitReport.api.render();return;
     }
@@ -439,6 +465,8 @@
       const report=maker(container,{
         getOrders:()=>api()?.masterReportOrders?.()||[],
         getRaulMasterId:()=>api()?.snapshot()?.masterId||null,
+        getFinanceStatus:()=>api()?.snapshot(),
+        onRetry:financeRetry,
         startOpen:true,onBack:()=>{step="menu";masterProfitReport=null;renderMaster()}
       });
       masterProfitReport={container,api:report};
@@ -446,13 +474,19 @@
     }
     root.append(back("Отчёты",()=>{step="menu";renderMaster()}));
     root.append(el("h2","mw-heading","Моя зарплата"));
+    const message=financeStatusMessage(m);
+    if(message){
+      const status=readStatus();
+      updateReadStatus(status,message,(m.error||m.stale||m.refreshError)?financeRetry:null);
+      root.append(status);
+    }
+    if(!hasSnapshot(m))return;
     if(!m.masterId){root.append(el("p","mw-notice","Данные зарплаты для этого мастера не подключены."));return;}
-    if(m.error)root.append(el("p","mw-error","Финансовые данные не обновились: "+m.error));
     const hero=box("mw-salary-hero",
       box("mw-salary-head",
         box("mw-salary-balance",
           el("span","mw-small","Баланс к выплате"),
-          el("strong","mw-big",m.error?"—":rub(m.due)))),
+          el("strong","mw-big",rub(m.due)))),
       box("mw-numbers",
         box("",el("small","","Начислено"),el("strong","",rub(m.accrued))),
         box("",el("small","","Выплачено"),el("strong","",rub(m.paid)))),
@@ -523,15 +557,61 @@
     return {node:wrap,value:()=>wrap.querySelector("input:checked")?.value};
   }
   function field(label,control){const n=el("label","mw-field");n.append(el("span","",label),control);return n}
-  function ownerPayments(panel){
-    const loading=el("div","mw-owner-payments");panel.append(loading);
-    loading.append(el("p","mw-help","Загружаю кассу и выплаты..."));
-    api()?.cashbook().then(book=>{if(loading.isConnected)renderOwner(loading,book)}).catch(e=>{
-      loading.replaceChildren(el("p","mw-error","Не удалось загрузить платежи: "+e.message));
-    });
+  function canRecordCashbook(d,book){
+    return hasSnapshot(d)&&hasSnapshot(book)&&!d.stale&&!book.stale&&!d.refreshError&&!book.refreshError;
   }
-  function renderOwner(root,book){
-    const d=api().ownerSnapshot(),items=[],balance={cash:0,card:0},stat={income:0,expense:0,unknown:0};
+  function ownerPayments(panel,activate=false){
+    if(!ownerView||ownerView.panel!==panel){
+      const menu=el("div","mw-create-menu");menu.hidden=true;
+      const create=btn("Создать ▾","mw-owner-create",()=>{
+        if(isPreview()){window.alert("В предпросмотре изменения отключены.");return;}
+        menu.hidden=!menu.hidden;create.setAttribute("aria-expanded",String(!menu.hidden));
+      });
+      create.setAttribute("aria-expanded","false");
+      for(const [type,label] of [["income","＋ Создать приход"],["expense","− Создать расход"],["transfer","⇄ Перевод между счетами"]])
+        menu.append(btn(label,"mw-menu-action",()=>{
+          menu.hidden=true;create.setAttribute("aria-expanded","false");openOwnerEntry(type);
+        }));
+      const status=readStatus(),receipt=el("p","mw-handoff-status"),content=el("div","mw-owner-data");
+      receipt.setAttribute("role","status");receipt.hidden=true;
+      panel.append(box("mw-owner-payments",
+        box("mw-owner-heading",el("h2","","Платежи"),create),menu,status,receipt,content));
+      ownerView={panel,menu,create,status,receipt,content,revision:null,book:null};
+    }
+    updateOwnerPayments();
+    if(activate)retryRead(()=>api()?.cashbook?.());
+  }
+  function updateOwnerPayments(){
+    if(!ownerView||ownerView.panel.hidden||$("financePanel")?.hidden)return;
+    const {create,menu,status,content}=ownerView;
+    const d=api()?.ownerSnapshot?.(),book=api()?.cashbookSnapshot?.();
+    if(!d||!book)return;
+    create.disabled=!canRecordCashbook(d,book);
+    if(create.disabled){
+      menu.hidden=true;create.setAttribute("aria-expanded","false");
+    }
+    const retryFinance=Boolean(d.error||d.stale||d.refreshError);
+    const retryBook=Boolean(book.error||book.stale||book.refreshError);
+    const message=retryFinance?financeStatusMessage(d):
+      book.error?"Не удалось загрузить кассу. "+book.error:
+      book.stale||book.refreshError?"Показаны последние загруженные движения кассы."+
+        (book.refreshError?" "+book.refreshError:""):
+      !hasSnapshot(book)||!hasSnapshot(d)?"Загружаем данные платежей…":"";
+    updateReadStatus(status,message,(retryFinance||retryBook)?()=>Promise.all([
+      retryFinance&&financeRetry(),retryBook&&api().cashbook({force:true})
+    ]):null);
+    if(!hasSnapshot(d)||!hasSnapshot(book)){
+      if(content.firstChild)content.replaceChildren();
+      ownerView.revision=null;ownerView.book=null;
+      return;
+    }
+    const revision=d.revision??JSON.stringify([d.paidOrders,d.operations,d.collections,d.deposits]);
+    if(ownerView.revision===revision&&ownerView.book===book.rows)return;
+    ownerView.revision=revision;ownerView.book=book.rows;
+    renderOwner(content,book.rows,d);
+  }
+  function renderOwner(root,book,d){
+    const items=[],balance={cash:0,card:0},stat={income:0,expense:0,unknown:0};
     const add=(kind,value,method,title,at,sub)=>{
       const n=Number(value)||0;const known=validMethod(method);
       if(known)balance[method]+=kind==="income"?n:-n;
@@ -561,13 +641,6 @@
         row.kind==="income"?"Приход":"Расход",row.created_at,row.note);
     }
     root.replaceChildren();
-    const heading=box("mw-owner-heading",el("h2","","Платежи"),
-      btn("Создать ▾","mw-owner-create",()=>{if(isPreview()){window.alert("В предпросмотре изменения отключены.");return}menu.hidden=!menu.hidden}));
-    const menu=el("div","mw-create-menu");menu.hidden=true;
-    for(const [type,label] of [["income","＋ Создать приход"],["expense","− Создать расход"],["transfer","⇄ Перевод между счетами"]])
-      menu.append(btn(label,"mw-menu-action",()=>{menu.hidden=true;openOwnerEntry(type,root)}));
-    root.append(heading,menu);
-    if(d.error)root.append(el("p","mw-error","Финансовые данные могли устареть: "+d.error));
     root.append(el("p","mw-help","Расчётные движения по наличным и карте. Не является выпиской банка: начальные остатки не заданы, старые операции без способа не распределены."));
     root.append(box("mw-money-stats",
       box("mw-money-stat",el("small","","Наличные · расчёт"),el("strong","",rub(balance.cash))),
@@ -590,8 +663,9 @@
     }
     root.append(history);
   }
-  function openOwnerEntry(kind,root){
-    if(isPreview())return;
+  function openOwnerEntry(kind){
+    if(isPreview()||!canRecordCashbook(api()?.ownerSnapshot(),api()?.cashbookSnapshot()))return;
+    if(ownerView)ownerView.receipt.hidden=true;
     const labels={income:"Создать приход",expense:"Создать расход",transfer:"Перевести между счетами"};
     const {sheet,close}=modalBase(labels[kind]);
     const amount=el("input","mw-input");amount.type="text";amount.inputMode="decimal";amount.placeholder="0,00";
@@ -618,6 +692,10 @@
     sheet.append(error,box("mw-modal-actions",cancel,save));
     save.addEventListener("click",async()=>{
       if(busy||used)return;
+      if(!canRecordCashbook(api()?.ownerSnapshot(),api()?.cashbookSnapshot())){
+        error.textContent="Обновите данные кассы перед сохранением.";
+        return;
+      }
       const value=parseSum(amount.value),method=methods?.value();
       const src=kind==="income"?null:kind==="expense"?method:from.value;
       const dst=kind==="expense"?null:kind==="income"?method:to.value;
@@ -628,9 +706,15 @@
       busy=true;used=true;sheet.dataset.busy="1";save.disabled=true;cancel.disabled=true;error.textContent="Сохраняю...";
       try{
         await api().recordCashbook({kind,amount:value,from:src,to:dst,note:note.value.trim(),requestId});
-        const newBook=await api().cashbook();
-        sheet.dataset.busy="0";close();renderOwner(root,newBook);
+        if(!sheet.isConnected)return;
+        sheet.dataset.busy="0";close();
+        if(ownerView){
+          ownerView.receipt.hidden=false;
+          ownerView.receipt.textContent="Операция сохранена.";
+        }
+        updateOwnerPayments();
       }catch(e){
+        if(!sheet.isConnected)return;
         busy=false;sheet.dataset.busy="0";
         error.textContent="Запись не подтверждена: "+(e.message||"ошибка связи")+
           ". Проверь историю перед повторной попыткой.";
@@ -664,10 +748,16 @@
       if(reports)reports.hidden=true;
       if(payments)payments.hidden=true;
       if(settings)settings.hidden=true;
+      if(member?.role==="owner"&&!$("financePanel")?.hidden){
+        const ownerPanel=$("financeContent")?.querySelector(".fp-payments-panel");
+        if(ownerPanel&&!ownerPanel.hidden)ownerPayments(ownerPanel);
+      }
     }
   };
   window.__rdMoneyUpdated=()=>{
-    handoffRefreshError="";
+    const master=api()?.snapshot();
+    if(master?.role==="owner"&&ownerView?.panel.isConnected)updateOwnerPayments();
+    if(hasSnapshot(master)&&!master.stale&&!master.refreshError)handoffRefreshError="";
     const focus=document.activeElement;
     if(page==="reports"&&$("mwMasterReports")&&!focus?.closest?.("#mwMasterReports"))renderMaster();
     if(page!=="payments")return;
@@ -683,5 +773,14 @@
     }
   };
   window.__rdPaymentsRender=ownerPayments;
+  window.__rdResetMoneyViews=()=>{
+    ownerView?.panel.replaceChildren();ownerView=null;
+    for(const id of ["mwMasterReports","mwMasterPayments"])$(id)?.replaceChildren();
+    for(const modal of document.querySelectorAll(".mw-modal-backdrop"))modal.remove();
+    masterPaymentSignature=null;masterProfitReport=null;navigationUser=null;
+    paymentBreakdownOpen=false;handoffMessage="";handoffRefreshError="";
+    scrollPositions.clear();
+    window.__rdResetPayrollUi?.();
+  };
   if($("appScreen")?.hidden===false)window.__rdMoneyAccess();
 })();

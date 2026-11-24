@@ -4,7 +4,7 @@
 // Run with TEST_BROWSER=chromium or webkit; BASELINE_ROOT can point to a git archive of main.
 // Set BENCHMARK_ONLY=1 to measure navigation without the layout and interaction checks.
 const assert = require("node:assert/strict");
-const { existsSync } = require("node:fs");
+const { existsSync, readFileSync } = require("node:fs");
 const path = require("node:path");
 const { chromium, webkit, devices } = require("playwright");
 
@@ -22,6 +22,18 @@ const task = { id: "fixture-task", owner_id: "fixture-owner", kind: "day", title
   start_on: today, end_on: today, sort_order: 0, completed: false };
 const roles = ["owner", "manager", "master"];
 const trace = endpoint => ["user", "membership", "orders", "expenses", "operations", "growth"].includes(endpoint);
+const sectionRoots = {
+  home: "#rdHome", orders: "#ordersArea", expenses: "#exMain", growth: "#gwMain",
+  leads: "#rdLeads", clients: "#rdClients", settings: "#rdSettings", reports: "#rdReports",
+  finance: "#financePanel", masterSettings: "#mwMasterSettings", masterReports: "#mwMasterReports",
+  masterPayments: "#mwMasterPayments",
+};
+const sectionsByRole = {
+  owner: ["home", "expenses", "growth", "finance", "reports", "leads", "clients", "settings", "orders"],
+  manager: ["leads", "clients", "settings", "home", "orders"],
+  master: ["payments", "reports", "settings", "orders"],
+};
+const slowReads = { owner: ["operations", "growth"], manager: ["rabota_leads"], master: ["operations"] };
 
 function deferred() {
   let release;
@@ -34,7 +46,7 @@ async function fixture(browser, source, width, role) {
     ...devices["iPhone 13"], viewport: { width, height: 760 }, screen: { width, height: 760 },
     timezoneId: "Europe/Moscow", reducedMotion: "reduce", serviceWorkers: "block",
   });
-  const state = { expenses: [{ ...expense }], tasks: [{ ...task }], fail: new Set(), gates: new Map() };
+  const state = { expenses: [{ ...expense }], tasks: [{ ...task }], fail: new Set(), loseResponse: new Set(), gates: new Map() };
   const orders = Array.from({ length: 18 }, (_, i) => ({
     id: "fixture-order-" + i, name: "Тестовый заказ " + i, assigned_user_id: fixtureMaster.user_id,
     master: fixtureMaster.master_name, status: "Записан", price: 1000, appointment_date: today,
@@ -97,7 +109,7 @@ async function fixture(browser, source, width, role) {
       const payload = request.postDataJSON();
       writes.push({ endpoint, method: request.method(), payload });
       if (endpoint === "rabota_finance_record") {
-        state.expenses.push({ ...expense, id: "fixture-new-expense", amount: payload.p_amount, note: payload.p_note });
+        state.expenses.push({ ...expense, id: "fixture-new-expense-" + writes.length, amount: payload.p_amount, note: payload.p_note });
       } else if (endpoint === "rabota_finance_void") {
         const item = state.expenses.find(row => row.id === payload.p_operation_id);
         item.voided_at = stamp;
@@ -107,6 +119,7 @@ async function fixture(browser, source, width, role) {
         Object.assign(item, payload);
         json = [item];
       } else assert.fail("Unexpected write to " + endpoint);
+      if (state.loseResponse.delete(endpoint)) return route.abort("connectionreset");
     } else {
       if (endpoint === "user") json = { id: member.user_id, email: member.user_id + "@test.invalid" };
       if (bucket === "membership") json = url.searchParams.has("role") && role !== "owner" ? [] : [member];
@@ -144,6 +157,13 @@ async function go(page, view) {
   await (await destination(page, view)).click();
 }
 
+async function switchSection(page, role, view) {
+  if (role === "master") await page.locator('#mwMasterNav [data-mw-page="' + view + '"]').click();
+  else await go(page, view);
+  const key = role === "master" && view !== "orders" ? "master" + view[0].toUpperCase() + view.slice(1) : view;
+  await page.locator(sectionRoots[key]).waitFor();
+}
+
 async function watchTransition(page, button, shell, content) {
   // Measure the first frame where each selector is visible using the same clock across documents.
   await button.evaluate((element, selectors) => {
@@ -161,7 +181,7 @@ async function watchTransition(page, button, shell, content) {
   return { interfaceMs: Math.round(times[shell]), dataMs: Math.round(times[content]) };
 }
 
-async function ownerBenchmark(browser, source, width, baseline) {
+async function ownerBenchmark(browser, source, width, standaloneModules = false) {
   const s = await fixture(browser, source, width, "owner");
   const { page, requests, documents } = s;
   try {
@@ -181,12 +201,12 @@ async function ownerBenchmark(browser, source, width, baseline) {
       };
     }
     await measure("expenses", await destination(page, "expenses"), "#exMain", "#exList .ex-item");
-    if (baseline) await page.locator("#exMoreButton").click();
-    await measure("growth", baseline ? page.locator('#exMore a[href="/growth.html"]') : await destination(page, "growth"),
+    if (standaloneModules) await page.locator("#exMoreButton").click();
+    await measure("growth", standaloneModules ? page.locator('#exMore a[href="/growth.html"]') : await destination(page, "growth"),
       "#gwMain", "#gwContent .gw-task");
-    await measure("orders", baseline ? page.locator('#gwBottom a[href="/?view=orders"]') : await destination(page, "orders"),
+    await measure("orders", standaloneModules ? page.locator('#gwBottom a[href="/?view=orders"]') : await destination(page, "orders"),
       "#ordersArea", "#calendarPanel");
-    if (!baseline) {
+    if (!standaloneModules) {
       assert.equal(await page.evaluate(() => window.fixtureDocument), documentId, "same browser document");
       for (const entry of Object.values(result)) {
         assert.equal(entry.documents, 0, "switch must not load an HTML document");
@@ -222,9 +242,118 @@ async function assertDock(page, role) {
   return state;
 }
 
+async function assertPeriodControls(page, selector, count) {
+  const controls = page.locator(selector);
+  assert.equal(await controls.count(), count);
+  for (const control of await controls.all()) {
+    const box = await control.boundingBox();
+    assert.ok(box && box.width >= 44 && box.height >= 44, "period controls have a 44 px touch target");
+  }
+}
+
+async function assertScrollRestored(page, role) {
+  const scroller = role === "master" ? page.locator("#appScreen") : page.locator("html");
+  const orderModes = page.locator("#owViewSwitch");
+  await orderModes.locator('[data-ow-mode="all"]').click();
+  if (role !== "master") {
+    await page.locator("#owFilterToggle").click();
+    await page.locator("#owFilterStatus").selectOption("Записан");
+    await page.locator("#owFilterApply").click();
+  }
+  const scroll = await scroller.evaluate(node => {
+    node.scrollTop = 350;
+    return node.scrollTop;
+  });
+  assert.ok(scroll > 100, "fixture must contain a long order list");
+  await assertDock(page, role);
+  const waitForScroll = () => page.waitForFunction(({ master, scroll }) => {
+    const scroller = master ? document.getElementById("appScreen") : document.scrollingElement;
+    return Math.abs(scroller.scrollTop - scroll) <= 2;
+  }, { master: role === "master", scroll });
+  await switchSection(page, role, "settings");
+  if (role === "master") await switchSection(page, role, "orders");
+  else {
+    const filterRenders = await page.evaluate(() => {
+      const summary = document.getElementById("owFilterSummary");
+      const observer = new MutationObserver(() => {});
+      observer.observe(summary, { childList: true });
+      document.querySelector('#rdMobileNav [data-page="orders"]').click();
+      const records = observer.takeRecords();
+      observer.disconnect();
+      return records.filter(record => [...record.addedNodes].some(node => node.nodeName === "BUTTON")).length;
+    });
+    assert.ok(filterRenders <= 1, "one order render updates the filter summary");
+    assert.match(await page.locator("#owFilterSummary").innerText(), /Записан/);
+  }
+  await waitForScroll();
+  if (role !== "master") {
+    await switchSection(page, role, "settings");
+    await page.goBack();
+    await page.locator("#ordersArea").waitFor();
+    await waitForScroll();
+  }
+  assert.equal(await orderModes.locator('[data-ow-mode="all"]').getAttribute("aria-selected"), "true");
+  await assertDock(page, role);
+}
+
+async function assertProfileTargets(page, role) {
+  const isMaster = role === "master";
+  if (!isMaster) await switchSection(page, role, "settings");
+  const trigger = page.locator(isMaster ? "#rdProfileTrigger" : "#rdProfileToggle");
+  const menuId = await trigger.getAttribute("aria-controls");
+  const menu = page.locator("#" + menuId);
+  assert.equal(await menu.count(), 1, "profile trigger resolves to one menu");
+  if (!isMaster) assert.equal(await page.locator("#rdProfileMenu").count(), 1);
+  await trigger.press("Enter");
+  await menu.waitFor();
+  assert.equal(await trigger.getAttribute("aria-expanded"), "true");
+  await page.keyboard.press("Escape");
+  await menu.waitFor({ state: "hidden" });
+  assert.equal(await trigger.evaluate(node => node === document.activeElement), true);
+}
+
+async function assertRapidNavigation(page, role) {
+  const main = page.locator("#appScreen");
+  const nav = page.locator(role === "master" ? "#mwMasterNav" : "#rdMobileNav");
+  const navHandle = await nav.elementHandle();
+  const visibilityObserver = await page.evaluateHandle(role => {
+    const failures = [];
+    const selectors = ["appScreen", role === "master" ? "mwMasterNav" : "rdMobileNav"];
+    const observer = new MutationObserver(records => {
+      for (const { target, oldValue } of records) {
+        if (target.hidden || oldValue !== null) failures.push(target.id);
+      }
+    });
+    for (const id of selectors) observer.observe(document.getElementById(id), {
+      attributes: true, attributeFilter: ["hidden"], attributeOldValue: true,
+    });
+    return { observer, failures };
+  }, role);
+  try {
+    const views = role === "owner" ? ["finance", "expenses", "growth", "finance", "orders"] :
+      role === "manager" ? ["leads", "settings", "leads", "orders"] :
+        ["payments", "reports", "payments", "orders"];
+    // Keep the requests held at the fixture while taps change the selected view.
+    for (const view of views) {
+      await switchSection(page, role, view);
+      assert.ok(await main.isVisible());
+      assert.ok(await nav.isVisible());
+    }
+    const current = await nav.evaluate((node, previous) => node === previous, navHandle);
+    assert.equal(current, true, "the dock is not rebuilt while changing sections");
+    assert.deepEqual(await visibilityObserver.evaluate(({ failures }) => failures), [],
+      "the authenticated shell and dock stay visible");
+  } finally {
+    await visibilityObserver.evaluate(({ observer }) => observer.disconnect());
+    await visibilityObserver.dispose();
+    await navHandle.dispose();
+  }
+}
+
 async function roleLayout(browser, width, role) {
   const s = await fixture(browser, root, width, role);
-  const { page, requests, documents } = s;
+  const { page, state, requests, documents } = s;
+  for (const read of slowReads[role]) state.gates.set(read, deferred());
   try {
     await page.goto(origin + (role === "owner" ? "/" : "/?view=growth"));
     await page.locator("#appScreen").waitFor();
@@ -232,20 +361,8 @@ async function roleLayout(browser, width, role) {
     await assertDock(page, role);
     const identity = await page.evaluate(() => window.fixtureDocument);
     let previousHeader;
-    const selectors = {
-      home: "#rdHome", orders: "#ordersArea", expenses: "#exMain", growth: "#gwMain",
-      leads: "#rdLeads", clients: "#rdClients", settings: "#rdSettings", reports: "#rdReports",
-      finance: "#financePanel", masterSettings: "#mwMasterSettings", masterReports: "#mwMasterReports",
-      masterPayments: "#mwMasterPayments",
-    };
-    const views = role === "master" ? ["payments", "reports", "settings", "orders"] :
-      role === "manager" ? ["leads", "clients", "settings", "home", "orders"] :
-        ["home", "expenses", "growth", "finance", "reports", "leads", "clients", "settings", "orders"];
-    for (const view of views) {
-      if (role === "master") await page.locator('#mwMasterNav [data-mw-page="' + view + '"]').click();
-      else await go(page, view);
-      const key = role === "master" && view !== "orders" ? "master" + view[0].toUpperCase() + view.slice(1) : view;
-      await page.locator(selectors[key]).waitFor();
+    for (const view of sectionsByRole[role]) {
+      await switchSection(page, role, view);
       const dock = await assertDock(page, role);
       if (role !== "master") {
         assert.equal(await page.locator("#rdMobileMoreBtn").getAttribute("aria-expanded"), "false");
@@ -256,6 +373,8 @@ async function roleLayout(browser, width, role) {
         assert.ok(header && header.y >= 0 && header.x + header.width <= width + 1, JSON.stringify(header));
         if (previousHeader) assert.ok(Math.abs(header.y - previousHeader.y) <= 2, "header jumps between modules");
         previousHeader = header;
+        if (view === "expenses") await assertPeriodControls(page, "#exPrev, #exNext", 2);
+        else await assertPeriodControls(page, ".gw-tabs button", 4);
       }
       if (role !== "master" && view === "orders") {
         const add = page.locator("#newOrderBtn");
@@ -273,12 +392,34 @@ async function roleLayout(browser, width, role) {
       await page.keyboard.press("Escape");
       assert.equal(await page.locator("#rdMobileMoreBtn").getAttribute("aria-expanded"), "false");
     }
+    await assertRapidNavigation(page, role);
+    await assertScrollRestored(page, role);
+    await assertProfileTargets(page, role);
     assert.equal(await page.evaluate(() => window.fixtureDocument), identity);
     assert.equal(documents.length, 1);
+    assert.equal(requests.filter(name => name === "user").length, 1);
+    assert.equal(requests.filter(name => name === "membership").length, 1);
     if (role !== "owner") {
       assert.equal(await page.locator("#exMain:visible, #gwMain:visible").count(), 0);
       assert.ok(!requests.includes("growth") && !requests.includes("expenses"), JSON.stringify(requests));
       assert.equal(await page.locator('#rdMobileNav [data-page="expenses"], #rdMobileMoreSheet [data-page="growth"]').count(), 0);
+    }
+    for (const read of slowReads[role]) {
+      assert.ok(requests.includes(read), "fixture exercised the delayed " + read + " request");
+      state.gates.get(read).release();
+    }
+    const reopenedView = role === "owner" ? "growth" : role === "manager" ? "leads" : "settings";
+    await switchSection(page, role, reopenedView);
+    await page.reload();
+    await page.locator(sectionRoots[role === "master" ? "orders" : reopenedView]).waitFor();
+    await assertDock(page, role);
+    assert.equal(documents.length, 2, "only the explicit reopen requested a new document");
+    assert.equal(requests.filter(name => name === "user").length, 2);
+    if (role === "owner") {
+      await page.getByRole("checkbox", { name: task.title }).waitFor();
+      await page.locator('.gw-tabs [data-period="week"]').click();
+      await assertPeriodControls(page, ".gw-period-selector button", 2);
+      await assertDock(page, role);
     }
     assert.deepEqual(s.writes, []);
   } finally { await s.close(); }
@@ -316,6 +457,8 @@ async function dataFlow(browser) {
     page.once("dialog", dialog => dialog.accept());
     await savedExpense.getByRole("button", { name: /отменить/i }).click();
     await savedExpense.waitFor({ state: "hidden" });
+    // The cancel path removes the row before its authoritative ledger refresh returns.
+    await page.waitForLoadState("networkidle");
     await go(page, "orders");
     state.expenses[0].note = "[Запчасти] Обновлённый расход";
     state.tasks[0].title = "Обновлённая задача";
@@ -343,6 +486,23 @@ async function dataFlow(browser) {
     assert.equal(requests.filter(value => value === "user").length, 1);
     assert.equal(requests.filter(value => value === "membership").length, 1);
     assert.deepEqual(writes.map(value => value.endpoint), ["rabota_growth_plan", "rabota_finance_record", "rabota_finance_void"]);
+
+    await go(page, "expenses");
+    state.loseResponse.add("rabota_finance_record");
+    await page.locator("#exAmount").fill("42,75");
+    await page.locator("#exDetail").fill("Сбой доставки ответа");
+    await page.locator("#exSave").click();
+    await page.locator("#exMessage").getByText(/Не удалось подтвердить запись/).waitFor();
+    await page.locator("#exList").getByText("Сбой доставки ответа").waitFor();
+    const attempts = writes.filter(value => value.endpoint === "rabota_finance_record").length;
+    const confirmation = page.waitForEvent("dialog");
+    const click = page.locator("#exSave").click();
+    const dialog = await confirmation;
+    assert.match(dialog.message(), /Проверьте историю/);
+    await dialog.dismiss();
+    await click;
+    assert.equal(writes.filter(value => value.endpoint === "rabota_finance_record").length, attempts,
+      "a committed expense with a dropped reply is never replayed automatically");
   } finally { await s.close(); }
 }
 
@@ -384,12 +544,13 @@ function summarize(results) {
     const baseline = process.env.BASELINE_ROOT && path.resolve(process.env.BASELINE_ROOT);
     if (baseline) {
       const results = [];
-      for (const width of widths) results.push(await ownerBenchmark(browser, baseline, width, true));
+      const standaloneModules = !readFileSync(path.join(baseline, "index.html"), "utf8").includes('id="exMain"');
+      for (const width of widths) results.push(await ownerBenchmark(browser, baseline, width, standaloneModules));
       console.log(browserName, "baseline", JSON.stringify(summarize(results)));
     }
     const results = [];
     for (const width of widths) {
-      results.push(await ownerBenchmark(browser, root, width, false));
+      results.push(await ownerBenchmark(browser, root, width));
       if (process.env.BENCHMARK_ONLY === "1") continue;
       for (const role of roles) {
         await roleLayout(browser, width, role);

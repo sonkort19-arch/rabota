@@ -15,6 +15,22 @@
     if(error&&error.code==="23505")return "В это время у выбранного мастера уже есть заказ либо запись дублируется.";
     return error instanceof Error?error.message:String(error);
   }
+  function sameAuthSession(previous,next){
+    const oldToken=previous?.access_token,newToken=next?.access_token;
+    if(!oldToken||!newToken)return false;
+    if(oldToken===newToken)return true;
+    // Claims identify a token rotation here. Permission checks use server responses.
+    function identity(token){
+      const payload=token.split(".")[1].replace(/-/g,"+").replace(/_/g,"/");
+      const {sub,session_id}=JSON.parse(atob(payload));
+      return typeof sub==="string"&&sub&&typeof session_id==="string"&&session_id
+        ?JSON.stringify([sub,session_id]):null;
+    }
+    try{
+      const previousIdentity=identity(oldToken);
+      return Boolean(previousIdentity&&previousIdentity===identity(newToken));
+    }catch(error){return false;}
+  }
   function createSharedServices(deps){
     if(!deps||typeof deps.url!=="string"||!deps.url.startsWith("https://")||
       typeof deps.key!=="string"||
@@ -27,6 +43,7 @@
     const requestFetch=deps.fetch;
     const getSession=deps.getSession;
     const ensureSession=deps.ensureSession;
+    const getScope=deps.getScope||(()=>null);
 
     async function authRequest(path,method,payload,authenticated){
       const session=getSession();
@@ -45,8 +62,11 @@
       return value;
     }
     async function dbRequest(path,method,payload){
+      const scope=getScope();
       await ensureSession();
       const session=getSession();
+      if(scope!==getScope()||!session?.access_token)
+        throw new Error("Сеанс изменился. Повторите действие.");
       const headers={apikey:SUPABASE_KEY,Authorization:"Bearer "+session.access_token,Accept:"application/json"};
       if(payload!==undefined)headers["Content-Type"]="application/json";
       if(method!=="GET")headers.Prefer="return=representation";
@@ -54,6 +74,7 @@
         method,headers,body:payload===undefined?undefined:JSON.stringify(payload)
       });
       const value=await response.json().catch(()=>null);
+      if(scope!==getScope())throw new Error("Сеанс изменился. Повторите действие.");
       if(!response.ok){
         const err=new Error(value&&(value.message||value.error)||"Ошибка базы данных ("+response.status+")");
         err.code=value&&value.code;
@@ -62,9 +83,9 @@
       }
       return value;
     }
-    return {authRequest,dbRequest,phoneForDisplay,normalizePhone,friendlyError};
+    return {authRequest,dbRequest,phoneForDisplay,normalizePhone,friendlyError,sameAuthSession};
   }
   if(root)root.__rdCreateSharedServices=createSharedServices;
   if(typeof module!=="undefined"&&module.exports)
-    module.exports={createSharedServices,phoneForDisplay,normalizePhone,friendlyError};
+    module.exports={createSharedServices,phoneForDisplay,normalizePhone,friendlyError,sameAuthSession};
 })(typeof window!=="undefined"?window:null);

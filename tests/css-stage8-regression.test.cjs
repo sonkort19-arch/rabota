@@ -42,9 +42,13 @@ function validCssBoundary(text){
   }
   return depth===0&&quote===null&&!comment;
 }
-test("ui-alignment: CSS bytes preserve original Git blob in cascade order",()=>{
+test("ui-alignment: only the legacy staff rule narrows to the orders section",()=>{
+  const css=alignment.map(read).join("");
+  const scopedRule="#ordersArea > #teamPanel { display: none !important; }";
+  assert.ok(css.includes(scopedRule));
+  assert.doesNotMatch(css,/^#teamPanel\s*\{\s*display:\s*none/m);
   assert.equal(
-    gitBlobSha(alignment.map(read).join("")),
+    gitBlobSha(css.replace(scopedRule,"#teamPanel { display: none !important; }")),
     "1669695e03aaf519514fa89a054a39c897fa6eef"
   );
 });

@@ -161,8 +161,9 @@ test("database failure preserves old behavior: no success refresh",async()=>{
 });
 test("index references module before inline application and keeps adapters",()=>{
  const html=fs.readFileSync(path.join(__dirname,"..","index.html"),"utf8");
- assert.match(html,/src="\/order-model\.js\?v=20261118-client-source-v1"/);
- assert.ok(html.indexOf('src="/order-model.js?v=20261118-client-source-v1"')<
+ const script=html.match(/src="\/order-model\.js\?v=[^"]+"/);
+ assert.ok(script);
+ assert.ok(script.index<
    html.indexOf("const orderModel=window.__rdCreateOrdersModel"));
  for (const method of ["readOrder","serializeOrder","persistOrder","hasConflict","findTightBookings","orderHasFinancialHistory"])
    assert.ok(html.includes("orderModel."+method+"("),method);

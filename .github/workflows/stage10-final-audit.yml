@@ -3,6 +3,7 @@ on:
   push:
     branches:
       - main
+      - fix/crm-stability
       - feature/stage-10-final-audit-20261114
   pull_request:
     paths:
@@ -40,7 +41,7 @@ jobs:
           node --test tests/app-services.test.cjs tests/order-sync.test.cjs tests/order-model.test.cjs tests/calendar-model.test.cjs tests/finance-model.test.cjs tests/master-ui.test.cjs tests/lead-ai-bridge.test.cjs
       - name: Exact CSS preservation and old UI smoke
         run: |
-          node --test tests/css-stage8-regression.test.cjs tests/quick-slots.cjs tests/master-dashboard.cjs tests/master-owner-cards.cjs tests/ui-icon-layout.test.js
+          node --test tests/css-stage8-regression.test.cjs tests/quick-slots.cjs tests/quick-slots-clock-regression.test.cjs tests/home-dashboard.cjs tests/master-dashboard.cjs tests/master-owner-cards.cjs tests/ui-icon-layout.test.js
       - name: Orders, payments and mobile-form regression checks
         run: |
           node --test tests/owner-order-deletion.cjs tests/order-notes.test.js

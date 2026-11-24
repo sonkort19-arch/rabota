@@ -114,14 +114,17 @@ function orderHasFinancialHistory(order){
 async function persistOrder(order) {
       const existing = getOrders().some(o => String(o.id) === String(order.id));
       const data = serializeOrder(order);
-      if (existing) {
-        const result = await dbRequest("rabota_orders?id=eq." + encodeURIComponent(order.id),"PATCH",data);
-        if (!Array.isArray(result) || !result.length) throw new Error("Заказ не обновлён.");
-      } else {
-        const result = await dbRequest("rabota_orders","POST",data);
-        if (!Array.isArray(result) || !result.length) throw new Error("Заказ не сохранён.");
+      const path=existing?"rabota_orders?id=eq."+encodeURIComponent(order.id):"rabota_orders";
+      const result=await dbRequest(path,existing?"PATCH":"POST",data);
+      if(!Array.isArray(result)||!result.length)
+        throw new Error(existing?"Заказ не обновлён.":"Заказ не сохранён.");
+      // A rejected read after an acknowledged write can only fail the refresh.
+      try{
+        await reloadOrders();
+        return {refreshError:null};
+      }catch(refreshError){
+        return {refreshError};
       }
-      await reloadOrders();
     }
 
 function hasConflict(date, time, master, excludeId) {

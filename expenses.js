@@ -4,6 +4,7 @@ window.__rdCreateExpenses = function createExpenses({root, dbRequest, loadExpens
   const CATEGORIES=["Запчасти","Расходники","Реклама","Оборудование","Транспорт","Прочее"];
   const $=id=>root.querySelector("#"+id);
   let ownerId=null, rows=null, read=null, busy=false, generation=0;
+  const unconfirmed=new Map();
   const currencyFormat=new Intl.NumberFormat("ru-RU",{maximumFractionDigits:2});
   const monthFormat=new Intl.DateTimeFormat("sv-SE",{timeZone:ZONE,year:"numeric",month:"2-digit"});
   const dateFormat=new Intl.DateTimeFormat("ru-RU",{timeZone:ZONE,day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"});
@@ -91,14 +92,15 @@ window.__rdCreateExpenses = function createExpenses({root, dbRequest, loadExpens
       list.append(item);
     });
   }
-  function refresh(afterWrite=false){
+  function refresh(ledger=null){
     if(!ownerId)return;
     if(!selectedMonth&&renderedMonth!==moscowMonth())draw();
-    if(read&&!afterWrite)return read;
-    setLoadStatus(rows ? "" : "Загружаем историю расходов…");
-    const pending=loadExpenses().then(operations=>{
+    if(read&&!ledger)return read;
+    setLoadStatus(ledger?"Проверяем итоги после операции…":rows?"":"Загружаем историю расходов…");
+    const pending=(ledger||loadExpenses()).then(operations=>{
       if(read!==pending)return;
       useOperations(operations);
+      for(const expense of unconfirmed.values())expense.historyLoaded=true;
       setLoadStatus("");
     }).catch(error=>{
       if(read!==pending)return;
@@ -107,7 +109,7 @@ window.__rdCreateExpenses = function createExpenses({root, dbRequest, loadExpens
         draw();
       }
       const message=error instanceof TypeError ? "Проверьте подключение к интернету." : error?.message;
-      setLoadStatus("Не удалось обновить расходы. "+(message||""),true);
+      setLoadStatus((rows?"Показан последний загруженный итог. ":"")+"Не удалось обновить расходы. "+(message||""),true);
     }).finally(()=>{
       if(read===pending)read=null;
     });
@@ -115,10 +117,10 @@ window.__rdCreateExpenses = function createExpenses({root, dbRequest, loadExpens
     return pending;
   }
   function refreshAfterWrite(){
-    // Finance and Expenses share the ledger request triggered by this confirmed write.
-    void onExpenseChanged();
-    return refresh(true);
+    // Both views need the same operation history after the write.
+    return refresh(onExpenseChanged());
   }
+  function uncertainWrite(error){return error instanceof TypeError||Number(error?.status)>=500}
   async function voidExpense(row,button){
     if(!ownerId||busy)return;
     if(!confirm("Отменить расход "+money(row.amount)+"? Запись останется в истории финансов как отменённая."))return;
@@ -130,7 +132,10 @@ window.__rdCreateExpenses = function createExpenses({root, dbRequest, loadExpens
       await dbRequest("rpc/rabota_finance_void","POST",{p_operation_id:row.id});
     }catch(error){
       if(account!==generation)return;
-      msg(error?.message||"Не удалось отменить расход");
+      if(uncertainWrite(error)){
+        msg("Не удалось подтвердить отмену. Проверьте историю расходов.");
+        void refreshAfterWrite();
+      }else msg(error?.message||"Не удалось отменить расход");
       button.disabled=false;
       return;
     }finally{
@@ -154,6 +159,12 @@ window.__rdCreateExpenses = function createExpenses({root, dbRequest, loadExpens
     if(order&&!/^\d{1,8}$/.test(order)){msg("Номер заказа должен содержать только цифры.");return}
     const note="["+category+"]"+(detail?" "+detail:"")+(order?" · Заказ №"+order:"");
     if(note.length>240){msg("Сократи описание расхода.");return}
+    const intent=JSON.stringify([amount,note]);
+    const previous=unconfirmed.get(intent);
+    if(previous){
+      if(!previous.historyLoaded){msg("Обновите историю и проверьте, появился ли расход.");return}
+      if(!confirm("Проверьте историю. Подтвердите, что предыдущая запись не появилась и расход нужно сохранить."))return;
+    }
     const account=generation;
     busy=true;
     $("exSave").disabled=true;
@@ -163,7 +174,15 @@ window.__rdCreateExpenses = function createExpenses({root, dbRequest, loadExpens
         p_kind:"expense",p_amount:amount,p_master_user_id:null,p_note:note
       });
     }catch(error){
-      if(account===generation)msg(error?.message||"Не удалось сохранить расход.");
+      if(account===generation){
+        if(uncertainWrite(error)){
+          unconfirmed.set(intent,{historyLoaded:false});
+          selectedMonth=null;
+          draw();
+          msg("Не удалось подтвердить запись. Проверьте историю расходов перед повтором.");
+          void refreshAfterWrite();
+        }else msg(error?.message||"Не удалось сохранить расход.");
+      }
       return;
     }finally{
       if(account===generation){
@@ -172,6 +191,7 @@ window.__rdCreateExpenses = function createExpenses({root, dbRequest, loadExpens
       }
     }
     if(account!==generation)return;
+    unconfirmed.delete(intent);
     selectedMonth=null;
     draw();
     $("exForm").reset();
@@ -186,6 +206,7 @@ window.__rdCreateExpenses = function createExpenses({root, dbRequest, loadExpens
     read=null;
     busy=false;
     selectedMonth=null;
+    unconfirmed.clear();
     $("exForm").reset();
     $("exSave").disabled=false;
     msg("");

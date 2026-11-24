@@ -21,7 +21,7 @@
     function context(){
       return {
         role:getRole(),userId:getUserId()||null,
-        orders:getOrders().map(o=>({date:o.date,time:o.time,master:o.master,status:o.status}))
+        get orders(){return getOrders().map(o=>({date:o.date,time:o.time,master:o.master,status:o.status}));}
       };
     }
     function openLeadOrder(lead){

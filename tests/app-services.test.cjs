@@ -3,7 +3,7 @@ const test=require("node:test");
 const assert=require("node:assert/strict");
 const fs=require("node:fs");
 const path=require("node:path");
-const {createSharedServices,normalizePhone,phoneForDisplay,friendlyError}=require("../app-services.js");
+const {createSharedServices,normalizePhone,phoneForDisplay,friendlyError,sameAuthSession}=require("../app-services.js");
 
 function fixture({initialToken="old-token",refreshTo=null,status=200,data=[{id:"x"}],jsonThrows=false}={}){
   let session={access_token:initialToken,refresh_token:"refresh",expires_at:5000};
@@ -95,6 +95,34 @@ test("if session refresh fails, no REST request is sent",async()=>{
   });
   await assert.rejects(x.dbRequest("rabota_orders","GET"),/Требуется вход/);
   assert.equal(called,false);
+});
+test("recognizes token rotation only within the same Supabase session",()=>{
+  const token=(sub,session_id,version)=>({
+    access_token:"header."+Buffer.from(JSON.stringify({sub,session_id,version})).toString("base64url")+".signature"
+  });
+  assert.equal(sameAuthSession(token("owner","a",1),token("owner","a",2)),true);
+  assert.equal(sameAuthSession(token("owner","a",1),token("owner","b",1)),false);
+  assert.equal(sameAuthSession(token("owner","a",1),token("manager","a",1)),false);
+  assert.equal(sameAuthSession({access_token:"broken"},null),false);
+});
+test("a REST mutation waiting on auth cannot use the next account's session",async()=>{
+  let scope=1,called=false;
+  const service=createSharedServices({
+    url:"https://example.supabase.co",key:"test",getSession:()=>({access_token:"new"}),
+    getScope:()=>scope,ensureSession:async()=>{scope++;},
+    fetch:async()=>{called=true;throw Error("unexpected");}
+  });
+  await assert.rejects(service.dbRequest("rpc/rabota_finance_record","POST",{}),/Сеанс изменился/);
+  assert.equal(called,false);
+});
+test("discard an old account's response after sign-out",async()=>{
+  let scope=1;
+  const service=createSharedServices({
+    url:"https://example.supabase.co",key:"test",getSession:()=>({access_token:"old"}),
+    getScope:()=>scope,ensureSession:async()=>{},
+    fetch:async()=>({ok:true,json:async()=>{scope++;return [{id:"previous account"}];}})
+  });
+  await assert.rejects(service.dbRequest("rabota_finance_operations","GET"),/Сеанс изменился/);
 });
 test("phone display and normalization match existing owner form semantics",()=>{
   assert.equal(phoneForDisplay("  +7 (900) 111-22-33  "),"+7 (900) 111-22-33");

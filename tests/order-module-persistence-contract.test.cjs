@@ -37,10 +37,11 @@ test("empty POST response is a failed create and never reloads the order list",a
   assert.equal(calls[0][1],"POST");
   assert.equal(reloads,0);
 });
-test("refresh failure propagates instead of reporting a complete save",async()=>{
+test("a confirmed write stays successful when the subsequent read fails",async()=>{
+  const networkError=new Error("refresh failed");
   const {model,calls}=harness({request:async()=>[{id:"saved"}],
-    reload:async()=>{throw new Error("refresh failed");}});
-  await assert.rejects(model.persistOrder({...sample,id:null}),/refresh failed/);
+    reload:async()=>{throw networkError;}});
+  assert.deepEqual(await model.persistOrder({...sample,id:null}),{refreshError:networkError});
   assert.equal(calls.length,1,"must not retry a successful POST");
 });
 test("persistOrder URL encodes an order identifier",async()=>{

@@ -136,7 +136,7 @@ test("finance refresh failure only marks finance as unavailable, not stale order
  assert.match(nodes.get("syncStatus").textContent,/Обновлено/);
 });
 test("changed order data restores focus to the same master's order row",()=>{
- const start=main.indexOf("    async function loadOrderData(");
+ const start=main.indexOf("    function loadOrderData(");
  const end=main.indexOf("    async function reloadOrders(",start);
  assert.ok(start>=0&&end>start,"order data refresh function exists");
  const source=main.slice(start,end);
@@ -145,11 +145,12 @@ test("changed order data restores focus to the same master's order row",()=>{
  assert.match(source,/\.focus\(\{preventScroll:true\}\)/);
  const reload=main.slice(end,main.indexOf("    function getOrders()",end));
  assert.match(reload,/await loadOrderData\(background\)/);
- assert.match(reload,/if\(currentRole==="owner"\|\|currentRole==="master"\)await refreshFinance\(!background\)/);
- const financeStart=main.indexOf("    function refreshFinance(");
+ assert.match(reload,/markFinanceStale\(\);\s*await loadOrderData\(background\)/);
+ assert.match(reload,/await loadOrderData\(background\)[\s\S]*?await refreshFinance\(\)/);
+ const financeStart=main.indexOf("    const financeReader=");
  const financeEnd=main.indexOf("    function financeVisible()",financeStart);
  assert.ok(financeStart>=0&&financeEnd>financeStart,"independent finance refresh function exists");
- assert.match(main.slice(financeStart,financeEnd),/\.catch\(error=>\{[\s\S]*?reportSync\(error,"finance"\)/);
+ assert.match(main.slice(financeStart,financeEnd),/state\.refreshError\)reportSync\(state\.refreshError,"finance"\)/);
 });
 
 test("overdue booked orders are exposed for the bell, not the daily strip",()=>{

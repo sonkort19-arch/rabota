@@ -7,7 +7,7 @@
 .gw-hero-subtitle{font-size:13px;color:#555e76}
 .gw-hero-foot{min-height:calc(2.9em + 12px);font-size:12px;line-height:1.45;color:#666f84;margin-top:13px;border-top:1px solid #e1e4f0;padding-top:11px}
 .gw-tabs{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:3px;border:1px solid #e9eaf1;border-radius:14px;padding:4px;background:var(--ui-muted-surface);margin-bottom:23px}
-.gw-tabs button{border:0;background:transparent;color:#6a6e7a;min-width:0;min-height:43px;padding:8px 3px;border-radius:10px;font-size:13px;font-weight:650}
+.gw-tabs button{border:0;background:transparent;color:#6a6e7a;min-width:0;min-height:44px;padding:8px 3px;border-radius:10px;font-size:13px;font-weight:650}
 .gw-tabs button.is-active{background:var(--ui-surface);color:var(--ui-link);box-shadow:0 1px 6px #202c620f}
 .gw-content{min-height:180px}
 .gw-section-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:12px}
@@ -29,7 +29,7 @@
 .gw-empty p{font-size:13px;color:var(--ui-muted);line-height:1.55;margin:0}
 .gw-block-title{font-size:13px;font-weight:720;margin:20px 0 9px}
 .gw-period-selector{display:flex;align-items:center;justify-content:space-between;gap:9px;margin-bottom:16px}
-.gw-period-selector button{border:1px solid var(--ui-border);background:var(--ui-surface);border-radius:11px;width:37px;height:37px;font-size:22px;font-weight:500;line-height:1;color:#515a71}
+.gw-period-selector button{flex:0 0 44px;border:1px solid var(--ui-border);background:var(--ui-surface);border-radius:11px;width:44px;height:44px;font-size:22px;font-weight:500;line-height:1;color:#515a71}
 .gw-period-selector span{font-size:15px;font-weight:720;text-align:center}
 .gw-month-row{display:flex;align-items:center;gap:12px;width:100%;text-align:left;background:var(--ui-surface);border:0;border-bottom:1px solid #eeeef2;padding:14px 13px;color:var(--ui-ink)}
 .gw-month-row:last-child{border-bottom:0}

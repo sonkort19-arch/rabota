@@ -10,6 +10,11 @@ const rows=[
   {id:"order-b",updated_at:"2026-11-13T10:00:00Z"}
 ];
 function make(now=()=>1000000){return createOrderSync({now,reconcileMs:300000});}
+function deferred(){
+  let resolve;
+  const promise=new Promise(done=>{resolve=done;});
+  return {promise,resolve};
+}
 
 test("first load must fetch complete orders",async()=>{
   const checker=make();
@@ -58,14 +63,69 @@ test("invalid metadata response cannot be treated as unchanged",async()=>{
 });
 test("index.html wires background reads without weakening deliberate full refresh",()=>{
   const html=fs.readFileSync(path.join(__dirname,"..","index.html"),"utf8");
-  assert.match(html,/src="\/order-sync\.js\?v=20261113-stage2"/);
+  assert.match(html,/src="\/order-sync\.js\?v=20261124-stable-reads"/);
   assert.match(html,/select=id,updated_at&order=id\.asc/);
+  assert.match(html,/select=\*&order=created_at\.desc,id\.desc&limit=/);
   assert.match(html,/async function reloadOrders\(\{background=false\}=\{\}\)/);
   assert.match(html,/await reloadOrders\(\);/); // user-initiated full refresh
-  assert.equal((html.match(/await reloadOrders\(\{background:true\}\)/g)||[]).length,2);
+  assert.equal((html.match(/reloadOrders\(\{background:true\}\)/g)||[]).length,1);
   const inline=html.match(/<script>\s*([\s\S]*?)<\/script>/);
   assert.ok(inline,"inline app script is present");
   assert.doesNotThrow(()=>new Function(inline[1]));
+});
+
+test("parallel background reads share one request and wait for a newer foreground read",async()=>{
+  const sync=make(),result=deferred(),started=deferred(),published=[];
+  const background=sync.runRead(true,async isCurrent=>{
+    started.resolve();
+    const previous=await result.promise;
+    if(isCurrent())published.push(previous);
+    return previous;
+  });
+  assert.equal(sync.runRead(true,()=>assert.fail("parallel poll")),background);
+  await started.promise;
+  const foreground=sync.runRead(false,isCurrent=>{
+    if(isCurrent())published.push("after write");
+    return "after write";
+  });
+  assert.equal(await foreground,"after write");
+  result.resolve("previous");
+  assert.equal(await background,"after write");
+  assert.deepEqual(published,["after write"]);
+});
+
+test("reset invalidates an in-flight read without joining another account",async()=>{
+  const sync=make(),result=deferred(),started=deferred();
+  const old=sync.runRead(false,async isCurrent=>{
+    started.resolve();
+    await result.promise;
+    assert.equal(isCurrent(),false);
+    return "old account";
+  });
+  await started.promise;
+  sync.reset();
+  const next=sync.runRead(false,()=>"new account");
+  result.resolve();
+  assert.equal(await old,undefined);
+  assert.equal(await next,"new account");
+});
+
+test("a full read checks every page and refuses a duplicated order",async()=>{
+  const sync=make(),page=Array.from({length:1000},(_,i)=>({id:"id-"+i}));
+  const offsets=[];
+  await assert.rejects(sync.readFull((offset,limit)=>{
+    offsets.push([offset,limit]);
+    return offset===0?page:[page.at(-1)];
+  }),/Список заказов изменился/);
+  assert.deepEqual(offsets,[[0,1000],[1000,1000]]);
+});
+
+test("a complete full result at the supported limit does not silently truncate",async()=>{
+  const sync=make(),read=(offset,limit)=>
+    Array.from({length:Math.min(limit,100000-offset)},(_,i)=>({id:"id-"+(offset+i)}));
+  assert.equal((await sync.readFull(read)).length,100000);
+  await assert.rejects(sync.readFull((offset,limit)=>
+    offset===100000?[{id:"overflow"}]:read(offset,limit)),/Превышен предел/);
 });
 
 

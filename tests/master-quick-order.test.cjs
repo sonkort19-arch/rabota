@@ -46,7 +46,7 @@ test("four time suggestions for Raul are still checked, others unchanged",()=>{
   assert.match(availability,/const state=timeState\(time,date,master\)/);
   assert.match(availability,/button\.disabled=!selectable/);
   assert.match(availability,/timeInput\.dispatchEvent\(new Event\("change"/);
-  assert.match(html,/src="\/order-availability\.js\?v=20261118-premium-compact-v1"/);
+  assert.match(html,/src="\/order-availability\.js\?v=[^"]+"/);
   assert.match(html,/src="\/master-quick-order\.js\?v=20261117-mock-v1"/);
   assert.match(css,/grid-template-columns:repeat\(4,minmax\(0,1fr\)\)/);
 });
@@ -116,7 +116,7 @@ test("one unified time row replaces double red-green timeline",()=>{
   assert.doesNotMatch(html,/id="oaBusyTimeline"/);
   assert.match(html,/id="oaSlotSuggestions" class="oa-slots"/);
   assert.match(html,/src="\/booking-timeline\.js\?v=20261117-v1"/);
-  assert.match(html,/src="\/order-availability\.js\?v=20261118-premium-compact-v1"/);
+  assert.match(html,/src="\/order-availability\.js\?v=[^"]+"/);
   assert.match(html,/master-quick-order\.css\?v=20261118-inline-busy-v1/);
   assert.match(availability,/function renderBusySummary\(stats,master\)/);
   assert.match(availability,/const summary=renderBusySummary\(stats,master\)/);
@@ -147,7 +147,7 @@ test("Raul compact redesign keeps real input fields, no fake mockup values or ch
   assert.match(availability,/raulQuick\?"Время":"Выберите время"/);
   assert.match(availability,/raulQuick\?"Рядом":"Рядом с заказом"/);
   assert.match(availability,/уточните время перед записью/);
-  assert.match(html,/order-availability\.js\?v=20261118-premium-compact-v1/);
+  assert.match(html,/src="\/order-availability\.js\?v=[^"]+"/);
   assert.match(html,/const overlap=window\.__rdBookingTimeline\?\.findAt/);
   assert.match(html,/const busy=findTightBookings/);
   for(const id of ["clientName","clientPhone","clientAddress","radiators","floorLoops","price","orderTime"])

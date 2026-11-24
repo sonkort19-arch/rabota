@@ -3,6 +3,7 @@ on:
   push:
     branches:
       - audit/release-step04-full-integration-20261114
+      - fix/crm-stability
   pull_request:
     paths:
       - 'sql/**'
@@ -85,6 +86,11 @@ jobs:
         run: psql -X -v ON_ERROR_STOP=1 -f tests/sql/step04-rls-scopes.sql
       - name: Parallel double-payment, salary and cash distribution prevention
         run: bash tests/step04-concurrency.sh
+      - name: Check manual and automatic payroll overlap on fresh synthetic PostgreSQL
+        run: |
+          docker run --rm --network none --user postgres \
+            -v "$GITHUB_WORKSPACE:/workspace:ro" -w /workspace \
+            postgres:17 bash tests/cash-payroll-reservation-local.sh
       - name: Run finance reconciliation safely on fake data
         run: |
           psql -X -v ON_ERROR_STOP=1 -c "CREATE TABLE public.rabota_cashbook_entries (id uuid PRIMARY KEY,amount numeric,kind text)"

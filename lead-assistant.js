@@ -6,12 +6,23 @@
   const group=(cls,...children)=>{const n=node("div",cls);n.append(...children);return n};
   const btn=(label,cls,action)=>{const n=node("button",cls,label);n.type="button";n.addEventListener("click",action);return n};
   const text=(v)=>String(v??"").trim(),cap=(s,max=500)=>text(s).slice(0,max);
-  const money=value=>new Intl.NumberFormat("ru-RU",{maximumFractionDigits:0}).format(Number(value)||0)+" ₽";
-  const today=(date=new Date())=>new Intl.DateTimeFormat("sv-SE",{timeZone:"Europe/Moscow",year:"numeric",month:"2-digit",day:"2-digit"}).format(date);
+  const currencyFormat=new Intl.NumberFormat("ru-RU",{maximumFractionDigits:0});
+  const dayFormat=new Intl.DateTimeFormat("sv-SE",{timeZone:"Europe/Moscow",year:"numeric",month:"2-digit",day:"2-digit"});
+  const clockFormat=new Intl.DateTimeFormat("en-GB",{timeZone:"Europe/Moscow",hour:"2-digit",minute:"2-digit",hourCycle:"h23"});
+  const money=value=>currencyFormat.format(Number(value)||0)+" ₽";
+  const today=(date=new Date())=>dayFormat.format(date);
   const shifted=(iso,days)=>{const d=new Date(iso+"T12:00:00Z");d.setUTCDate(d.getUTCDate()+days);return d.toISOString().slice(0,10)};
   const nextMonth=iso=>{const d=new Date(iso.slice(0,7)+"-01T12:00:00Z");d.setUTCMonth(d.getUTCMonth()+1);return d.toISOString().slice(0,10)};
+  function monthAfter(iso,months){
+    const month=new Date(iso.slice(0,7)+"-01T12:00:00Z");
+    month.setUTCMonth(month.getUTCMonth()+months);
+    const lastDay=new Date(month.getTime());
+    lastDay.setUTCMonth(lastDay.getUTCMonth()+1,0);
+    month.setUTCDate(Math.min(Number(iso.slice(-2)),lastDay.getUTCDate()));
+    return month.toISOString().slice(0,10);
+  }
   const weekday=(iso,target)=>{const d=new Date(iso+"T12:00:00Z").getUTCDay();return shifted(iso,((target-d+7)%7)||7)};
-  const nowClock=()=>new Intl.DateTimeFormat("en-GB",{timeZone:"Europe/Moscow",hour:"2-digit",minute:"2-digit",hourCycle:"h23"}).format(new Date());
+  const nowClock=(date=new Date())=>clockFormat.format(date);
   const humanDate=iso=>iso?new Date(iso+"T12:00:00Z").toLocaleDateString("ru-RU",{day:"numeric",month:"long",year:"numeric",timeZone:"UTC"}):"не назначена";
   const number=x=>x===null||x===undefined||x===""?null:Number(x);
   const calc=(r,c)=>{const a=number(r),b=number(c);return (a===null||Number.isInteger(a)&&a>=0)&&(b===null||Number.isInteger(b)&&b>=0)&&((a??0)+(b??0)>0)?Math.max(10000,(a??0)*2000+(b??0)*1000):null};
@@ -29,7 +40,7 @@
     const dayMap={"понедельник":1,"вторник":2,"среду":3,"среда":3,"четверг":4,"пятницу":5,"пятница":5,"субботу":6,"суббота":6,"воскресенье":0};
     for(const [w,d] of Object.entries(dayMap))if(s.includes(w))return {date:weekday(base,d),approx:true,source:"ближайший "+w};
     const months=s.match(/через\s+(\d{1,2})\s*месяц/);
-    if(months){const d=new Date(base+"T12:00:00Z");d.setUTCMonth(d.getUTCMonth()+Number(months[1]));return {date:d.toISOString().slice(0,10),approx:true,source:"через "+months[1]+" мес."}}
+    if(months)return {date:monthAfter(base,Number(months[1])),approx:true,source:"через "+months[1]+" мес."};
     if(/следующ[а-яё]*\s+месяц|нов[а-яё]*\s+месяц/.test(s))return {date:nextMonth(base),approx:true,source:"начало следующего месяца"};
     return null;
   }
@@ -62,22 +73,28 @@
     if(follow||o.clientWillCall||o.reason)o.status="waiting";
     return o;
   }
-  let draft=blank(),activeFilter="all",openId=null,notice="",leadCache=[],initialized=false;
-  let editing=false,cloudReady=false,loading=false,saving=false,loadError="",lastFetch=0,searchTerm="";
-  let cachedUserId=null;
+  let draft=blank(),activeFilter="all",openId=null,notice="",leadCache=[];
+  let editing=false,cloudReady=false,read=null,write=null,loadError="",lastFetch=0,searchTerm="";
+  let cachedUserId=null,accountVersion=0,cacheVersion=0,lastDueKey="";
   const notified=new Set();
   const context=()=>window.__rdLeadContext?.()||{};
+  function accountId(){
+    const {role,userId}=context();
+    return ["owner","manager"].includes(role)?userId||null:null;
+  }
+  const ownsAccount=version=>version===accountVersion&&Boolean(cachedUserId)&&accountId()===cachedUserId;
   const storeKey=()=>{const id=context().userId;return id?"rabota-preview-leads-v1:"+id:null};
   const notificationKey=()=>{const id=context().userId;return id?"rabota-lead-notifications:"+id:null};
   function localPreviews(){
     const key=storeKey();if(!key)return [];
     try{const value=JSON.parse(localStorage.getItem(key)||"[]");return Array.isArray(value)?value.filter(x=>x&&typeof x==="object"):[]}catch{return []}
   }
-  function resetForAccount(){
-    const id=context().userId||null;
-    if(id===cachedUserId)return;
-    cachedUserId=id;leadCache=[];cloudReady=false;loading=false;saving=false;loadError="";
-    lastFetch=0;searchTerm="";editing=false;openId=null;notice="";draft=blank();notified.clear();
+  function resetForAccount(force=false){
+    const id=force?null:accountId();
+    if(!force&&id===cachedUserId)return;
+    accountVersion++;cacheVersion++;cachedUserId=id;leadCache=[];cloudReady=false;read=null;write=null;loadError="";
+    lastFetch=0;searchTerm="";activeFilter="all";lastDueKey="";editing=false;openId=null;notice="";draft=blank();notified.clear();
+    $("rdLeadsMount")?.replaceChildren();
   }
   const load=()=>leadCache;
   function fromRow(row){
@@ -103,45 +120,93 @@
   const needsCall=(lead,day=today(),clock=nowClock())=>isOpen(lead)&&lead.consent===true&&!lead.clientWillCall&&!!lead.followUpDate&&
     (lead.followUpDate<day||(lead.followUpDate===day&&clock>=(lead.followUpTime||"18:00")));
   window.__rdLeadLogic={today,shifted,nextMonth,weekday,dueFromText,parseNotes,calc,phoneKey,needsCall};
-  const countDue=()=>load().filter(l=>needsCall(l)).length;
+  function dueLeads(leads=load()){
+    const instant=new Date();
+    const day=today(instant),clock=nowClock(instant);
+    return leads.filter(lead=>needsCall(lead,day,clock));
+  }
+  const countDue=()=>dueLeads().length;
   function syncNav(){
     resetForAccount();
     const count=countDue();
     document.querySelectorAll(".rd-nav-btn[data-page=leads]").forEach(b=>{
       const spans=b.querySelectorAll("span"),label=spans[spans.length-1];
-      if(label)label.textContent="Лиды"+(count?" · "+count:"");
-      b.setAttribute("aria-label",count?"Лиды, нужно связаться: "+count:"Лиды");
+      const caption="Лиды"+(count?" · "+count:"");
+      if(label&&label.textContent!==caption)label.textContent=caption;
+      const accessibleLabel=count?"Лиды, нужно связаться: "+count:"Лиды";
+      if(b.getAttribute("aria-label")!==accessibleLabel)b.setAttribute("aria-label",accessibleLabel);
     });
   }
-  async function refresh(force=false){
+  function refresh(force=false){
     resetForAccount();
-    const account=cachedUserId;
-    if(context().role==="master"||!account||loading||(!force&&cloudReady&&Date.now()-lastFetch<30000))return;
-    loading=true;
-    try{
+    if(!cachedUserId)return;
+    if(read?.version===cacheVersion)return read.promise;
+    if(!force&&cloudReady&&Date.now()-lastFetch<30000)return;
+    const account=accountVersion,version=cacheVersion;
+    const request={version};
+    request.promise=(async()=>{
       const rows=[];
       for(let offset=0;offset<100000;offset+=1000){
-        const page=await dbRequest("rabota_leads?select=*&order=updated_at.desc&limit=1000&offset="+offset,"GET");
+        const page=await dbRequest("rabota_leads?select=*&order=updated_at.desc,id.asc&limit=1000&offset="+offset,"GET");
+        if(!ownsAccount(account)||version!==cacheVersion)return;
         if(!Array.isArray(page))throw new Error("Не удалось получить список лидов.");
         rows.push(...page);
         if(page.length<1000)break;
       }
-      if(account!==context().userId)return;
       const firstCloudLoad=!cloudReady;
-      leadCache=rows.map(fromRow);cloudReady=true;loadError="";lastFetch=Date.now();
-      syncNav();if(!editing||firstCloudLoad)render();
+      const changed=rows.length!==leadCache.length||rows.some((row,index)=>
+        row.id!==leadCache[index].id||(row.updated_at||"")!==leadCache[index].updatedAt);
+      const recovered=Boolean(loadError);
+      if(changed)leadCache=rows.map(fromRow);
+      cloudReady=true;loadError="";lastFetch=Date.now();
+      if(firstCloudLoad||!editing&&(changed||recovered)&&!$("rdLeads")?.hidden)render();
+      else syncNav();
       maybeNotify();
-    }catch(error){if(account===context().userId){loadError=error.message||String(error);if(!editing)render()}}
-    finally{loading=false}
+    })().catch(error=>{
+      if(!ownsAccount(account)||version!==cacheVersion)return;
+      if([401,403].includes(error.status)||error.code==="42501"){
+        leadCache=[];cloudReady=false;draft=blank();openId=null;editing=false;
+      }
+      const message=error.message||String(error);
+      if(loadError!==message){
+        loadError=message;
+        if((!editing||!cloudReady)&&!$("rdLeads")?.hidden)render();
+      }
+    }).finally(()=>{if(read===request)read=null;});
+    read=request;
+    return request.promise;
+  }
+  function cacheChanged(){
+    cacheVersion++;
+    lastFetch=0;
+  }
+  async function mutate(action){
+    resetForAccount();
+    if(!cachedUserId||write||!cloudReady)return;
+    const account=accountVersion;
+    const ticket={isCurrent:()=>ownsAccount(account)};
+    write=ticket;
+    try{await action(ticket.isCurrent);}
+    catch(error){
+      if(!ticket.isCurrent())return;
+      notice=error.code==="23505"?"Этот телефон уже есть в базе. Найдите существующего лида.":error.message||String(error);
+      cacheChanged();
+    }finally{
+      if(write===ticket){
+        write=null;
+        if(ticket.isCurrent())render();
+      }
+    }
   }
   function selectLead(id){
+    if(write)return;
     const match=load().find(l=>l.id===id);
     draft=match?{...blank(),...match}:blank();
     openId=match?.id||null;editing=true;notice="";render();
   }
-  function listView(){editing=false;openId=null;draft=blank();render();refresh(true)}
+  function listView(){if(write)return;editing=false;openId=null;draft=blank();render();refresh()}
   async function save(){
-    if(saving)return;
+    if(write)return;
     const clean={...blank(),...draft};
     if(!text(clean.name)||!phoneKey(clean.phone)){notice="Укажите имя и правильный телефон (10–11 цифр).";render();return}
     if(["callback","waiting"].includes(clean.status)&&!clean.followUpDate){
@@ -157,78 +222,91 @@
     if(dupe){notice="Телефон уже принадлежит лиду «"+dupe.name+"». Откройте его карточку.";render();return}
     clean.history=[...(draft.history||[]),{at:new Date().toISOString(),
       event:clean.id?"Карточка обновлена":"Лид создан",status:clean.status}].slice(-30);
-    const original=clean.id?load().find(l=>l.id===clean.id):null;
-    if(clean.id&&!original){notice="Этот лид не найден в общей базе. Обновите список.";render();return}
+    if(clean.id&&!clean.updatedAt){notice="Этот лид не найден в общей базе. Обновите список.";render();return}
     if(!cloudReady){notice="Нет соединения с общей базой. Обновите список лидов.";render();return}
-    saving=true;notice="Сохранение в общей базе…";render();
-    try{
+    return mutate(async isCurrent=>{
+      notice="Сохранение в общей базе…";render();
       const data=toRow(clean);
-      const query=original?"rabota_leads?id=eq."+encodeURIComponent(original.id)+
-        "&updated_at=eq."+encodeURIComponent(original.updatedAt):"rabota_leads";
-      const rows=await dbRequest(query,original?"PATCH":"POST",data);
+      const rows=await dbRequest(clean.id?versionedLeadPath(clean):"rabota_leads",clean.id?"PATCH":"POST",data);
+      if(!isCurrent())return;
       if(!Array.isArray(rows)||rows.length!==1)throw new Error("Карточка изменилась на другом устройстве. Вернитесь к списку и обновите данные.");
+      cacheChanged();
       const record=fromRow(rows[0]);leadCache=[record,...leadCache.filter(l=>l.id!==record.id)];
-      lastFetch=0;notice="Лид сохранён в общей базе.";editing=false;openId=null;draft=blank();
-      render();syncNav();
-    }catch(error){notice=error.code==="23505"?"Этот телефон уже есть в базе. Найдите существующего лида.":error.message||String(error);render();}
-    finally{saving=false}
+      notice="Лид сохранён в общей базе.";editing=false;openId=null;draft=blank();
+    });
+  }
+  function versionedLeadPath(lead){
+    return "rabota_leads?id=eq."+encodeURIComponent(lead.id)+"&updated_at=eq."+encodeURIComponent(lead.updatedAt);
   }
   async function deleteLead(lead){
-    if(!window.confirm("Удалить лид «"+lead.name+"» из общей базы без возможности восстановления?"))return;
-    try{
-      const rows=await dbRequest("rabota_leads?id=eq."+encodeURIComponent(lead.id),"DELETE");
-      if(!Array.isArray(rows)||rows.length!==1)throw new Error("Лид не удалён.");
+    if(write||!window.confirm("Удалить лид «"+lead.name+"» из общей базы без возможности восстановления?"))return;
+    return mutate(async isCurrent=>{
+      const rows=await dbRequest(versionedLeadPath(lead),"DELETE");
+      if(!isCurrent())return;
+      if(!Array.isArray(rows)||rows.length!==1)throw new Error("Карточка изменилась. Вернитесь к списку и обновите данные.");
+      cacheChanged();
       leadCache=leadCache.filter(l=>l.id!==lead.id);notice="Лид удалён из общей базы.";
-      editing=false;openId=null;render();syncNav();
-    }catch(error){notice=error.message||String(error);render()}
+      editing=false;openId=null;
+    });
   }
   async function contacted(lead){
-    if(!window.confirm("Отметить повторный контакт? Напоминание будет снято."))return;
-    try{
+    if(write||!window.confirm("Отметить повторный контакт? Напоминание будет снято."))return;
+    return mutate(async isCurrent=>{
       const updated={...lead,followUpDate:"",dateApprox:false,status:"hot"};
       updated.history=[...(lead.history||[]),{at:new Date().toISOString(),event:"Связались повторно",status:"hot"}].slice(-30);
-      const rows=await dbRequest("rabota_leads?id=eq."+encodeURIComponent(lead.id)+
-        "&updated_at=eq."+encodeURIComponent(lead.updatedAt),"PATCH",toRow(updated));
+      const rows=await dbRequest(versionedLeadPath(lead),"PATCH",toRow(updated));
+      if(!isCurrent())return;
       if(!Array.isArray(rows)||rows.length!==1)throw new Error("Карточка изменилась. Обновите данные.");
+      cacheChanged();
       const record=fromRow(rows[0]);leadCache=leadCache.map(l=>l.id===record.id?record:l);
-      notice="Контакт отмечен. При необходимости назначьте следующую дату.";render();syncNav();
-    }catch(error){notice=error.message||String(error);render()}
+      notice="Контакт отмечен. При необходимости назначьте следующую дату.";
+    });
   }
   async function importLocal(){
     const source=localPreviews().filter(x=>phoneKey(x.phone));
     if(!source.length){notice="На устройстве нет подходящих старых лидов.";render();return}
-    if(!window.confirm("Перенести до "+source.length+" старых лидов из этого браузера в общую базу? Уже существующие телефоны будут пропущены."))return;
-    let added=0,skipped=0;
-    for(const item of source){
-      const key=phoneKey(item.phone);
-      if(load().some(l=>phoneKey(l.phone)===key)){skipped++;continue}
-      try{
-        const prepared={...blank(),...item,id:null,followUpDate:item.followUpDate||"",
-          status:item.status==="booked"?"booked":statuses[item.status]?item.status:"new"};
-        if(["callback","waiting"].includes(prepared.status)&&!prepared.followUpDate)prepared.status="new";
-        const rows=await dbRequest("rabota_leads","POST",toRow(prepared));
-        if(Array.isArray(rows)&&rows.length===1){leadCache.push(fromRow(rows[0]));added++}else skipped++;
-      }catch(error){skipped++;if(error.code!=="23505")loadError=error.message||String(error)}
-    }
-    notice="Из браузера перенесено: "+added+". Пропущено: "+skipped+
-      ". Исходные записи оставлены на устройстве как резервная копия.";
-    render();syncNav();
+    if(write||!window.confirm("Перенести до "+source.length+" старых лидов из этого браузера в общую базу? Уже существующие телефоны будут пропущены."))return;
+    return mutate(async isCurrent=>{
+      let added=0,skipped=0;
+      const phones=new Set(load().map(lead=>phoneKey(lead.phone)));
+      for(const item of source){
+        if(!isCurrent())return;
+        const key=phoneKey(item.phone);
+        if(phones.has(key)){skipped++;continue}
+        try{
+          const prepared={...blank(),...item,id:null,followUpDate:item.followUpDate||"",
+            status:Object.hasOwn(statuses,item.status)?item.status:"new"};
+          if(["callback","waiting"].includes(prepared.status)&&!prepared.followUpDate)prepared.status="new";
+          const rows=await dbRequest("rabota_leads","POST",toRow(prepared));
+          if(!isCurrent())return;
+          if(Array.isArray(rows)&&rows.length===1){
+            cacheChanged();leadCache.push(fromRow(rows[0]));phones.add(key);added++;
+          }else skipped++;
+        }catch(error){if(!isCurrent())return;skipped++;if(error.code!=="23505")loadError=error.message||String(error)}
+      }
+      notice="Из браузера перенесено: "+added+". Пропущено: "+skipped+
+        ". Исходные записи оставлены на устройстве как резервная копия.";
+    });
   }
   // Conversion is atomic in the database trigger on rabota_orders.
   // No separate client write to change the lead status.
   async function enableReminders(){
     if(!("Notification" in window)){notice="Системные уведомления недоступны в этом браузере. Внутренние напоминания работают.";render();return}
+    const account=accountVersion;
     try{
       const granted=await Notification.requestPermission();
+      if(!ownsAccount(account))return;
       if(granted==="granted"){localStorage.setItem(notificationKey(),"1");notice="Напоминания работают при открытом приложении. Фоновые push пока не подключены.";maybeNotify()}
       else notice="Браузер не разрешил системные уведомления. Внутренние напоминания работают.";
-    }catch(error){notice="Не удалось включить уведомления: "+(error.message||String(error))}
+    }catch(error){if(!ownsAccount(account))return;notice="Не удалось включить уведомления: "+(error.message||String(error))}
     render();
   }
   async function maybeNotify(){
     if(!cloudReady||!("Notification" in window)||Notification.permission!=="granted")return;
+    const account=accountVersion;
     const key=notificationKey();if(!key||localStorage.getItem(key)!=="1")return;
-    for(const lead of load().filter(l=>needsCall(l))){
+    for(const lead of dueLeads()){
+      if(!ownsAccount(account))return;
       const marker=lead.id+":"+(lead.followUpDate||"")+":"+(lead.followUpTime||"");
       if(notified.has(marker))continue;
       notified.add(marker);
@@ -236,6 +314,7 @@
         const title="Пора связаться с клиентом";
         const options={body:lead.name+" · "+humanDate(lead.followUpDate)+" "+lead.followUpTime,tag:"lead-"+lead.id};
         const registration=await navigator.serviceWorker?.getRegistration?.();
+        if(!ownsAccount(account))return;
         if(registration&&registration.showNotification)await registration.showNotification(title,options);
         else new Notification(title,options);
       }catch(error){console.warn("Lead notification",error)}
@@ -319,18 +398,15 @@
   function previewSlots(){
     const wrap=node("section","la-box la-slots"),head=node("strong","","Возможные окна мастера");
     wrap.append(head,node("p","la-muted","Число заказов в день не ограничено. Совпадение времени у мастера запрещено. Близкие записи требуют проверки длительности работы и дороги."));
-    const orders=Array.isArray(context().orders)?context().orders:[];
-    const master="Рауль",out=node("div","la-slot-list");
+    const orders=context().orders||[];
+    const master="Рауль",out=node("div","la-slot-list"),instant=new Date(),base=today(instant),clock=nowClock(instant);
+    const booked=new Set(orders.filter(order=>order.status!=="Отменён"&&
+      text(order.master).toLocaleLowerCase("ru")==="рауль").map(order=>order.date+" "+String(order.time||"").slice(0,5)));
     for(let day=0;day<3;day++){
-      const date=shifted(today(),day);
-      
+      const date=shifted(base,day);
       for(const time of ["10:00","15:00","18:00"]){
-        const nowTime=new Intl.DateTimeFormat("en-GB",{timeZone:"Europe/Moscow",hour:"2-digit",minute:"2-digit",hourCycle:"h23"}).format(new Date());
-        if(date===today()&&time<=nowTime)continue;
-        const busy=orders.some(o=>o.date===date&&o.status!=="Отменён"&&
-          text(o.master).toLocaleLowerCase("ru")===master.toLocaleLowerCase("ru")&&
-          String(o.time||"")===time);
-        if(!busy)out.append(btn((day===0?"Сегодня":day===1?"Завтра":"Послезавтра")+" · "+time,"la-slot",()=>{
+        if(day===0&&time<=clock)continue;
+        if(!booked.has(date+" "+time))out.append(btn((day===0?"Сегодня":day===1?"Завтра":"Послезавтра")+" · "+time,"la-slot",()=>{
           notice="Возможный вариант: "+humanDate(date)+" в "+time+". Спросите согласие клиента. Окончательная проверка — в форме заказа.";
           draft.notes=cap(draft.notes+"\nЖелаемый визит: "+date+" "+time+"; мастер: "+master,4000);render();
         }));
@@ -397,9 +473,9 @@
       extraBody.append(previewSlots());
     }
     extras.append(extraBody);wrap.append(extras);
-    const action=btn(saving?"Сохраняем…":openId?"Сохранить изменения":"Сохранить лид",
-      "la-primary la-wide",save);action.disabled=saving||!cloudReady;wrap.append(action);
-    if(!cloudReady)wrap.append(node("p","la-warn",loadError?"Нет связи с базой. Проверьте интернет и обновите раздел.":"Загрузка общей базы лидов…"));
+    const action=btn(write?"Сохраняем…":openId?"Сохранить изменения":"Сохранить лид",
+      "la-primary la-wide",save);action.disabled=Boolean(write)||!cloudReady;wrap.append(action);
+    if(!cloudReady)appendLoadStatus(wrap);
     if(openId&&draft.status==="ready"){
       wrap.append(btn("Перевести в заказ","la-neutral la-wide",()=>{
         if(!draft.name||!phoneKey(draft.phone)){notice="Сначала укажите имя и номер телефона.";render();return}
@@ -408,11 +484,12 @@
       wrap.append(node("p","la-muted","Откроется форма заказа. Запись создаётся только после сохранения подтверждённого заказа."));
     }
     if(openId)wrap.append(btn("Удалить лид","la-text-danger",()=>deleteLead(draft)));
+    if(write)for(const control of wrap.querySelectorAll("button,input,select,textarea"))control.disabled=true;
     return wrap;
   }
   const link=(label,cls,href)=>{const a=node("a",cls,label);a.href=href;return a};
-  function leadCard(lead){
-    const overdue=needsCall(lead),card=node("article","la-lead"+(overdue?" la-overdue":""));
+  function leadCard(lead,overdue){
+    const card=node("article","la-lead"+(overdue?" la-overdue":""));
     const header=group("la-lead-head",node("strong","",lead.name||"Без имени"),
       node("span","la-status"+(overdue?" la-status-due":""),overdue?"Перезвонить":statuses[lead.status]||"Лид"));
     card.append(header);
@@ -441,12 +518,33 @@
   function filterVisible(){
     const container=$("laLeadList");if(!container)return;
     const query=searchTerm.toLocaleLowerCase("ru").trim();
-    let visible=0;
-    for(const card of container.querySelectorAll("[data-lead-search]")){
-      card.hidden=!!query&&!card.dataset.leadSearch.includes(query);
-      if(!card.hidden)visible++;
+    const digits=/^[\d+()\s-]+$/.test(query)?phoneKey(query)||query.replace(/\D/g,""):"";
+    const due=new Set(dueLeads().map(lead=>lead.id));
+    const items=load().filter(lead=>{
+      const matchesFilter=activeFilter==="due"?due.has(lead.id):
+        activeFilter==="waiting"?["waiting","callback"].includes(lead.status):
+        activeFilter==="ready"?lead.status==="ready":true;
+      const searchText=(lead.name+" "+lead.phone+" "+lead.address).toLocaleLowerCase("ru");
+      return matchesFilter&&(searchText.includes(query)||digits&&phoneKey(lead.phone).includes(digits));
+    }).sort((a,b)=>Number(due.has(b.id))-Number(due.has(a.id))||
+      (a.followUpDate||"9999").localeCompare(b.followUpDate||"9999")||
+      String(b.updatedAt||"").localeCompare(String(a.updatedAt||"")));
+    container.replaceChildren(...items.slice(0,100).map(lead=>leadCard(lead,due.has(lead.id))));
+    if(!items.length&&cloudReady)container.append(node("div","la-empty",query?"По этому запросу лиды не найдены.":activeFilter==="all"?
+      "Пока нет лидов. Нажмите «+ Новый лид», чтобы сохранить клиента, который ещё не записался.":"В этой категории пока нет клиентов."));
+    const count=$("laListCount");
+    if(count)count.textContent=items.length>100?"Показаны первые 100 из "+items.length+" лидов.":
+      query?"Найдено: "+items.length:"";
+  }
+  function appendLoadStatus(wrap){
+    if(loadError){
+      const message=node("p","la-warn",cloudReady?"Не удалось обновить лиды. Показаны сохранённые данные.":"Не удалось загрузить лиды. Проверьте подключение.");
+      message.setAttribute("role","status");
+      wrap.append(message,btn("Повторить загрузку","la-neutral",()=>refresh(true)));
+    }else if(!cloudReady){
+      const message=node("p","la-muted","Загружаем лиды из общей CRM…");
+      message.setAttribute("role","status");wrap.append(message);
     }
-    const count=$("laListCount");if(count)count.textContent=query?"Найдено: "+visible:"";
   }
   function leadsList(){
     const wrap=node("section","la-box la-list");
@@ -454,9 +552,9 @@
       btn("+ Новый лид","la-primary",()=>selectLead(null)));
     wrap.append(heading);
     if(notice){const message=node("p","la-message",notice);message.setAttribute("role","status");wrap.append(message)}
-    if(loadError)wrap.append(node("p","la-warn","Нет связи с общей базой: "+loadError));
-    if(!cloudReady)wrap.append(node("p","la-muted","Загружаем лиды из общей CRM…"));
-    const all=load(),due=all.filter(l=>needsCall(l));
+    appendLoadStatus(wrap);
+    const all=load(),due=dueLeads(all);
+    lastDueKey=due.map(lead=>lead.id).join("|");
     const summary=node("div","la-summary");
     for(const [num,label] of [[due.length,"Перезвонить"],
       [all.filter(l=>["waiting","callback"].includes(l.status)).length,"Ожидают"],
@@ -470,51 +568,48 @@
       b.setAttribute("aria-pressed",String(activeFilter===key));tabs.append(b);
     }
     wrap.append(tabs);
-    let items=all.filter(l=>activeFilter==="due"?needsCall(l):
-      activeFilter==="waiting"?["waiting","callback"].includes(l.status):
-      activeFilter==="ready"?l.status==="ready":true);
-    items.sort((a,b)=>Number(needsCall(b))-Number(needsCall(a))||
-      (a.followUpDate||"9999").localeCompare(b.followUpDate||"9999")||
-      String(b.updatedAt||"").localeCompare(String(a.updatedAt||"")));
     const list=node("div","la-lead-list");list.id="laLeadList";
-    if(!items.length&&cloudReady)list.append(node("div","la-empty",activeFilter==="all"?
-      "Пока нет лидов. Нажмите «+ Новый лид», чтобы сохранить клиента, который ещё не записался.":"В этой категории пока нет клиентов."));
-    for(const lead of items.slice(0,100)){
-      const card=leadCard(lead);card.dataset.leadSearch=(lead.name+" "+lead.phone+" "+lead.address).toLocaleLowerCase("ru");
-      list.append(card);
-    }
-    if(items.length>100)wrap.append(node("p","la-muted","Показаны первые 100 из "+items.length+" лидов."));
     wrap.append(list);
     const count=node("small","la-muted");count.id="laListCount";wrap.append(count);
-    const old=localPreviews().filter(x=>phoneKey(x.phone)&&!all.some(y=>phoneKey(x.phone)===phoneKey(y.phone)));
+    const phones=new Set(all.map(lead=>phoneKey(lead.phone)));
+    const old=localPreviews().filter(x=>phoneKey(x.phone)&&!phones.has(phoneKey(x.phone)));
     if(old.length)wrap.append(btn("Перенести старые лиды с этого устройства ("+old.length+")","la-neutral la-import",importLocal));
     wrap.append(btn("Напоминания при открытой CRM","la-notify",enableReminders));
     return wrap;
   }
   function render(){
-    const root=$("rdLeadsMount");if(!root||context().role==="master")return;
+    resetForAccount();
+    const root=$("rdLeadsMount");if(!root||!cachedUserId)return;
     root.replaceChildren();
     root.append(editing?editor():leadsList());
     if(!editing)filterVisible();
-    syncNav();initialized=true;
+    syncNav();
   }
-  window.__rdLeadsRender=()=>{resetForAccount();render();refresh()};
+  window.__rdLeadsRender=()=>{resetForAccount();render();return refresh()};
   window.__rdLeadsRefresh=async()=>{
     // The linked order is already stored atomically; close the stale lead editor.
+    resetForAccount();
     editing=false;openId=null;draft=blank();
-    await refresh(true);render();
+    cacheChanged();
+    if(!$("rdLeads")?.hidden)render();
+    return refresh(true);
   };
   window.__rdLeadsSearch=value=>{searchTerm=String(value||"");filterVisible()};
   window.__rdLeadsSyncNav=syncNav;
-  window.__rdLeadDueCount=countDue;
+  window.__rdLeadDueCount=()=>{resetForAccount();return countDue()};
+  window.__rdResetLeads=()=>resetForAccount(true);
+  function refreshVisible(){
+    if(document.hidden||$("appScreen")?.hidden||$("rdLeads")?.hidden)return;
+    if(!editing&&lastDueKey!==dueLeads().map(lead=>lead.id).join("|"))render();
+    refresh();
+  }
   window.setInterval?.(()=>{
-    if(!$("appScreen")?.hidden&&context().role!=="master"){
+    if(!document.hidden&&!$("appScreen")?.hidden&&accountId()){
       syncNav();maybeNotify();
-      if(!$("rdLeads")?.hidden&&!editing)refresh();
+      refreshVisible();
     }
   },60000);
-  window.addEventListener("focus",()=>{
-    if(initialized&&!editing&&context().role!=="master")refresh(true)
-  });
+  window.addEventListener("focus",refreshVisible);
+  window.addEventListener("online",()=>{if(!$("appScreen")?.hidden&&!$("rdLeads")?.hidden)refresh(true)});
 
 })();

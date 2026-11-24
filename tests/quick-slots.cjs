@@ -72,19 +72,34 @@ test("Two different masters can book the same time; names deduplicate case-insen
   assert.equal(api.checkTime("10:00",date0,"Олег"),"available");
   const found=slotTest(api,["Рауль","Олег","ОЛЕГ"],date0+"T05:00:00Z");
   assert.equal(found.filter(s=>s.date===date0&&s.time==="10:00").length,1);
-  assert.equal(found.find(s=>s.date===date0&&s.time==="10:00").master,"ОЛЕГ");
+  assert.equal(found.find(s=>s.date===date0&&s.time==="10:00").master,"Олег");
+});
+test("new booking snapshot replaces index and preserves per-master date and time scope",()=>{
+  const api=availability([
+    {id:"a",date:date0,time:"",master:"  РАУЛЬ ",status:"Записан"},
+    {id:"b",date:date0,time:"15:00",master:"Рауль",status:"В работе"}
+  ]);
+  assert.equal(api.checkTime("15:00",date0,"рауль"),"busy");
+  assert.equal(api.checkTime("18:00",date0,"рауль"),"unknown");
+  assert.equal(api.checkTime("15:00",date1,"Рауль"),"available");
+  api.inspect(date0,"рауль").all.length=0;
+  assert.equal(api.checkTime("15:00",date0,"Рауль"),"busy");
+  api.refresh([{id:"b",date:date0,time:"15:00",master:"Рауль",status:"Отменён"}]);
+  assert.equal(api.checkTime("15:00",date0,"Рауль"),"available");
 });
 test("Quick selection fills unsaved order and refreshes before display/selection",()=>{
   const html=fs.readFileSync(path.join(__dirname,"../index.html"),"utf8");
   const redesign=fs.readFileSync(path.join(__dirname,"../redesign.js"),"utf8");
-  assert.ok(html.includes("await reloadOrders();"));
-  assert.ok(html.includes("window.__rdQuickSlotsRead=async"));
+  const read=html.slice(html.indexOf("window.__rdQuickSlotsRead=async"),html.indexOf("window.__rdQuickSlotFill="));
+  assert.ok(read.includes("await loadOrderData();"));
+  assert.ok(read.includes("await loadTeam({force:true})"));
+  assert.ok(!read.includes("reloadOrders"));
   assert.ok(html.includes("window.__rdQuickSlotFill="));
   assert.ok(html.includes("window.__rdCalendarUtils.canPrefillSlot("));
   assert.ok(html.includes("window.__rdOrderAvailability?.checkTime(slotTime,slotDate,slotMaster)"));
   assert.ok(html.includes("openForm();"));
-  assert.ok(html.includes('src="/quick-slots.js"'));
-  assert.ok(redesign.includes("function homeSlotPicker()"));
+  assert.match(html,/src="\/quick-slots\.js\?v=[^"]+"/);
+  assert.ok(redesign.includes("function homeSlotPicker("));
   assert.ok(redesign.includes("rd-cal-slots"));
   assert.ok(redesign.includes("rd-orders-quick-slots"));
 });

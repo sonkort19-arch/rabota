@@ -130,21 +130,31 @@ aside{width:266px;flex:0 0 266px;background:#171717;border-right:1px solid #2929
     </div>
   </main>
 </div>
+<script src="/app-services.js?v=20261124-stability"></script>
 <script>
 "use strict";
 const SUPABASE_URL="https://yedzfmibceboncrytbqz.supabase.co";
 const SUPABASE_KEY="sb_publishable_tSqbw3aeAgxYuzHhQurCuw_yDze4ZNn";
 const AUTH_KEY="rabota-auth-session-v1";
 let session=null,refreshPromise=null,activeChat=null,chats=[],messages=[],busy=false,pendingDraft=null,pendingImageData=null,photoProcessing=false,photoSequence=0;
+let sessionVersion=0,ownerReady=false,chatLoad=null,chatLoadError="";
+let chatListVersion=0,chatListRead=null,chatListReady=false,chatListError=false;
+const deletingChats=new Set();
 const $=id=>document.getElementById(id);
 const allowedReturnPages=new Set(["home","orders","calendar","leads","clients","finance","reports","settings","expenses","growth"]);
 const sourcePage=new URLSearchParams(window.location.search).get("from");
 const returnPage=allowedReturnPages.has(sourcePage)?sourcePage:"home";
 $("crmBack").href=returnPage==="home"?"/":"/?view="+encodeURIComponent(returnPage);
 function syncSendAvailability(){
- $("send").disabled=busy||photoProcessing||(!$("input").value.trim()&&!pendingImageData);
+ $("send").disabled=!ownerReady||busy||photoProcessing||Boolean(chatLoad)||Boolean(chatLoadError)||
+   deletingChats.has(activeChat)||(!$("input").value.trim()&&!pendingImageData);
 }
-try{session=JSON.parse(localStorage.getItem(AUTH_KEY)||"null")}catch(_){}
+function decodeSession(value){try{return JSON.parse(value||"null")}catch{return null}}
+try{session=decodeSession(localStorage.getItem(AUTH_KEY))}catch{}
+const services=window.__rdCreateSharedServices({
+ url:SUPABASE_URL,key:SUPABASE_KEY,getSession:()=>session,getScope:()=>sessionVersion,
+ ensureSession,fetch:(url,options)=>fetch(url,options)
+});
 function gate(message){$("layout").hidden=true;$("gate").hidden=false;$("gateText").textContent=message}
 function failure(error){$("notice").textContent=error.message||String(error)}
 function setSession(data){
@@ -155,27 +165,26 @@ function setSession(data){
 async function ensureSession(){
  if(!session||!session.refresh_token)throw new Error("Сначала войдите в приложение «Работа».");
  if(Number(session.expires_at||0)>Math.floor(Date.now()/1000)+90)return;
- if(!refreshPromise)refreshPromise=(async()=>{
-  const response=await fetch(SUPABASE_URL+"/auth/v1/token?grant_type=refresh_token",{
-   method:"POST",headers:{apikey:SUPABASE_KEY,"Content-Type":"application/json"},
-   body:JSON.stringify({refresh_token:session.refresh_token})});
-  const data=await response.json().catch(()=>({}));
-  if(!response.ok||!data.access_token)throw new Error("Сессия истекла. Снова войдите в «Работа».");
-  setSession(data)
- })().finally(()=>refreshPromise=null);
+ if(!refreshPromise){
+  const previous=session,version=sessionVersion;
+  refreshPromise=services.authRequest("token?grant_type=refresh_token","POST",{refresh_token:previous.refresh_token},false)
+   .then(data=>{
+    if(version!==sessionVersion)throw new Error("Сеанс изменился. Откройте чат из CRM.");
+    if(session!==previous)return;
+    if(!data?.access_token||!data.refresh_token)throw new Error("Не удалось обновить сеанс. Повторите попытку.");
+    setSession(data);
+   }).catch(error=>{
+    if(version===sessionVersion&&session!==previous)return;
+    if(version===sessionVersion&&[400,401,403].includes(error.status)){
+     localStorage.removeItem(AUTH_KEY);
+     invalidateSession();
+    }
+    throw error;
+   }).finally(()=>{refreshPromise=null;});
+ }
  await refreshPromise
 }
-async function db(path,method="GET",payload){
- await ensureSession();
- const headers={apikey:SUPABASE_KEY,Authorization:"Bearer "+session.access_token,Accept:"application/json"};
- if(payload!==undefined)headers["Content-Type"]="application/json";
- if(method!=="GET")headers.Prefer="return=representation";
- const response=await fetch(SUPABASE_URL+"/rest/v1/"+path,{method,headers,
-  body:payload===undefined?undefined:JSON.stringify(payload)});
- const data=await response.json().catch(()=>null);
- if(!response.ok)throw new Error(data?.message||"Ошибка Supabase ("+response.status+")");
- return data
-}
+const db=(path,method="GET",payload)=>services.dbRequest(path,method,payload);
 function closeMenu(){document.body.classList.remove("menu-open")}
 $("menu").addEventListener("click",()=>document.body.classList.toggle("menu-open"));
 $("scrim").addEventListener("click",closeMenu);
@@ -189,7 +198,16 @@ function renderMessages(){
  const list=$("messageList");list.replaceChildren();
  $("conversationTitle").textContent=chats.find(c=>c.id===activeChat)?.title||"ИИ-помощник";
  $("messages").classList.toggle("is-empty",messages.length===0);
- if(!messages.length){
+ if(chatLoad||chatLoadError){
+  const state=item("assistant",chatLoad?"Загружаем сообщения…":chatLoadError,"waiting");
+  state.setAttribute("role","status");
+  if(chatLoadError){
+   const retry=document.createElement("button");retry.type="button";retry.textContent="Повторить";
+   retry.addEventListener("click",()=>openChat(activeChat));
+   state.append(" ",retry);
+  }
+  list.append(state);
+ }else if(!messages.length){
   const empty=document.createElement("div");empty.className="empty-state";
   const emblem=document.createElement("div");emblem.className="rd-ai-emblem";emblem.setAttribute("aria-hidden","true");emblem.textContent="✦";
   const title=document.createElement("h2");title.textContent="Чем помочь?";
@@ -209,7 +227,7 @@ function renderMessages(){
     const arrow=document.createElement("span");arrow.className="rd-quick-arrow";arrow.setAttribute("aria-hidden","true");arrow.textContent="›";
     button.append(symbol,copy,arrow);
     button.addEventListener("click",()=>{
-      if(busy||photoProcessing)return;
+      if(busy||photoProcessing||chatLoad||chatLoadError)return;
       if(suggestion.kind==="photo"){$("photoFile").click();return}
       $("input").value=suggestion.kind==="draft"?"Добавь заказ: ":suggestion.prompt;
       $("input").dispatchEvent(new Event("input",{bubbles:true}));
@@ -225,7 +243,13 @@ function renderMessages(){
 }
 function renderChats(){
  const node=$("history");node.replaceChildren();
- if(!chats.length){const note=document.createElement("p");note.className="sidebar-label";note.textContent="Чатов пока нет";node.append(note);return}
+ if(chatListError){
+  const retry=document.createElement("button");retry.type="button";retry.className="chat-open";
+  retry.textContent="Повторить загрузку чатов";retry.addEventListener("click",loadChats);node.append(retry);
+ }else if(!chats.length){
+  const note=document.createElement("p");note.className="sidebar-label";
+  note.textContent=chatListReady?"Чатов пока нет":"Загружаем чаты…";node.append(note);return;
+ }
  for(const chat of chats){
   const row=document.createElement("div");row.className="chat-row"+(chat.id===activeChat?" is-active":"");
   const open=document.createElement("button");open.type="button";open.className="chat-open";open.textContent=chat.title;
@@ -235,37 +259,82 @@ function renderChats(){
   row.append(open,del);node.append(row)
  }
 }
-async function loadChats(){
- const rows=await db("rabota_ai_chats?select=id,title,updated_at&order=updated_at.desc&limit=100");
- chats=Array.isArray(rows)?rows:[];renderChats()
+function loadChats(){
+ if(chatListRead)return chatListRead;
+ const version=chatListVersion;
+ const pending=db("rabota_ai_chats?select=id,title,updated_at&order=updated_at.desc,id.desc&limit=100").then(rows=>{
+  if(version!==chatListVersion)return;
+  if(!Array.isArray(rows))throw new Error("Не удалось загрузить список чатов.");
+  chats=rows;chatListReady=true;chatListError=false;
+ }).catch(error=>{
+  if(version===chatListVersion)chatListError=true;
+ }).finally(()=>{
+  if(chatListRead===pending)chatListRead=null;
+  if(version===chatListVersion)renderChats();
+  // A confirmed change can supersede the first sidebar read while it is loading.
+  else if(ownerReady&&!chatListReady)return loadChats();
+ });
+ chatListRead=pending;
+ return pending;
+}
+async function readMessages(id){
+ const rows=await db("rabota_ai_messages?select=id,role,content,created_at&chat_id=eq."+encodeURIComponent(id)+
+   "&order=created_at.desc,id.desc&limit=200");
+ if(!Array.isArray(rows))throw new Error("Не удалось загрузить сообщения.");
+ return rows.reverse();
+}
+async function recordMessage(role,content){
+ const rows=await db("rabota_ai_messages","POST",{chat_id:activeChat,role,content});
+ if(!Array.isArray(rows)||!rows[0]?.id)throw new Error("Не удалось подтвердить запись сообщения.");
+ return rows[0];
+}
+function appendMessages(...rows){messages=[...messages,...rows].slice(-200);}
+function rememberChat(chat){
+ chatListVersion++;
+ chats=[chat,...chats.filter(candidate=>candidate.id!==chat.id)].slice(0,100);
+ renderChats();
 }
 async function openChat(id){
- if(busy)return;
+ if(!ownerReady||busy||deletingChats.has(id))return;
+ if(id===activeChat&&!chatLoadError){closeMenu();return;}
  setPendingDraft(null);
  if(speechActive)stopDictation(true);
  clearAttachedPhoto();
- $("notice").textContent="";activeChat=id;sessionStorage.setItem("rabota-ai-active-chat",id);closeMenu();
+ const read={id};
+ activeChat=id;chatLoad=read;chatLoadError="";messages=[];
+ $("notice").textContent="";$("input").value="";$("input").style.height="auto";
+ sessionStorage.setItem("rabota-ai-active-chat",id);
+ closeMenu();syncSendAvailability();renderChats();renderMessages();
  try{
-  const rows=await db("rabota_ai_messages?select=id,role,content,created_at&chat_id=eq."+encodeURIComponent(id)+"&order=created_at.asc&limit=200");
-  messages=Array.isArray(rows)?rows:[];renderChats();renderMessages()
- }catch(error){failure(error)}
+  const rows=await readMessages(id);
+  if(chatLoad===read)messages=rows;
+ }catch(error){
+  if(chatLoad===read)chatLoadError="Не удалось загрузить сообщения. Проверьте подключение.";
+ }finally{
+  if(chatLoad===read){chatLoad=null;syncSendAvailability();renderMessages();}
+ }
 }
 function newChat(){
- if(busy)return;
+ if(!ownerReady||busy)return;
  setPendingDraft(null);
  if(speechActive)stopDictation(true);
  clearAttachedPhoto();
- activeChat=null;sessionStorage.removeItem("rabota-ai-active-chat");messages=[];$("notice").textContent="";
- closeMenu();renderChats();renderMessages();$("input").focus()
+ activeChat=null;chatLoad=null;chatLoadError="";sessionStorage.removeItem("rabota-ai-active-chat");messages=[];$("notice").textContent="";
+ $("input").value="";$("input").style.height="auto";
+ closeMenu();syncSendAvailability();renderChats();renderMessages();$("input").focus()
 }
 $("newChat").addEventListener("click",newChat);
 async function deleteChat(id){
- if(busy||!confirm("Удалить этот чат и все сообщения?"))return;
+ if(!ownerReady||busy||deletingChats.has(id)||!confirm("Удалить этот чат и все сообщения?"))return;
+ const version=sessionVersion;
+ deletingChats.add(id);syncSendAvailability();
  try{
-  await db("rabota_ai_chats?id=eq."+encodeURIComponent(id),"DELETE");
-  if(activeChat===id){activeChat=null;sessionStorage.removeItem("rabota-ai-active-chat");messages=[]}
-  await loadChats();renderMessages()
- }catch(error){failure(error)}
+  const rows=await db("rabota_ai_chats?id=eq."+encodeURIComponent(id),"DELETE");
+  if(!Array.isArray(rows)||rows.length!==1)throw new Error("Чат не найден или уже удалён.");
+  if(activeChat===id)newChat();
+  chatListVersion++;chats=chats.filter(chat=>chat.id!==id);renderChats();
+ }catch(error){if(version===sessionVersion)failure(error)}
+ finally{deletingChats.delete(id);syncSendAvailability();}
 }
 
 /* Photo is sent to the AI once, not stored with message history. */
@@ -426,7 +495,8 @@ $("cancelOrder").addEventListener("click",()=>{
  $("notice").textContent="Предложение отменено. Заказ не изменён.";
 });
 $("confirmOrder").addEventListener("click",async()=>{
- if(busy||!pendingDraft||!activeChat)return;
+ if(!ownerReady||busy||!pendingDraft||!activeChat||deletingChats.has(activeChat))return;
+ const version=sessionVersion;
  const draft=pendingDraft;
  if(draft.schedule_warning&&!$("allowTightSchedule").checked){
   return failure(new Error("Для плотного графика сначала отметь отдельное разрешение."));
@@ -449,16 +519,16 @@ $("confirmOrder").addEventListener("click",async()=>{
   const message=(draft.action==="create"?"Заявка создана":"Заказ перенесён")+
    ": "+actual.name+" — "+actual.appointment_date+" в "+String(actual.appointment_time).slice(0,5)+
    ", мастер "+actual.master+". Данные проверены в «Работе».";
-  await db("rabota_ai_messages","POST",{chat_id:activeChat,role:"assistant",content:message});
-  messages=await db("rabota_ai_messages?select=id,role,content,created_at&chat_id=eq."+encodeURIComponent(activeChat)+"&order=created_at.asc&limit=200");
-  await loadChats();$("notice").textContent="Изменение подтверждено.";
+  appendMessages(await recordMessage("assistant",message));
+  $("notice").textContent="Изменение подтверждено.";
  }catch(error){
+   if(version!==sessionVersion)return;
    if(saved?.ok){
      setPendingDraft(null);
      $("notice").textContent="Заказ сохранён в базе, но его повторная проверка или запись в историю не завершилась. Проверьте календарь.";
    }else failure(error);
  }
- finally{setBusy(false);renderMessages();}
+ finally{if(version===sessionVersion){setBusy(false);renderMessages();}}
 });
 
 function setBusy(value){
@@ -467,29 +537,45 @@ function setBusy(value){
 }
 async function send(event){
  event.preventDefault();
- if(busy||photoProcessing)return;
+ if(!ownerReady||busy||photoProcessing||chatLoad||chatLoadError||deletingChats.has(activeChat))return;
+ const version=sessionVersion;
  setPendingDraft(null);
  if(speechActive)stopDictation(true);
  const text=$("input").value.trim()||(pendingImageData?"Добавь заказ по фотографии":"");if(!text)return;
  const image=pendingImageData;
  if(text.length>12000)return failure(new Error("Сообщение слишком длинное."));
  $("notice").textContent="";setBusy(true);
+ let replySaved=false;
  try{
   if(!activeChat){
    const rows=await db("rabota_ai_chats","POST",{title:text.slice(0,70)});
    if(!rows?.[0]?.id)throw new Error("Не удалось создать чат.");
    activeChat=rows[0].id;
+   sessionStorage.setItem("rabota-ai-active-chat",activeChat);
+   rememberChat(rows[0]);
   }
-  await db("rabota_ai_messages","POST",{chat_id:activeChat,role:"user",content:(text+(image?" [Фото заметки]":"")).slice(0,12000)});
+  const posted=await recordMessage("user",(text+(image?" [Фото заметки]":"")).slice(0,12000));
   $("input").value="";$("input").style.height="auto";
-  messages=await db("rabota_ai_messages?select=id,role,content,created_at&chat_id=eq."+encodeURIComponent(activeChat)+"&order=created_at.asc&limit=200");
-  const context=messages.slice(-30).map(m=>({role:m.role,content:m.content}));
+  appendMessages(posted);
   renderMessages();
+  messages=await readMessages(activeChat);
+  let index=messages.findIndex(message=>message.id===posted.id);
+  if(index<0){appendMessages(posted);index=messages.length-1;}
+  const context=[];
+  let chars=0;
+  for(let i=index;i>=0&&context.length<30;i--){
+   const {role,content}=messages[i];
+   chars+=content.length;
+   if(chars>45000)break;
+   context.unshift({role,content});
+  }
   await ensureSession();
+  if(version!==sessionVersion)return;
   const response=await fetch("/api/ai-chat",{method:"POST",headers:{
    "Content-Type":"application/json",Authorization:"Bearer "+session.access_token
   },body:JSON.stringify({messages:context,image})});
   const data=await response.json().catch(()=>({}));
+  if(version!==sessionVersion)return;
   if(!response.ok||!data.reply)throw new Error(data.error||"Ошибка сервера ИИ.");
   if(data.proposal){
     const p=data.proposal;
@@ -502,12 +588,19 @@ async function send(event){
     if(!draft||!draft.draft_id)throw new Error("Не удалось подготовить подтверждение заявки.");
     setPendingDraft(draft);
   }
-  await db("rabota_ai_messages","POST",{chat_id:activeChat,role:"assistant",content:data.reply.slice(0,12000)});
-  messages=await db("rabota_ai_messages?select=id,role,content,created_at&chat_id=eq."+encodeURIComponent(activeChat)+"&order=created_at.asc&limit=200");
-  await db("rabota_ai_chats?id=eq."+encodeURIComponent(activeChat),"PATCH",{updated_at:new Date().toISOString()});
-  await loadChats();clearAttachedPhoto()
- }catch(error){failure(error)}
- finally{setBusy(false);renderMessages();if(pendingDraft||window.innerWidth<=760)$("input").blur();else $("input").focus()}
+  appendMessages(await recordMessage("assistant",data.reply.slice(0,12000)));
+  replySaved=true;clearAttachedPhoto();
+  const rows=await db("rabota_ai_chats?id=eq."+encodeURIComponent(activeChat),"PATCH",{updated_at:new Date().toISOString()});
+  if(!rows?.[0]?.id)throw new Error("Не удалось обновить время чата.");
+  rememberChat(rows[0]);
+ }catch(error){
+  if(version===sessionVersion){
+   if(replySaved)$("notice").textContent="Ответ сохранён. Не удалось обновить список чатов.";
+   else failure(error);
+  }
+ }finally{
+  if(version===sessionVersion){setBusy(false);renderMessages();if(pendingDraft||window.innerWidth<=760)$("input").blur();else $("input").focus();}
+ }
 }
 $("composer").addEventListener("submit",send);
 $("input").addEventListener("keydown",event=>{
@@ -516,24 +609,45 @@ $("input").addEventListener("keydown",event=>{
 $("input").addEventListener("input",()=>{
  const el=$("input");el.style.height="auto";el.style.height=Math.min(el.scrollHeight,180)+"px";syncSendAvailability();
 });
+function invalidateSession(){
+ sessionVersion++;chatListVersion++;ownerReady=false;session=null;activeChat=null;
+ chatLoad=null;chatLoadError="";chatListRead=null;chatListReady=false;chatListError=false;
+ chats=[];messages=[];deletingChats.clear();
+ sessionStorage.removeItem("rabota-ai-active-chat");
+ if(speechActive)stopDictation(true);
+ setPendingDraft(null);clearAttachedPhoto();setBusy(false);closeMenu();
+ $("input").value="";$("notice").textContent="";
+ $("messageList").replaceChildren();$("history").replaceChildren();
+ gate("Сеанс изменился. Откройте ИИ-чат из CRM.");
+}
+window.addEventListener("storage",event=>{
+ if(event.key!==AUTH_KEY)return;
+ const next=decodeSession(event.newValue);
+ if(services.sameAuthSession(session,next))session=next;
+ else if(session)invalidateSession();
+});
 (async()=>{
+ const version=sessionVersion;
  try{
   await ensureSession();
-  const userResponse=await fetch(SUPABASE_URL+"/auth/v1/user",{headers:{apikey:SUPABASE_KEY,Authorization:"Bearer "+session.access_token}});
-  if(!userResponse.ok)throw new Error("Сессия истекла. Снова войдите в «Работа».");
-  const user=await userResponse.json();
+  const user=await services.authRequest("user","GET",null,true);
+  if(version!==sessionVersion)return;
+  if(!user?.id)throw new Error("Сессия истекла. Снова войдите в «Работа».");
   const membership=await db("rabota_members?select=role,active&user_id=eq."+encodeURIComponent(user.id)+"&limit=1");
   if(!membership?.some(m=>m.role==="owner"&&m.active))throw new Error("ИИ-чат доступен только владельцу приложения.");
-  $("gate").hidden=true;$("layout").hidden=false;
+  ownerReady=true;$("gate").hidden=true;$("layout").hidden=false;
   syncSendAvailability();renderMessages();
+  renderChats();
   await loadChats();
+  if(version!==sessionVersion)return;
   const previousChat=sessionStorage.getItem("rabota-ai-active-chat");
-  if(previousChat && chats.some(chat=>chat.id===previousChat))await openChat(previousChat);
+  if(!activeChat&&previousChat&&chats.some(chat=>chat.id===previousChat))await openChat(previousChat);
+  if(version!==sessionVersion)return;
   // Suggestion link opens an editable draft; it never sends a message automatically.
   const draft=new URLSearchParams(location.search).get("draft");
-  if(draft && draft.length<=240){$("input").value=draft;$("input").dispatchEvent(new Event("input"))}
-  $("input").focus()
- }catch(error){gate(error.message)}
+  if(draft&&draft.length<=240&&!$("input").value){$("input").value=draft;$("input").dispatchEvent(new Event("input"))}
+  if(window.innerWidth>760)$("input").focus();
+ }catch(error){if(version===sessionVersion)gate(error.message)}
 })();
 </script>
 </body></html>

@@ -2,6 +2,7 @@
 "use strict";
 (()=>{
  const ui={tab:"payments",person:null,view:"accruals",month:"all"};
+ let financeView=null,resetPayoutDialog=null;
  const $=id=>document.getElementById(id);
  const el=(tag,cls="",txt)=>{const n=document.createElement(tag);n.className=cls;if(txt!==undefined)n.textContent=String(txt);return n};
  const div=(cls,...children)=>{const n=el("div",cls);n.append(...children);return n};
@@ -13,7 +14,11 @@
    {key,name:"Тимур",role:"Помощник",accrued:m.timurAccrued,paid:m.timurPaid,due:m.timurDue,kind:"timur_payout"};
  const metric=(label,sum,hint,kind)=>div("fp-metric fp-"+kind,el("small","",label),el("strong","",money(sum)),el("span","",hint));
  const isPreview=()=>/^rabota-(?:git-[a-z0-9-]+-|[a-z0-9]{7,}-)sonkort19-6069s-projects\.vercel\.app$/i.test(String(window.location?.hostname||""));
+ const isReady=m=>m?.ready ?? Boolean(m&&!m.loading&&!m.error);
+ const isStale=m=>Boolean(m?.stale||m?.refreshError);
+ const canPayout=m=>isReady(m)&&!isStale(m);
  function payout(m,p){
+   if(!canPayout(m))return;
    if(!Number.isFinite(p.due)||p.due<=0){window.alert("Положительного остатка к выплате нет.");return}
    const backdrop=el("div","fp-backdrop"),modal=el("section","fp-modal");
    modal.setAttribute("role","dialog");modal.setAttribute("aria-modal","true");
@@ -26,15 +31,18 @@
      backdrop.style.height=(viewport?.height||window.innerHeight)+"px";
      backdrop.style.bottom="auto";
    };
-   const close=()=>{
-     if(submitting||closed)return;
+   const close=force=>{
+     if((submitting&&force!==true)||closed)return;
      closed=true;
      if(modal.contains(document.activeElement))document.activeElement.blur?.();
      document.removeEventListener("keydown",onEscape);
      viewport?.removeEventListener("resize",syncViewport);
      viewport?.removeEventListener("scroll",syncViewport);
      backdrop.remove();
+     if(resetPayoutDialog===reset)resetPayoutDialog=null;
    };
+   const reset=()=>close(true);
+   resetPayoutDialog=reset;
    const onEscape=event=>{if(event.key==="Escape")close()};
    document.addEventListener("keydown",onEscape);
    viewport?.addEventListener("resize",syncViewport);
@@ -90,6 +98,11 @@
    confirmButton.addEventListener("click",async()=>{
      if(submitting||!valid())return;
      if(isPreview()){error.textContent="Предпросмотр: выплата не записана в Supabase.";return}
+     const latest=window.__rdOwnerPayrollSnapshot?.();
+     if(latest&&!canPayout(latest)){
+       error.textContent="Обновите данные зарплаты перед выплатой.";
+       return;
+     }
      const cents=centsFromInput(),value=cents/100;
      if(!window.confirm("Провести РЕАЛЬНУЮ выплату "+p.name+" на "+money(value)+"?"))return;
      if(typeof window.__rdRecordPayrollPayout!=="function"){
@@ -105,6 +118,7 @@
        const result=await window.__rdRecordPayrollPayout({
          kind:p.kind,amount:value,method:method.value,note:note.value.trim()
        });
+       if(closed)return;
        // The RPC has returned success. Show a receipt, never submit twice.
        submitting=false;
        const updated=Number.isFinite(result.updatedDue)?result.updatedDue:
@@ -125,6 +139,7 @@
        modal.append(actions);
        modal.scrollTop=0;
      }catch(failure){
+       if(closed)return;
        // An interrupted network response may be ambiguous: block repeat submission.
        submitting=false;error.classList.remove("fp-progress");
        error.textContent="Не удалось подтвердить запись: "+(failure?.message||"ошибка связи")+
@@ -153,9 +168,10 @@
      const p=who(m,key),open=button("","fp-person-button",()=>{ui.person=key;ui.view="accruals";ui.month="all";redraw()});
      open.append(el("span","fp-avatar",p.name[0]),div("fp-name",el("strong","",p.name),el("small","",p.role)));
      open.setAttribute("aria-label","Открыть историю: "+p.name);
+     const pay=button("Выплата","fp-pay",()=>payout(m,p));pay.disabled=!canPayout(m);
      list.append(div("fp-person-row",open,el("span","fp-col-accrued",money(p.accrued)),
        el("span","fp-col-paid",money(p.paid)),el("strong","fp-due",money(p.due)),
-       button("Выплата","fp-pay",()=>payout(m,p))));
+       pay));
    }
    section.append(list,el("p","fp-hint","Начисления считаются только по выполненным и оплаченным заказам. Выплаты берутся из финансовой истории."));
    return section;
@@ -174,7 +190,7 @@
      el("strong","fp-balance-value",money(p.due)),
      el("p","fp-balance-description",p.due>0?"Осталось выплатить сотруднику":"Задолженности по зарплате нет"));
    const payoutButton=button("Выплатить","fp-balance-payout",()=>payout(m,p));
-   payoutButton.disabled=!Number.isFinite(p.due)||p.due<=0;
+   payoutButton.disabled=!canPayout(m)||!Number.isFinite(p.due)||p.due<=0;
    payoutButton.setAttribute("aria-label","Выплатить зарплату: "+p.name);
    hero.append(headline,payoutButton);
    wrap.append(hero);
@@ -238,46 +254,77 @@
  window.__rdPayrollReport={
    mount(root,{getSnapshot,onBack}){
      ui.person=null;ui.view="accruals";ui.month="all";
+     const back=button("Отчёты","fp-link fp-crumb-back",()=>onBack?.());
+     back.setAttribute("aria-label","Вернуться ко всем отчётам");
+     const nav=div("fp-report-head",back,el("span","fp-crumb-sep","/"),
+       el("h2","fp-report-title","Зарплата"));
+     nav.setAttribute("aria-label","Отчёты / Зарплата");
+     const status=el("p","fp-status-text"),content=el("div","");
+     const retry=button("Повторить","secondary fp-retry",()=>window.__rdOwnerPayrollReload?.());
+     const state=div("fp-data-status",status,retry);
+     root.replaceChildren(nav,state,content);
+     let rendered=null;
      const redraw=()=>{
-       root.replaceChildren();
-       const back=button("Отчёты","fp-link fp-crumb-back",()=>onBack?.());
-       back.setAttribute("aria-label","Вернуться ко всем отчётам");
-       const nav=div("fp-report-head",back,el("span","fp-crumb-sep","/"),
-         el("h2","fp-report-title","Зарплата"));
-       nav.setAttribute("aria-label","Отчёты / Зарплата");
-       root.append(nav);
        const m=typeof getSnapshot==="function"?getSnapshot():null;
-       if(!m?.isOwner){
-         root.append(el("p","fp-hint","Зарплата доступна только владельцу."));return;
+       const stale=isStale(m);
+       const warning=m?.error||m?.refreshError;
+       const message=!m?.isOwner?"Зарплата доступна только владельцу.":
+         m.error?"Финансовые данные недоступны. "+m.error:
+         !isReady(m)?"Загружаем данные зарплаты…":
+         stale?"Показаны последние расчёты зарплаты. Обновите их перед выплатой."+ (warning?" "+warning:""):"";
+       state.hidden=!message;retry.hidden=!(m?.isOwner&&(m.error||stale));
+       if(status.textContent!==message)status.textContent=message;
+       status.setAttribute("role",warning?"alert":"status");
+       if(!m?.isOwner||!isReady(m)){
+         if(content.firstChild)content.replaceChildren();
+         rendered=null;
+         return;
        }
-       if(m.error){
-         root.append(el("p","fp-error","Финансовые данные недоступны: "+m.error));return;
-       }
-       if(m.loading){
-         const message=el("p","fp-hint","Загружаем данные зарплаты…");
-         message.setAttribute("role","status");root.append(message);return;
-       }
-       root.append(overview(m,redraw));
+       const version=m.revision??JSON.stringify(m);
+       const key=JSON.stringify([version,ui.person,ui.view,ui.month,stale]);
+       if(rendered===key)return;
+       rendered=key;
+       content.replaceChildren(overview(m,redraw));
      };
      redraw();
      return {render:redraw};
    }
  };
- window.__rdFinanceEnhance=m=>{
+ window.__rdFinancePaymentTabActive=()=>ui.tab==="payments";
+ window.__rdFinanceEnhance=(m,legacyContent)=>{
    if(!m?.isOwner)return;
    const root=$("financeContent"),history=$("financeHistory"),entry=$("financeEntry");
    if(!root||!history||!entry)return;
-   const legacy=el("div","fp-original");
-   while(root.firstChild)legacy.append(root.firstChild);
-   // Preview currently shares Production Supabase. Keep all old accounting controls
-   // visible, but disable their mutations in Preview. Production stays unchanged.
-   if(isPreview()){
-     for(const section of [legacy,history]){
-       for(const control of section.querySelectorAll?.("button")||[]){
-         control.disabled=true;
-         control.title="Только просмотр: финансовые изменения в Preview отключены";
-       }
+   const first=!financeView||financeView.root!==root;
+   if(first){
+     const legacy=el("div","fp-original");
+     if(!legacyContent)while(root.firstChild)legacy.append(root.firstChild);
+     const tabs=el("div","fp-tabs"),panel=el("div","fp-panel");
+     const payments=el("div","fp-payments-panel"),cash=el("div","fp-cash-panel");
+     const operations=el("p","fp-hint",isPreview()?
+       "Тестовая версия: просмотр истории без изменения реальных финансовых операций.":
+       "История финансовых операций и управление записями доступны ниже.");
+     const status=el("p","fp-status-text");
+     const retry=button("Повторить","secondary fp-retry",()=>window.__rdMoneyUi?.refreshFinance?.());
+     const dataStatus=div("fp-data-status",status,retry);
+     const historyTitle=$("financePanel")?.querySelector(":scope > h2.finance-title");
+     const view={root,legacy,tabs,payments,cash,operations,status,retry,dataStatus,historyTitle,model:null,cashRevision:null};
+     financeView=view;
+     panel.append(payments,dataStatus,cash,operations,legacy);
+     root.replaceChildren(tabs,panel);
+     for(const [value,label] of [["payments","Платежи"],["cash","Касса"],["operations","Операции"]]){
+       const b=button(label,"fp-tab",()=>{
+         if(ui.tab===value)return;
+         ui.tab=value;
+         updateFinanceTabs(view,history,entry,true);
+       });
+       b.setAttribute("data-finance-tab",value);
+       tabs.append(b);
      }
+   }
+   financeView.model=m;
+   if(legacyContent)financeView.legacy.replaceChildren(...legacyContent.children);
+   if(isPreview()){
      const save=$("financeSaveBtn"),form=$("financeForm");
      if(save)save.disabled=true;
      if(form&&!form.dataset?.financePreviewLock){
@@ -288,33 +335,53 @@
        },true);
      }
    }
-   const tabs=el("div","fp-tabs"),panel=el("div","fp-panel");
-   root.append(tabs,panel,legacy);
-   const historyTitle=$("financePanel")?.querySelector(":scope > h2.finance-title");
-   // Build navigation only once per financial snapshot. Replacing the clicked
-   // button on every switch loses keyboard focus and can cause visual flicker.
-   const redraw=()=>{
-     panel.replaceChildren();
-     for(const b of tabs.children){
-       const active=b.getAttribute("data-finance-tab")===ui.tab;
-       b.className="fp-tab"+(active?" active":"");
-       b.setAttribute("aria-pressed",String(active));
-     }
-     legacy.hidden=ui.tab!=="cash";history.hidden=ui.tab!=="operations";entry.hidden=ui.tab!=="operations";
-     if(historyTitle)historyTitle.hidden=ui.tab!=="operations";
-     if(ui.tab==="cash")panel.append(cash(m));
-     else if(ui.tab==="payments")window.__rdPaymentsRender?.(panel);
-     else panel.append(el("p","fp-hint",isPreview()? "Тестовая версия: просмотр истории без изменения реальных финансовых операций.": "История финансовых операций и управление записями доступны ниже."));
-   };
-   for(const [value,label] of [["payments","Платежи"],["cash","Касса"],["operations","Операции"]]){
-     const b=button(label,"fp-tab",()=>{
-       if(ui.tab===value)return;
-       ui.tab=value;ui.person=null;ui.month="all";
-       redraw();
-     });
-     b.setAttribute("data-finance-tab",value);
-     tabs.append(b);
-   }
-   redraw();
+   updateFinanceTabs(financeView,history,entry,first);
  };
+ function updateFinanceTabs(view,history,entry,activatePayments){
+   const m=view.model,ready=isReady(m),stale=isStale(m);
+   for(const b of view.tabs.children){
+     const active=b.getAttribute("data-finance-tab")===ui.tab;
+     b.className="fp-tab"+(active?" active":"");
+     b.setAttribute("aria-pressed",String(active));
+   }
+   view.payments.hidden=ui.tab!=="payments";
+   view.cash.hidden=view.legacy.hidden=ui.tab!=="cash"||!ready;
+   view.operations.hidden=ui.tab!=="operations"||!ready;
+   history.hidden=view.operations.hidden;
+   entry.hidden=view.operations.hidden||stale;
+   if(view.historyTitle)view.historyTitle.hidden=view.operations.hidden;
+   if(!view.payments.hidden)window.__rdPaymentsRender?.(view.payments,activatePayments);
+   const message=m.error?"Не удалось загрузить финансы. "+m.error:
+     !ready?"Загружаем финансы…":
+     stale?"Показаны последние финансовые расчёты. Обновите их перед операцией."+ (m.refreshError?" "+m.refreshError:""):"";
+   view.dataStatus.hidden=ui.tab==="payments"||!message;
+   view.retry.hidden=!(m.error||stale);
+   if(view.status.textContent!==message)view.status.textContent=message;
+   view.status.setAttribute("role",m.error||m.refreshError?"alert":"status");
+   if(ready&&!view.cash.hidden){
+     const version=m.revision??JSON.stringify([m.companyEarned,m.masterHeld,m.waitingOwner]);
+     if(view.cashRevision!==version){
+       view.cash.replaceChildren(cash(m));view.cashRevision=version;
+     }
+   }
+   const locked=isPreview()||!ready||stale;
+   for(const section of [view.legacy,history,entry]){
+     for(const control of section.querySelectorAll?.("button")||[]){
+       if(locked&&!control.disabled){
+         control.disabled=true;control.dataset.financeReadLock="1";
+       }else if(!locked&&control.dataset.financeReadLock==="1"){
+         control.disabled=false;delete control.dataset.financeReadLock;
+       }
+     }
+   }
+ }
+ window.__rdResetPayrollUi=()=>{
+   resetPayoutDialog?.();
+   financeView?.root.replaceChildren();financeView=null;
+   $("rdSalaryReport")?.replaceChildren();
+   ui.tab="payments";ui.person=null;ui.view="accruals";ui.month="all";
+ };
+ // A saved session can finish restoring while this script is still downloading.
+ if($("financePanel")?.hidden===false&&window.__rdMoneyUi?.snapshot()?.role==="owner"&&
+   typeof renderFinance==="function")renderFinance();
 })();

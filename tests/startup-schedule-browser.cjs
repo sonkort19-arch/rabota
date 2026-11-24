@@ -13,7 +13,7 @@ function gate() {
   return {promise, release};
 }
 
-async function session(browser, {role = "master", active = true, delayModule = false, view = ""} = {}) {
+async function session(browser, {role = "master", active = true, delayModule = false, view = "", abortFirstAccess = false} = {}) {
   const context = await browser.newContext({
     viewport: {width: 390, height: 844}, isMobile: true, hasTouch: true,
     timezoneId: "Europe/Moscow", serviceWorkers: "block",
@@ -33,11 +33,19 @@ async function session(browser, {role = "master", active = true, delayModule = f
   const finance = gate(), notices = gate(), module = gate(), moduleRequested = gate();
   const requests = [], writes = [], errors = [];
   page.on("pageerror", error => errors.push(error.message));
-  await context.addInitScript(() => localStorage.setItem("rabota-auth-session-v1",
-    JSON.stringify({access_token: "fixture", refresh_token: "fixture", expires_at: 4102444800})));
+  await context.addInitScript(() => {
+    if (sessionStorage.getItem("fixture-opened")) return;
+    if (!localStorage.getItem("rabota-auth-session-v1")) {
+      localStorage.setItem("rabota-auth-session-v1",
+        JSON.stringify({access_token:"fixture",refresh_token:"fixture",expires_at:4102444800}));
+    }
+    sessionStorage.setItem("fixture-opened","1");
+  });
   await context.route("**/*", async route => {
     const request = route.request(), url = new URL(request.url());
     if (url.hostname === "crm.test") {
+      if (url.pathname === "/session-observer")
+        return route.fulfill({contentType:"text/html",body:"<!doctype html><title>Session observer</title>"});
       const file = path.resolve(root, "." + (url.pathname === "/" ? "/index.html" : url.pathname));
       if (!file.startsWith(root + path.sep) || !fs.existsSync(file))
         return route.fulfill({status: 404, body: ""});
@@ -49,6 +57,10 @@ async function session(browser, {role = "master", active = true, delayModule = f
     }
     const endpoint = url.pathname.split("/").pop();
     requests.push(endpoint);
+    if (endpoint === "user" && abortFirstAccess) {
+      abortFirstAccess = false;
+      return route.abort("internetdisconnected");
+    }
     if (request.method() !== "GET") { writes.push(endpoint); return route.abort(); }
     let data = [];
     if (endpoint === "user") data = {id: member.user_id};
@@ -67,7 +79,7 @@ async function session(browser, {role = "master", active = true, delayModule = f
     assert.deepEqual(writes, []);
     assert.deepEqual(errors, []);
   }
-  return {page, finance, notices, module, moduleRequested, requests, close};
+  return {page, context, finance, notices, module, moduleRequested, requests, close};
 }
 
 async function masterStartup(browser, failFinance) {
@@ -147,6 +159,27 @@ async function accessBoundaries(browser) {
   }
 }
 
+async function reconnectAndSignOutAcrossTabs(browser) {
+  const s = await session(browser,{role:"owner",view:"expenses",abortFirstAccess:true});
+  try {
+    await s.page.locator("#resumeSession").waitFor();
+    await s.page.locator("#resumeSession").click();
+    await s.page.locator("#exMain").waitFor();
+    assert.equal(s.requests.filter(endpoint=>endpoint==="user").length,2);
+    const settings=s.page.locator("#rdMobileMoreSheet [data-page=settings]");
+    await s.page.locator("#rdMobileMoreBtn").click();
+    await settings.click();
+    await s.page.locator("#teamMembers").getByText("Рауль",{exact:true}).waitFor();
+    const tab = await s.context.newPage();
+    await tab.goto("https://crm.test/session-observer");
+    await tab.evaluate(()=>localStorage.removeItem("rabota-auth-session-v1"));
+    await s.page.locator("#loginScreen").waitFor();
+    assert.equal(await s.page.locator("#appScreen").isVisible(),false);
+    assert.equal(await s.page.locator("#rdMobileNav").isVisible(),false);
+    assert.equal(await s.page.locator("#teamMembers").innerText(),"");
+  }finally {await s.close();}
+}
+
 (async () => {
   const browser = await chromium.launch({executablePath: process.env.CHROMIUM_PATH,
     args: ["--no-sandbox"]});
@@ -156,6 +189,7 @@ async function accessBoundaries(browser) {
     await ownerFinance(browser);
     await lateModule(browser);
     await accessBoundaries(browser);
+    await reconnectAndSignOutAcrossTabs(browser);
     console.log("Passed mobile startup, pending finance, delayed module and access checks");
   } finally { await browser.close(); }
 })().catch(error => { console.error(error); process.exitCode = 1; });

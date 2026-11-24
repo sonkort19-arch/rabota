@@ -17,6 +17,14 @@ body.rd :is(#financePanel,#rdSalaryReport) .fp-tab.active{
  color:#3158d2;background:#fff;box-shadow:0 2px 8px rgba(40,65,115,.11)
 }
 body.rd :is(#financePanel,#rdSalaryReport) .fp-panel{min-width:0}
+body.rd :is(.fp-data-status,.mw-finance-status,.pr-finance-status){
+ display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px 14px;
+ padding:9px 12px;margin:0 0 10px;background:#f5f7fb;border:1px solid #e3eaf5;
+ border-radius:12px;color:#4d5c74;font-size:12px;line-height:1.45;overflow-wrap:anywhere
+}
+body.rd :is(.fp-data-status,.mw-finance-status,.pr-finance-status)[hidden]{display:none!important}
+body.rd .fp-status-text{margin:0}
+body.rd :is(.fp-retry,.mw-finance-retry,.pr-retry){min-height:44px;margin:0}
 body.rd :is(#financePanel,#rdSalaryReport) .fp-screen{display:flex;flex-direction:column;gap:18px;min-width:0}
 body.rd :is(#financePanel,#rdSalaryReport) .fp-metrics{
  display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px

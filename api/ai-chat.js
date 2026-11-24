@@ -1,5 +1,5 @@
 /* Личный ИИ-чат. OpenAI ключ хранится только в Vercel Environment Variables. */
-const {collectionAmounts}=require("../finance-model.js");
+const {calculateAccruals,calculateCompanyCash,roundMoney}=require("../finance-model.js");
 const SUPABASE_URL = process.env.SUPABASE_URL || "https://yedzfmibceboncrytbqz.supabase.co";
 const SUPABASE_PUBLISHABLE_KEY = process.env.SUPABASE_PUBLISHABLE_KEY || "sb_publishable_tSqbw3aeAgxYuzHhQurCuw_yDze4ZNn";
 
@@ -7,14 +7,13 @@ const SUPABASE_PUBLISHABLE_KEY = process.env.SUPABASE_PUBLISHABLE_KEY || "sb_pub
 /* Read-only business snapshot. Uses the signed-in owner's JWT and existing Supabase RLS;
  * never uses the service role or writes to Rabota operational tables. */
 const BUSINESS_ZONE = "Europe/Moscow";
+const dateFormat=new Intl.DateTimeFormat("sv-SE",{
+  timeZone:BUSINESS_ZONE,year:"numeric",month:"2-digit",day:"2-digit"
+});
 function moscowDate(instant) {
   const date = new Date(instant);
   if (!Number.isFinite(date.getTime())) return null;
-  const parts = new Intl.DateTimeFormat("en-US", {
-    timeZone: BUSINESS_ZONE, year:"numeric", month:"2-digit", day:"2-digit"
-  }).formatToParts(date);
-  const field = type => parts.find(x => x.type === type)?.value;
-  return field("year")+"-"+field("month")+"-"+field("day");
+  return dateFormat.format(date);
 }
 function shiftDate(iso, days) {
   const date = new Date(iso+"T12:00:00Z");
@@ -29,13 +28,12 @@ function amount(value) {
   const number = Number(value);
   return Number.isFinite(number) ? number : 0;
 }
-function round(value){return Math.round((value+Number.EPSILON)*100)/100}
-function sum(rows,fn){return round(rows.reduce((n,row)=>n+amount(fn(row)),0))}
+function sum(rows,fn){return roundMoney(rows.reduce((n,row)=>n+amount(fn(row)),0))}
 function clientKey(row){
   const digits=String(row.phone||"").replace(/\D/g,"");
   return digits.length>=10 ? "phone:"+digits.slice(-10) : "name:"+String(row.name||"").trim().toLocaleLowerCase("ru-RU");
 }
-async function readRows(table, columns, tokenHeaders, sort="created_at.desc") {
+async function readRows(table, columns, tokenHeaders, sort) {
   // PostgREST defaults to 1000 rows; paginate to avoid silently wrong period totals.
   const all=[];
   const pageSize=500;
@@ -47,6 +45,7 @@ async function readRows(table, columns, tokenHeaders, sort="created_at.desc") {
     if(!response.ok)throw new Error("Не удалось прочитать "+table+" (HTTP "+response.status+").");
     const rows=await response.json();
     if(!Array.isArray(rows))throw new Error("Ошибка формата данных: "+table);
+    if(all.length+rows.length>maxRows)break;
     all.push(...rows);
     if(rows.length<pageSize)return all;
   }
@@ -54,7 +53,7 @@ async function readRows(table, columns, tokenHeaders, sort="created_at.desc") {
 }
 function periodStats(rows,kind,start,end) {
   const selected=rows.filter(o=>{
-    const date=kind==="created" ? moscowDate(o.created_at) : o.appointment_date;
+    const date=kind==="created" ? o.createdDay : o.appointment_date;
     return date && date>=start && date<=end && o.status!=="Отменён";
   });
   return {
@@ -76,35 +75,28 @@ function shortOrder(row) {
  };
 }
 async function businessSnapshot(tokenHeaders, question) {
- const [orders,operations,collections,members]=await Promise.all([
-  readRows("rabota_orders","id,name,phone,appointment_date,appointment_time,master,assigned_user_id,status,paid,price,created_at,completed_at,updated_at",tokenHeaders,"created_at.desc"),
-  readRows("rabota_finance_operations","kind,amount,master_user_id,order_id,voided_at,created_at",tokenHeaders),
-  readRows("rabota_cash_collections","*",tokenHeaders),
-  readRows("rabota_members","user_id,role,active,master_name",tokenHeaders,"created_at.asc")
+ const [orderRows,operations,collectionRows,members]=await Promise.all([
+  readRows("rabota_orders","id,name,phone,appointment_date,appointment_time,master,assigned_user_id,status,paid,price,payment_received_by,created_at,completed_at",tokenHeaders,"created_at.desc,id.asc"),
+  readRows("rabota_finance_operations","id,kind,amount,master_user_id,order_id,voided_at",tokenHeaders,"created_at.desc,id.asc"),
+  readRows("rabota_cash_collections","*",tokenHeaders,"created_at.desc,order_id.asc"),
+  readRows("rabota_members","user_id,role,active,master_name",tokenHeaders,"created_at.asc,user_id.asc")
  ]);
+ const orders=orderRows.map(row=>({...row,createdDay:moscowDate(row.created_at),
+  assignedUserId:row.assigned_user_id||null,paymentReceivedBy:row.payment_received_by||"",
+  price:row.price==null?null:Number(row.price)}));
+ const collections=[...new Map(collectionRows.map(row=>[String(row.order_id),row])).values()];
  const today=moscowDate(Date.now());
  const thisWeek=monday(today),lastWeek=shiftDate(thisWeek,-7);
  const thisMonth=today.slice(0,7),lastMonth=shiftDate(thisMonth+"-01",-1).slice(0,7);
  const monthEnd=month=>shiftDate(shiftDate(month+"-01",32).slice(0,7)+"-01",-1);
  const currentWeekEnd=shiftDate(thisWeek,6);
- const activeOps=operations.filter(o=>!o.voided_at);
- const paidNonCancelled=orders.filter(o=>o.paid&&o.status!=="Отменён");
- const collectionOrderIds=new Set(collections.map(c=>c.order_id));
- const directReceipts=sum(paidNonCancelled.filter(o=>!collectionOrderIds.has(o.id)),o=>o.price);
- const confirmedCompanyDeposits=sum(collections,c=>collectionAmounts(c).confirmedAmount);
- const allPayouts=sum(activeOps.filter(o=>["raul_payout","timur_payout"].includes(o.kind)&&!o.order_id),o=>o.amount);
- const expenses=sum(activeOps.filter(o=>o.kind==="expense"),o=>o.amount);
- const cashIn=round(directReceipts+confirmedCompanyDeposits);
- const cashBalance=round(cashIn-allPayouts-expenses);
  const raul=members.find(m=>m.active&&m.role==="master"&&String(m.master_name||"").trim().toLocaleLowerCase("ru-RU")==="рауль");
- const raulEligible=raul?orders.filter(o=>o.assigned_user_id===raul.user_id&&o.status==="Выполнен"&&o.paid&&o.price!=null&&amount(o.price)>=0):[];
- const raulAccrued=sum(raulEligible,o=>round(amount(o.price)*0.5));
- const timurAccrued=raulEligible.length*1500;
- const raulPaid=sum(activeOps.filter(o=>o.kind==="raul_payout"&&o.master_user_id===raul?.user_id),o=>o.amount);
- const timurPaid=sum(activeOps.filter(o=>o.kind==="timur_payout"&&o.master_user_id===raul?.user_id),o=>o.amount);
- const raulDue=round(raulAccrued-raulPaid),timurDue=round(timurAccrued-timurPaid);
- const advancePaid=sum(paidNonCancelled.filter(o=>o.status!=="Выполнен"),o=>o.price);
- const freeBalance=round(cashBalance-raulDue-timurDue-advancePaid);
+ const distinctOperations=[...new Map(operations.map(row=>[String(row.id),row])).values()];
+ const {eligible, payments, raulAccrued, timurAccrued, raulPaid, timurPaid, raulDue, timurDue}=calculateAccruals({
+   orders,operations:distinctOperations,collections,masterId:raul?.user_id
+ });
+ const {receivedOrders,directReceipts,confirmedDeposits,allPayouts,expenses,cashIn,cashBalance,
+   notCompletedPaid,freeBalance}=calculateCompanyCash({orders,collections,payments,raulDue,timurDue});
  const monthly=[];
  for(let i=0;i<18;i++){
    const d=new Date(thisMonth+"-01T12:00:00Z");
@@ -119,14 +111,15 @@ async function businessSnapshot(tokenHeaders, question) {
   weeks.push({week_start:start,appointments:periodStats(orders,"appointment",start,shiftDate(start,6)),
     newly_created:periodStats(orders,"created",start,shiftDate(start,6))});
  }
- const byMaster={};
+ const byMaster=Object.create(null);
  for(const o of orders) {
   const name=String(o.master||"Не назначен").slice(0,100);
   if(!byMaster[name])byMaster[name]={orders:0,completed:0,paid_orders:0};
   byMaster[name].orders++;if(o.status==="Выполнен")byMaster[name].completed++;if(o.paid)byMaster[name].paid_orders++;
  }
- const booked=orders.filter(o=>o.appointment_date&&o.appointment_date>=shiftDate(today,-14)&&
-  o.appointment_date<=shiftDate(today,45)&&o.status!=="Отменён")
+ const nearbyFrom=shiftDate(today,-14),nearbyTo=shiftDate(today,45);
+ const booked=orders.filter(o=>o.appointment_date&&o.appointment_date>=nearbyFrom&&
+  o.appointment_date<=nearbyTo&&o.status!=="Отменён")
   .sort((a,b)=>(a.appointment_date+" "+(a.appointment_time||"")).localeCompare(b.appointment_date+" "+(b.appointment_time||"")));
  const latest=orders.slice(0,140);
  const seen=new Set();
@@ -139,7 +132,7 @@ async function businessSnapshot(tokenHeaders, question) {
  const needsNames=/кто|кому|кого|какие|когда|во сколько|с кем|список|покажи|завтра|сегодня|вчера|записан|перенос|клиент|не оплатил|неоплачен|расписан|заказы на|все заказы|истори/i.test(questionLower) ||
    orders.some(o=>String(o.name||"").trim().length>=4 &&
      questionLower.includes(String(o.name||"").trim().toLocaleLowerCase("ru-RU")));
-  const statusCounts={};
+ const statusCounts=Object.create(null);
  for(const o of orders)statusCounts[String(o.status||"Не указан")]=(statusCounts[String(o.status||"Не указан")]||0)+1;
  return {
   source:"Живые таблицы приложения «Работа» в Supabase, чтение по правам владельца.",
@@ -153,7 +146,7 @@ async function businessSnapshot(tokenHeaders, question) {
     accounting:"Касса — расчётный показатель приложения, не фактический банковский баланс; начальный остаток принят за ноль. Доля компании по подтверждённым сборам, прямые оплаченные заказы и ручные выплаты учитываются по логике раздела «Финансы». Прибыль неизвестна без полного учёта затрат."
   },
   all_time:{orders:orders.length,unique_clients:new Set(orders.map(clientKey)).size,status_counts:statusCounts,
-    marked_paid_orders:paidNonCancelled.length,marked_paid_rub:sum(paidNonCancelled,o=>o.price)},
+    marked_paid_orders:receivedOrders.length,marked_paid_rub:sum(receivedOrders,o=>o.price)},
   calendar_periods:{
     current_week_appointments:periodStats(orders,"appointment",thisWeek,currentWeekEnd),
     last_week_appointments:periodStats(orders,"appointment",lastWeek,shiftDate(lastWeek,6)),
@@ -166,15 +159,15 @@ async function businessSnapshot(tokenHeaders, question) {
   },
   weekly_history:weeks,monthly_history:monthly,
   accounting_rub:{
-    direct_receipts:directReceipts,confirmed_company_deposits:confirmedCompanyDeposits,
-    unconfirmed_company_deposits:round(sum(collections,c=>c.company_amount)-confirmedCompanyDeposits),
+    direct_receipts:roundMoney(directReceipts),confirmed_company_deposits:confirmedDeposits,
+    unconfirmed_company_deposits:roundMoney(sum(collections,c=>c.company_amount)-confirmedDeposits),
     recorded_cash_in:cashIn,payouts_recorded:allPayouts,expenses_recorded:expenses,
     recorded_cash_balance:cashBalance,raul_due:raul?raulDue:null,timur_due:raul?timurDue:null,
-    advances_on_incomplete_orders:advancePaid,free_cash_balance:raul?freeBalance:null,
-    raul_financial_orders:raulEligible.length,raul_accrued:raul?raulAccrued:null,
+    advances_on_incomplete_orders:notCompletedPaid,free_cash_balance:raul?freeBalance:null,
+    raul_financial_orders:eligible.length,raul_accrued:raul?raulAccrued:null,
     raul_paid:raul?raulPaid:null,timur_accrued:raul?timurAccrued:null,
     timur_paid:raul?timurPaid:null,collections_count:collections.length,
-    finance_operations_count:operations.length
+    finance_operations_count:distinctOperations.length
   },
   by_master:byMaster,scheduled_nearby:needsNames?booked.slice(0,100).map(shortOrder):[],
   order_examples:needsNames?detail:[],
@@ -209,7 +202,9 @@ module.exports = async function handler(req, res) {
 
     const key = process.env.OPENAI_API_KEY;
     if (!key) return res.status(503).json({ error: "ИИ пока не подключён. Добавьте OPENAI_API_KEY в Environment Variables проекта Vercel и выполните повторный деплой." });
-    const body = typeof req.body === "string" ? JSON.parse(req.body) : req.body;
+    let body;
+    try { body=typeof req.body==="string"?JSON.parse(req.body):req.body; }
+    catch { return res.status(400).json({error:"Не удалось прочитать JSON запроса."}); }
     const messages = body?.messages;
     const image=body?.image||null;
     // Photos are transient; never save bytes with the chat messages.

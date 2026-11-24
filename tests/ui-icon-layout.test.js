@@ -20,10 +20,10 @@ test("metric icons are adjacent to labels, while values remain a separate column
 });
 test("global alignment stylesheet wins over earlier theme rules",()=>{
  const links=[...html.matchAll(/<link rel="stylesheet" href="([^"]+)"/g)].map(match=>match[1]);
- const i=links.indexOf("/ui-alignment.css");
+ const i=links.findIndex(href=>/^\/ui-alignment\.css(?:\?|$)/.test(href));
  assert.ok(i>=0);
- assert.deepEqual(links.slice(i,i+alignmentFiles.length),
-   alignmentFiles.map(file=>"/"+file+(file==="ui-alignment.css"?"":"?v=20261113-stage8")));
+ assert.deepEqual(links.slice(i,i+alignmentFiles.length).map(href=>href.split("?")[0]),
+   alignmentFiles.map(file=>"/"+file));
  const moneyIndex=links.findIndex(href=>/^\/money-workspace\.css(?:\?|$)/.test(href));
  assert.ok(moneyIndex>i+alignmentFiles.length-1,"money workspace keeps its downstream overrides");
  assert.match(links.at(-1),/^\/orders-workspace\.css(?:\?|$)/);

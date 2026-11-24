@@ -117,9 +117,11 @@ textarea.mw-input{min-height:69px;resize:vertical;line-height:1.4}
 .mw-modal-actions{display:flex;flex-direction:column-reverse;gap:4px;margin-top:2px}
 .mw-modal-actions .mw-main-button{margin:0}
 .mw-owner-payments{display:flex;flex-direction:column;gap:11px;margin:8px 0 15px;color:#24324d}
+.mw-owner-data{display:flex;flex-direction:column;gap:11px;min-width:0}
 .mw-owner-heading{display:flex;justify-content:space-between;align-items:center;gap:8px}
 .mw-owner-heading h2{margin:0;font-size:19px}
 .mw-owner-create{border:0;background:#5276eb;color:#fff;min-height:44px;border-radius:12px;padding:9px 16px;font-size:13px;font-weight:750}
+.mw-owner-create:disabled{opacity:.55;cursor:default}
 .mw-create-menu{display:flex;flex-direction:column;gap:2px;padding:5px;border:1px solid #dce5f6;border-radius:13px;background:#fff;box-shadow:0 6px 18px #304e8017}
 .mw-menu-action{background:#fff;border:0;border-radius:9px;min-height:43px;text-align:left;padding:10px 12px;font-weight:700;color:#304466}
 .mw-menu-action:active{background:#eef2ff}

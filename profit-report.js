@@ -137,10 +137,12 @@
     el.value=initial;el.addEventListener("change",()=>changed(el.value));
     return el;
   }
-  function mount(rootEl,{getOrders,getRaulMasterId=null,getFinanceStatus=null,startOpen=false,onBack=null}){
+  function mount(rootEl,{getOrders,getRaulMasterId=null,getFinanceStatus=null,startOpen=false,onBack=null,onRetry=null}){
     if(!rootEl||typeof getOrders!=="function")throw Error("Отчёт не может загрузиться");
     rootEl.classList.add("pr-report-scope");
     const state={open:false,period:"month",basis:"closed",status:"",search:"",from:"",to:"",visible:PAGE_SIZE};
+    const expanded=new Set();
+    let renderKey=null,renderedOrders=null;
     const menu=node("div","pr-menu");
     const card=button("Прибыль по заказам","pr-report-link",()=>{
       state.open=true;menu.hidden=true;detail.hidden=false;
@@ -179,6 +181,7 @@
     to.addEventListener("change",()=>{state.to=to.value;redraw()});
     custom.append(from,to);
     const download=button("Скачать CSV","pr-export",()=>{
+      if(download.disabled)return;
       const csv=csvFor(queryRows());
       const url=URL.createObjectURL(new Blob([csv],{type:"text/csv;charset=utf-8"}));
       const anchor=document.createElement("a");anchor.href=url;
@@ -193,6 +196,13 @@
     quickActions.append(search,download);
     controls.append(period,basis,status,quickActions);
     const caption=node("p","pr-note");
+    const message=node("span");
+    const retry=button("Повторить","secondary pr-retry",()=>{
+      if(typeof onRetry==="function")void onRetry();
+      else void root?.__rdMoneyUi?.refreshFinance?.();
+    });
+    const financeStatus=node("div","pr-finance-status");financeStatus.hidden=true;
+    financeStatus.append(message,retry);
     const info=node("details","pr-info");
     info.append(node("summary","","Как считается доля компании?"));
     info.append(node("p","pr-explain","Доля компании = стоимость выполненного и оплаченного заказа − 50% Раулю − 1 500 ₽ Тимуру, до затрат на материалы, дорогу и налоги. Если в старом заказе нет суммы оплаты, расчёт поступлений основан только на отметке «Оплачено», а не на подтверждённом платеже."));
@@ -212,26 +222,40 @@
     thead.append(tr);table.append(thead);
     const tbody=node("tbody");table.append(tbody);scroll.append(table);
     const more=node("div","pr-more");
-    detail.append(heading,controls,custom,caption,scroll,more,info);
+    detail.append(heading,controls,custom,financeStatus,caption,scroll,more,info);
     rootEl.append(menu,detail);
-    function queryRows(){
-      const options={...state};
-      if(typeof getRaulMasterId==="function")options.masterId=getRaulMasterId();
-      return filterRows(getOrders(),options);
+    function queryRows(orders=getOrders(),masterId=getRaulMasterId?.(),today=moscowDay(new Date())){
+      const options={...state,today};
+      if(typeof getRaulMasterId==="function")options.masterId=masterId;
+      return filterRows(orders,options);
     }
     function redraw(){state.visible=PAGE_SIZE;render()}
     function render(){
       if(!state.open)return;
       const finance=getFinanceStatus?.();
-      const unavailable=Boolean(finance?.loading||finance?.error);
-      scroll.hidden=unavailable;download.disabled=unavailable;
+      const unavailable=finance?!(finance.ready??!(finance.loading||finance.error)):false;
+      const stale=Boolean(finance?.stale||finance?.refreshError);
+      scroll.hidden=unavailable;download.disabled=unavailable||stale;
+      caption.hidden=unavailable;
+      const statusText=finance?.error?"Не удалось загрузить расчёты. "+finance.error:
+        unavailable?"Загружаем данные отчёта…":
+        stale?"Показан последний рассчитанный отчёт. Перед выгрузкой обновите данные."+
+          (finance.refreshError?" "+finance.refreshError:""):"";
+      financeStatus.hidden=!statusText;
+      retry.hidden=!(finance?.error||stale);
+      if(message.textContent!==statusText)message.textContent=statusText;
+      message.setAttribute("role",finance?.error||finance?.refreshError?"alert":"status");
       if(unavailable){
-        tbody.replaceChildren();more.replaceChildren();
-        caption.textContent=finance.error?"Не удалось загрузить расчёты. "+finance.error:"Загружаем данные отчёта…";
-        caption.setAttribute("role",finance.error?"alert":"status");return;
+        if(tbody.firstChild)tbody.replaceChildren();
+        if(more.firstChild)more.replaceChildren();
+        renderKey=null;renderedOrders=null;expanded.clear();
+        return;
       }
-      caption.removeAttribute("role");
-      const rows=queryRows();
+      const orders=getOrders(),masterId=getRaulMasterId?.(),today=moscowDay(new Date());
+      const key=JSON.stringify([state,finance?.revision,masterId,today]);
+      if(renderKey===key&&(finance?.revision!=null||renderedOrders===orders))return;
+      renderKey=key;renderedOrders=orders;
+      const rows=queryRows(orders,masterId,today);
       const totals=summary(rows);
       caption.textContent="Показаны "+Math.min(state.visible,rows.length)+" из "+rows.length+
         (totals.uncalculated?" · Без расчёта доли: "+totals.uncalculated:"")+
@@ -260,8 +284,14 @@
       }
       for(const row of rows.slice(0,state.visible)){
         const tr=node("tr"),id=row.referenceCode||row.orderNumber||"—";
-        const open=button(id,"pr-row-open",()=>{extra.hidden=!extra.hidden;open.setAttribute("aria-expanded",String(!extra.hidden))});
-        open.setAttribute("aria-expanded","false");
+        const expandedKey=String(row.id??id);
+        const open=button(id,"pr-row-open",()=>{
+          extra.hidden=!extra.hidden;
+          if(extra.hidden)expanded.delete(expandedKey);
+          else expanded.add(expandedKey);
+          open.setAttribute("aria-expanded",String(!extra.hidden));
+        });
+        open.setAttribute("aria-expanded",String(expanded.has(expandedKey)));
         const first=node("td");first.append(open);tr.append(first);
         const values=[getDate(row,state.basis)||"—",row.name||"Без имени",
           row.status||"—",row.reportPrice==null?"—":money(row.reportPrice),
@@ -269,7 +299,7 @@
           row.reportProfit==null?"—":money(row.reportProfit)];
         values.forEach((value,i)=>tr.append(node("td",i>=3?"pr-number":"",value)));
         tbody.append(tr);
-        const extra=node("tr","pr-expanded");extra.hidden=true;
+        const extra=node("tr","pr-expanded");extra.hidden=!expanded.has(expandedKey);
         const td=node("td");td.colSpan=8;
         const parts=[
           "Мастер: "+(row.master||"не назначен"),

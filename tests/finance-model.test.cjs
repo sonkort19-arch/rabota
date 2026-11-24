@@ -3,7 +3,7 @@ const test=require("node:test");
 const assert=require("node:assert/strict");
 const fs=require("node:fs");
 const path=require("node:path");
-const {createFinanceModel,financeSplit,calculateAccruals,calculateCompanyCash,
+const {createFinanceModel,createFinanceReader,financeSplit,calculateAccruals,calculateCompanyCash,
   sumBy,roundMoney,TIMUR_FEE,RAUL_PERCENT}=require("../finance-model.js");
 
 const r=(id,price,{paid=true,status="Выполнен",receivedBy="company"}={})=>({
@@ -38,6 +38,9 @@ test("unchanged payroll split and Russian currency",()=>{
   assert.equal(RAUL_PERCENT,0.5);
   assert.equal(roundMoney(10000.235),10000.24);
   assert.equal(sumBy([],x=>x.amount),0);
+});
+test("a half-cent share follows PostgreSQL rounding instead of binary floating point",()=>{
+  assert.deepEqual(financeSplit(4096.11),{gross:4096.11,raul:2048.06,timur:1500,company:548.05});
 });
 test("accruals only include Rauls completed paid orders",()=>{
   const x=calculateAccruals({
@@ -193,9 +196,10 @@ test("older in-flight refresh cannot overwrite newer snapshot",async()=>{
   }});
   const first=model.loadFinance();
   await Promise.resolve(); // first request is suspended
-  await model.loadFinance();
+  const second=model.loadFinance();
+  assert.equal(operationsRead,1,"the new ledger request waits for the older HTTP request");
   unblock();
-  await first;
+  await Promise.all([first,second]);
   assert.deepEqual(snapshots.map(x=>x.operations.map(o=>o.id)),[["fresh"]]);
 });
 test("logout invalidates in-flight responses",async()=>{
@@ -253,12 +257,109 @@ test("resetting account operations isolates an outstanding ledger read",async()=
   await previousRejected;
   assert.equal(callCount,2);
 });
-test("index uses the new finance module but retains existing RPC payment paths",()=>{
+test("finance readers share one request and skip unchanged cache revisions",async()=>{
+  let resolve;
+  let calls=0,now=100;
+  const reader=createFinanceReader({
+    load:()=>{calls++;return new Promise(done=>resolve=done);},
+    equal:(left,right)=>left.amount===right.amount,
+    now:()=>now
+  });
+  const initial=reader.refresh();
+  assert.equal(reader.refresh(),initial);
+  await Promise.resolve();
+  assert.equal(calls,1);
+  resolve({amount:250});
+  await initial;
+  const ready=reader.state();
+  assert.equal(ready.revision,1);
+  assert.equal(ready.ready,true);
+  assert.equal(ready.updatedAt,100);
+  now=120;
+  await reader.refresh({maxAge:30});
+  assert.equal(calls,1);
+  now=140;
+  const background=reader.refresh({maxAge:30});
+  assert.equal(reader.state().refreshing,true);
+  assert.equal(reader.state().stale,false);
+  assert.strictEqual(reader.state().value,ready.value);
+  await Promise.resolve();
+  resolve({amount:250});
+  await background;
+  assert.equal(reader.state().revision,1);
+  assert.equal(reader.state().updatedAt,140);
+  assert.strictEqual(reader.state().value,ready.value);
+});
+test("confirmed writes invalidate the old response and queue one fresh attempt",async()=>{
+  const responses=[];
+  const reader=createFinanceReader({load:({fresh})=>new Promise(resolve=>responses.push({fresh,resolve}))});
+  const first=reader.refresh();
+  await Promise.resolve();
+  responses[0].resolve({amount:120});
+  await first;
+
+  const background=reader.refresh();
+  await Promise.resolve();
+  reader.invalidate();
+  reader.invalidate();
+  assert.equal(reader.refresh(),background);
+  assert.equal(responses.length,2);
+  responses[1].resolve({amount:160});
+  await Promise.resolve();
+  assert.equal(responses.length,3);
+  assert.equal(responses[2].fresh,true);
+  assert.equal(reader.state().value.amount,120);
+  assert.equal(reader.state().stale,true);
+  responses[2].resolve({amount:175});
+  await background;
+  assert.equal(reader.state().value.amount,175);
+  assert.equal(reader.state().stale,false);
+});
+test("transient read failures retain clearly stale data, authorization errors erase it",async()=>{
+  let result={amount:100},failure=null;
+  const reader=createFinanceReader({load:async()=>{
+    if(failure)throw failure;
+    return result;
+  }});
+  await reader.refresh();
+  failure=Error("timeout");
+  await reader.refresh();
+  assert.equal(reader.state().ready,true);
+  assert.equal(reader.state().stale,true);
+  assert.equal(reader.state().error,"");
+  assert.equal(reader.state().refreshError,"timeout");
+  assert.equal(reader.state().value.amount,100);
+
+  failure=null;result={amount:150};
+  await reader.refresh();
+  assert.equal(reader.state().ready,true);
+  assert.equal(reader.state().stale,false);
+  assert.equal(reader.state().value.amount,150);
+  failure=Object.assign(Error("denied"),{status:403});
+  await reader.refresh();
+  assert.equal(reader.state().ready,false);
+  assert.equal(reader.state().error,"denied");
+  assert.equal(reader.state().value,null);
+});
+test("resetting financial readers discards a previous account response",async()=>{
+  let release,calls=0;
+  const reader=createFinanceReader({load:()=>++calls===1?
+    new Promise(resolve=>release=resolve):Promise.resolve({owner:"current"})});
+  const previous=reader.refresh();
+  await Promise.resolve();
+  reader.reset();
+  assert.equal(reader.state().value,null);
+  await reader.refresh();
+  release({owner:"former"});
+  await previous;
+  assert.equal(reader.state().value.owner,"current");
+});
+test("index retains existing RPC payment paths behind the shared finance model",()=>{
   const html=fs.readFileSync(path.join(__dirname,"..","index.html"),"utf8");
   assert.match(html,/src="\/finance-model\.js\?v=[A-Za-z0-9_-]+"/);
   assert.match(html,/financeModel\.calculateAccruals/);
   assert.match(html,/financeModel\.calculateCompanyCash/);
-  assert.match(html,/return financeModel\.loadFinance\(\{fresh\}\)/);
+  assert.match(html,/financeModel\.loadFinance\(\{fresh,operations,isCurrent\}\)/);
   for(const rpc of ["rabota_record_order_payment","rabota_salary_payout_v2",
     "rabota_cash_distribute","rabota_cash_confirm","rabota_finance_void"])
     assert.ok(html.includes("rpc/"+rpc),"Missing RPC: "+rpc);

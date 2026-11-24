@@ -1,5 +1,4 @@
-/* Тестовый режим: без Supabase, вызовов сети и реальных клиентов.
-   Запуск: node --test tests/lead-assistant-preview.js */
+/* Isolated shared leads regression with synthetic Supabase responses. */
 "use strict";
 const assert=require("node:assert/strict");
 const {test}=require("node:test");
@@ -8,36 +7,73 @@ const vm=require("node:vm");
 const path=require("node:path");
 const source=fs.readFileSync(path.join(__dirname,"../lead-assistant.js"),"utf8");
 class Element {
-  constructor(tag){this.tagName=tag.toUpperCase();this.children=[];this.events={};this.className="";this._text="";this.dataset={};this.attrs={};this.value="";this.checked=false;this.hidden=false;this.type="";this.id="";this.parent=null}
-  set textContent(s){this._text=String(s);this.children=[]}
-  get textContent(){return this._text+this.children.map(x=>x.textContent).join("")}
-  append(...elements){for(const el of elements){if(el.parent)el.parent.children=el.parent.children.filter(x=>x!==el);el.parent=this;this.children.push(el)}}
-  replaceChildren(...elements){this.children=[];this.append(...elements)}
-  setAttribute(k,v){this.attrs[k]=String(v)}
-  addEventListener(k,fn){(this.events[k]??=[]).push(fn)}
-  fire(k){for(const fn of this.events[k]||[])fn({target:this,preventDefault(){}})}
-  click(){this.fire("click")}
-  querySelectorAll(selector){
-    const result=[];
-    function visit(n){for(const c of n.children){if(selector.startsWith(".")?c.className.split(" ").includes(selector.slice(1)):c.tagName===selector.toUpperCase())result.push(c);visit(c)}}
-    visit(this);return result;
+  constructor(tag){
+    this.tagName=tag.toUpperCase();this.children=[];this.events={};this.className="";this._text="";
+    this.dataset={};this.attrs={};this.value="";this.checked=false;this.hidden=false;this.type="";this.id="";
   }
-  querySelector(selector){return this.querySelectorAll(selector)[0]||null}
+  set textContent(value){this._text=String(value);this.children=[];}
+  get textContent(){return this._text+this.children.map(child=>child.textContent).join("");}
+  append(...children){this.children.push(...children);}
+  replaceChildren(...children){this.children=children;}
+  setAttribute(key,value){this.attrs[key]=String(value);}
+  getAttribute(key){return this.attrs[key]??null;}
+  addEventListener(key,fn){(this.events[key]??=[]).push(fn);}
+  fire(event){return Promise.all((this.events[event]||[]).map(fn=>fn({target:this,preventDefault(){}})));}
+  click(){return this.disabled?Promise.resolve():this.fire("click");}
+  querySelectorAll(selector){
+    const matches=node=>selector.split(",").some(part=>{
+      if(part.startsWith("#"))return node.id===part.slice(1);
+      if(part.startsWith("."))return node.className.split(" ").includes(part.slice(1));
+      return node.tagName===part.toUpperCase();
+    });
+    const found=[];
+    function visit(node){for(const child of node.children){if(matches(child))found.push(child);visit(child);}}
+    visit(this);
+    return found;
+  }
+  querySelector(selector){return this.querySelectorAll(selector)[0]||null;}
 }
-function setup(){
+const stamp="2026-11-20T10:00:00+00:00";
+const row=(id,name,phone="79000000000",updated_at=stamp)=>({id,name,phone,updated_at,status:"new"});
+function deferred(){
+  let resolve;const promise=new Promise(done=>{resolve=done});
+  return {promise,resolve};
+}
+const settle=()=>new Promise(resolve=>setImmediate(resolve));
+function setup({initialRows=[],role="manager",user="manager-a"}={}){
   const root=new Element("div");root.id="rdLeadsMount";
-  const app=new Element("main");app.hidden=false;
-  const leads=new Element("section");leads.hidden=false;
+  const app=new Element("main"),leads=new Element("section");
   const lookup={rdLeadsMount:root,appScreen:app,rdLeads:leads};
-  const document={createElement:tag=>new Element(tag),getElementById:id=>lookup[id]||null,querySelectorAll:()=>[]};
-  const storage=new Map();let userId="manager-a";
-  const localStorage={getItem:key=>storage.get(key)||null,setItem:(key,value)=>{storage.set(key,value)},removeItem:key=>storage.delete(key)};
-  const window={addEventListener(){},setInterval(){},confirm(){return true},
-    __rdLeadContext:()=>({role:"manager",userId,orders:[]})};
-  vm.runInNewContext(source,{document,window,localStorage,Intl,Date,Number,String,Array,Math});
-  const button=label=>root.querySelectorAll("button").find(x=>x.textContent===label);
-  const type=(t,v)=>{const field=root.querySelectorAll("input").find(x=>x.type===t);assert.ok(field,"missing "+t);field.value=v;field.fire("input")};
-  return {window,root,storage,button,type,getUser:()=>userId,setUser:s=>{userId=s},read:()=>JSON.parse(storage.get("rabota-preview-leads-v1:"+userId)||"[]")};
+  const document={hidden:false,createElement:tag=>new Element(tag),
+    getElementById:id=>lookup[id]||root.querySelector("#"+id),querySelectorAll:()=>[]};
+  const storage=new Map(),events={},calls=[];
+  const localStorage={getItem:key=>storage.get(key)||null,setItem:(key,value)=>storage.set(key,value)};
+  const window={addEventListener:(event,fn)=>{events[event]=fn},setInterval(){},confirm(){return true},
+    __rdLeadContext:()=>({role,userId:user,orders:[]})};
+  let rows=initialRows,get=null,sequence=0;
+  async function dbRequest(query,method,body){
+    const url=new URL(query,"https://test.invalid/");
+    calls.push({query,method,body,user});
+    if(method==="GET")return get?get(user):rows.map(value=>({...value}));
+    const old=rows.find(value=>url.searchParams.get("id")==="eq."+value.id);
+    if(method!=="POST"&&(!old||url.searchParams.get("updated_at")!=="eq."+old.updated_at))return [];
+    if(method==="DELETE"){rows=rows.filter(value=>value!==old);return [old];}
+    const saved={...old,...body,id:old?.id||"created-"+(++sequence),updated_at:"2026-11-22T11:22:33Z"};
+    rows=[saved,...rows.filter(value=>value!==old)];
+    return [saved];
+  }
+  vm.runInNewContext(source,{document,window,localStorage,dbRequest,Intl,Date,Number,String,Array,Math});
+  const button=label=>root.querySelectorAll("button").find(node=>node.textContent===label);
+  function field(placeholder){return root.querySelectorAll("input").find(node=>node.placeholder===placeholder);}
+  async function type(placeholder,value){
+    const input=field(placeholder);assert.ok(input,"missing "+placeholder);
+    input.value=value;await input.fire("input");
+  }
+  const getLeads=()=>calls.filter(call=>call.method==="GET");
+  return {window,root,button,type,field,storage,calls,getLeads,
+    get rows(){return rows;}, setRows(value){rows=value;}, setRead(read){get=read;},
+    setUser(value){user=value;}, setRole(value){role=value;},
+    online:()=>events.online(), focus:()=>events.focus()};
 }
 const logic=setup().window.__rdLeadLogic;
 test("salary follow-up in 20 days",()=>{
@@ -55,7 +91,7 @@ test("next Monday is computed in Moscow calendar; tomorrow/after tomorrow work",
 test("pricing uses 2000 per radiator and 1000 per circuit",()=>{
   assert.equal(logic.calc("5","1"),11000);
   assert.equal(logic.calc("6","4"),16000);
-  assert.equal(logic.calc("","4"),null);
+  assert.equal(logic.calc("","4"),10000);
   assert.equal(logic.calc("-1","4"),null);
 });
 test("compact Russian notes extract numbers, salary reason, callback and contact promise",()=>{
@@ -70,56 +106,117 @@ test("abbreviations and no-floor notes are understood",()=>{
   assert.equal(logic.parseNotes("5 батарей без теплого пола","2026-10-28").loops,"0");
 });
 test("never alert before agreed callback time, or after conversion/rejection",()=>{
-  const lead={status:"waiting",followUpDate:"2026-11-17",followUpTime:"18:00",consent:false};
+  const lead={status:"waiting",followUpDate:"2026-11-17",followUpTime:"18:00",consent:true};
   assert.equal(logic.needsCall(lead,"2026-11-17","17:59"),false);
   assert.equal(logic.needsCall(lead,"2026-11-17","18:00"),true);
   assert.equal(logic.needsCall(lead,"2026-11-18","09:00"),true);
   assert.equal(logic.needsCall({...lead,status:"ready"},"2026-11-18","09:00"),false);
+  assert.equal(logic.needsCall({...lead,consent:false},"2026-11-18","09:00"),false);
   assert.equal(logic.needsCall({...lead,status:"lost"},"2026-11-18","09:00"),false);
 });
-test("browser preview renders and saves a complete lead without network",()=>{
-  const f=setup();f.window.__rdLeadsRender();
-  const notes=f.root.querySelector("textarea");
-  notes.value="Андрей 5 батарей алюминевые 1 тп после зарплаты сам наберу через 20 дней";
-  notes.fire("input");f.button("Разобрать заметки").click();
-  f.type("tel","89280000000");
-  f.button("Сохранить потенциального клиента").click();
-  const rows=f.read();
-  assert.equal(rows.length,1);assert.equal(rows[0].name,"Андрей");
-  assert.equal(rows[0].radiators,"5");assert.equal(rows[0].loops,"1");
-  assert.equal(rows[0].followUpDate,logic.dueFromText("через 20 дней").date);
-  assert.equal(rows[0].status,"waiting");assert.equal(rows[0].consent,false);
-  assert.ok(f.root.textContent.includes("Лид сохранён в браузере"));
+test("relative month keeps the callback in the intended month at month end",()=>{
+  assert.equal(logic.dueFromText("через 1 месяц","2026-01-31").date,"2026-02-28");
+  assert.equal(logic.dueFromText("через 1 месяц","2028-01-31").date,"2028-02-29");
 });
-test("same phone is not saved as a duplicate",()=>{
-  const f=setup();f.window.__rdLeadsRender();
-  const notes=f.root.querySelector("textarea");notes.value="Андрей 5 батарей";notes.fire("input");
-  f.button("Разобрать заметки").click();f.type("tel","89280000000");
-  f.button("Сохранить потенциального клиента").click();
-  f.button("Очистить").click();
-  const input=f.root.querySelectorAll("input").find(x=>x.type==="text");input.value="Другой";input.fire("input");
-  f.type("tel","+79280000000");f.button("Сохранить потенциального клиента").click();
-  assert.equal(f.read().length,1);
-  assert.ok(f.root.textContent.includes("уже есть"));
-});
-test("storage is isolated by the authenticated account id",()=>{
-  const f=setup();f.window.__rdLeadsRender();
-  const notes=f.root.querySelector("textarea");notes.value="Андрей";notes.fire("input");
-  f.button("Разобрать заметки").click();f.type("tel","+79280000000");f.button("Сохранить потенциального клиента").click();
-  assert.equal(f.read().length,1);
-  f.setUser("other-manager");
-  assert.equal(f.read().length,0);
-});
-test("reminder count reads only current user records",()=>{
+test("saving a new lead uses the shared REST table and restores the list",async()=>{
   const f=setup();
-  f.storage.set("rabota-preview-leads-v1:manager-a",JSON.stringify([
-    {id:"one",status:"waiting",followUpDate:"2020-01-01",followUpTime:"18:00",consent:false},
-    {id:"two",status:"ready",followUpDate:"2020-01-01",followUpTime:"18:00",consent:true}
-  ]));
-  assert.equal(f.window.__rdLeadDueCount(),1);
-  f.setUser("other-manager");
-  assert.equal(f.window.__rdLeadDueCount(),0);
+  await f.window.__rdLeadsRender();
+  await f.button("+ Новый лид").click();
+  await f.type("Имя клиента","Тестовый клиент");
+  await f.type("+7...","89990000000");
+  await f.button("Сохранить лид").click();
+  assert.equal(f.rows.length,1);
+  assert.equal(f.rows[0].phone_normalized,"79990000000");
+  assert.match(f.root.textContent,/Лид сохранён в общей базе/);
+  assert.equal(f.calls.filter(call=>call.method==="POST").length,1);
+
+  await f.button("+ Новый лид").click();
+  await f.type("Имя клиента","Дубль");
+  await f.type("+7...","+7 (999) 000-00-00");
+  await f.button("Сохранить лид").click();
+  assert.equal(f.calls.filter(call=>call.method==="POST").length,1);
+  assert.match(f.root.textContent,/Телефон уже принадлежит лиду/);
 });
-test("preview does not use Supabase, fetch or remote storage for leads",()=>{
-  assert.doesNotMatch(source,/\bfetch\s*\(|\bdbRequest\s*\(|\bpersistOrder\s*\(/);
+test("same in-flight lead read is shared and cannot overwrite a saved lead",async()=>{
+  const f=setup();
+  await f.window.__rdLeadsRender();
+  const stale=deferred();
+  f.setRead(()=>stale.promise);
+  f.online();f.online();
+  assert.equal(f.getLeads().length,2);
+  await f.button("+ Новый лид").click();
+  await f.type("Имя клиента","Только что сохранённый лид");
+  await f.type("+7...","89990001111");
+  await f.button("Сохранить лид").click();
+  stale.resolve([]);
+  await settle();
+  assert.match(f.root.textContent,/Только что сохранённый лид/);
+  assert.match(f.root.textContent,/Лид сохранён в общей базе/);
+});
+test("editing keeps the exact version shown to the user even after background refresh",async()=>{
+  const f=setup({initialRows:[row("initial","Видимая версия")]});
+  await f.window.__rdLeadsRender();
+  await f.button("Открыть").click();
+  await f.type("Имя клиента","Локальное изменение");
+  f.setRows([row("initial","Изменение другого менеджера","79000000000","2026-11-21T11:00:00+00:00")]);
+  f.online();
+  await settle();
+  assert.equal(f.field("Имя клиента").value,"Локальное изменение");
+  await f.button("Сохранить изменения").click();
+  const patch=f.calls.find(call=>call.method==="PATCH");
+  assert.equal(new URL(patch.query,"https://test.invalid/").searchParams.get("updated_at"),"eq."+stamp);
+  assert.equal(f.rows[0].name,"Изменение другого менеджера");
+  assert.match(f.root.textContent,/Карточка изменилась на другом устройстве/);
+});
+test("a previous account result is ignored after switching accounts",async()=>{
+  const f=setup();
+  const old=deferred(),current=deferred();
+  f.setRead(user=>user==="manager-a"?old.promise:current.promise);
+  const oldRender=f.window.__rdLeadsRender();
+  f.window.__rdResetLeads();
+  assert.equal(f.root.textContent,"");
+  f.setUser("manager-b");
+  const render=f.window.__rdLeadsRender();
+  old.resolve([row("old","Чужой результат")]);
+  await oldRender;
+  f.online();
+  assert.equal(f.getLeads().length,2);
+  current.resolve([row("new","Текущий результат")]);
+  await render;
+  assert.match(f.root.textContent,/Текущий результат/);
+  assert.doesNotMatch(f.root.textContent,/Чужой результат/);
+});
+test("a master cannot fetch or retain the lead list",async()=>{
+  const f=setup({initialRows:[row("private","Доступный лиду текст")]});
+  await f.window.__rdLeadsRender();
+  f.setRole("master");
+  await f.window.__rdLeadsRender();
+  assert.equal(f.getLeads().length,1);
+  assert.equal(f.root.textContent,"");
+});
+test("search includes records beyond the first 100 visible results",async()=>{
+  const records=Array.from({length:101},(_,index)=>row(String(index),"Клиент "+index,"79001234567"));
+  records[100]=row("last","Дальний результат","79130001234");
+  const f=setup({initialRows:records});
+  await f.window.__rdLeadsRender();
+  assert.match(f.root.textContent,/Показаны первые 100 из 101/);
+  assert.doesNotMatch(f.root.textContent,/Дальний результат/);
+  f.window.__rdLeadsSearch("8 (913) 000-12-34");
+  assert.match(f.root.textContent,/Дальний результат/);
+  assert.match(f.root.textContent,/Найдено: 1/);
+});
+test("failed background read retains the list and retries without another render when unchanged",async()=>{
+  const f=setup({initialRows:[row("one","Сохранённый список")]});
+  await f.window.__rdLeadsRender();
+  const original=f.root.children[0];
+  f.online();await settle();
+  assert.equal(f.root.children[0],original);
+  f.setRead(async()=>{throw Error("offline");});
+  f.online();await settle();
+  assert.match(f.root.textContent,/Сохранённый список/);
+  assert.match(f.root.textContent,/Показаны сохранённые данные/);
+  f.setRead(null);
+  await f.button("Повторить загрузку").click();
+  assert.doesNotMatch(f.root.textContent,/Повторить загрузку/);
+  assert.match(f.root.textContent,/Сохранённый список/);
 });

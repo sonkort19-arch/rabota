@@ -108,14 +108,14 @@ test("AI chat link preserves only internal approved section names",()=>{
 });
 test("module is loaded before app code and preserves original integrations",()=>{
   const html=fs.readFileSync(path.join(__dirname,"..","index.html"),"utf8");
-  assert.match(html,/src="\/lead-ai-bridge\.js\?v=20261113-stage7"/);
-  assert.ok(html.indexOf('src="/lead-ai-bridge.js?v=20261113-stage7"')<
+  const bridgeScript=html.match(/src="\/lead-ai-bridge\.js\?v=[^"]+"/);
+  assert.ok(bridgeScript&&bridgeScript.index<
     html.indexOf("const leadAIBridge=window.__rdCreateLeadAIBridge"));
   assert.match(html,/window\.__rdLeadContext=\(\)=>leadAIBridge\.context\(\)/);
   assert.match(html,/window\.__rdLeadOpenOrder=lead=>leadAIBridge\.openLeadOrder\(lead\)/);
   assert.match(html,/preventPreviewSubmit\(event\),true/);
   assert.match(html,/leadAIBridge\.prepareChatLink\(event\)/);
-  assert.match(html,/src="\/lead-assistant\.js"/);
+  assert.match(html,/src="\/lead-assistant\.js(?:\?v=[^"]+)?"/);
   assert.match(html,/href="\/ai\.html"/);
   const main=html.split("<script>\n").at(-1).split("</script>")[0];
   assert.doesNotThrow(()=>new Function(main));

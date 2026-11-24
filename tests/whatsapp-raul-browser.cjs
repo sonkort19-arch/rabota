@@ -55,7 +55,12 @@ async function setup(browser,device){
  else await page.locator('.rd-shell [data-page="orders"]').click();
  await page.locator("#owViewSwitch").waitFor({state:"visible"});
  // Sharing tools moved into Settings when calendar and orders were unified.
- await page.locator('#rdMobileNav [data-page="settings"]').click();
+ const settings=page.locator('#rdMobileNav [data-page="settings"]');
+ if(await settings.isVisible())await settings.click();
+ else {
+  await page.locator("#rdMobileMoreBtn").click();
+  await page.locator('#rdMobileMoreSheet [data-page="settings"]').click();
+ }
  await page.locator("#rdShareRaulTomorrow").waitFor({state:"visible"});
  return {page,context,writes,errors};
 }

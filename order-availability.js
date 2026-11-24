@@ -12,8 +12,12 @@
   const ESTIMATED_GAP_MINUTES=200; // 3 hours of work + 20 minutes for travel.
   const suggestedTimes=["10:00","15:00","18:00"];
   let orders=[],editingId=null,visible=false,viewYear=null,viewMonth=null;
+  let bookingsByDate=new Map(),renderedDate=null;
 
   const masterKey=value=>String(value||"").trim().toLocaleLowerCase("ru");
+  const moscowDateFormatter=new Intl.DateTimeFormat("en-GB",{
+    timeZone:"Europe/Moscow",year:"numeric",month:"2-digit",day:"2-digit"
+  });
   const iso=(year,month,day)=>[String(year).padStart(4,"0"),String(month).padStart(2,"0"),String(day).padStart(2,"0")].join("-");
   function parseDay(value){
     if(!/^\d{4}-\d{2}-\d{2}$/.test(String(value||"")))return null;
@@ -22,10 +26,7 @@
     return date.getFullYear()===year&&date.getMonth()===month-1&&date.getDate()===day?date:null;
   }
   function moscowToday(){
-    const formatter=new Intl.DateTimeFormat("en-GB",{
-      timeZone:"Europe/Moscow",year:"numeric",month:"2-digit",day:"2-digit"
-    });
-    const fields=Object.fromEntries(formatter.formatToParts(new Date()).map(part=>[part.type,part.value]));
+    const fields=Object.fromEntries(moscowDateFormatter.formatToParts(new Date()).map(part=>[part.type,part.value]));
     return iso(fields.year,fields.month,fields.day);
   }
   const dateText=value=>{
@@ -37,12 +38,28 @@
     return match?Number(match[1])*60+Number(match[2]):null;
   };
   const isOwn=order=>editingId!==null&&String(order.id)===String(editingId);
+  function setOrders(rows){
+    if(rows===orders)return;
+    orders=rows;
+    bookingsByDate=new Map();
+    for(const order of rows){
+      if(order.status==="Отменён"||!order.date)continue;
+      const key=masterKey(order.master);
+      if(!key)continue;
+      if(!bookingsByDate.has(order.date))bookingsByDate.set(order.date,new Map());
+      const bookings=bookingsByDate.get(order.date);
+      if(!bookings.has(key))bookings.set(key,[]);
+      bookings.get(key).push(order);
+    }
+    for(const bookings of bookingsByDate.values()){
+      for(const group of bookings.values())
+        group.sort((a,b)=>String(a.time||"").localeCompare(String(b.time||"")));
+    }
+  }
   function bookingsFor(date,master){
     const key=masterKey(master);
     if(!key)return null;
-    return orders.filter(order=>
-      order.date===date&&order.status!=="Отменён"&&masterKey(order.master)===key
-    ).sort((a,b)=>String(a.time||"").localeCompare(String(b.time||"")));
+    return bookingsByDate.get(date)?.get(key)??[];
   }
   function availability(date,master){
     const all=bookingsFor(date,master);
@@ -67,18 +84,19 @@
       (calendarBody.hidden?". Открыть календарь":". Свернуть календарь"));
   }
   function timeState(time,date,master){
-    const stats=availability(date,master);
-    if(!stats)return "unknown";
-    const start=mins(time);
-    if(start===null)return "unknown";
+    const bookings=bookingsFor(date,master),start=mins(time);
+    if(!bookings||start===null)return "unknown";
     // Check ALL existing starts before warning about near-time bookings:
     // otherwise the earlier 10:00 booking can hide an exact 13:00 collision.
-    const bookedTimes=stats.others.map(order=>mins(order.time));
-    if(bookedTimes.some(booked=>booked===start))return "busy";
-    if(bookedTimes.some(booked=>booked===null))return "unknown";
-    if(bookedTimes.some(booked=>Math.abs(start-booked)<ESTIMATED_GAP_MINUTES))
-      return "tight";
-    return "available";
+    let unknown=false,tight=false;
+    for(const order of bookings){
+      if(isOwn(order))continue;
+      const booked=mins(order.time);
+      if(booked===start)return "busy";
+      if(booked===null)unknown=true;
+      else if(Math.abs(start-booked)<ESTIMATED_GAP_MINUTES)tight=true;
+    }
+    return unknown?"unknown":tight?"tight":"available";
   }
   function el(tag,cls,value){
     const node=document.createElement(tag);
@@ -93,7 +111,7 @@
   function changeMonth(delta){
     const d=new Date(viewYear,viewMonth+delta,1,12);
     viewYear=d.getFullYear();viewMonth=d.getMonth();
-    render();
+    renderMonth();
   }
   function selectDate(date){
     if(dayInput.value!==date){
@@ -141,7 +159,6 @@
     const monthName=first.toLocaleDateString("ru-RU",{month:"long",year:"numeric"});
     $("oaMonthTitle").textContent=monthName.charAt(0).toUpperCase()+monthName.slice(1);
     $("oaSelectedDate").textContent=dateText(dayInput.value);
-    updateHeader();
     const firstColumn=(first.getDay()+6)%7;
     const days=new Date(viewYear,viewMonth+1,0).getDate();
     const frag=document.createDocumentFragment();
@@ -277,15 +294,17 @@
   function render(){
     if(!visible)return;
     if(viewYear===null)setMonthFromDate(dayInput.value);
-    renderMonth();
+    renderedDate=dayInput.value;
+    updateHeader();
+    if(!calendarBody.hidden)renderMonth();
     renderWeek();
     renderDay();
   }
   toggle.addEventListener("click",()=>{
     if(calendarBody.hidden){
       setMonthFromDate(dayInput.value);
-      render();
       setExpanded(true);
+      renderMonth();
     }else setExpanded(false);
   });
   $("oaPrevMonth").addEventListener("click",()=>changeMonth(-1));
@@ -301,7 +320,7 @@
   timeInput.addEventListener("change",renderSlots);
   window.__rdOrderAvailability={
     open(rows,id){
-      orders=Array.isArray(rows)?rows:[];
+      setOrders(Array.isArray(rows)?rows:[]);
       editingId=id==null?null:String(id);
       visible=true;
       setMonthFromDate(dayInput.value);
@@ -309,9 +328,9 @@
       render();
     },
     refresh(rows){
-      if(Array.isArray(rows))orders=rows;
+      if(Array.isArray(rows))setOrders(rows);
       if(!visible)return;
-      setMonthFromDate(dayInput.value);
+      if(renderedDate!==dayInput.value)setMonthFromDate(dayInput.value);
       render();
     },
     close(){
@@ -319,7 +338,10 @@
       editingId=null;
       setExpanded(false);
     },
-    inspect(date,master){return availability(date,master)},
+    inspect(date,master){
+      const stats=availability(date,master);
+      return stats?{...stats,all:stats.all.slice()}:null;
+    },
     checkTime(time,date,master){return timeState(time,date,master)}
   };
 })();

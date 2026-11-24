@@ -91,6 +91,11 @@ body.rd #appScreen.rd-unified-orders #owSearchInput{
 }
 body.rd #appScreen.rd-unified-orders #owSearchClose{flex:0 0 40px;min-width:40px;min-height:42px;padding:5px;border-radius:11px;border:1px solid var(--ow-border);background:#fff;color:#4e6388;font-size:21px}
 
+/* The compact orders header omits routine sync text but keeps read failures visible. */
+body.rd #appScreen.rd-unified-orders.rd-view-orders > #syncStatus.sync-error{
+  display:block!important;margin:0 0 8px;color:#b42318;font-size:12px;line-height:1.4;
+}
+
 /* Retain the native horizontal strip and its seven-cell geometry. */
 body.rd #appScreen.rd-unified-orders:is(.rd-master.master-mode,.rd-owner,.rd-manager) #calendarPanel.master-calendar-compact{
   box-sizing:border-box;width:100%;min-width:0;padding:11px 10px 10px;

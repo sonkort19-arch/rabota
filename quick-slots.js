@@ -2,13 +2,16 @@
 (function () {
   "use strict";
   const TIMES=["10:00","15:00","18:00"];
-  const MOSCOW="Europe/Moscow";
+  const moscowFormatter=new Intl.DateTimeFormat("en-GB",{
+    timeZone:"Europe/Moscow",year:"numeric",month:"2-digit",day:"2-digit",
+    hour:"2-digit",minute:"2-digit",hourCycle:"h23"
+  });
+  const dayFormatter=new Intl.DateTimeFormat("ru-RU",{
+    timeZone:"UTC",weekday:"short",day:"numeric",month:"long"
+  });
 
   function moscowClock(now) {
-    const parts=Object.fromEntries(new Intl.DateTimeFormat("en-GB",{
-      timeZone:MOSCOW,year:"numeric",month:"2-digit",day:"2-digit",
-      hour:"2-digit",minute:"2-digit",hourCycle:"h23"
-    }).formatToParts(now).map(part=>[part.type,part.value]));
+    const parts=Object.fromEntries(moscowFormatter.formatToParts(now).map(part=>[part.type,part.value]));
     return {
       today:parts.year+"-"+parts.month+"-"+parts.day,
       minutes:(Number(parts.hour)%24)*60+Number(parts.minute)
@@ -22,13 +25,23 @@
     const match=/^([01]\d|2[0-3]):([0-5]\d)$/.exec(value);
     return match?Number(match[1])*60+Number(match[2]):NaN;
   }
+  function normalizeMasterNames(masters){
+    const names=[],seen=new Set();
+    for(const raw of Array.isArray(masters)?masters:[]){
+      const name=String(raw||"").trim(),key=name.toLocaleLowerCase("ru");
+      if(!name||seen.has(key))continue;
+      seen.add(key);names.push(name);
+    }
+    return names;
+  }
   // A suggested slot is an estimate, never a confirmed reservation.
   // Keep the real chronology within each class, but show non-tight slots first.
   function candidateSlots({masters,now=new Date(),checkTime,horizon=14,limit=14,sort="free-first"}) {
-    if(typeof checkTime!=="function")return [];
+    const max=Math.max(0,Math.trunc(Number(limit))||0);
+    if(!max||typeof checkTime!=="function")return [];
     const clock=moscowClock(now),free=[],tight=[];
-    const names=[...new Map((masters||[]).map(name=>String(name||"").trim()).filter(Boolean)
-      .map(name=>[name.toLocaleLowerCase("ru"),name])).values()];
+    const names=normalizeMasterNames(masters),earliest=sort==="earliest";
+    if(earliest)names.sort((a,b)=>a.localeCompare(b,"ru"));
     for(let day=0;day<horizon;day++){
       const date=addDay(clock.today,day);
       for(const time of TIMES){
@@ -36,27 +49,29 @@
         for(const master of names){
           const state=checkTime(time,date,master);
           if(state!=="available"&&state!=="tight")continue;
-          (state==="available"?free:tight).push({date,time,master,tight:state==="tight"});
+          const slot={date,time,master,tight:state==="tight"};
+          if(earliest||state==="available"){
+            free.push(slot);
+            if(free.length===max)return free;
+          }else if(tight.length<max)tight.push(slot);
         }
       }
     }
-    const chronological=(a,b)=>a.date.localeCompare(b.date)||
-      timeMinutes(a.time)-timeMinutes(b.time)||a.master.localeCompare(b.master,"ru");
-    return (sort==="earliest"?free.concat(tight).sort(chronological):free.concat(tight))
-      .slice(0,Math.max(0,limit));
+    return free.concat(tight).slice(0,max);
   }
   // An explicitly selected day also displays blocked and uncertain hours.
   function inspectDay({date,masters,now=new Date(),checkTime}){
     if(typeof checkTime!=="function"||!/^\d{4}-\d{2}-\d{2}$/.test(date||""))return [];
     const clock=moscowClock(now);
-    return TIMES.flatMap(time=>(masters||[]).map(master=>{
+    const names=normalizeMasterNames(masters);
+    return TIMES.flatMap(time=>names.map(master=>{
       const state=date<clock.today||(date===clock.today&&timeMinutes(time)<=clock.minutes+20)
         ?"past":checkTime(time,date,master);
       return {date,time,master,state,
         tight:state==="tight",selectable:state==="available"||state==="tight"};
     }));
   }
-  const core={candidateSlots,inspectDay,moscowClock,addDay,TIMES};
+  const core={candidateSlots,inspectDay,moscowClock,addDay,TIMES,normalizeMasterNames};
   if(typeof module!=="undefined"&&module.exports)module.exports=core;
   if(typeof document==="undefined")return;
 
@@ -120,7 +135,7 @@
   host.append(dialog);
   document.body.append(host);
 
-  let visible=false,busy=false,previousFocus=null,previousOverflow="",latest=null,choice="",runId=0;
+  let visible=false,busy=false,booking=false,previousFocus=null,previousOverflow="",latest=null,choice="",runId=0;
   let mode="free",selectedDay="",customDateOpen=false;
   function updateDateControls(){
     const clock=moscowClock(new Date());
@@ -155,17 +170,8 @@
     if(!dateInput.value)return;
     mode="day";selectedDay=dateInput.value;customDateOpen=true;updateDateControls();paint();
   });
-  const formatDay=date=>{
-    const d=new Date(date+"T12:00:00Z");
-    return new Intl.DateTimeFormat("ru-RU",{
-      timeZone:"UTC",weekday:"short",day:"numeric",month:"long"
-    }).format(d);
-  };
-  function namesFrom(data) {
-    const values=Array.isArray(data?.masters)?data.masters:[];
-    return [...new Map(values.map(s=>String(s||"").trim()).filter(Boolean)
-      .map(s=>[s.toLocaleLowerCase("ru"),s])).values()];
-  }
+  const formatDay=date=>dayFormatter.format(new Date(date+"T12:00:00Z"));
+  const namesFrom=data=>normalizeMasterNames(data?.masters);
   function showMasters(data) {
     const names=namesFrom(data);
     const previous=choice;
@@ -274,14 +280,13 @@
     select.disabled=value;
     dateInput.disabled=value;
     for(const button of [nearest,earliest,today,tomorrow,custom])button.disabled=value;
-    for(const btn of list.querySelectorAll("button"))btn.disabled=value;
+    for(const btn of list.querySelectorAll(".qs-slot"))
+      btn.disabled=value||!btn.matches(".qs-slot-available,.qs-slot-tight");
   }
   async function readFresh(overrideChoice=false) {
     const token=++runId;
     setBusy(true);
     status.textContent="Обновляем заказы из CRM…";
-    list.replaceChildren();
-    latest=null;
     try {
       const data=await window.__rdQuickSlotsRead?.();
       if(!visible||token!==runId)return null;
@@ -321,23 +326,23 @@
   // The dashboard is a read-only suggestion, never a reservation.
   // Re-fetch before pre-filling the existing unsaved order form.
   async function book(slot){
-    if(!slot||visible||busy||!window.__rdQuickSlotsRead)return false;
-    const data=await window.__rdQuickSlotsRead();
-    const members=namesFrom(data);
-    if(!members.includes(slot.master)||
-      window.__rdOrderAvailability?.checkTime(slot.time,slot.date,slot.master)!==(slot.tight?"tight":"available")){
-      open();
-      return false;
+    if(!slot||visible||busy||booking||!window.__rdQuickSlotsRead)return false;
+    booking=true;
+    try{
+      const data=await window.__rdQuickSlotsRead();
+      const members=namesFrom(data),clock=moscowClock(new Date());
+      const expected=slot.tight?"tight":"available";
+      if(!members.includes(slot.master)||!TIMES.includes(slot.time)||
+        slot.date<clock.today||slot.date>addDay(clock.today,13)||
+        (slot.date===clock.today&&timeMinutes(slot.time)<=clock.minutes+20)||
+        window.__rdOrderAvailability?.checkTime(slot.time,slot.date,slot.master)!==expected){
+        open();
+        return false;
+      }
+      return Boolean(window.__rdQuickSlotFill?.(slot));
+    }finally{
+      booking=false;
     }
-    const selected=candidateSlots({
-      masters:[slot.master],now:new Date(),limit:1000,
-      checkTime:(time,date,master)=>window.__rdOrderAvailability?.checkTime(time,date,master)
-    });
-    if(!selected.some(x=>x.date===slot.date&&x.time===slot.time&&x.master===slot.master)){
-      open();
-      return false;
-    }
-    return Boolean(window.__rdQuickSlotFill?.(slot));
   }
   function open() {
     if(visible||!window.__rdQuickSlotsRead||!window.__rdQuickSlotFill)return;

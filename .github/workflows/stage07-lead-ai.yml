@@ -2,19 +2,41 @@ name: Lead and AI bridge checks
 on:
   push:
     branches:
+      - main
+      - fix/crm-stability
       - feature/stage-07-leads-ai-bridge-20261113
-  pull_request:
     paths:
+      - .github/workflows/stage07-lead-ai.yml
       - index.html
+      - app-services.js
       - lead-ai-bridge.js
       - lead-assistant.js
       - ai.html
       - api/ai-chat.js
+      - finance-model.js
       - tests/lead-ai-bridge.test.cjs
       - tests/lead-assistant-preview.js
+      - tests/ai-accounting.test.cjs
+      - tests/ai-stability-browser.cjs
+  pull_request:
+    paths:
+      - .github/workflows/stage07-lead-ai.yml
+      - index.html
+      - app-services.js
+      - lead-ai-bridge.js
+      - lead-assistant.js
+      - ai.html
+      - api/ai-chat.js
+      - finance-model.js
+      - tests/lead-ai-bridge.test.cjs
+      - tests/lead-assistant-preview.js
+      - tests/ai-accounting.test.cjs
+      - tests/ai-stability-browser.cjs
 jobs:
   lead-ai:
     runs-on: ubuntu-24.04
+    container: mcr.microsoft.com/playwright:v1.56.1-noble
+    timeout-minutes: 15
     permissions:
       contents: read
     steps:
@@ -24,12 +46,19 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '22'
-      # The old browser-local preview suite tests a retired storage model.
-      # The current lead-assistant.js uses protected shared Supabase leads.
-      # Do not run obsolete browser-local assertions as release criteria.
-      - name: Verify current lead-to-order and AI bridge
+      - name: Verify shared leads, lead-to-order bridge and AI accounting
         run: |
-          node --test tests/lead-ai-bridge.test.cjs
+          node --test tests/lead-ai-bridge.test.cjs tests/lead-assistant-preview.js tests/ai-accounting.test.cjs
       - name: Verify prior extracted modules
         run: |
           node --test tests/order-model.test.cjs tests/order-sync.test.cjs tests/calendar-model.test.cjs tests/finance-model.test.cjs tests/master-ui.test.cjs
+      - name: Install matching Playwright library
+        run: npm install --no-save --ignore-scripts playwright@1.56.1
+      - name: AI chat and access in Chromium
+        env:
+          TEST_BROWSER: chromium
+        run: node tests/ai-stability-browser.cjs
+      - name: AI chat and access in WebKit
+        env:
+          TEST_BROWSER: webkit
+        run: node tests/ai-stability-browser.cjs
