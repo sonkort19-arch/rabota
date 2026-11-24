@@ -4,7 +4,7 @@ const assert=require("node:assert/strict");
 const {createCalendarModule}=require("../calendar-model.js");
 
 function node(){
-  return {children:[],attrs:{},textContent:"",value:"",
+  return {children:[],attrs:{},dataset:{},textContent:"",value:"",
     replaceChildren(){this.children=[];},
     append(...items){this.children.push(...items);},
     setAttribute(key,value){this.attrs[key]=value;},
