@@ -233,7 +233,14 @@ async function verifyWorkspaceScroll(page,label){
   await page.setViewportSize({width,height:600});await page.waitForTimeout(250);
   await page.locator('#newChat').evaluate(e=>e.click());results.push(await scan(page,'ai-empty'));
   await page.evaluate(()=>document.querySelector('.chat-open').click());await page.locator('.bubble').waitFor();results.push(await scan(page,'ai-chat'));
-  if(width<=760){await page.locator('#menu').click();await page.waitForTimeout(250);results.push(await scan(page,'ai-menu'));await page.locator('#scrim').click({position:{x:width-5,y:100}});await page.waitForTimeout(250)}
+  if(width<=760){
+   await page.locator('#menu').click();
+   await page.waitForFunction(()=>document.body.classList.contains('menu-open')&&
+    document.querySelector('#layout aside').getBoundingClientRect().left>=-1);
+   results.push(await scan(page,'ai-menu'));
+   await page.locator('#scrim').click({position:{x:width-5,y:100}});
+   await page.waitForFunction(()=>getComputedStyle(document.querySelector('#layout aside')).visibility==='hidden');
+  }
  }
  await page.setViewportSize({width:320,height:360});await page.waitForTimeout(250);
  await page.evaluate(()=>setPendingDraft({action:'create',name:'Тестовый клиент',date:'2026-11-01',time:'10:00',master:'Рауль',phone:'79990000001',address:'Тестовый адрес '.repeat(30)}));

@@ -5,6 +5,7 @@ const {existsSync}=require("node:fs");
 const path=require("node:path");
 const {chromium,webkit,devices}=require("playwright");
 const {mockLegacyPayrollSnapshot}=require("./fixtures/legacy-payroll.cjs");
+const {fixture:moduleFixture}=require("./module-navigation-browser.cjs");
 
 const root=path.resolve(__dirname,"..");
 const origin="https://finance.test";
@@ -75,8 +76,14 @@ async function fixture(browser,{source=root,latency=0,role="owner",width=390,pay
     ...device,viewport:{...device.viewport,width},screen:{...device.screen,width},
     timezoneId:"Europe/Moscow",serviceWorkers:"block"
   });
-  const page=await context.newPage();
-  page.setDefaultTimeout(7000);
+  const calls=[],writes=[],errors=[];
+  async function newPage(){
+    const tab=await context.newPage();
+    tab.setDefaultTimeout(7000);
+    tab.on("pageerror",error=>errors.push(error.message));
+    return tab;
+  }
+  const page=await newPage();
   const member={owner,master,manager,"other-master":otherMaster}[role];
   const state={rows:rows.slice(),orders:role==="manager"?[...sales,managerOrder]:sales,
     holds:new Map(),fail:new Set(),denied:new Set(),
@@ -98,8 +105,6 @@ async function fixture(browser,{source=root,latency=0,role="owner",width=390,pay
       reason:"Проверить старую выплату и местонахождение наличных",earned_amount:9000,credited_amount:4000,
       linked_recorded_amount:4000,payment_amount:15000}]:[]
   };
-  const calls=[],writes=[],errors=[];
-  page.on("pageerror",error=>errors.push(error.message));
   await context.addInitScript(()=>{
     localStorage.setItem("rabota-auth-session-v1",JSON.stringify({
       access_token:"finance-fixture",refresh_token:"finance-fixture",expires_at:4102444800
@@ -220,7 +225,7 @@ async function fixture(browser,{source=root,latency=0,role="owner",width=390,pay
     await context.close();
     assert.deepEqual(errors,[]);
   }
-  return {page,state,calls,writes,payoutReceipts,close};
+  return {page,state,calls,writes,payoutReceipts,close,newPage};
 }
 const dock=(page,name)=>page.locator('#rdMobileNav [data-page="'+name+'"]');
 const count=(calls,name)=>calls.filter(resource=>resource===name).length;
@@ -467,24 +472,95 @@ async function ownerCashbook(browser){
     assert.equal(writes.length,beforeAcknowledgement,"a verified prior receipt needs no repeated POST");
     assert.equal(await page.locator(".mw-owner-row").filter({hasText:unknownNote}).count(),1);
 
-    await page.evaluate(()=>{
+    const denySessionStorageWrites=()=>{
       const setItem=Storage.prototype.setItem;
       Storage.prototype.setItem=function(key,value){
         if(this===sessionStorage)throw new DOMException("Synthetic storage quota","QuotaExceededError");
         return setItem.call(this,key,value);
       };
-    });
-    const blocked=await openCashbookExpense("Неотправленный расход кассы");
+    };
+    await page.evaluate(denySessionStorageWrites);
+    await page.addInitScript(denySessionStorageWrites);
     const beforeQuota=writes.length;
-    await saveDialog(blocked);
-    await blocked.getByRole("alert").getByText(/Запись не отправлена/).waitFor();
-    assert.equal(writes.length,beforeQuota,"no cashbook POST without a persisted request ID");
-    await cancelDialog(blocked);
+    for(const reload of [false,true]){
+      if(reload)await page.reload();
+      const blocked=await openCashbookExpense("Неотправленный расход кассы");
+      await saveDialog(blocked);
+      await blocked.getByRole("alert").getByText(/Запись не отправлена/).waitFor();
+      assert.equal(writes.length,beforeQuota,"no cashbook POST without durable storage, including after reload");
+      await cancelDialog(blocked);
+    }
 
     state.denied.add(bookName);
     await page.evaluate(()=>void window.__rdMoneyUi.cashbook({force:true}).catch(()=>{}));
     await page.getByText(/Не удалось загрузить кассу/).waitFor();
     assert.equal(await data.isVisible(),false,"An explicit access denial clears the old ledger");
+  }finally{await f.close();}
+}
+async function equalExpensesInSeparateTabs(browser){
+  const f=await moduleFixture(browser,root,390,"owner");
+  const endpoint="rabota_record_expense_v1",responses=gate();
+  const url="https://crm.test/?view=expenses",note="Два одинаковых отдельных расхода по 40";
+  f.state.gates.set(endpoint,responses);
+  try{
+    await f.page.goto(url);
+    const second=await f.newPage();
+    await second.goto(url);
+    const tabs=[f.page,second];
+    await Promise.all(tabs.map(async tab=>{
+      await tab.locator("#newExpenseBtn").click();
+      await tab.locator("#exAmount").fill("40");
+      await tab.locator("#exDetail").fill(note);
+    }));
+    await Promise.all(tabs.map(tab=>tab.locator("#exSave").click()));
+    await waitCall(f.requests,endpoint,2);
+    for(const tab of tabs)assert.equal(await tab.locator("#exSave").isDisabled(),true);
+    assert.equal(f.writes.length,0,"both requests are pending before either response is released");
+    responses.release();
+    await Promise.all(tabs.map(tab=>tab.locator("#exDialog").waitFor({state:"hidden"})));
+    const writes=f.writes.filter(write=>write.endpoint===endpoint);
+    assert.equal(writes.length,2);
+    assert.deepEqual(writes.map(write=>write.payload.p_amount),[40,40]);
+    assert.equal(new Set(writes.map(write=>write.payload.p_request_id)).size,2);
+    const recorded=f.state.expenses.filter(row=>row.note.includes(note));
+    assert.equal(recorded.length,2);
+    assert.equal(recorded.reduce((total,row)=>total+row.amount,0),80);
+  }finally{await f.close();}
+}
+async function equalCashbookExpensesInSeparateTabs(browser){
+  const f=await fixture(browser,{payrollV3:true});
+  const endpoint="rabota_cashbook_record_v1",responses=gate();
+  const url=origin+"/?view=finance",note="Два одинаковых расхода кассы по 40";
+  f.state.holds.set(endpoint,responses);
+  try{
+    const tabs=[f.page,await f.newPage()];
+    const dialogs=await Promise.all(tabs.map(async tab=>{
+      await tab.goto(url);
+      await assertOwnerTotals(tab,startingBookBalance);
+      await tab.locator(".mw-owner-create").click();
+      await tab.getByRole("button",{name:"− Создать расход",exact:true}).click();
+      const dialog=tab.getByRole("dialog",{name:"Создать расход"});
+      await dialog.getByLabel("Сумма, ₽").fill("40");
+      await dialog.getByLabel("Комментарий").fill(note);
+      return dialog;
+    }));
+    const saves=dialogs.map(dialog=>dialog.getByRole("button",{name:"Сохранить",exact:true}));
+    await Promise.all(saves.map(save=>save.click()));
+    await waitCall(f.calls,endpoint,2);
+    for(const save of saves)assert.equal(await save.isDisabled(),true);
+    assert.equal(f.writes.length,0,"both cashbook writes are still pending");
+    assert.equal(f.state.rows.filter(row=>row.note===note).length,0);
+    responses.release();
+    await Promise.all(dialogs.map(dialog=>dialog.waitFor({state:"hidden"})));
+    const writes=f.writes.filter(write=>write.resource===endpoint);
+    assert.equal(writes.length,2);
+    assert.deepEqual(writes.map(write=>write.data.p_amount),[40,40]);
+    assert.equal(new Set(writes.map(write=>write.data.p_request_id)).size,2);
+    const recorded=f.state.rows.filter(row=>row.note===note);
+    assert.equal(recorded.length,2);
+    assert.equal(recorded.reduce((total,row)=>total+row.amount,0),80);
+    await f.page.reload();
+    await assertOwnerTotals(f.page,startingBookBalance-80,580);
   }finally{await f.close();}
 }
 async function cashbookBackNavigation(browser){
@@ -936,6 +1012,9 @@ async function unavailableAccounting(browser){
     }
     await cashbookBackNavigation(browser);
     console.log("PASS",name,"Payments Back closes the cashbook dialog without interrupting its write");
+    await equalExpensesInSeparateTabs(browser);
+    await equalCashbookExpensesInSeparateTabs(browser);
+    console.log("PASS",name,"simultaneous equal Expenses and cashbook debits each total 80 rubles");
     await ownerCashbook(browser);await ownerReports(browser);await latePaymentScripts(browser);
     console.log("PASS",name,"stable cashbook, accounting, finance faults, write acknowledgement, payroll and profit");
     for(const width of [320,375,390,430]){
