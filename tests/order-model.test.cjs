@@ -19,12 +19,15 @@ const base={
 function setup({orders=[],operations=[],onRequest=async(path,method,data)=>
   [{id:method==="PATCH"?"111":data.id,created_by:"owner1"}]}={}){
  const calls=[];let reloads=0;
+ const keys=new Map();
  const model=createOrdersModel({
    statuses:STATUSES,
    getCurrentUserId:()=>"owner1",
    getOrders:()=>orders,
    getFinanceOperations:()=>operations,
-   writeIntents:createWriteIntents("test-order",{crypto:webcrypto}),
+   writeIntents:createWriteIntents("test-order",{crypto:webcrypto,getStorage:()=>({
+     getItem:key=>keys.get(key),setItem:(key,value)=>keys.set(key,value),removeItem:key=>keys.delete(key)
+   })}),
    dbRequest:async(...args)=>{calls.push(args);return onRequest(...args);},
    reloadOrders:async()=>{reloads++;}
  });

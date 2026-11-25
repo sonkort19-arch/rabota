@@ -13,7 +13,8 @@ function gate() {
   return {promise, release};
 }
 
-async function session(browser, {role = "master", active = true, delayModule = false, view = "", abortFirstAccess = false, hangFirstOrders = false, holdLogout = false} = {}) {
+async function session(browser, {role = "master", active = true, delayModule = false, view = "", abortFirstAccess = false,
+  hangFirstOrders = false, holdLogout = false, hangFirstAccess = "", loginManually = false} = {}) {
   const context = await browser.newContext({
     viewport: {width: 390, height: 844}, isMobile: true, hasTouch: true,
     timezoneId: "Europe/Moscow", serviceWorkers: "block",
@@ -41,17 +42,20 @@ async function session(browser, {role = "master", active = true, delayModule = f
   };
   if(role==="owner")payroll.accounting_payouts=[];
   const finance = gate(), notices = gate(), module = gate(), moduleRequested = gate();
-  const ordersGate=gate(),logoutGate=gate(),logoutRequested=gate();
+  const ordersGate=gate(),logoutGate=gate(),logoutRequested=gate(),accessGate=gate(),accessSettled=gate();
   const requests = [], writes = [], errors = [];
+  const accessRequests=[];
+  let heldAccess=false;
   page.on("pageerror", error => errors.push(error.message));
-  await context.addInitScript(() => {
+  await context.addInitScript(({loginManually,expired}) => {
+    if(loginManually)return;
     if (sessionStorage.getItem("fixture-opened")) return;
     if (!localStorage.getItem("rabota-auth-session-v1")) {
       localStorage.setItem("rabota-auth-session-v1",
-        JSON.stringify({access_token:"fixture",refresh_token:"fixture",expires_at:4102444800}));
+        JSON.stringify({access_token:"fixture",refresh_token:"fixture",expires_at:expired?1:4102444800}));
     }
     sessionStorage.setItem("fixture-opened","1");
-  });
+  },{loginManually,expired:hangFirstAccess==="refresh"});
   await context.route("**/*", async route => {
     const request = route.request(), url = new URL(request.url());
     if (url.hostname === "crm.test") {
@@ -68,6 +72,20 @@ async function session(browser, {role = "master", active = true, delayModule = f
     }
     const endpoint = url.pathname.split("/").pop();
     requests.push(endpoint);
+    const grant=url.searchParams.get("grant_type");
+    const accessStage=endpoint==="user"?"session":
+      endpoint==="rabota_members"&&url.searchParams.has("user_id")?"role":
+      endpoint==="token"&&grant==="refresh_token"?"refresh":"";
+    if(accessStage)accessRequests.push(accessStage);
+    if(accessStage&&accessStage===hangFirstAccess&&!heldAccess){
+      heldAccess=true;
+      await accessGate.promise;
+      return route.fulfill({status:401,json:{message:"Поздний ответ первой проверки"}}).catch(()=>{}).finally(accessSettled.release);
+    }
+    if(endpoint==="token"&&(grant==="password"||grant==="refresh_token")){
+      if(grant==="password")assert.deepEqual(request.postDataJSON(),{email:"qa@example.test",password:"fixture-qa-password"});
+      return route.fulfill({json:{access_token:"fixture",refresh_token:"fixture",expires_in:3600}});
+    }
     if (endpoint === "user" && abortFirstAccess) {
       abortFirstAccess = false;
       return route.abort("internetdisconnected");
@@ -103,12 +121,12 @@ async function session(browser, {role = "master", active = true, delayModule = f
   });
   await page.goto("https://crm.test/" + (view ? "?view=" + view : ""), {waitUntil: "commit"});
   async function close() {
-    finance.release(); notices.release(); module.release(); ordersGate.release(); logoutGate.release();
+    finance.release(); notices.release(); module.release(); ordersGate.release(); logoutGate.release(); accessGate.release();
     await context.close();
     assert.deepEqual(writes, []);
     assert.deepEqual(errors, []);
   }
-  return {page, context, finance, notices, module, moduleRequested, requests, logoutRequested, logoutGate, close};
+  return {page, context, finance, notices, module, moduleRequested, requests, logoutRequested, logoutGate, accessGate,accessSettled,accessRequests,close};
 }
 
 async function masterStartup(browser, failFinance) {
@@ -259,6 +277,43 @@ async function slowMasterScheduleHasBoundedRetry(browser){
   }finally{await fixture.close();}
 }
 
+async function slowAccessHasBoundedRetry(browser,stage){
+  const fixture=await session(browser,{role:"manager",hangFirstAccess:stage});
+  try{
+    const status=fixture.page.locator("#startupScheduleStatus");
+    await status.filter({hasText:"Проверяем сеанс и права доступа"}).waitFor();
+    const retry=fixture.page.getByRole("button",{name:"Повторить проверку доступа",exact:true});
+    await retry.waitFor({timeout:8500});
+    assert.equal(await fixture.page.locator("#appScreen").isVisible(),false);
+    assert.equal(fixture.requests.includes("rabota_orders"),false);
+    assert.match(await status.innerText(),/Не удалось вовремя проверить доступ/);
+    await retry.click();
+    await fixture.page.locator("#appScreen").waitFor();
+    assert.equal(fixture.accessRequests.filter(value=>value===stage).length,2);
+    fixture.accessGate.release();
+    await fixture.accessSettled.promise;
+    assert.equal(await fixture.page.locator("#appScreen").isVisible(),true);
+    assert.equal(await retry.isVisible(),false);
+  }finally{await fixture.close();}
+}
+
+async function logoutClearsPasswordFromManualLogin(browser){
+  const fixture=await session(browser,{role:"manager",loginManually:true,holdLogout:true});
+  try{
+    const password=fixture.page.locator("#loginPassword");
+    await fixture.page.locator("#loginEmail").fill("qa@example.test");
+    await password.fill("fixture-qa-password");
+    await fixture.page.locator("#loginSubmit").click();
+    await fixture.page.locator("#appScreen").waitFor();
+    await fixture.page.locator("#rdProfileTrigger").click();
+    await fixture.page.locator("#logoutBtn").click();
+    await fixture.logoutRequested.promise;
+    await fixture.page.locator("#loginScreen").waitFor();
+    assert.equal(await password.inputValue(),"");
+    fixture.logoutGate.release();
+  }finally{await fixture.close();}
+}
+
 (async () => {
   const type=process.env.TEST_BROWSER==="webkit"?webkit:chromium;
   const browser = await type.launch({executablePath: process.env.TEST_BROWSER_PATH||process.env.CHROMIUM_PATH,
@@ -272,6 +327,8 @@ async function slowMasterScheduleHasBoundedRetry(browser){
     await reconnectAndSignOutAcrossTabs(browser);
     await logoutHidesBothTabsBeforeServerResponse(browser);
     await slowMasterScheduleHasBoundedRetry(browser);
+    await Promise.all(["session","role","refresh"].map(stage=>slowAccessHasBoundedRetry(browser,stage)));
+    await logoutClearsPasswordFromManualLogin(browser);
     console.log("Passed mobile startup, pending finance, delayed module and access checks");
   } finally { await browser.close(); }
 })().catch(error => { console.error(error); process.exitCode = 1; });

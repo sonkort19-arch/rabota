@@ -336,7 +336,12 @@
       }catch(error){console.warn("Lead notification",error)}
     }
   }
-  function setField(key,value){draft[key]=value}
+  function setField(key,value){
+    const priceInputsChanged=key==="material"?text(draft[key])!==text(value):
+      (key==="radiators"||key==="loops")&&number(draft[key])!==number(value);
+    if(priceInputsChanged)draft.priceAgreed=false;
+    draft[key]=value;
+  }
   function field(label,key,type="text",placeholder="",opts={}){
     const wrap=node("label","la-field");
     wrap.append(node("span","",label));
@@ -352,6 +357,7 @@
   }
   function tick(label,key){
     const wrap=node("label","la-check"),input=node("input");input.type="checkbox";input.checked=!!draft[key];
+    if(key==="priceAgreed")input.id="laPriceAgreed";
     input.addEventListener("change",()=>{draft[key]=input.checked;updatePreview()});
     wrap.append(input,node("span","",label));return wrap;
   }
@@ -359,6 +365,7 @@
     return btn(label,"la-chip",()=>{draft.followUpDate=shifted(today(),n);draft.dateApprox=false;draft.status="callback";render()})
   }
   function updatePreview(){
+    const agreement=$("laPriceAgreed");if(agreement)agreement.checked=draft.priceAgreed;
     const container=$("laAdvisor");if(container)fillAdvisor(container);
     const preview=$("laPrice");if(preview){
       const amount=calc(draft.radiators,draft.loops);
@@ -407,7 +414,7 @@
       if(key==="dateApprox"){if(derived.followUpDate&&draft.followUpDate===derived.followUpDate)draft.dateApprox=value;continue}
       if(key==="clientWillCall"){if(value)draft.clientWillCall=true;continue}
       if(key==="status"&&draft.status==="new"){draft.status=value;continue}
-      if(!text(draft[key])||draft[key]==="none")draft[key]=value;
+      if(!text(draft[key])||draft[key]==="none")setField(key,value);
     }
     notice="Информация разобрана по правилам. Проверьте данные и дату перед сохранением.";render();
   }

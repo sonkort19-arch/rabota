@@ -601,6 +601,7 @@ function navigate(key,updateHistory=true){
   window.__rdCloseOrderFilters?.();
  const changed=activePage!==key;
  if(!changed&&ownerModules.has(key))return;
+ const dismissedCashbook=changed&&activePage==="finance"&&window.__rdCloseCashbookDialog?.();
  if(changed){
   sectionScroll.set(activePage,verticalScrollPosition());
   if(activePage==="expenses")ownerModules.get("expenses")?.close();
@@ -668,6 +669,7 @@ function navigate(key,updateHistory=true){
  else ownerModules.get(key)?.open(currentUser.id);
  if(!isOrders&&!isCalendar)window.__rdOrdersWorkspace?.refresh();
  restoreVerticalScroll(changed?sectionScroll.get(key)||0:0);
+ if(dismissedCashbook)$("appTitle").focus({preventScroll:true});
 }
 window.__rdNavigate=navigate;
 window.addEventListener("popstate",()=>navigate(locationPage(),false));

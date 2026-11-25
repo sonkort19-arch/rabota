@@ -186,3 +186,33 @@ test("an unresolved write reuses its UUID across reload without storing business
   await reloaded.finish(retry);
   assert.notEqual((await first.get("fixture-owner",payload)).requestId,original.requestId);
 });
+
+test("each new write gets its own stored UUID and only explicit retries can find pending writes", async()=>{
+  const storage=()=>{
+    const saved=new Map();
+    return {getItem:key=>saved.get(key),setItem:(key,value)=>saved.set(key,value),removeItem:key=>saved.delete(key)};
+  };
+  const firstStorage=storage(),otherStorage=storage();
+  const actor="fixture-owner",payload={kind:"expense",amount:40,note:"Материалы"};
+  const create=getStorage=>createWriteIntents("cashbook",{getStorage,crypto:webcrypto});
+  const first=create(()=>firstStorage),other=create(()=>otherStorage);
+  const [one,two]=await Promise.all([first.begin(actor,payload),other.begin(actor,payload)]);
+  const third=await first.begin(actor,payload);
+  assert.equal(new Set([one.requestId,two.requestId,third.requestId]).size,3);
+  const reloaded=create(()=>firstStorage);
+  assert.deepEqual((await reloaded.find(actor,payload)).map(x=>x.requestId),[one.requestId,third.requestId]);
+  assert.deepEqual(await reloaded.find("different-account",payload),[]);
+  await reloaded.finish(one);
+  assert.deepEqual((await reloaded.find(actor,payload)).map(x=>x.requestId),[third.requestId]);
+  assert.deepEqual((await other.find(actor,payload)).map(x=>x.requestId),[two.requestId]);
+});
+
+test("a new write fails closed if the key cannot be saved or verified after saving", async()=>{
+  for(const setItem of [()=>{throw new DOMException("Quota exceeded","QuotaExceededError")},()=>{}]){
+    const pending=createWriteIntents("expense",{getStorage:()=>({getItem:()=>null,setItem}),crypto:webcrypto});
+    for(const method of ["get","begin"])
+      await assert.rejects(pending[method]("fixture-owner",{amount:40}),{
+        code:"WRITE_INTENT_STORAGE",message:/Запись не отправлена/
+      });
+  }
+});

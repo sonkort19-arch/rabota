@@ -7,7 +7,11 @@ const {createWriteIntents}=require("../app-services.js");
 
 const actor="owner-test";
 const version="2026-11-15T09:00:00.321098+00:00";
-function harness({orders=[],storage,request=async(path,method,data)=>
+function testStorage(){
+  const keys=new Map();
+  return {getItem:key=>keys.get(key),setItem:(key,value)=>keys.set(key,value),removeItem:key=>keys.delete(key)};
+}
+function harness({orders=[],storage=testStorage(),request=async(path,method,data)=>
   [{...data,id:method==="PATCH"?new URL(path,"https://crm.test").searchParams.get("id").slice(3):data.id,created_by:actor}],
   reload=async()=>{}}={}){
   const calls=[];
@@ -44,6 +48,47 @@ test("empty POST response is a failed create and never reloads the order list",a
   await assert.rejects(model.persistOrder({...sample,id:null}),/Сохранение заказа не подтверждено/);
   assert.equal(calls[0][1],"POST");
   assert.equal(reloads,0);
+});
+test("unavailable storage prevents all data requests before and after reopening",async()=>{
+  const storage=testStorage();
+  storage.setItem=()=>{throw new DOMException("Synthetic quota exceeded","QuotaExceededError");};
+  for(let i=0;i<2;i++){
+    const {model,calls}=harness({storage});
+    await assert.rejects(model.persistOrder({...sample,id:null,status:"Отменён"}),{code:"WRITE_INTENT_STORAGE"});
+    assert.deepEqual(calls,[]);
+  }
+});
+test("declining a new booking check releases only the unsent operation",async()=>{
+  const entries=new Map();
+  const storage={getItem:key=>entries.get(key),setItem:(key,value)=>entries.set(key,value),removeItem:key=>entries.delete(key)};
+  const {model,calls}=harness({storage,request:async()=>{throw new Error("Connection lost");}});
+  const order={...sample,id:null};
+  assert.equal(await model.persistOrder(order,{beforeWrite:()=>false}),null);
+  assert.equal(entries.size,0);
+  assert.deepEqual(calls,[]);
+
+  const attempt={};
+  await assert.rejects(model.persistOrder(order,{attempt}),/Сохранение заказа не подтверждено/);
+  const pending=[...entries];
+  assert.equal(pending.length,1);
+  assert.equal(await model.persistOrder(order,{attempt,beforeWrite:()=>false}),null);
+  assert.deepEqual([...entries],pending,"a cancellation cannot discard a prior uncertain write");
+});
+test("confirmed creation and refund remain successful when storage cleanup fails",async t=>{
+  t.mock.method(console,"warn",()=>{});
+  const storage=testStorage();
+  storage.removeItem=()=>{throw new DOMException("Synthetic storage failure","SecurityError");};
+  const creation=harness({storage});
+  const saved=await creation.model.persistOrder({...sample,id:null});
+  assert.equal(saved.orderId,creation.calls[0][2].id);
+
+  const receipt={order_id:sample.id,amount:10000,refunded_at:"2026-11-25T12:00:00Z",replayed:false};
+  const refund=harness({storage,request:async()=>receipt});
+  const paid={...sample,status:"Выполнен",paid:true,paymentAmount:10000};
+  const note="Проверка подтверждённого возврата";
+  assert.deepEqual(await refund.model.recordFullRefund(paid,note),receipt);
+  assert.deepEqual(await refund.model.recordFullRefund(paid,note),receipt);
+  assert.equal(refund.calls.length,1);
 });
 test("a confirmed write stays successful when the subsequent read fails",async()=>{
   const networkError=new Error("refresh failed");
@@ -224,27 +269,35 @@ test("a lost create response is reconciled after reopening by the saved id and a
   await assert.rejects(first.model.persistOrder(changed,{attempt}),/Сохранение заказа не подтверждено/);
   assert.match(saved.id,/^[0-9a-f-]{36}$/i);
   assert.equal(entries.size,1);
-  assert.deepEqual([...entries.values()],[saved.id]);
+  assert.deepEqual([...entries.values()].map(value=>JSON.parse(value)),[[saved.id]]);
   assert.doesNotMatch(JSON.stringify([...entries]),/79990001122|синтетический комментарий/);
   await assert.rejects(first.model.persistOrder({...changed,price:13000},{attempt}),/Проверьте предыдущую операцию/);
   assert.deepEqual(first.calls.map(call=>call[1]),["POST","GET"]);
 
   const second=harness({storage,request:async()=>[saved]});
-  assert.equal((await second.model.persistOrder(changed,{beforeWrite:()=>assert.fail("already committed")})).orderId,saved.id);
+  let previous;
+  await assert.rejects(second.model.persistOrder(changed),error=>{
+    assert.equal(error.code,"ORDER_CREATE_PENDING");
+    assert.equal(error.pending.length,1);
+    previous=error.pending[0];
+    return true;
+  });
+  assert.deepEqual(second.calls,[],"a fresh form waits for an explicit choice");
+  assert.equal((await second.model.persistOrder(changed,{createChoice:{previous},beforeWrite:()=>assert.fail("already committed")})).orderId,saved.id);
   assert.deepEqual(second.calls,[["rabota_orders?select=*&id=eq."+saved.id+"&limit=1","GET"]]);
   assert.equal(entries.size,0);
 });
 
 test("retry after the write never arrived reuses its UUID, and another actor cannot be claimed",async()=>{
-  const fresh={...sample,id:null};
+  const fresh={...sample,id:null},attempt={};
   let sent,tries=0;
   const {model,calls}=harness({request:async(path,method,data)=>{
     if(method==="GET")return [];
     if(++tries===1){sent=data.id;throw new Error("Connection lost");}
     return [{...data,created_by:actor}];
   }});
-  await assert.rejects(model.persistOrder(fresh),/Сохранение заказа не подтверждено/);
-  assert.equal((await model.persistOrder(fresh)).orderId,sent);
+  await assert.rejects(model.persistOrder(fresh,{attempt}),/Сохранение заказа не подтверждено/);
+  assert.equal((await model.persistOrder(fresh,{attempt})).orderId,sent);
   assert.deepEqual(calls.map(call=>call[1]),["POST","GET","GET","POST"]);
   assert.equal(calls[3][2].id,sent);
 

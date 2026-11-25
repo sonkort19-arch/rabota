@@ -792,13 +792,13 @@
 
   <script src="/order-notes.js?v=20261111-notes1"></script>
   <script src="/order-sync.js?v=20261124-stable-reads"></script>
-  <script src="/order-model.js?v=20261125-write-integrity"></script>
+  <script src="/order-model.js?v=20261125-durable-intent"></script>
   <script src="/calendar-load.js?v=20261117-completed-v1"></script>
    <script src="/calendar-model.js?v=20261124-unified-v1"></script>
   <script src="/finance-model.js?v=20261125-write-integrity"></script>
   <script src="/master-ui.js?v=20261125-order-pages"></script>
   <script src="/lead-ai-bridge.js?v=20261125-agreed-price"></script>
-  <script src="/app-services.js?v=20261125-write-intents"></script>
+  <script src="/app-services.js?v=20261125-durable-intent"></script>
   <script>
 
     "use strict";
@@ -921,6 +921,7 @@
         button.setAttribute("aria-current",button===selected?"page":"false");
     };
     function showScreen(which) {
+      if(which!=="appScreen")document.getElementById("loginPassword").value="";
       ["startupScreen","loginScreen","accessScreen","appScreen"].forEach(id => {
         document.getElementById(id).hidden = (id !== which);
       });
@@ -996,15 +997,17 @@
       ensureSession:()=>ensureSession(),
       fetch:(url,options)=>fetch(url,options)
     });
-    async function authRequest(path,method,payload,authenticated){
-      return sharedServices.authRequest(path,method,payload,authenticated);
+    async function authRequest(path,method,payload,authenticated,options){
+      return sharedServices.authRequest(path,method,payload,authenticated,options);
     }
     async function ensureSession() {
       if (!session || !session.refresh_token) throw new Error("Требуется вход в аккаунт.");
       if (Number(session.expires_at || 0) > Math.floor(Date.now()/1000) + 90) return;
       if (!refreshPromise) {
         const previous=session;
-        refreshPromise = authRequest("token?grant_type=refresh_token","POST",{refresh_token:previous.refresh_token},false)
+        refreshPromise = sharedServices.withRequestDeadline(signal=>authRequest(
+          "token?grant_type=refresh_token","POST",{refresh_token:previous.refresh_token},false,{signal}
+        ),5000,"Не удалось дождаться обновления сеанса.")
           .then(data => {
             if(session!==previous){
               if(sharedServices.sameAuthSession(previous,session))return;
@@ -1916,7 +1919,25 @@
     const orderConflict=document.getElementById("orderConflict");
     function clearOrderConflict(){orderConflict.hidden=true;orderConflict.replaceChildren();}
     form.addEventListener("reset",clearOrderConflict);
+    function showOrderCreateChoice(error,draft){
+      const actions=make("div","order-conflict-actions");
+      const addChoice=(label,createChoice)=>{
+        const button=make("button","secondary",label);button.type="button";
+        button.addEventListener("click",()=>{
+          if(orderSaving||draft!==orderFormDraft)return;
+          draft.createChoice=createChoice;
+          form.requestSubmit();
+          delete draft.createChoice;
+        });
+        actions.append(button);
+      };
+      for(const [index,previous] of error.pending.entries())
+        addChoice(error.pending.length===1?"Проверить предыдущую запись":"Проверить попытку "+(index+1),{previous});
+      addChoice("Создать отдельный заказ",{separate:true});
+      orderConflict.replaceChildren(actions);orderConflict.hidden=false;
+    }
     function showOrderConflict(error,draft){
+      if(error.code==="ORDER_CREATE_PENDING"){showOrderCreateChoice(error,draft);return;}
       if(error.code!=="ORDER_EDIT_CONFLICT"||!error.fields?.length)return;
       const labels={name:"Имя",phone:"Телефон",address:"Адрес",client_source:"Источник",radiator_type:"Тип радиаторов",
         radiators:"Радиаторы",floor_loops:"Тёплый пол",price:"Цена",details:"Комментарий",master:"Мастер",
@@ -1971,7 +1992,7 @@
       event.preventDefault();
       const draft=orderFormDraft,generation=accessGeneration;
       if(orderSaving||!draft||overlay.hidden)return;
-      const resolution=draft.resolution;
+      const resolution=draft.resolution,createChoice=draft.createChoice;
       clearOrderConflict();
       formStatus.textContent="";
       const raulCreating=raulCanCreateOrder();
@@ -2080,7 +2101,7 @@
       formStatus.classList.add("is-saving");
       formStatus.textContent="Сохранение заказа…";
       try {
-        const result=await persistOrder(order,{refresh:!payment,attempt:draft,beforeWrite,base:original,resolution});
+        const result=await persistOrder(order,{refresh:!payment,attempt:draft,beforeWrite,base:original,resolution,createChoice});
         if(generation!==accessGeneration||!result){
           if(generation===accessGeneration&&formStatus.textContent==="Сохранение заказа…")formStatus.textContent="";
           return;
@@ -2464,22 +2485,43 @@
     const accessMessage=document.getElementById("accessMessage");
     const startupSchedule=document.getElementById("startupSchedule");
     const retryStartupSchedule=document.getElementById("retryStartupSchedule");
-    function showStartupSchedule(message="",retry=false){
+    function showStartupSchedule(message="",retry=false,retryLabel="Повторить загрузку расписания"){
       startupSchedule.hidden=!message;
       document.getElementById("startupScheduleStatus").textContent=message;
       retryStartupSchedule.hidden=!retry;
+      retryStartupSchedule.textContent=retryLabel;
     }
     async function checkAccess() {
       resetAccountData();
       const generation=accessGeneration;
-      const user=await authRequest("user","GET",null,true);
-      if(generation!==accessGeneration)return;
-      if(!user||!user.id) throw new Error("Не удалось проверить аккаунт.");
+      showScreen("startupScreen");
+      showStartupSchedule();
+      const accessNotice=setTimeout(()=>{
+        if(generation===accessGeneration)showStartupSchedule("Проверяем сеанс и права доступа…");
+      },400);
+      let access;
+      try{
+        access=await sharedServices.withRequestDeadline(async signal=>{
+          await ensureSession();
+          if(generation!==accessGeneration||signal.aborted)return;
+          const user=await authRequest("user","GET",null,true,{signal});
+          if(generation!==accessGeneration||signal.aborted)return;
+          if(!user?.id)throw new Error("Не удалось проверить аккаунт.");
+          const rows=await dbRequest("rabota_members?select=user_id,role,active,master_name&user_id=eq."+
+            encodeURIComponent(user.id)+"&limit=1","GET",undefined,{signal});
+          return {user,rows};
+        },6000,"Проверка доступа заняла слишком много времени. Повторите попытку.");
+      }catch(error){
+        if(generation!==accessGeneration)return;
+        if(error.code!=="REQUEST_TIMEOUT")throw error;
+        showStartupSchedule("Не удалось вовремя проверить доступ. Повторите попытку.",true,"Повторить проверку доступа");
+        return;
+      }finally{clearTimeout(accessNotice);}
+      if(generation!==accessGeneration||!access)return;
+      showStartupSchedule();
+      const {user,rows}=access;
       currentUser=user;
       document.getElementById("currentEmail").textContent=user.email||"";
-      const rows=await dbRequest("rabota_members?select=user_id,role,active,master_name&user_id=eq."+
-        encodeURIComponent(user.id)+"&limit=1","GET");
-      if(generation!==accessGeneration)return;
       if(!Array.isArray(rows)||!rows[0]?.active||!["owner","manager","master"].includes(rows[0].role)){
         showScreen("accessScreen");return;
       }
@@ -2687,6 +2729,19 @@
         const {value,...status}=cashbookReader.state();
         return {...status,rows:value??[]};
       },
+      async findCashbookReceipt(requestId){
+        if(currentRole!=="owner"||!currentUser?.id)throw Error("Только владелец может видеть кассу");
+        const uuid=/^[\da-f]{8}(?:-[\da-f]{4}){3}-[\da-f]{12}$/i;
+        if(!uuid.test(requestId))
+          throw Error("Некорректный номер операции кассы.");
+        const actor=currentUser.id;
+        const rows=await dbRequest("rabota_cashbook_entries?select=id,request_id,created_by,kind,amount,from_account,to_account,note"+
+          "&request_id=eq."+requestId+"&created_by=eq."+encodeURIComponent(actor)+"&limit=1","GET");
+        if(!Array.isArray(rows)||rows.length>1||
+          (rows.length&&(rows[0]?.request_id!==requestId||rows[0].created_by!==actor||!uuid.test(rows[0].id))))
+          throw Error("Не удалось проверить операцию кассы.");
+        return rows[0]??null;
+      },
       async recordCashbook({kind,amount,from,to,note,requestId}){
         if(currentRole!=="owner"||financePreview)throw Error("Операция доступна владельцу в основной версии.");
         if(!["income","expense"].includes(kind))throw Error("Выберите поступление или расход.");
@@ -2711,6 +2766,11 @@
     };
 
     let restoringSession=false;
+    function showAccessFailure(error){
+      showScreen("loginScreen");
+      resumeSessionButton.hidden=!session;
+      loginMessage.textContent=error instanceof TypeError?"Проверьте подключение к интернету.":friendlyError(error);
+    }
     async function initialize() {
       if(restoringSession)return;
       if(!session||!session.refresh_token){showScreen("loginScreen");return;}
@@ -2719,15 +2779,10 @@
       login.disabled=signup.disabled=resumeSessionButton.disabled=true;
       loginMessage.textContent="";
       try {
-        await ensureSession();
         await checkAccess();
         resumeSessionButton.hidden=true;
       }
-      catch(error) {
-        showScreen("loginScreen");
-        resumeSessionButton.hidden=!session;
-        loginMessage.textContent=error instanceof TypeError?"Проверьте подключение к интернету.":friendlyError(error);
-      } finally {
+      catch(error) {showAccessFailure(error);} finally {
         restoringSession=false;
         login.disabled=signup.disabled=resumeSessionButton.disabled=false;
       }
@@ -2745,7 +2800,7 @@
         const data=await authRequest("token?grant_type=password","POST",{email,password},false);
         setSession(data);
         await checkAccess();
-      } catch(error) {loginMessage.textContent=friendlyError(error);}
+      } catch(error) {showAccessFailure(error);}
       finally {btn.disabled=false;}
     });
     document.getElementById("signupBtn").addEventListener("click",async()=>{
@@ -2758,13 +2813,13 @@
         const data=await authRequest("signup","POST",{email,password},false);
         if(data.access_token) {setSession(data);await checkAccess();}
         else loginMessage.textContent="Регистрация отправлена. Подтвердите почту и затем войдите.";
-      } catch(error) {loginMessage.textContent=friendlyError(error);}
+      } catch(error) {showAccessFailure(error);}
       finally {btn.disabled=false;}
     });
     document.getElementById("retryAccess").addEventListener("click",async()=>{
       accessMessage.textContent="";
-      try {await ensureSession();await checkAccess();}
-      catch(error){accessMessage.textContent=friendlyError(error);}
+      try {await checkAccess();}
+      catch(error){showAccessFailure(error);}
     });
     function logout() {
       const previous=session;
@@ -2882,15 +2937,15 @@
   <script src="/whatsapp-client.js?v=20261118-safety-fix-v1"></script>
   <script src="/whatsapp-settings.js?v=20261125-template-reset"></script>
   <script src="/profit-report.js?v=20261125-write-integrity"></script>
-  <script src="/expenses.js?v=20261125-write-integrity"></script>
+  <script src="/expenses.js?v=20261125-durable-intent"></script>
   <script src="/growth.js?v=20261125-reconcile"></script>
-  <script src="/redesign.js?v=20261125-module-history"></script>
+  <script src="/redesign.js?v=20261125-close-cashbook-on-back"></script>
   <script src="/master-notifications.js?v=20261125-session-exit"></script>
   <script src="/orders-list.js?v=20261125-order-pages"></script>
   <script src="/owner-parity.js?v=20261125-order-pages"></script>
   <script src="/finance-payroll.js?v=20261125-fixed-header"></script>
-  <script src="/money-workspace.js?v=20261125-write-integrity"></script>
-  <script src="/lead-assistant.js?v=20261125-agreed-price"></script>
+  <script src="/money-workspace.js?v=20261125-durable-intent"></script>
+  <script src="/lead-assistant.js?v=20261125-confirmed-price"></script>
   <script src="/orders-workspace.js?v=20261125-order-pages"></script>
 </body>
 </html>

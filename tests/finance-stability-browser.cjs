@@ -80,7 +80,8 @@ async function fixture(browser,{source=root,latency=0,role="owner",width=390,pay
   const member={owner,master,manager,"other-master":otherMaster}[role];
   const state={rows:rows.slice(),orders:role==="manager"?[...sales,managerOrder]:sales,
     holds:new Map(),fail:new Set(),denied:new Set(),
-    lostPayoutResponse:false,lostCashbookResponse:false,invalidCashbookReceipt:false,collections:[]};
+    lostPayoutResponse:false,lostCashbookResponse:false,lostCashbookBeforeWrite:false,
+    invalidCashbookReceipt:false,collections:[]};
   const payoutReceipts=new Map(),cashbookReceipts=new Map();
   const payroll={
     version:3,state:"active",master_id:master.user_id,activated_at:stamp,accounting_version:1,
@@ -175,13 +176,17 @@ async function fixture(browser,{source=root,latency=0,role="owner",width=390,pay
       assert.equal(resource,"rabota_cashbook_record_v1");
       assert.equal(role,"owner");
       assert.match(data.p_request_id,/^[\da-f]{8}(?:-[\da-f]{4}){3}-[\da-f]{12}$/i);
+      if(state.lostCashbookBeforeWrite){
+        state.lostCashbookBeforeWrite=false;
+        return route.abort("connectionreset");
+      }
       let receipt=cashbookReceipts.get(data.p_request_id);
       if(receipt)assert.deepEqual(data,receipt.data,"cashbook retries use the original payload");
       else{
         const id="b0000001-0000-4000-8000-"+String(cashbookReceipts.size+1).padStart(12,"0");
         receipt={data,id};
         cashbookReceipts.set(data.p_request_id,receipt);
-        state.rows=[...state.rows,{id,kind:data.p_kind,amount:data.p_amount,
+        state.rows=[...state.rows,{id,request_id:data.p_request_id,created_by:member.user_id,kind:data.p_kind,amount:data.p_amount,
           from_account:data.p_from_account,to_account:data.p_to_account,created_at:stamp,note:data.p_note}];
       }
       if(state.lostCashbookResponse){
@@ -203,7 +208,10 @@ async function fixture(browser,{source=root,latency=0,role="owner",width=390,pay
       order_id:"transfer-order",master_user_id:master.user_id,company_amount:4000,confirmed_at:stamp
     }];
     if(resource==="rabota_cash_collections"&&payrollV3)json=state.collections;
-    if(resource==="rabota_cashbook_entries")json=state.rows;
+    if(resource==="rabota_cashbook_entries"){
+      const requestId=url.searchParams.get("request_id");
+      json=requestId?state.rows.filter(row=>"eq."+row.request_id===requestId):state.rows;
+    }
     return route.fulfill({json});
   });
   if(!payrollV3)await mockLegacyPayrollSnapshot(context);
@@ -402,48 +410,147 @@ async function ownerCashbook(browser){
 
     const lostNote="Сбой подтверждения расхода кассы";
     const cashbookEntries=page.locator(".mw-owner-row").filter({hasText:lostNote});
-    async function openIdenticalCashbookExpense(){
+    async function openCashbookExpense(note,value="10,75"){
       await page.locator(".mw-owner-create").click();
       await page.getByRole("button",{name:"− Создать расход",exact:true}).click();
       const dialog=page.getByRole("dialog",{name:"Создать расход"});
-      await dialog.getByLabel("Сумма, ₽").fill("10,75");
-      await dialog.getByLabel("Комментарий").fill(lostNote);
+      await dialog.getByLabel("Сумма, ₽").fill(value);
+      await dialog.getByLabel("Комментарий").fill(note);
       return dialog;
     }
-    state.lostCashbookResponse=true;
-    let retry=await openIdenticalCashbookExpense();
-    await retry.getByRole("button",{name:"Сохранить",exact:true}).click();
-    await retry.getByRole("alert").getByText(/Не удалось подтвердить запись/).waitFor();
-    const id=writes.at(-1).data.p_request_id;
-    assert.equal(await page.getByText("Операция сохранена.",{exact:true}).isVisible(),false);
+    const saveDialog=dialog=>dialog.getByRole("button",{name:"Сохранить",exact:true}).click();
+    const cancelDialog=dialog=>dialog.getByRole("button",{name:"Отмена",exact:true}).click();
 
-    state.invalidCashbookReceipt=true;
-    await retry.getByRole("button",{name:"Сохранить",exact:true}).click();
+    state.lostCashbookResponse=true;
+    let retry=await openCashbookExpense(lostNote);
+    await saveDialog(retry);
     await retry.getByRole("alert").getByText(/Не удалось подтвердить запись/).waitFor();
-    assert.equal(writes.at(-1).data.p_request_id,id,"a malformed receipt retains the original intent");
-    await retry.getByRole("button",{name:"Отмена",exact:true}).click();
+    const firstId=writes.at(-1).data.p_request_id,firstCount=writes.length;
+    await cancelDialog(retry);
     await cashbookEntries.waitFor();
     await page.reload();
-    retry=await openIdenticalCashbookExpense();
-    await retry.getByRole("button",{name:"Сохранить",exact:true}).click();
+    retry=await openCashbookExpense(lostNote);
+    await saveDialog(retry);
+    await retry.getByRole("alert").getByText("Предыдущая операция уже сохранена.").waitFor();
+    assert.equal(writes.length,firstCount,"re-entering a pending amount never implicitly writes it again");
+    await retry.getByRole("button",{name:"Создать отдельную операцию"}).click();
+    await retry.waitFor({state:"hidden"});
+    assert.notEqual(writes.at(-1).data.p_request_id,firstId,"two equal independent cashbook expenses use different IDs");
+    await cashbookEntries.nth(1).waitFor();
+    await assertOwnerTotals(page,startingBookBalance+175-25.5-21.5,547);
+
+    const unknownNote="Расход кассы без подтверждённой записи";
+    state.lostCashbookBeforeWrite=true;
+    retry=await openCashbookExpense(unknownNote,"9,25");
+    await saveDialog(retry);
+    await retry.getByRole("alert").getByText(/Не удалось подтвердить запись/).waitFor();
+    const pendingId=writes.at(-1).data.p_request_id;
+    await cancelDialog(retry);
+    await page.reload();
+    retry=await openCashbookExpense(unknownNote,"9,25");
+    await saveDialog(retry);
+    await retry.getByRole("alert").getByText(/Предыдущая операция .* не подтверждена/).waitFor();
+    const beforeRetry=writes.length;
+    state.invalidCashbookReceipt=true;
+    await retry.getByRole("button",{name:"Проверить и повторить предыдущую операцию"}).click();
+    await retry.getByRole("alert").getByText(/Не удалось подтвердить запись/).waitFor();
+    assert.equal(writes.length,beforeRetry+1);
+    assert.equal(writes.at(-1).data.p_request_id,pendingId,"an explicit retry reuses the durable ID");
+    await cancelDialog(retry);
+    await page.reload();
+    retry=await openCashbookExpense(unknownNote,"9,25");
+    await saveDialog(retry);
+    const beforeAcknowledgement=writes.length;
+    await retry.getByRole("button",{name:"Закрыть без новой записи"}).click();
     await retry.waitFor({state:"hidden"});
     await page.getByText("Операция сохранена.",{exact:true}).waitFor();
-    assert.equal(writes.at(-1).data.p_request_id,id,"the exact cashbook retry survives close and reload");
-    assert.equal(await cashbookEntries.count(),1);
+    assert.equal(writes.length,beforeAcknowledgement,"a verified prior receipt needs no repeated POST");
+    assert.equal(await page.locator(".mw-owner-row").filter({hasText:unknownNote}).count(),1);
 
-    retry=await openIdenticalCashbookExpense();
-    await retry.getByRole("button",{name:"Сохранить",exact:true}).click();
-    await retry.waitFor({state:"hidden"});
-    assert.notEqual(writes.at(-1).data.p_request_id,id,"a later equal cashbook expense has a fresh intent");
-    await cashbookEntries.nth(1).waitFor();
-    assert.equal(await cashbookEntries.count(),2);
-    await assertOwnerTotals(page,startingBookBalance+175-25.5-21.5,547);
+    await page.evaluate(()=>{
+      const setItem=Storage.prototype.setItem;
+      Storage.prototype.setItem=function(key,value){
+        if(this===sessionStorage)throw new DOMException("Synthetic storage quota","QuotaExceededError");
+        return setItem.call(this,key,value);
+      };
+    });
+    const blocked=await openCashbookExpense("Неотправленный расход кассы");
+    const beforeQuota=writes.length;
+    await saveDialog(blocked);
+    await blocked.getByRole("alert").getByText(/Запись не отправлена/).waitFor();
+    assert.equal(writes.length,beforeQuota,"no cashbook POST without a persisted request ID");
+    await cancelDialog(blocked);
 
     state.denied.add(bookName);
     await page.evaluate(()=>void window.__rdMoneyUi.cashbook({force:true}).catch(()=>{}));
     await page.getByText(/Не удалось загрузить кассу/).waitFor();
     assert.equal(await data.isVisible(),false,"An explicit access denial clears the old ledger");
   }finally{await f.close();}
+}
+async function cashbookBackNavigation(browser){
+  const f=await fixture(browser,{payrollV3:true});
+  const {page,state,calls,writes}=f,writeName="rabota_cashbook_record_v1",heldWrite=gate();
+  const note="Касса: сохранение при возврате из раздела";
+  const create=page.locator(".mw-owner-create");
+  const dialog=page.getByRole("dialog",{name:"Создать расход"});
+  const amount=dialog.getByLabel("Сумма, ₽"),comment=dialog.getByLabel("Комментарий");
+  const open=async()=>{
+    await create.click();
+    await page.getByRole("button",{name:"− Создать расход",exact:true}).click();
+    await dialog.waitFor();
+  };
+  const assertOrders=async()=>{
+    await page.waitForURL(url=>url.searchParams.get("view")==="orders");
+    await dialog.waitFor({state:"hidden"});
+    assert.equal(await page.locator(".mw-modal-backdrop").count(),0);
+    assert.equal(await page.locator("#appScreen").evaluate(node=>node.inert),false);
+    assert.equal(await dock(page,"orders").getAttribute("aria-current"),"page");
+    assert.equal(await page.locator("#appTitle").evaluate(node=>node===document.activeElement),true);
+  };
+  try{
+    await page.goto(origin+"/?view=orders");
+    await dock(page,"finance").click();
+    await open();
+    await page.keyboard.press("Tab");
+    assert.equal(await dialog.getByRole("button",{name:"Закрыть окно"}).evaluate(node=>node===document.activeElement),true);
+    await page.keyboard.press("Escape");
+    await dialog.waitFor({state:"hidden"});
+    assert.equal(await create.evaluate(node=>node===document.activeElement),true);
+
+    await open();
+    await amount.fill("1,25");
+    await comment.fill("Несохранённый черновик");
+    await page.goBack();
+    await assertOrders();
+    assert.deepEqual(writes,[]);
+    await page.goForward();
+    await page.waitForURL(url=>url.searchParams.get("view")==="finance");
+    assert.equal(await dialog.isVisible(),false);
+    await open();
+    assert.equal(await amount.inputValue(),"");
+    assert.equal(await comment.inputValue(),"");
+
+    await amount.fill("7,25");
+    await comment.fill(note);
+    state.holds.set(writeName,heldWrite);
+    await dialog.getByRole("button",{name:"Сохранить",exact:true}).click();
+    await waitCall(calls,writeName,1);
+    assert.equal(await dialog.getByRole("button",{name:"Отмена",exact:true}).isDisabled(),true);
+    await page.keyboard.press("Escape");
+    assert.equal(await dialog.isVisible(),true,"Escape does not interrupt a pending save");
+    await page.goBack();
+    await assertOrders();
+    state.holds.delete(writeName);heldWrite.release();
+    await page.waitForFunction(note=>window.__rdMoneyUi.cashbookSnapshot().rows.some(row=>row.note===note),note);
+    assert.equal(writes.length,1,"the request completes after navigating away");
+    await page.goForward();
+    await page.locator(".mw-owner-row").filter({hasText:note}).waitFor();
+    assert.equal(await page.locator(".mw-owner-row").filter({hasText:note}).count(),1);
+    assert.equal(await dialog.isVisible(),false);
+  }finally{
+    state.holds.delete(writeName);heldWrite.release();
+    await f.close();
+  }
 }
 async function assertReportHeading(page,title){
   const header=page.locator("#rdScreenHeader");
@@ -827,6 +934,8 @@ async function unavailableAccounting(browser){
       console.log(name,"baseline",JSON.stringify(await benchmark(browser,path.resolve(process.env.BASELINE_ROOT))));
       console.log(name,"candidate",JSON.stringify(await benchmark(browser,root)));
     }
+    await cashbookBackNavigation(browser);
+    console.log("PASS",name,"Payments Back closes the cashbook dialog without interrupting its write");
     await ownerCashbook(browser);await ownerReports(browser);await latePaymentScripts(browser);
     console.log("PASS",name,"stable cashbook, accounting, finance faults, write acknowledgement, payroll and profit");
     for(const width of [320,375,390,430]){

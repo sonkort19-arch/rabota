@@ -108,13 +108,18 @@ async function session(browser, role, width, writeFixture = null) {
         return route.fulfill({json:{...writeFixture.refund,replayed:false}});
       }
       if (writeFixture && url.pathname === "/rest/v1/rabota_orders" && request.method() === "POST") {
-        assert.equal(writeFixture.saved, undefined, "the form sent a duplicate write");
+        if(!writeFixture.independentCreates)assert.equal(writeFixture.saved,undefined,"the form sent a duplicate write");
         const fields = request.postDataJSON();
         assert.match(fields.id,/^[0-9a-f-]{36}$/i,"the browser supplies a stable creation ID");
-        writeFixture.saved = { ...order(12, fields.name, fields.appointment_date, fields.appointment_time), ...fields,
+        const created = { ...order(12, fields.name, fields.appointment_date, fields.appointment_time), ...fields,
           created_by:member.user_id };
+        writeFixture.saved??=created;
+        if(writeFixture.independentCreates){
+          assert.ok(writeFixture.independentCreates.every(row=>row.id!==created.id),"duplicate creation identifier");
+          writeFixture.independentCreates.push(created);
+        }
         if(writeFixture.loseCreateResponse)return route.abort("connectionreset");
-        return route.fulfill({ json: [writeFixture.saved] });
+        return route.fulfill({ json: [created] });
       }
       if(writeFixture?.edited&&url.pathname==="/rest/v1/rabota_orders"&&request.method()==="PATCH"){
         assert.equal(url.searchParams.get("id"),"eq."+writeFixture.edited.id);
@@ -170,7 +175,8 @@ async function session(browser, role, width, writeFixture = null) {
         if(writeFixture?.saved && writeFixture.offline)
           return route.fulfill({ status: 503, json: { message: "Test network unavailable" } });
         const fixtureRows=writeFixture?.rows||ORDERS;
-        let rows=writeFixture?.saved?[writeFixture.saved,...fixtureRows]:fixtureRows;
+        const created=writeFixture?.independentCreates||(writeFixture?.saved?[writeFixture.saved]:[]);
+        let rows=[...created,...fixtureRows];
         if(writeFixture?.edited)rows=rows.map(row=>row.id===writeFixture.edited.id?writeFixture.edited:row);
         if(url.searchParams.has("id"))rows=rows.filter(row=>url.searchParams.get("id")==="eq."+row.id);
         return route.fulfill({ json:rows });
@@ -547,31 +553,32 @@ async function checkStaleOrderEdit(browser) {
   }finally{await s.close();}
 }
 
+async function submitOrderForRetry(page,name,status) {
+  await page.locator("#clientName").fill(name);
+  await page.locator("#clientPhone").fill("+79990000087");
+  await page.locator("#clientSource").selectOption("unknown");
+  await page.locator("#master").fill("Рауль");
+  await page.locator("#orderTime").fill("13:00");
+  if(status==="Отменён"){
+    const advanced=page.locator("#orderAdvanced");
+    if(await advanced.getAttribute("open")===null)await advanced.locator("summary").click();
+    await page.locator("#orderStatus").selectOption(status);
+  }
+  await page.locator('#orderForm button[type="submit"]').click();
+}
+
 async function checkLostCreateResponse(browser,status) {
   const fixture={offline:true,loseCreateResponse:true};
   const s=await session(browser,"manager",390,fixture);
   try {
     const {page,writes}=s;
     const name="Тест потерянного подтверждения";
-    async function submit(name) {
-      await page.locator("#clientName").fill(name);
-      await page.locator("#clientPhone").fill("+79990000087");
-      await page.locator("#clientSource").selectOption("unknown");
-      await page.locator("#master").fill("Рауль");
-      await page.locator("#orderTime").fill("13:00");
-      if(status==="Отменён"){
-        const advanced=page.locator("#orderAdvanced");
-        if(await advanced.getAttribute("open")===null)await advanced.locator("summary").click();
-        await page.locator("#orderStatus").selectOption(status);
-      }
-      await page.locator('#orderForm button[type="submit"]').click();
-    }
     await chooseDay(page,EMPTY_DAY);
     await page.locator("#newOrderBtn").click();
-    await submit(name);
+    await submitOrderForRetry(page,name,status);
     await page.locator("#formStatus").filter({hasText:"Сохранение заказа не подтверждено"}).waitFor();
     const {id}=fixture.saved;
-    await submit("Изменённый черновик");
+    await submitOrderForRetry(page,"Изменённый черновик",status);
     await page.locator("#formStatus").filter({hasText:"Проверьте предыдущую операцию"}).waitFor();
     fixture.offline=false;
     await page.reload();
@@ -580,11 +587,114 @@ async function checkLostCreateResponse(browser,status) {
     if(status==="Отменён")await page.locator(".ow-cancelled-toggle").click();
     await namesInclude(page,[name]);
     await page.locator("#newOrderBtn").click();
-    await submit(name);
+    await submitOrderForRetry(page,name,status);
+    await page.getByRole("button",{name:"Проверить предыдущую запись",exact:true}).click();
     await page.locator("#orderOverlay").waitFor({state:"hidden"});
     assert.equal(fixture.saved.id,id);
     assert.equal(fixture.saved.status,status);
     assert.deepEqual(writes,["POST /rest/v1/rabota_orders"],"reopening recovers a committed order without a second POST");
+  }finally{await s.close();}
+}
+
+async function checkCreateWithoutStorage(browser) {
+  const fixture={};
+  const s=await session(browser,"manager",390,fixture);
+  try {
+    const {page,writes}=s;
+    const name="Отмена при переполненном хранилище";
+    const simulateFullStorage=()=>{
+      const setItem=Storage.prototype.setItem;
+      Storage.prototype.setItem=function(key,value){
+        if(/^rabota-write-intent-v\d+\.order-create\./.test(String(key))&&sessionStorage.getItem("fixture-storage-ready")!=="yes")
+          throw new DOMException("Synthetic quota exceeded","QuotaExceededError");
+        return setItem.call(this,key,value);
+      };
+    };
+    await page.addInitScript(simulateFullStorage);
+    await page.evaluate(simulateFullStorage);
+    const message=page.locator("#formStatus").filter({hasText:"Не удалось сохранить номер операции"});
+    for(let i=0;i<2;i++){
+      await chooseDay(page,EMPTY_DAY);
+      await page.locator("#newOrderBtn").click();
+      await submitOrderForRetry(page,name,"Отменён");
+      await message.waitFor();
+      assert.equal(await page.locator("#clientName").inputValue(),name,"blocked write leaves the draft intact");
+      assert.deepEqual(writes,[],"full browser storage prevents submitting the order");
+      if(i===0){
+        await page.reload();
+        await page.locator("#owViewSwitch").waitFor();
+      }
+    }
+    await page.evaluate(()=>sessionStorage.setItem("fixture-storage-ready","yes"));
+    await page.locator('#orderForm button[type="submit"]').click();
+    await page.locator("#orderOverlay").waitFor({state:"hidden"});
+    assert.deepEqual(writes,["POST /rest/v1/rabota_orders"]);
+    assert.equal(fixture.saved.status,"Отменён");
+  }finally{await s.close();}
+}
+
+async function checkIndependentOrderTabs(browser) {
+  const fixture={offline:true,loseCreateResponse:true,independentCreates:[]};
+  const s=await session(browser,"manager",390,fixture);
+  try {
+    const {page,context,writes}=s;
+    const name="Две самостоятельные записи";
+    await chooseDay(page,EMPTY_DAY);
+    await page.locator("#newOrderBtn").click();
+    await submitOrderForRetry(page,name,"Отменён");
+    await page.locator("#formStatus").filter({hasText:"Сохранение заказа не подтверждено"}).waitFor();
+    fixture.offline=false;
+    fixture.loseCreateResponse=false;
+    const other=await context.newPage();
+    await other.clock.setFixedTime(FIXED_TIME);
+    await other.goto("https://crm.test/");
+    await other.locator("#owViewSwitch").waitFor();
+    await chooseDay(other,EMPTY_DAY);
+    await other.locator("#newOrderBtn").click();
+    await submitOrderForRetry(other,name,"Отменён");
+    await other.locator("#orderOverlay").waitFor({state:"hidden"});
+    assert.equal(fixture.independentCreates.length,2,"the second tab has its own intent despite identical fields");
+    assert.notEqual(fixture.independentCreates[0].id,fixture.independentCreates[1].id);
+    await page.locator('#orderForm button[type="submit"]').click();
+    await page.locator("#orderOverlay").waitFor({state:"hidden"});
+    assert.deepEqual(writes,["POST /rest/v1/rabota_orders","POST /rest/v1/rabota_orders"],
+      "the first tab reconciles its own committed UUID without creating a third order");
+  }finally{await s.close();}
+}
+
+async function checkSeparateOrderInSameTab(browser) {
+  const fixture={offline:true,loseCreateResponse:true,independentCreates:[]};
+  const s=await session(browser,"manager",390,fixture);
+  try {
+    const {page,writes}=s;
+    const name="Отдельный заказ с такими же данными";
+    const unconfirmed=page.locator("#formStatus").filter({hasText:"Сохранение заказа не подтверждено"});
+    await chooseDay(page,EMPTY_DAY);
+    await page.locator("#newOrderBtn").click();
+    await submitOrderForRetry(page,name,"Отменён");
+    await unconfirmed.waitFor();
+    fixture.offline=false;
+    await page.locator("#closeOrderBtn").click();
+    await page.evaluate(()=>window.dispatchEvent(new Event("online")));
+    await page.waitForFunction(id=>getOrders().some(order=>order.id===id),fixture.independentCreates[0].id);
+    await page.locator("#newOrderBtn").click();
+    await submitOrderForRetry(page,name,"Отменён");
+    const separate=page.getByRole("button",{name:"Создать отдельный заказ",exact:true});
+    await separate.waitFor();
+    assert.equal(writes.length,1,"matching data does not silently acknowledge the earlier order or create another");
+    fixture.offline=true;
+    await separate.click();
+    await unconfirmed.waitFor();
+    const [first,second]=fixture.independentCreates;
+    assert.notEqual(first.id,second.id);
+    fixture.offline=false;
+    await page.locator('#orderForm button[type="submit"]').click();
+    await page.locator("#orderOverlay").waitFor({state:"hidden"});
+    const pending=await page.evaluate(()=>Object.keys(sessionStorage)
+      .filter(key=>/^rabota-write-intent-v\d+\.order-create\./.test(key))
+      .flatMap(key=>JSON.parse(sessionStorage.getItem(key))));
+    assert.deepEqual(pending,[first.id],"same form resolves the exact new attempt and preserves the earlier one");
+    assert.deepEqual(writes,["POST /rest/v1/rabota_orders","POST /rest/v1/rabota_orders"]);
   }finally{await s.close();}
 }
 
@@ -849,6 +959,10 @@ async function checkLargeOrderList(browser,kind){
     console.log("PASS",kind,"disjoint order edits merge and the overlapping field requires a choice");
     for(const status of ["Записан","Отменён"])await checkLostCreateResponse(browser,status);
     console.log("PASS",kind,"lost active and cancelled create responses recover without a duplicate");
+    await checkCreateWithoutStorage(browser);
+    await checkIndependentOrderTabs(browser);
+    await checkSeparateOrderInSameTab(browser);
+    console.log("PASS",kind,"order writes require tab storage and fresh orders use separate intents after explicit choice");
     await checkOrderDraftHistory(browser);
     console.log("PASS",kind,"browser Back closes the open order draft without writing");
     await checkActivatedPaymentAndRefund(browser);

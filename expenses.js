@@ -10,7 +10,7 @@ window.__rdCreateExpenses = function createExpenses({root, dbRequest, loadExpens
   const viewport=window.visualViewport;
   const writeIntents=window.__rdCreateWriteIntents("expense");
   const receiptId=/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i;
-  let ownerId=null,rows=null,read=null,busy=false,generation=0,writeUncertain=false;
+  let ownerId=null,rows=null,read=null,busy=false,generation=0,choice=null;
   const currencyFormat=new Intl.NumberFormat("ru-RU",{maximumFractionDigits:2});
   const countRules=new Intl.PluralRules("ru-RU");
   const countLabels={one:"запись",few:"записи",many:"записей"};
@@ -19,6 +19,11 @@ window.__rdCreateExpenses = function createExpenses({root, dbRequest, loadExpens
   const titleFormat=new Intl.DateTimeFormat("ru-RU",{timeZone:"UTC",month:"short",year:"numeric"});
   const money=n=>currencyFormat.format(Number(n)||0)+" ₽";
   const el=(tag,className="",text)=>{const n=document.createElement(tag);if(className)n.className=className;if(text!==undefined)n.textContent=String(text);return n};
+  const retryButton=el("button","ex-save primary","Проверить и повторить предыдущий расход");
+  const newButton=el("button","ex-save secondary","Создать отдельный расход");
+  retryButton.type=newButton.type="button";
+  retryButton.hidden=newButton.hidden=true;
+  form.append(retryButton,newButton);
   const moscowMonth=()=>monthFormat.format(new Date());
   let selectedMonth=null, renderedMonth=null;
   const monthOf=stamp=>monthFormat.format(new Date(stamp));
@@ -39,9 +44,10 @@ window.__rdCreateExpenses = function createExpenses({root, dbRequest, loadExpens
     status.textContent=text;
     status.classList.toggle("is-success",success);
   }
-  function setEditorStatus(text,uncertain=false){
-    writeUncertain=uncertain;
+  function setEditorStatus(text,decision=null){
+    choice=decision;
     editor("exMessage").textContent=text;
+    setSaving(busy);
   }
   function syncDialogViewport(){
     if(!viewport)return;
@@ -56,24 +62,26 @@ window.__rdCreateExpenses = function createExpenses({root, dbRequest, loadExpens
     viewport?.addEventListener("scroll",syncDialogViewport);
     setStatus("");
   }
-  function closeEditor(keepDraft=false){
+  function closeEditor(){
     if(dialog.open)dialog.close();
     viewport?.removeEventListener("resize",syncDialogViewport);
     viewport?.removeEventListener("scroll",syncDialogViewport);
-    if(!keepDraft){
-      form.reset();
-      setEditorStatus("");
-    }
+    form.reset();
+    setEditorStatus("");
   }
   function close(){
-    if(dialog.open)closeEditor(busy||writeUncertain);
+    if(dialog.open)closeEditor();
   }
   function setSaving(saving){
-    editor("exFields").disabled=saving;
+    editor("exFields").disabled=saving||Boolean(choice);
     editor("exClose").disabled=saving;
     const save=editor("exSave");
     save.disabled=saving;
+    save.hidden=Boolean(choice);
     save.textContent=saving?"Сохраняем…":"Сохранить расход";
+    retryButton.hidden=newButton.hidden=!choice;
+    retryButton.disabled=newButton.disabled=saving;
+    retryButton.textContent=choice?.receipt?"Закрыть без новой записи":"Проверить и повторить предыдущий расход";
   }
   const parseAmount=value=>{
     const cleaned=String(value||"").replace(/[\s\u00a0\u202f]/g,"").replace(",",".");
@@ -168,6 +176,103 @@ window.__rdCreateExpenses = function createExpenses({root, dbRequest, loadExpens
     return refresh(onExpenseChanged());
   }
   function uncertainWrite(error){return error instanceof TypeError||Number(error?.status)>=500}
+  function denied(error){return [401,403].includes(Number(error?.status))||error?.code==="42501"}
+  async function expenseReceipt(actor,payload,intent){
+    let records;
+    try{
+      records=await dbRequest("rabota_finance_operations?select=id,kind,amount,note,request_id,created_by&request_id=eq."+
+        encodeURIComponent(intent.requestId)+"&limit=1","GET");
+    }catch(error){
+      if(denied(error))throw error;
+      return null;
+    }
+    const entry=Array.isArray(records)?records.find(row=>row?.request_id===intent.requestId):null;
+    if(!entry)return null;
+    if(typeof entry.id!=="string"||!receiptId.test(entry.id)||entry.created_by!==actor||entry.kind!=="expense"||
+      Number(entry.amount)!==payload.p_amount||entry.note!==payload.p_note)
+      throw Error("Реквизиты сохранённой операции расходятся. Проверьте историю расходов.");
+    return entry.id;
+  }
+  async function finishIntent(intent){
+    try{await writeIntents.finish(intent)}catch(error){console.warn("Не удалось очистить номер подтверждённого расхода.",error);}
+  }
+  async function saveExpense(payload,{retry=null,confirmedReceipt=null,independent=false,acknowledged=null}={}){
+    const account=generation,actor=ownerId;
+    busy=true;
+    setEditorStatus("Проверяем запись…");
+    let intent=retry,submitted=false;
+    try{
+      let receipt=null;
+      if(retry){
+        receipt=confirmedReceipt??await expenseReceipt(actor,payload,retry);
+        if(!receipt&&account===generation){
+          const persisted=await writeIntents.find(actor,payload);
+          if(!persisted.some(candidate=>candidate.requestId===retry.requestId))
+            throw Object.assign(Error("Запись не отправлена. Номер предыдущего расхода не найден в этой вкладке."),
+              {code:"WRITE_INTENT_STORAGE"});
+        }
+      }
+      else{
+        if(!independent){
+          const previous=await writeIntents.find(actor,payload);
+          const candidate=previous.at(-1);
+          if(candidate&&account===generation){
+            const known=await expenseReceipt(actor,payload,candidate);
+            if(account===generation&&dialog.open)
+              setEditorStatus(known?"Предыдущий расход уже сохранён.":"Предыдущий расход с такими данными не подтверждён.",
+                {payload,intent:candidate,receipt:known});
+            return;
+          }
+        }
+        if(account!==generation)return;
+        if(acknowledged)await finishIntent(acknowledged);
+        if(account!==generation)return;
+        intent=await writeIntents.begin(actor,payload);
+      }
+      if(account!==generation){
+        if(!retry&&intent)await finishIntent(intent);
+        return;
+      }
+      if(!receipt){
+        editor("exMessage").textContent="Сохраняем…";
+        submitted=true;
+        receipt=await dbRequest("rpc/rabota_record_expense_v1","POST",{...payload,p_request_id:intent.requestId});
+        if(typeof receipt!=="string"||!receiptId.test(receipt))
+          throw Error("Не удалось получить подтверждение расхода.");
+      }
+      await finishIntent(intent);
+    }catch(error){
+      if(account!==generation)return;
+      const status=Number(error?.status);
+      const definite=status>=400&&status<500&&status!==408&&error?.code!=="23505";
+      if(submitted&&definite&&!retry)await finishIntent(intent);
+      if(account!==generation)return;
+      const pending=intent&&(retry||submitted&&!definite);
+      const message=pending&&error?.code!=="WRITE_INTENT_STORAGE"
+        ?"Не удалось подтвердить запись. Проверьте предыдущий расход или создайте отдельный."
+        :error?.message||"Не удалось сохранить расход.";
+      if(dialog.open)setEditorStatus(message,pending?{payload,intent}:null);
+      else setStatus(message);
+      if(submitted&&!definite){
+        selectedMonth=null;
+        draw();
+        void refreshAfterWrite();
+      }
+      return;
+    }finally{
+      if(account===generation){
+        busy=false;
+        setSaving(false);
+        if(choice&&dialog.open)retryButton.focus({preventScroll:true});
+      }
+    }
+    if(account!==generation)return;
+    selectedMonth=null;
+    draw();
+    closeEditor();
+    setStatus("Расход "+money(payload.p_amount)+" сохранён.",true);
+    void refreshAfterWrite();
+  }
   async function voidExpense(row,button){
     if(!ownerId||busy)return;
     if(!confirm("Отменить расход "+money(row.amount)+"? Запись останется в истории финансов как отменённая."))return;
@@ -196,7 +301,7 @@ window.__rdCreateExpenses = function createExpenses({root, dbRequest, loadExpens
   }
   async function submit(event){
     event.preventDefault();
-    if(!ownerId||busy||!dialog.open||root.hidden)return;
+    if(!ownerId||busy||choice||!dialog.open||root.hidden)return;
     const amount=parseAmount(editor("exAmount").value);
     if(amount===null){setEditorStatus("Укажите сумму от 0,01 до 10 000 000 ₽.");return}
     const category=editor("exCategory").value;
@@ -206,44 +311,7 @@ window.__rdCreateExpenses = function createExpenses({root, dbRequest, loadExpens
     if(order&&!/^\d{1,8}$/.test(order)){setEditorStatus("Номер заказа должен содержать только цифры.");return}
     const note="["+category+"]"+(detail?" "+detail:"")+(order?" · Заказ №"+order:"");
     if(note.length>240){setEditorStatus("Сократите описание расхода.");return}
-    const account=generation;
-    const payload={p_amount:amount,p_note:note};
-    busy=true;
-    setSaving(true);
-    setEditorStatus("");
-    let submitted=false,missingReceipt=false;
-    try{
-      const intent=await writeIntents.get(ownerId,payload);
-      if(account!==generation)return;
-      submitted=true;
-      const receipt=await dbRequest("rpc/rabota_record_expense_v1","POST",{...payload,p_request_id:intent.requestId});
-      if(typeof receipt!=="string"||!receiptId.test(receipt)){
-        missingReceipt=true;
-        throw Error("Не удалось получить подтверждение расхода.");
-      }
-      try{await writeIntents.finish(intent)}catch(error){console.warn("Не удалось очистить номер подтверждённого расхода.",error);}
-    }catch(error){
-      if(account===generation){
-        if(submitted&&(missingReceipt||uncertainWrite(error))){
-          selectedMonth=null;
-          draw();
-          setEditorStatus("Не удалось подтвердить запись. Повторите сохранение с теми же данными.",true);
-          void refreshAfterWrite();
-        }else setEditorStatus(error?.message||"Не удалось сохранить расход.");
-      }
-      return;
-    }finally{
-      if(account===generation){
-        busy=false;
-        setSaving(false);
-      }
-    }
-    if(account!==generation)return;
-    selectedMonth=null;
-    draw();
-    closeEditor();
-    setStatus("Расход "+money(amount)+" сохранён.",true);
-    void refreshAfterWrite();
+    await saveExpense({p_amount:amount,p_note:note});
   }
   function reset(){
     generation++;
@@ -281,6 +349,14 @@ window.__rdCreateExpenses = function createExpenses({root, dbRequest, loadExpens
     if(!busy)close();
   });
   form.addEventListener("submit",event=>void submit(event));
+  retryButton.addEventListener("click",()=>{
+    if(ownerId&&!busy&&choice&&dialog.open&&!root.hidden)
+      void saveExpense(choice.payload,{retry:choice.intent,confirmedReceipt:choice.receipt});
+  });
+  newButton.addEventListener("click",()=>{
+    if(ownerId&&!busy&&choice&&dialog.open&&!root.hidden)
+      void saveExpense(choice.payload,{independent:true,acknowledged:choice.receipt?choice.intent:null});
+  });
   $("exRetry").addEventListener("click",()=>void refresh());
   return {open,refresh,reset,close};
 };

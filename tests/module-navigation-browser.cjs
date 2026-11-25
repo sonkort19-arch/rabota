@@ -59,7 +59,7 @@ async function fixture(browser, source, width, role, {safeArea = null, standalon
     timezoneId: "Europe/Moscow", reducedMotion: "reduce", serviceWorkers: "block",
   });
   const state = { expenses: [{ ...expense }], tasks: [{ ...task }], fail: new Set(),
-    loseResponse: new Set(), invalidReceipt: new Set(), gates: new Map(),
+    loseResponse: new Set(), loseBeforeWrite: new Set(), invalidReceipt: new Set(), gates: new Map(),
     staleGrowthRead: null, failGrowthRead: false };
   const expenseReceipts = new Map();
   const orders = Array.from({ length: 18 }, (_, i) => ({
@@ -150,6 +150,7 @@ async function fixture(browser, source, width, role, {safeArea = null, standalon
       assert.equal(role, "owner", "fixture owner-only mutation");
       const payload = request.postDataJSON();
       writes.push({ endpoint, method: request.method(), payload });
+      if (state.loseBeforeWrite.delete(endpoint)) return route.abort("connectionreset");
       if (endpoint === expenseRecordRpc) {
         assert.match(payload.p_request_id, /^[\da-f]{8}(?:-[\da-f]{4}){3}-[\da-f]{12}$/i);
         const previous = expenseReceipts.get(payload.p_request_id);
@@ -159,7 +160,8 @@ async function fixture(browser, source, width, role, {safeArea = null, standalon
         } else {
           json = "a0000001-0000-4000-8000-" + String(expenseReceipts.size + 1).padStart(12, "0");
           expenseReceipts.set(payload.p_request_id, { id: json, payload });
-          state.expenses.push({ ...expense, id: json, amount: payload.p_amount, note: payload.p_note });
+          state.expenses.push({ ...expense, id: json, request_id: payload.p_request_id,
+            created_by: member.user_id, amount: payload.p_amount, note: payload.p_note });
         }
       } else if (endpoint === "rabota_finance_void") {
         const item = state.expenses.find(row => row.id === payload.p_operation_id);
@@ -180,7 +182,10 @@ async function fixture(browser, source, width, role, {safeArea = null, standalon
       if (bucket === "growth") json = role === "owner" ? state.tasks : [];
       if (bucket === "rabota_leads" && role !== "master") json = leads;
       if (bucket === "rabota_order_notifications" && role === "master") json = [notification];
-      if (["expenses", "operations"].includes(bucket)) json = role === "owner" ? state.expenses : [];
+      if (["expenses", "operations"].includes(bucket)) {
+        const requestId=url.searchParams.get("request_id");
+        json=role!=="owner"?[]:requestId?state.expenses.filter(row=>"eq."+row.request_id===requestId):state.expenses;
+      }
       if (bucket === "payroll") {
         json = {version: 3, accounting_version: 1, activated_at: stamp,
           state: role === "manager" ? "not_applicable" : "active"};
@@ -933,44 +938,83 @@ async function dataFlow(browser) {
     assert.deepEqual(writes.map(value => value.endpoint), ["rabota_growth_plan", expenseRecordRpc, "rabota_finance_void"]);
 
     await go(page, "expenses");
+    async function submitExpense(tab,note,value="40"){
+      const dialog=await openExpenseDialog(tab);
+      await dialog.locator("#exAmount").fill(value);
+      await dialog.locator("#exDetail").fill(note);
+      await dialog.locator("#exSave").click();
+      return dialog;
+    }
+    async function closeExpense(dialog){
+      await dialog.locator("#exClose").click();
+      await dialog.waitFor({state:"hidden"});
+    }
     state.loseResponse.add(expenseRecordRpc);
-    editor = await openExpenseDialog(page);
-    await editor.locator("#exAmount").fill("42,75");
-    await editor.locator("#exDetail").fill("Сбой доставки ответа");
-    await editor.locator("#exSave").click();
+    const lostNote="Сбой доставки ответа";
+    editor=await submitExpense(page,lostNote);
     await editor.locator("#exMessage").getByText(/Не удалось подтвердить запись/).waitFor();
-    const pendingId = writes.at(-1).payload.p_request_id;
-    await editor.locator("#exClose").click();
-    await editor.waitFor({state:"hidden"});
-    const committed = page.locator("#exList .ex-item").filter({hasText:"Сбой доставки ответа"});
+    const pendingId=writes.at(-1).payload.p_request_id;
+    await closeExpense(editor);
+    const committed=page.locator("#exList .ex-item").filter({hasText:lostNote});
     await committed.waitFor();
-    editor = await openExpenseDialog(page);
-    assert.equal(await editor.locator("#exAmount").inputValue(), "42,75");
-    assert.equal(await editor.locator("#exDetail").inputValue(), "Сбой доставки ответа");
-    state.invalidReceipt.add(expenseRecordRpc);
-    await editor.locator("#exSave").click();
-    await editor.locator("#exMessage").getByText(/Не удалось подтвердить запись/).waitFor();
-    assert.equal(writes.at(-1).payload.p_request_id, pendingId);
-    assert.equal(await page.locator("#exStatus").textContent(), "", "a boolean response does not acknowledge the expense");
-    assert.equal(await committed.count(), 1);
 
     await page.reload();
-    await page.locator("#exMain").waitFor();
-    async function submitIdenticalExpense(){
-      const dialog = await openExpenseDialog(page);
-      await dialog.locator("#exAmount").fill("42.75");
-      await dialog.locator("#exDetail").fill("Сбой  доставки ответа");
-      await dialog.locator("#exSave").click();
-      await dialog.waitFor({state:"hidden"});
-      await page.locator("#exStatus").getByText(/сохранён/i).waitFor();
-    }
-    await submitIdenticalExpense();
-    assert.equal(writes.at(-1).payload.p_request_id, pendingId, "retry uses the durable ID after a page reload");
-    assert.equal(await committed.count(), 1, "the lost response and replay leave one ledger row");
-    await submitIdenticalExpense();
-    assert.notEqual(writes.at(-1).payload.p_request_id, pendingId, "a later identical expense is a new intent");
+    editor=await submitExpense(page,"Сбой  доставки ответа","40,00");
+    await editor.locator("#exMessage").getByText("Предыдущий расход уже сохранён.").waitFor();
+    const beforeAcknowledgement=writes.length;
+    await editor.getByRole("button",{name:"Закрыть без новой записи"}).click();
+    await editor.waitFor({state:"hidden"});
+    await page.locator("#exStatus").getByText(/сохранён/i).waitFor();
+    assert.equal(writes.length,beforeAcknowledgement,"known receipt closes the previous attempt without a second POST");
+    assert.equal(await committed.count(),1);
+
+    editor=await submitExpense(page,lostNote);
+    await editor.waitFor({state:"hidden"});
+    assert.notEqual(writes.at(-1).payload.p_request_id,pendingId,"a genuine second expense with equal requisites gets a fresh ID");
     await committed.nth(1).waitFor();
-    assert.equal(await committed.count(), 2);
+    assert.equal(await committed.count(),2);
+    assert.equal(state.expenses.filter(row=>row.note.includes(lostNote)).reduce((total,row)=>total+row.amount,0),80);
+
+    const twoTabsNote="Два независимых расхода в разных вкладках";
+    state.loseBeforeWrite.add(expenseRecordRpc);
+    editor=await submitExpense(page,twoTabsNote,"42,75");
+    await editor.locator("#exMessage").getByText(/Не удалось подтвердить запись/).waitFor();
+    const firstTabId=writes.at(-1).payload.p_request_id;
+    await closeExpense(editor);
+
+    const secondTab=await s.newPage();
+    await secondTab.goto(origin+"/?view=expenses");
+    const secondEditor=await submitExpense(secondTab,twoTabsNote,"42,75");
+    await secondEditor.waitFor({state:"hidden"});
+    assert.notEqual(writes.at(-1).payload.p_request_id,firstTabId,"an independent tab never inherits the first tab's pending ID");
+    await secondTab.close();
+
+    await page.reload();
+    editor=await submitExpense(page,twoTabsNote,"42.75");
+    await editor.locator("#exMessage").getByText(/Предыдущий расход .* не подтверждён/).waitFor();
+    state.invalidReceipt.add(expenseRecordRpc);
+    await editor.getByRole("button",{name:"Проверить и повторить предыдущий расход"}).click();
+    await editor.locator("#exMessage").getByText(/Не удалось подтвердить запись/).waitFor();
+    assert.equal(writes.at(-1).payload.p_request_id,firstTabId,"the explicit retry reuses the same ID after reload");
+    assert.equal(await page.locator("#exStatus").textContent(),"","a boolean response does not acknowledge the expense");
+    const beforeRetry=writes.length;
+    await editor.getByRole("button",{name:"Проверить и повторить предыдущий расход"}).click();
+    await editor.waitFor({state:"hidden"});
+    assert.equal(writes.length,beforeRetry,"an exact lookup reconciles a committed malformed response");
+    await page.locator("#exList .ex-item").filter({hasText:twoTabsNote}).nth(1).waitFor();
+
+    await page.evaluate(()=>{
+      const setItem=Storage.prototype.setItem;
+      Storage.prototype.setItem=function(key,value){
+        if(this===sessionStorage)throw new DOMException("Synthetic storage quota","QuotaExceededError");
+        return setItem.call(this,key,value);
+      };
+    });
+    const beforeQuota=writes.length;
+    editor=await submitExpense(page,"Расход без доступного хранения");
+    await editor.locator("#exMessage").getByText(/Запись не отправлена/).waitFor();
+    assert.equal(writes.length,beforeQuota,"no expense POST without a persisted request ID");
+    await closeExpense(editor);
   } finally { await s.close(); }
 }
 

@@ -397,16 +397,19 @@
     unavailable();
   }
   let closeCashbookDialog=null;
-  window.__rdCloseCashbookDialog=()=>closeCashbookDialog?.();
+  window.__rdCloseCashbookDialog=()=>closeCashbookDialog?.()??false;
   function modalBase(title,opener){
     const overlay=el("div","mw-modal-backdrop");
     const sheet=el("section","mw-modal");
     sheet.setAttribute("role","dialog");sheet.setAttribute("aria-modal","true");sheet.setAttribute("aria-label",title);
     const dismiss=restoreFocus=>{
+      if(closeCashbookDialog!==closeForNavigation)return false;
       closeCashbookDialog=null;
       overlay.remove();
       releaseFocus(restoreFocus);
+      return true;
     };
+    const closeForNavigation=()=>dismiss(false);
     const close=()=>{if(sheet.dataset.busy!=="1")dismiss(true);};
     const closeButton=btn("×","mw-modal-close",close);
     closeButton.setAttribute("aria-label","Закрыть окно");
@@ -415,7 +418,7 @@
     overlay.addEventListener("click",e=>{if(e.target===overlay)close()});
     sheet.tabIndex=-1;
     const releaseFocus=window.__rdFocusModal(overlay,sheet,close,{opener});
-    closeCashbookDialog=()=>dismiss(false);
+    closeCashbookDialog=closeForNavigation;
     return {sheet,close,closeButton};
   }
   function radioSet(name,defaultValue){
@@ -549,13 +552,14 @@
     root.append(history,more);
   }
   function openOwnerEntry(kind){
-    if(isPreview()||ownerView?.create.disabled!==false)return;
+    const view=ownerView;
+    if(isPreview()||view?.create.disabled!==false)return;
     const actor=api()?.snapshot();
     if(actor?.role!=="owner"||!actor.actorId)return;
     cashbookIntents??=window.__rdCreateWriteIntents("cashbook");
-    if(ownerView)ownerView.receipt.hidden=true;
+    view.receipt.hidden=true;
     const income=kind==="income";
-    const {sheet,close,closeButton}=modalBase(income?"Создать приход":"Создать расход",ownerView.create);
+    const {sheet,close,closeButton}=modalBase(income?"Создать приход":"Создать расход",view.create);
     const amount=el("input","mw-input");amount.type="text";amount.inputMode="decimal";amount.placeholder="0,00";
     const note=el("textarea","mw-input");note.rows=2;note.maxLength=240;
     note.placeholder=income?"Например: прочий доход":"Например: покупка материалов";
@@ -564,50 +568,136 @@
     sheet.append(field("Комментарий",note));
     const error=el("p","mw-error");error.setAttribute("role","alert");
     const save=btn("Сохранить","mw-main-button"),cancel=btn("Отмена","mw-minor",close);
-    let busy=false;
+    const retryButton=btn("Проверить и повторить предыдущую операцию","mw-main-button");
+    const newButton=btn("Создать отдельную операцию","mw-minor");
+    let busy=false,choice=null;
+    const sameOwner=()=>ownerView===view&&api()?.snapshot()?.actorId===actor.actorId;
     function setSaving(saving){
       busy=saving;sheet.dataset.busy=saving?"1":"0";
-      save.disabled=cancel.disabled=closeButton.disabled=amount.disabled=note.disabled=saving;
-      for(const input of methods.node.querySelectorAll("input"))input.disabled=saving;
+      save.hidden=Boolean(choice);retryButton.hidden=newButton.hidden=!choice;
+      retryButton.textContent=choice?.receipt?"Закрыть без новой записи":"Проверить и повторить предыдущую операцию";
+      save.disabled=retryButton.disabled=newButton.disabled=cancel.disabled=closeButton.disabled=saving;
+      amount.disabled=note.disabled=saving||Boolean(choice);
+      for(const input of methods.node.querySelectorAll("input"))input.disabled=saving||Boolean(choice);
     }
-    sheet.append(error,box("mw-modal-actions",cancel,save));
-    save.addEventListener("click",async()=>{
-      if(busy)return;
-      if(ownerView?.create.disabled!==false){
-        error.textContent="Обновите данные кассы перед сохранением.";
+    function setStatus(message,decision=null){
+      choice=decision;
+      error.textContent=message;
+      setSaving(busy);
+    }
+    function showResult(message){
+      view.receipt.hidden=false;
+      view.receipt.textContent=message;
+    }
+    async function findReceipt(payload,intent){
+      let entry;
+      try{entry=await api().findCashbookReceipt(intent.requestId);}
+      catch(error){
+        if([401,403].includes(Number(error?.status))||error?.code==="42501")throw error;
+        return null;
+      }
+      if(!entry)return null;
+      if(entry.request_id!==intent.requestId||entry.created_by!==actor.actorId||entry.kind!==payload.kind||
+        Number(entry.amount)!==payload.amount||entry.from_account!==payload.from||
+        entry.to_account!==payload.to||entry.note!==payload.note)
+        throw Error("Реквизиты сохранённой операции расходятся. Проверьте историю кассы.");
+      return entry;
+    }
+    async function finishIntent(intent){
+      try{await cashbookIntents.finish(intent)}catch(error){console.warn("Не удалось очистить номер подтверждённой операции.",error);}
+    }
+    async function saveEntry(payload,{retry=null,confirmedReceipt=null,independent=false,acknowledged=null}={}){
+      if(!sameOwner()||busy)return;
+      if(!retry&&view.create.disabled){
+        setStatus("Обновите данные кассы перед сохранением.");
         return;
       }
+      setSaving(true);
+      setStatus("Проверяем запись…");
+      let intent=retry,submitted=false;
+      try{
+        let receipt=null;
+        if(retry){
+          receipt=confirmedReceipt??await findReceipt(payload,retry);
+          if(!receipt&&sameOwner()){
+            const persisted=await cashbookIntents.find(actor.actorId,payload);
+            if(!persisted.some(candidate=>candidate.requestId===retry.requestId))
+              throw Object.assign(Error("Запись не отправлена. Номер предыдущей операции не найден в этой вкладке."),
+                {code:"WRITE_INTENT_STORAGE"});
+          }
+        }
+        else{
+          if(!independent){
+            const previous=await cashbookIntents.find(actor.actorId,payload);
+            const candidate=previous.at(-1);
+            if(candidate&&sameOwner()){
+              const known=await findReceipt(payload,candidate);
+              if(sameOwner()&&sheet.isConnected)
+                setStatus(known?"Предыдущая операция уже сохранена.":"Предыдущая операция с такими данными не подтверждена.",
+                  {payload,intent:candidate,receipt:known});
+              return;
+            }
+          }
+          if(!sameOwner())return;
+          if(acknowledged)await finishIntent(acknowledged);
+          if(!sameOwner())return;
+          intent=await cashbookIntents.begin(actor.actorId,payload);
+        }
+        if(!sameOwner()){
+          if(!retry&&intent)await finishIntent(intent);
+          return;
+        }
+        if(!receipt){
+          if(view.create.disabled){
+            if(!retry)await finishIntent(intent);
+            throw Error("Обновите данные кассы перед сохранением.");
+          }
+          error.textContent="Сохраняем…";
+          submitted=true;
+          await api().recordCashbook({...payload,requestId:intent.requestId});
+        }
+        await finishIntent(intent);
+        if(receipt)retryRead(()=>api().cashbook({force:true}));
+      }catch(error){
+        if(!sameOwner())return;
+        const status=Number(error?.status);
+        const definite=status>=400&&status<500&&status!==408&&error?.code!=="23505";
+        if(submitted&&definite&&!retry)await finishIntent(intent);
+        if(!sameOwner())return;
+        const pending=intent&&(retry||submitted&&!definite);
+        const message=pending&&error?.code!=="WRITE_INTENT_STORAGE"
+          ?"Не удалось подтвердить запись. Проверьте предыдущую операцию или создайте отдельную."
+          :error?.message||"Не удалось сохранить операцию.";
+        if(sheet.isConnected)setStatus(message,pending?{payload,intent}:null);
+        else showResult(message);
+        if(submitted&&!definite)retryRead(()=>api().cashbook({force:true}));
+        return;
+      }finally{
+        setSaving(false);
+        if(choice&&sheet.isConnected)retryButton.focus({preventScroll:true});
+      }
+      if(!sameOwner())return;
+      if(sheet.isConnected)close();
+      showResult("Операция сохранена.");
+      updateOwnerPayments();
+    }
+    sheet.append(error,box("mw-modal-actions",cancel,newButton,retryButton,save));
+    setSaving(false);
+    save.addEventListener("click",()=>{
+      if(busy||choice)return;
       const value=parseSum(amount.value),method=methods.value(),memo=note.value.trim();
       if(!value||value>10000000||!validMethod(method)||!memo){
-        error.textContent=!value||value>10000000?"Укажите сумму от 0,01 до 10 000 000 ₽.":
-          !validMethod(method)?"Укажите способ операции.":"Добавьте комментарий.";
+        setStatus(!value||value>10000000?"Укажите сумму от 0,01 до 10 000 000 ₽.":
+          !validMethod(method)?"Укажите способ операции.":"Добавьте комментарий.");
         return;
       }
-      const payload={kind,amount:value,from:income?null:method,to:income?method:null,note:memo};
-      setSaving(true);
-      error.textContent="Сохраняем…";
-      let submitted=false;
-      try{
-        const intent=await cashbookIntents.get(actor.actorId,payload);
-        if(!sheet.isConnected)return;
-        submitted=true;
-        await api().recordCashbook({...payload,requestId:intent.requestId});
-        try{await cashbookIntents.finish(intent)}catch(e){console.warn("Не удалось очистить номер подтверждённой операции.",e);}
-        if(!sheet.isConnected)return;
-        setSaving(false);close();
-        if(ownerView){
-          ownerView.receipt.hidden=false;
-          ownerView.receipt.textContent="Операция сохранена.";
-        }
-        updateOwnerPayments();
-      }catch(e){
-        if(!sheet.isConnected)return;
-        setSaving(false);
-        if(submitted&&(e instanceof TypeError||Number(e?.status)>=500||e?.code==="UNCONFIRMED_CASHBOOK_WRITE")){
-          error.textContent="Не удалось подтвердить запись. Повторите сохранение с теми же данными.";
-          retryRead(()=>api().cashbook({force:true}));
-        }else error.textContent=e?.message||"Не удалось сохранить операцию.";
-      }
+      void saveEntry({kind,amount:value,from:income?null:method,to:income?method:null,note:memo});
+    });
+    retryButton.addEventListener("click",()=>{
+      if(choice)void saveEntry(choice.payload,{retry:choice.intent,confirmedReceipt:choice.receipt});
+    });
+    newButton.addEventListener("click",()=>{
+      if(choice)void saveEntry(choice.payload,{independent:true,acknowledged:choice.receipt?choice.intent:null});
     });
   }
   window.__rdMasterOrdersRefresh=()=>{
@@ -656,9 +746,9 @@
   };
   window.__rdPaymentsRender=ownerPayments;
   window.__rdResetMoneyViews=()=>{
+    window.__rdCloseCashbookDialog();
     ownerView?.panel.replaceChildren();ownerView=null;
     for(const id of ["mwMasterReports","mwMasterPayments"])$(id)?.replaceChildren();
-    for(const modal of document.querySelectorAll(".mw-modal-backdrop"))modal.remove();
     masterPaymentSignature=null;masterProfitReport=null;masterPayrollReport=null;navigationUser=null;
     paymentBreakdownOpen=false;
     scrollPositions.clear();

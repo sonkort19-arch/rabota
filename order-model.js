@@ -134,7 +134,11 @@ function orderHasFinancialHistory(order){
       const {completed_at,...payload}=data;
       return payload;
     }
-    async function createOrder(data,{attempt,beforeWrite}){
+    async function finishWriteIntent(intents,intent){
+      try{await intents.finish(intent);}
+      catch(error){console.warn("Could not clear the local order operation identifier",error);}
+    }
+    async function createOrder(data,{attempt,beforeWrite,createChoice}){
       const actor=getCurrentUserId(),scope=getScope();
       if(!actor||!writeIntents)throw new Error("Сохранение заказа недоступно. Обновите CRM.");
       const sameAccount=()=>{
@@ -142,7 +146,20 @@ function orderHasFinancialHistory(order){
           throw new Error("Сеанс изменился. Проверьте заказ после входа.");
       };
       const payload=createPayload(data);
-      const intent=await writeIntents.get(actor,payload,{expectedKey:attempt?.key});
+      const pending=await writeIntents.find(actor,payload);
+      const selected=attempt?.intent||createChoice?.previous;
+      let intent;
+      if(selected){
+        intent=pending.find(item=>item.key===selected.key&&item.requestId===selected.requestId);
+        if(!intent)throw new Error("Проверьте предыдущую операцию перед изменением реквизитов.");
+      }else if(pending.length&&!createChoice?.separate){
+        throw Object.assign(new Error("Есть попытка сохранения заказа с такими же данными. Выберите действие."),
+          {code:"ORDER_CREATE_PENDING",pending});
+      }else{
+        // Persist the retry identifier before any request can send this order.
+        sameAccount();
+        intent=await writeIntents.begin(actor,payload);
+      }
       sameAccount();
       const id=intent.requestId;
       const validReceipt=rows=>Array.isArray(rows)&&rows.length===1&&rows[0]?.id===id;
@@ -158,16 +175,20 @@ function orderHasFinancialHistory(order){
         return row.id;
       };
       const confirmed=async()=>{
-        await writeIntents.finish(intent);
-        if(attempt)delete attempt.key;
+        await finishWriteIntent(writeIntents,intent);
+        sameAccount();
+        if(attempt)delete attempt.intent;
         return id;
       };
       if(intent.reused){
-        if(attempt)attempt.key=intent.key;
+        if(attempt)attempt.intent=intent;
         if(await lookup())return confirmed();
       }
-      if(beforeWrite&&!beforeWrite(id))return null;
-      if(attempt)attempt.key=intent.key;
+      if(beforeWrite&&!beforeWrite(id)){
+        if(!intent.reused)await finishWriteIntent(writeIntents,intent);
+        return null;
+      }
+      if(attempt)attempt.intent=intent;
       let error;
       try {
         sameAccount();
@@ -177,12 +198,16 @@ function orderHasFinancialHistory(order){
       }catch(cause){sameAccount();error=cause;}
       const rejected=error?.status>=400&&error.status<500&&error.status!==408;
       if(rejected&&!intent.reused&&error.code!=="23505"){
-        if(attempt)delete attempt.key;
+        await finishWriteIntent(writeIntents,intent);
+        if(attempt)delete attempt.intent;
         throw error;
       }
       const receipt=await lookup();
       if(receipt)return confirmed();
-      if(rejected&&!intent.reused&&receipt===null&&attempt)delete attempt.key;
+      if(rejected&&!intent.reused&&receipt===null){
+        await finishWriteIntent(writeIntents,intent);
+        if(attempt)delete attempt.intent;
+      }
       if(rejected&&receipt===null)throw error;
       throw new Error("Сохранение заказа не подтверждено. Повторите сохранение с теми же данными после восстановления связи.",{cause:error});
     }
@@ -236,12 +261,12 @@ function orderHasFinancialHistory(order){
       if(Object.keys(remaining).length&&!await patch(latest.updatedAt,remaining))throw conflict();
       return id;
     }
-    async function persistOrder(order,{refresh=true,statusOnly=false,attempt,beforeWrite,base,resolution}={}) {
+    async function persistOrder(order,{refresh=true,statusOnly=false,attempt,beforeWrite,base,resolution,createChoice}={}) {
       let orderId;
       if(order.id){
         orderId=await updateOrder(order,{base,statusOnly,beforeWrite,resolution});
       }else{
-        orderId=await createOrder(serializeOrder(order),{attempt,beforeWrite});
+        orderId=await createOrder(serializeOrder(order),{attempt,beforeWrite,createChoice});
       }
       if(!orderId)return null;
       if(!refresh)return {orderId,refreshError:null};
@@ -371,13 +396,13 @@ function orderHasFinancialHistory(order){
              typeof receipt.refunded_at!=="string"||!Number.isFinite(Date.parse(receipt.refunded_at))||
              typeof receipt.replayed!=="boolean")
             throw new Error("Сервер пока не подтвердил возврат. Проверьте его с теми же реквизитами.");
-          await refundIntents.finish(intent);
+          await finishWriteIntent(refundIntents,intent);
           ensureAccount();
           attempt.receipt=receipt;
           return receipt;
         }catch(error){
           if(generation===paymentGeneration&&error.status>=400&&error.status<500&&error.status!==408){
-            if(!intent.reused&&error.code!=="23505")await refundIntents.finish(intent);
+            if(!intent.reused&&error.code!=="23505")await finishWriteIntent(refundIntents,intent);
             refundAttempts.delete(id);
           }
           throw error;

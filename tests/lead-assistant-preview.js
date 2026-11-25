@@ -225,6 +225,58 @@ test("both conversion actions pass only an agreed full lead price",async()=>{
     assert.equal(f.calls.filter(call=>call.method!=="GET").length,0);
   }
 });
+test("changing lead pricing inputs invalidates the earlier agreement until confirmed again",async()=>{
+  const f=setup({initialRows:[{...row("ready","Тестовый лид"),status:"ready",material:"Биметаллические",
+    radiators:8,loops:0,price_agreed:true}]});
+  const emitted=[];
+  f.window.__rdLeadOpenOrder=lead=>emitted.push(lead);
+  await f.window.__rdLeadsRender();
+  await f.button("В заказ").click();
+  assert.equal(emitted.at(-1).price,16000);
+  await f.button("Открыть").click();
+
+  const checkbox=()=>f.root.querySelector("#laPriceAgreed");
+  assert.equal(checkbox().checked,true);
+  await f.type("5","8");
+  await f.type("Имя клиента","Уточнённое имя");
+  assert.equal(checkbox().checked,true,"same count and unrelated fields preserve confirmation");
+  await f.type("5","10");
+  assert.equal(checkbox().checked,false);
+  await f.button("Перевести в заказ").click();
+  assert.equal(emitted.at(-1).price,null);
+  await f.button("Сохранить изменения").click();
+  assert.equal(f.rows[0].radiators,10);
+  assert.equal(f.rows[0].price_agreed,false);
+  await f.button("В заказ").click();
+  assert.equal(emitted.at(-1).price,null);
+
+  await f.button("Открыть").click();
+  checkbox().checked=true;
+  await checkbox().fire("change");
+  await f.button("Перевести в заказ").click();
+  assert.equal(emitted.at(-1).price,20000);
+  await f.type("1","2");
+  assert.equal(checkbox().checked,false);
+  checkbox().checked=true;
+  await checkbox().fire("change");
+  const material=f.root.querySelectorAll("select").find(select=>select.value==="Биметаллические");
+  material.value="Алюминиевые";
+  await material.fire("change");
+  assert.equal(checkbox().checked,false);
+});
+test("filling absent price inputs from lead notes needs a fresh agreement",async()=>{
+  const f=setup({initialRows:[{...row("ready","Тестовый лид"),status:"ready",material:"Биметаллические",
+    radiators:8,loops:null,price_agreed:true,notes:"2 контура"}]});
+  const emitted=[];
+  f.window.__rdLeadOpenOrder=lead=>emitted.push(lead);
+  await f.window.__rdLeadsRender();
+  await f.button("Открыть").click();
+  await f.button("Разобрать заметку").click();
+  assert.equal(f.root.querySelector("#laPriceAgreed").checked,false);
+  await f.button("Перевести в заказ").click();
+  assert.equal(emitted.at(-1).loops,"2");
+  assert.equal(emitted.at(-1).price,null);
+});
 test("failed background read retains the list and retries without another render when unchanged",async()=>{
   const f=setup({initialRows:[row("one","Сохранённый список")]});
   await f.window.__rdLeadsRender();

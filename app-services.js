@@ -31,54 +31,66 @@
       return Boolean(previousIdentity&&previousIdentity===identity(newToken));
     }catch(error){return false;}
   }
-  function createWriteIntents(namespace,{
-    getStorage=()=>root?.localStorage,
-    crypto=root?.crypto,
-    locks=root?.navigator?.locks
-  }={}){
-    const pending=new Map();
+  function createWriteIntents(namespace,{getStorage=()=>root?.sessionStorage,crypto=root?.crypto}={}){
     const uuid=/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i;
-    const exclusive=(key,callback)=>locks?.request?locks.request(key,callback):callback();
-    async function get(actor,payload,{expectedKey}={}){
+    async function storageKey(actor,payload){
       if(!actor||!crypto?.subtle||typeof crypto.randomUUID!=="function")
         throw new Error("Не удалось создать номер операции.");
       const bytes=new TextEncoder().encode(JSON.stringify([actor,payload]));
       const digest=await crypto.subtle.digest("SHA-256",bytes);
       const fingerprint=Array.from(new Uint8Array(digest),byte=>byte.toString(16).padStart(2,"0")).join("");
-      const key="rabota-write-intent-v1."+namespace+"."+fingerprint;
+      return "rabota-write-intent-v2."+namespace+"."+fingerprint;
+    }
+    function withStorage(work){
+      try{return work(getStorage());}
+      catch(cause){
+        const error=new Error("Запись не отправлена. Не удалось сохранить номер операции в этой вкладке. Освободите место и повторите.",{cause});
+        error.code="WRITE_INTENT_STORAGE";
+        throw error;
+      }
+    }
+    function readIds(storage,key){
+      const saved=storage.getItem(key);
+      if(saved===null||saved===undefined)return [];
+      const ids=JSON.parse(saved);
+      if(!Array.isArray(ids)||ids.some(id=>typeof id!=="string"||!uuid.test(id)))
+        throw Error("Invalid write intent record");
+      return ids;
+    }
+    function add(storage,key,ids){
+      const requestId=crypto.randomUUID();
+      const saved=JSON.stringify([...ids,requestId]);
+      storage.setItem(key,saved);
+      if(storage.getItem(key)!==saved)throw Error("Write intent was not persisted");
+      return {key,requestId,reused:false};
+    }
+    async function find(actor,payload){
+      const key=await storageKey(actor,payload);
+      return withStorage(storage=>readIds(storage,key).map(requestId=>({key,requestId,reused:true})));
+    }
+    async function begin(actor,payload){
+      const key=await storageKey(actor,payload);
+      return withStorage(storage=>add(storage,key,readIds(storage,key)));
+    }
+    async function get(actor,payload,{expectedKey}={}){
+      const key=await storageKey(actor,payload);
       if(expectedKey&&expectedKey!==key)
         throw new Error("Проверьте предыдущую операцию перед изменением реквизитов.");
-      return exclusive(key,()=>{
-        let requestId=pending.get(key);
-        let reused=Boolean(requestId);
-        try{
-          const storage=getStorage();
-          if(storage){
-            const stored=storage.getItem(key);
-            if(uuid.test(stored||"")){requestId=stored;reused=true;}
-            requestId??=crypto.randomUUID();
-            storage.setItem(key,requestId);
-            pending.delete(key);
-            return {key,requestId,reused};
-          }
-        }catch{}
-        requestId??=crypto.randomUUID();
-        pending.set(key,requestId);
-        return {key,requestId,reused};
+      return withStorage(storage=>{
+        const ids=readIds(storage,key);
+        if(ids.length)return {key,requestId:ids[0],reused:true};
+        return add(storage,key,ids);
       });
     }
-    function finish({key,requestId}){
-      const clear=()=>{
-        if(pending.get(key)===requestId)pending.delete(key);
-        try{
-          const storage=getStorage();
-          if(storage?.getItem(key)===requestId)storage.removeItem(key);
-        }catch{}
-      };
-      try{return Promise.resolve(exclusive(key,clear)).catch(clear);}
-      catch{clear();}
+    async function finish({key,requestId}){
+      const storage=getStorage();
+      const ids=readIds(storage,key);
+      const remaining=ids.filter(id=>id!==requestId);
+      if(remaining.length===ids.length)return;
+      if(remaining.length)storage.setItem(key,JSON.stringify(remaining));
+      else storage.removeItem(key);
     }
-    return {get,finish};
+    return {get,find,begin,finish};
   }
   function focusModal(overlay,dialog,onCancel,{opener=dialog.ownerDocument.activeElement,initial=dialog}={}){
     const doc=dialog.ownerDocument;
@@ -164,7 +176,9 @@
     }
     async function dbRequest(path,method,payload,{signal}={}){
       const scope=getScope();
+      signal?.throwIfAborted();
       await ensureSession();
+      signal?.throwIfAborted();
       const session=getSession();
       if(scope!==getScope()||!session?.access_token)
         throw new Error("Сеанс изменился. Повторите действие.");
