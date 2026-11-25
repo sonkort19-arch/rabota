@@ -14,8 +14,10 @@
   function fullyPaidAmount(order){
     if(order?.paid!==true||order.status!=="Выполнен")return null;
     const price=monetaryValue(order.price);
+    const travel=monetaryValue(order.travelAmount??0);
     const payment=monetaryValue(order.paymentAmount);
-    return payment>0&&payment===price?payment:null;
+    return price!==null&&price>=0&&travel!==null&&travel>=0&&payment>0&&
+      payment===roundMoney(price+travel)?payment:null;
   }
   function payrollSplitV3(actualPaid){
     const payment=monetaryValue(actualPaid);
@@ -37,16 +39,20 @@
     if(receiptsRaw==null&&payoutsRaw==null&&!hasRefunds)return {accountingVersion:1};
     if(!Array.isArray(receiptsRaw)||(payoutsRaw!=null&&!Array.isArray(payoutsRaw)))
       throw Error("Сервер вернул неполный журнал учёта.");
-    const receiptAmounts=new Map();
+    const receiptByOrder=new Map();
     const receipts=receiptsRaw.map(row=>{
       const {order_id:orderId,master_id:masterId,payment_method:method,paid_at:paidAt,occurred_at:occurredAt}=row??{};
       const amount=monetaryValue(row?.amount);
-      if(typeof orderId!=="string"||!orderId||receiptAmounts.has(orderId)||amount===null||amount<=0||
+      const travelAmount=Object.hasOwn(row??{},"travel_amount")?monetaryValue(row.travel_amount):undefined;
+      if(typeof orderId!=="string"||!orderId||receiptByOrder.has(orderId)||amount===null||amount<=0||
+         travelAmount===null||travelAmount<0||travelAmount>amount||
          !Object.hasOwn(row??{},"master_id")||
          (masterId!=null&&(typeof masterId!=="string"||!masterId)))
         throw Error("Сервер вернул неверную запись поступления.");
-      receiptAmounts.set(orderId,amount);
-      return {orderId,masterId:masterId??null,amount,method:method??null,paidAt:paidAt??null,occurredAt:occurredAt??null};
+      const receipt={orderId,masterId:masterId??null,amount,method:method??null,paidAt:paidAt??null,occurredAt:occurredAt??null};
+      if(travelAmount!==undefined)receipt.travelAmount=travelAmount;
+      receiptByOrder.set(orderId,receipt);
+      return receipt;
     });
     const payoutIds=new Set();
     const payouts=payoutsRaw?.map(row=>{
@@ -65,16 +71,46 @@
       accounting.refunds=snapshot.accounting_refunds.map(row=>{
         const {order_id:orderId,refunded_at:occurredAt}=row??{};
         const amount=monetaryValue(row?.amount);
+        const travelAmount=Object.hasOwn(row??{},"travel_amount")?monetaryValue(row.travel_amount):undefined;
         if(typeof orderId!=="string"||!orderId||orderIds.has(orderId)||amount===null||amount<=0||
+           travelAmount===null||travelAmount<0||travelAmount>amount||
            typeof occurredAt!=="string"||!Number.isFinite(Date.parse(occurredAt)))
           throw Error("Сервер вернул неверную запись учтённого возврата.");
-        if(receiptAmounts.get(orderId)!==amount)
+        const receipt=receiptByOrder.get(orderId);
+        if(receipt?.amount!==amount||(receipt?.travelAmount??0)!==(travelAmount??0))
           throw Error("Сервер вернул возврат без соответствующего поступления.");
         orderIds.add(orderId);
-        return {orderId,amount,occurredAt};
+        return travelAmount===undefined?{orderId,amount,occurredAt}:{orderId,amount,occurredAt,travelAmount};
       });
     }
     return {accountingVersion:1,accounting};
+  }
+  function normalizeTravelPayroll(snapshot,earned,paid,due){
+    const fields=["travel_events","travel_earned","balance","overpaid"];
+    if(!fields.some(field=>Object.hasOwn(snapshot,field))){
+      if(roundMoney(earned-paid)!==due)throw Error("Сервер вернул неверную сумму зарплаты.");
+      return {};
+    }
+    const travelEarned=monetaryValue(snapshot.travel_earned);
+    const balance=monetaryValue(snapshot.balance),overpaid=monetaryValue(snapshot.overpaid);
+    if(!Array.isArray(snapshot.travel_events)||travelEarned===null||travelEarned<0||travelEarned>earned||
+       balance===null||overpaid===null||balance!==roundMoney(earned-paid)||
+       due!==Math.max(0,balance)||overpaid!==Math.max(0,-balance))
+      throw Error("Сервер вернул неверную сумму зарплаты с доплатой за дорогу.");
+    const ids=new Set();
+    const travelHistory=snapshot.travel_events.map(row=>{
+      const {id,order_id:orderId,order_number:orderNumber,occurred_at:occurredAt}=row??{};
+      const delta=monetaryValue(row?.delta);
+      if(typeof id!=="string"||!id||ids.has(id)||typeof orderId!=="string"||!orderId||
+         delta===null||delta===0||typeof occurredAt!=="string"||!Number.isFinite(Date.parse(occurredAt))||
+         orderNumber!=null&&(!Number.isSafeInteger(orderNumber)||orderNumber<=0))
+        throw Error("Сервер вернул неверное начисление за дорогу.");
+      ids.add(id);
+      return {id,orderId,orderNumber:orderNumber??null,delta,occurredAt};
+    });
+    if(roundMoney(sumBy(travelHistory,row=>row.delta))!==travelEarned)
+      throw Error("Сервер вернул несогласованный итог начислений за дорогу.");
+    return {travelHistory,travelEarned,baseEarned:roundMoney(earned-travelEarned),balance,overpaid};
   }
   function normalizePayrollSnapshot(snapshot){
     const {version,state,master_id:masterId,activated_at:activatedAt}=snapshot??{};
@@ -86,8 +122,9 @@
        !Array.isArray(snapshot.orders)||!Array.isArray(snapshot.payouts))
       throw Error("Сервер вернул неполный расчёт зарплаты.");
     const earned=monetaryValue(snapshot.earned),paid=monetaryValue(snapshot.paid),due=monetaryValue(snapshot.due);
-    if(earned===null||paid===null||due===null||earned<0||paid<0||roundMoney(earned-paid)!==due)
+    if(earned===null||paid===null||due===null||earned<0||paid<0)
       throw Error("Сервер вернул неверную сумму зарплаты.");
+    const travel=normalizeTravelPayroll(snapshot,earned,paid,due);
     const orderIds=new Set();
     const orders=snapshot.orders.map(row=>{
       const {order_id:orderId,earned_at:earnedAt,rule_version:ruleVersion}=row??{};
@@ -156,11 +193,11 @@
           throw Error("Сервер вернул возврат без соответствующего поступления.");
       for(const order of orders){
         const receipt=receiptsByOrder.get(order.orderId);
-        if(!receipt||receipt.amount!==order.actualPaid||receipt.masterId!==masterId)
+        if(!receipt||roundMoney(receipt.amount-(receipt.travelAmount??0))!==order.actualPaid||receipt.masterId!==masterId)
           throw Error("Сервер вернул начисление без соответствующего поступления.");
       }
     }
-    return {version,state,masterId,activatedAt,earned,paid,due,orders,payouts,refunds,holds,...accounting};
+    return {version,state,masterId,activatedAt,earned,paid,due,orders,payouts,refunds,holds,...travel,...accounting};
   }
   async function readPayrollSnapshot(dbRequest){
     let snapshot;
@@ -180,9 +217,11 @@
     const receiptByOrder=new Map(receipts.map(row=>[row.orderId,row]));
     const payrollByOrder=new Map(payroll.orders.map(row=>[row.orderId,row]));
     const heldOrders=new Set(payroll.holds.filter(row=>row.payrollOnHold).map(row=>row.orderId));
-    const refunds=(account.refunds??payroll.refunds).map(refund=>({
-      ...refund,method:receiptByOrder.get(refund.orderId).method
-    }));
+    const refunds=(account.refunds??payroll.refunds).map(refund=>{
+      const receipt=receiptByOrder.get(refund.orderId);
+      return {...refund,method:receipt.method,
+        ...(receipt.travelAmount!==undefined?{travelAmount:receipt.travelAmount}:{})};
+    });
     const refundedOrders=new Set(refunds.map(row=>row.orderId));
     const receiptByMethod={cash:0,card:0,unknown:0},refundByMethod={cash:0,card:0,unknown:0};
     const method=row=>row.method==="cash"||row.method==="card"?row.method:"unknown";
@@ -197,10 +236,11 @@
     for(const receipt of receipts){
       if(refundedOrders.has(receipt.orderId))continue;
       const projection=payrollByOrder.get(receipt.orderId);
+      const washAmount=roundMoney(receipt.amount-(receipt.travelAmount??0));
       const companyShare=heldOrders.has(receipt.orderId)?null:
-        projection?.companyShare??(receipt.masterId===payroll.masterId?null:receipt.amount);
+        projection?.companyShare??(receipt.masterId===payroll.masterId?null:washAmount);
       orderShares.push({orderId:receipt.orderId,companyShare,
-        payrollCost:companyShare===null?null:roundMoney(receipt.amount-companyShare)});
+        payrollCost:companyShare===null?null:roundMoney(washAmount-companyShare)});
     }
     const expenses=[];
     for(const row of new Map(operations.map(operation=>[operation.id,operation])).values()){
@@ -228,11 +268,17 @@
     const expenseTotal=roundMoney(sumBy(expenses,row=>row.voidedAt?0:row.amount));
     const companyShare=roundMoney(sumBy(orderShares,row=>row.companyShare));
     const unverifiedMarginCount=orderShares.filter(row=>row.companyShare===null).length;
+    const travelReceiptTotal=roundMoney(sumBy(receipts,row=>row.travelAmount));
+    const travelRefundTotal=roundMoney(sumBy(refunds,row=>row.travelAmount));
+    const netTravelReceiptTotal=roundMoney(travelReceiptTotal-travelRefundTotal);
+    const travelAccrual=payroll.travelEarned??0;
+    const uncoveredTravel=Math.max(0,roundMoney(travelAccrual-netTravelReceiptTotal));
     return {
       receipts,refunds,payouts,expenses,manualEntries:manual,orderShares,
       receiptTotal,refundTotal,netReceiptTotal,receiptByMethod,netReceiptByMethod,payoutTotal,expenseTotal,
       manualIncome,manualExpense,recordedNet:roundMoney(netReceiptTotal+manualIncome-payoutTotal-expenseTotal-manualExpense),
-      companyShare,companyProfit:roundMoney(companyShare-expenseTotal-manualExpense),
+      travelReceiptTotal,travelRefundTotal,netTravelReceiptTotal,travelAccrual,uncoveredTravel,
+      companyShare,companyProfit:roundMoney(companyShare-expenseTotal-manualExpense-uncoveredTravel),
       unverifiedMarginCount
     };
   }

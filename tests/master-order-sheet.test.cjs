@@ -4,6 +4,8 @@ const test=require("node:test");
 const assert=require("node:assert/strict");
 const fs=require("node:fs");
 const path=require("node:path");
+const {orderCustomerTotal,travelAmount,travelOutcomeLabel}=require("../order-model.js");
+const {money}=require("../finance-model.js");
 const root=path.resolve(__dirname,"..");
 const html=fs.readFileSync(path.join(root,"index.html"),"utf8");
 const css=fs.readFileSync(path.join(root,"master-order-sheet.css"),"utf8");
@@ -34,9 +36,11 @@ function originalCard(order){
     card.append(make("button","primary master-action","Принять оплату"));
   return card;
 }
-const factory=new Function("make","makeCard","phoneForDisplay","window","currentRole",
+const factory=new Function("make","makeCard","phoneForDisplay","window","currentRole","money",
   html.slice(start,end)+"return {buildMasterSheetParts,masterSheetCount};")(
-    make,originalCard,phone=>phone,{__rdOrderNotes:{display:note=>note||""}},"master");
+    make,originalCard,phone=>phone,{__rdOrderNotes:{display:note=>note||""},
+      __rdOrderCustomerTotal:orderCustomerTotal,__rdTravelAmount:travelAmount,
+      __rdTravelOutcomeLabel:travelOutcomeLabel},"master",money);
 const textValues=element=>element.all().map(node=>node.textContent.replace(/[\u00A0\u202F]/g," ")).filter(Boolean);
 test("reference design keeps exactly one customer title, price and action set",()=>{
   const order={name:"Мадина",phone:"89188228825",address:"Ардонская 196 кв 16",
@@ -49,6 +53,14 @@ test("reference design keeps exactly one customer title, price and action set",(
     "8 контуров пола","Стоимость заказа"])
     assert.ok(body.includes(item),item);
   assert.deepEqual(buttons,["Позвонить","WhatsApp","Маршрут","Принять заказ"]);
+});
+test("the master sees a separate road amount, outcome and total for the customer",()=>{
+  const result=factory.buildMasterSheetParts({price:10000,travelAmount:1000,travelTaken:false,status:"Отменён"});
+  const body=textValues(result.details);
+  assert.ok(body.includes("Промывка — 10 000 ₽"));
+  assert.ok(body.includes("Дорога — 1 000 ₽ · поездки не было"));
+  assert.ok(body.includes("Итого для клиента"));
+  assert.ok(body.includes("11 000 ₽"));
 });
 test("the sheet keeps completion, unpaid payment, price and notes accessible",()=>{
   const active=factory.buildMasterSheetParts({status:"В работе",price:24000,details:"Позвонить перед выездом"});
@@ -71,7 +83,7 @@ test("master-only sheet has accessible copy icon and iOS bottom actions",()=>{
   assert.match(html,/copyBtn\.setAttribute\("aria-live","polite"\)/);
   assert.match(html,/footer\.replaceChildren\(parts\.footer\)/);
   assert.match(html,/makeCard\(order\)/);
-  assert.match(html,/href="\/master-order-sheet\.css\?v=20261117-icon-align-v2"/);
+  assert.match(html,/href="\/master-order-sheet\.css\?v=[^"]+"/);
   assert.match(css,/\.master-order-sheet \.master-sheet-shortcuts\.actions > a/);
   assert.match(css,/\.master-order-sheet \.master-action\.primary/);
   assert.match(css,/env\(safe-area-inset-bottom\)/);

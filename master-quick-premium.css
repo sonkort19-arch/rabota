@@ -45,7 +45,7 @@ body.rd #orderOverlay.master-quick #orderForm .mq-client-field .mq-trailing-icon
   display:none;
 }
 body.rd #orderOverlay.master-quick #orderForm .order-form-scroll .mq-client-field label{
-  top:5px;left:12px;width:calc(100% - 20px);font-size:11px;
+  top:5px;left:12px;right:8px;width:auto;font-size:11px;
 }
 body.rd #orderOverlay.master-quick #orderForm .order-form-scroll .mq-client-field input{
   width:100%;height:49px;min-height:49px;padding:18px 9px 4px 12px;
@@ -81,16 +81,16 @@ body.rd #orderOverlay.master-quick #orderForm .mq-price-wrap{
   height:49px;border-radius:11px;
 }
 body.rd #orderOverlay.master-quick #orderForm .mq-price-icon{
-  width:18px;height:18px;left:12px;
+  width:16px;height:16px;left:9px;
 }
 body.rd #orderOverlay.master-quick #orderForm .order-form-scroll .mq-price-wrap label{
-  top:4px;left:39px;font-size:11px;
+  top:4px;left:31px;font-size:11px;
 }
 body.rd #orderOverlay.master-quick #orderForm .order-form-scroll .mq-price-wrap input{
-  height:47px;min-height:47px;padding:18px 32px 4px 39px;font-size:18px;
+  height:47px;min-height:47px;padding:18px 21px 4px 31px;font-size:16px;
 }
 body.rd #orderOverlay.master-quick #orderForm .mq-price-ruble{
-  bottom:8px;right:13px;font-size:17px;
+  bottom:8px;right:9px;font-size:16px;
 }
 body.rd #orderOverlay.master-quick #orderForm #oaToggle{
   min-height:48px;padding:5px 9px;border-radius:11px;
@@ -156,7 +156,7 @@ body.rd #orderOverlay.master-quick #orderForm .order-submit-bar .save{
 }
 @media(min-width:580px){
   body.rd #orderOverlay.master-quick #orderForm .order-core-grid{
-    grid-template-columns:minmax(0,1fr) minmax(0,1fr) minmax(0,.95fr);
+    grid-template-columns:repeat(4,minmax(0,1fr));
   }
   body.rd #orderOverlay.master-quick #orderForm .mq-price-field{grid-column:auto}
 }

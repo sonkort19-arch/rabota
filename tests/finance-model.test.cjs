@@ -35,9 +35,62 @@ test("canonical payroll pays Raul 50% plus 1500 rubles with PostgreSQL cent roun
 test("unpaid, partial, missing or unfinished payments do not qualify as full",()=>{
   const order={status:"Выполнен",paid:true,price:10000,paymentAmount:10000};
   assert.equal(fullyPaidAmount(order),10000);
+  assert.equal(fullyPaidAmount({...order,travelAmount:1000}),null);
+  assert.equal(fullyPaidAmount({...order,travelAmount:1000,paymentAmount:11000}),11000);
   for(const change of [{paymentAmount:9999.99},{paymentAmount:10000.01},{paymentAmount:null},
     {paymentAmount:""},{status:"В работе"},{paid:false},{paid:"false"},{paymentAmount:0,price:0}])
     assert.equal(fullyPaidAmount({...order,...change}),null,JSON.stringify(change));
+});
+
+test("travel receipts fund Raul's separate road accrual without increasing wash earnings or company share",()=>{
+  const travelEvent={id:"road-event",order_id:"road-order",order_number:14,delta:1000,occurred_at:"2026-11-25T09:00:00Z"};
+  const raw={version:3,state:"active",master_id:"raul",activated_at:"2026-11-24T20:00:00Z",
+    earned:7500,paid:0,due:7500,balance:7500,overpaid:0,travel_earned:1000,travel_events:[travelEvent],
+    orders:[{order_id:"road-order",paid_amount:10000,earned_amount:6500,company_share:3500}],payouts:[],
+    accounting_version:1,accounting_receipts:[{order_id:"road-order",master_id:"raul",amount:11000,
+      travel_amount:1000,payment_method:"cash"}],accounting_refunds:[],accounting_payouts:[]};
+  const snapshot=normalizePayrollSnapshot(raw);
+  assert.equal(snapshot.baseEarned,6500);
+  assert.equal(snapshot.travelEarned,1000);
+  assert.equal(snapshot.due,7500);
+  assert.deepEqual(snapshot.travelHistory,[{id:"road-event",orderId:"road-order",orderNumber:14,delta:1000,
+    occurredAt:"2026-11-25T09:00:00Z"}]);
+  const flow=calculateRecordedCashFlow({payroll:snapshot});
+  assert.equal(flow.receiptTotal,11000);
+  assert.equal(flow.travelReceiptTotal,1000);
+  assert.equal(flow.travelAccrual,1000);
+  assert.equal(flow.companyShare,3500);
+  assert.equal(flow.companyProfit,3500);
+  assert.deepEqual(flow.orderShares,[{orderId:"road-order",companyShare:3500,payrollCost:6500}]);
+
+  const refunded=normalizePayrollSnapshot({...raw,earned:1000,due:1000,balance:1000,orders:[],
+    accounting_refunds:[{order_id:"road-order",amount:11000,travel_amount:1000,refunded_at:"2026-11-25T10:00:00Z"}]});
+  const flowAfterRefund=calculateRecordedCashFlow({payroll:refunded});
+  assert.equal(flowAfterRefund.netReceiptTotal,0);
+  assert.equal(flowAfterRefund.netTravelReceiptTotal,0);
+  assert.equal(flowAfterRefund.travelAccrual,1000);
+  assert.equal(flowAfterRefund.uncoveredTravel,1000);
+  assert.equal(flowAfterRefund.companyProfit,-1000);
+  assert.equal(flowAfterRefund.recordedNet,0,"uncashed accrual is not a paid expense from the till");
+  assert.throws(()=>normalizePayrollSnapshot({...raw,travel_earned:900}),/несогласованный итог/);
+  assert.throws(()=>normalizePayrollSnapshot({...raw,accounting_refunds:[{order_id:"road-order",amount:11000,
+    travel_amount:999,refunded_at:"2026-11-25T10:00:00Z"}]}),/без соответствующего поступления/);
+});
+
+test("waiving an already settled travel allowance keeps the payout and the signed overpayment",()=>{
+  const base={version:3,state:"active",master_id:"raul",activated_at:"2026-11-24T20:00:00Z",earned:0,paid:1000,
+    due:0,balance:-1000,overpaid:1000,travel_earned:0,orders:[],
+    payouts:[{id:"road-paid",amount:1000}],travel_events:[
+      {id:"road-credit",order_id:"road-order",order_number:14,delta:1000,occurred_at:"2026-11-25T09:00:00Z"},
+      {id:"road-waived",order_id:"road-order",order_number:14,delta:-1000,occurred_at:"2026-11-25T09:05:00Z"}]};
+  const snapshot=normalizePayrollSnapshot(base);
+  assert.equal(snapshot.balance,-1000);
+  assert.equal(snapshot.due,0);
+  assert.equal(snapshot.overpaid,1000);
+  assert.equal(snapshot.payouts[0].amount,1000);
+  assert.deepEqual(snapshot.travelHistory.map(event=>event.delta),[1000,-1000]);
+  assert.throws(()=>normalizePayrollSnapshot({...base,due:-1000}),/неверную сумму зарплаты/);
+  assert.throws(()=>normalizePayrollSnapshot({...base,travel_events:[base.travel_events[0],base.travel_events[0]]}),/неверное начисление/);
 });
 test("v3 payroll uses the server snapshot, with explicit compatibility and fail-closed errors",async()=>{
   const active={

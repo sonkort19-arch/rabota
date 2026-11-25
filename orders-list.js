@@ -70,13 +70,14 @@
     return row;
   }
   function paymentCaption(order){
-    const refund=window.__rdPayrollSnapshot?.()?.refunds?.find(record=>record.orderId===String(order.id));
+    const snapshot=window.__rdPayrollSnapshot?.();
+    const refund=(snapshot?.accounting?.refunds??snapshot?.refunds)?.find(record=>record.orderId===String(order.id));
     if(refund&&order.status==="Отменён")
       return text("span","Возврат учтён · "+formatMoney(refund.amount),"rd-order-payment-state");
     if(order.status!=="Выполнен")return null;
     if(order.paid&&window.__rdPayrollMode?.()==="v3"){
       const amount=window.__rdPayableOrderAmount(order.paymentAmount);
-      if(amount===null||amount!==window.__rdPayableOrderAmount(order.price))
+      if(amount===null||amount!==window.__rdPayableOrderTotal(order))
         return text("span","Оплата требует сверки","rd-order-payment-state is-unpaid");
     }
     return text("span",order.paid?
@@ -105,16 +106,26 @@
       if(referenceRow)referenceSlot.append(referenceRow);
     }
     const state=text("span",order.status||"Записан","rd-order-state "+(colorByStatus[order.status]||"s-booked"));
-    const price=text("strong",formatMoney(order.price),"rd-order-total");
+    const travel=window.__rdTravelAmount(order.travelAmount);
+    const customerTotal=window.__rdOrderCustomerTotal(order);
+    const price=text("strong",formatMoney(customerTotal),"rd-order-total");
     const heading=text("div","","rd-order-summary");
-    heading.append(state,price);
+    heading.append(state);
+    if(travel>0){
+      const totalGroup=text("div","","rd-order-total-group");
+      totalGroup.append(text("span","Итого для клиента","rd-order-total-label"),price);
+      heading.append(totalGroup);
+    }else heading.append(price);
     const payment=paymentCaption(order);
     if(payment)heading.append(payment);
     inside.append(heading);
     const entries=text("div","","rd-order-attributes");
+    const travelOutcome=window.__rdTravelOutcomeLabel(order);
     const radiator=(order.radiators!==""&&order.radiators!=null?order.radiators+" шт.":"")+
       (order.radiatorType?(order.radiators!==""&&order.radiators!=null?" · ":"")+order.radiatorType:"");
     const attrs=[
+      travel>0?labeledRow("Промывка",formatMoney(order.price)):null,
+      travel>0?labeledRow("Дорога",formatMoney(travel)+(travelOutcome?" · "+travelOutcome:"")):null,
       labeledRow("Адрес",order.address),
       labeledRow("Радиаторы",radiator),
       labeledRow("Тёплый пол",order.floorLoops!==""&&order.floorLoops!=null?order.floorLoops+" контур(ов)":""),
@@ -290,9 +301,10 @@
       text("strong",order.date?compactDate(order.date):"Без даты"),
       text("small",order.time||"Время не указано"));
     const master=cell("master",text("small","Мастер"),text("strong",order.master||"Не назначен"));
-    const cost=cell("price",text("small","Стоимость"),text("strong",formatMoney(order.price)));
+    const total=formatMoney(window.__rdOrderCustomerTotal(order));
+    const cost=cell("price",text("small",window.__rdTravelAmount(order.travelAmount)>0?"Итого":"Стоимость"),text("strong",total));
     const meta=cell("meta",
-      text("span",(order.master||"Не назначен")+" · "+formatMoney(order.price),"rd-list-meta-text"));
+      text("span",(order.master||"Не назначен")+" · "+total,"rd-list-meta-text"));
     const state=cell("state",text("span",order.status||"Записан",
       "rd-list-status "+(colorByStatus[order.status]||"s-booked")));
     const paymentLabel=order.status==="Выполнен"?

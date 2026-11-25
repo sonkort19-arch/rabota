@@ -42,7 +42,7 @@ const payrollWithAccounting={
  ]
 };
 
-function fixture(t,{authorized=true,payroll=payrollWithAccounting,payrollError=null,orderData=orders}={}){
+function fixture(t,{authorized=true,payroll=payrollWithAccounting,payrollError=null,orderData=orders,proposal}={}){
  const oldKey=process.env.OPENAI_API_KEY;
  process.env.OPENAI_API_KEY="isolated-fixture";
  t.after(()=>{
@@ -54,9 +54,9 @@ function fixture(t,{authorized=true,payroll=payrollWithAccounting,payrollError=n
   const url=new URL(input);
   const table=url.pathname.split("/").at(-1);
   calls.push({url,table,options});
-  if(url.hostname==="api.openai.com")return Response.json({output:[
-   {type:"message",role:"assistant",content:[{type:"output_text",text:"Итог проверен"}]}
-  ]});
+  if(url.hostname==="api.openai.com")return Response.json({output:proposal?[{
+   type:"function_call",name:"prepare_order_action",arguments:JSON.stringify(proposal)
+  }]:[{type:"message",role:"assistant",content:[{type:"output_text",text:"Итог проверен"}]}]});
   assert.equal(options.headers.Authorization,"Bearer synthetic-owner-token");
   assert.equal(options.method,undefined);
   const authMembership=table==="rabota_members"&&url.searchParams.has("role");
@@ -148,6 +148,58 @@ test("AI records a verified refund once even while the raw order has the origina
  assert.equal(accounting.company_share_before_expenses,12000);
  assert.equal(accounting.company_profit_after_expenses,11200);
  assert.equal(summary.all_time.marked_paid_rub,26000);
+});
+
+test("AI includes travel once in paid totals and excludes it from wash earnings and company share",async t=>{
+ const payroll={...payrollWithAccounting,earned:7500,paid:2000,due:5500,balance:5500,overpaid:0,
+  travel_earned:1000,travel_events:[{id:"road",order_id:"direct",order_number:123,delta:1000,
+    occurred_at:"2026-11-25T16:00:00Z"}],holds:[],
+  accounting_receipts:[{...accountingReceipts[0],amount:11000,travel_amount:1000}],
+  accounting_payouts:[payrollWithAccounting.accounting_payouts[0]]};
+ const f=fixture(t,{payroll,orderData:[{...orders[0],travel_amount:1000}]});
+ await f.run({body:{messages:[{role:"user",content:"Покажи историю заказов и прибыль"}]}});
+ assert.equal(f.response.code,200);
+ const {summary}=aiContext(f);
+ const accounting=summary.accounting_rub;
+ assert.equal(accounting.net_order_receipts,11000);
+ assert.equal(accounting.net_travel_receipts,1000);
+ assert.equal(accounting.company_share_before_expenses,3500);
+ assert.equal(accounting.company_profit_after_expenses,2700);
+ assert.equal(accounting.raul_accrued,7500);
+ assert.equal(accounting.raul_wash_accrued,6500);
+ assert.equal(accounting.raul_travel_accrued,1000);
+ assert.equal(accounting.raul_paid,2000);
+ assert.equal(accounting.raul_balance,5500);
+ assert.equal(summary.all_time.marked_paid_rub,11000);
+ assert.equal(summary.all_time.marked_paid_travel_rub,1000);
+ const [order]=summary.order_examples;
+ assert.equal(order.wash_price_rub,10000);
+ assert.equal(order.travel_rub,1000);
+ assert.equal(order.customer_total_rub,11000);
+});
+
+test("AI order proposals keep explicit travel separate and reject invalid or move surcharges",async t=>{
+ const proposal={action:"create",client_name:"Тест",date:"2026-12-18",time:"17:30",master:"Рауль",
+  phone:"79000000000",price:10000,travel_amount:1000};
+ await t.test("valid create",async subtest=>{
+  const f=fixture(subtest,{proposal});
+  await f.run();
+  assert.equal(f.response.code,200);
+  assert.equal(f.response.payload.proposal.price,10000);
+  assert.equal(f.response.payload.proposal.travel_amount,1000);
+  const {request}=aiContext(f);
+  assert.match(request.instructions,/price означает только стоимость промывки/);
+  assert.equal(request.tools[0].parameters.properties.travel_amount.minimum,0);
+ });
+ for(const [name,changes] of [["move",{action:"move"}],["extra decimals",{travel_amount:1.001}],
+  ["negative",{travel_amount:-1}],["over the order limit",{price:10000000}]]){
+  await t.test(name,async subtest=>{
+   const f=fixture(subtest,{proposal:{...proposal,...changes}});
+   await f.run();
+   assert.equal(f.response.code,502);
+   assert.match(f.response.payload.error,/дорогу/);
+  });
+ }
 });
 
 test("AI counts a single fully refunded order as zero paid orders globally and for its assigned master",async t=>{

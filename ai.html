@@ -479,7 +479,13 @@ function setPendingDraft(draft){
    if(draft.address)lines.push("Адрес: "+draft.address);
    if(draft.radiators!=null)lines.push("Радиаторы: "+draft.radiators);
    if(draft.floor_loops!=null)lines.push("Контуры: "+draft.floor_loops);
-   if(draft.price!=null)lines.push("Стоимость: "+draft.price+" ₽");
+   const travel=Number(draft.travel_amount)||0;
+   if(travel>0){
+     const money=value=>Number(value).toLocaleString("ru-RU",{maximumFractionDigits:2})+" ₽";
+     lines.push("Стоимость промывки — "+(draft.price==null?"не указана":money(draft.price)));
+     lines.push("Дорога — "+money(travel));
+     if(draft.price!=null)lines.push("Итого клиенту — "+money(Number(draft.price)+travel));
+   }else if(draft.price!=null)lines.push("Стоимость: "+draft.price+" ₽");
    else lines.push("Стоимость: не указана");
    if(draft.details)lines.push("Комментарий: "+draft.details);
  }
@@ -508,11 +514,12 @@ $("confirmOrder").addEventListener("click",async()=>{
    p_draft_id:draft.draft_id,p_allow_tight_schedule:Boolean(draft.schedule_warning&&$("allowTightSchedule").checked)
   });
   if(!saved?.ok||!saved?.order_id)throw new Error("Нет подтверждения сохранения от базы.");
-  const rows=await db("rabota_orders?select=id,name,appointment_date,appointment_time,master,radiators,floor_loops,details&id=eq."+encodeURIComponent(saved.order_id));
+  const rows=await db("rabota_orders?select=id,name,appointment_date,appointment_time,master,radiators,floor_loops,details,travel_amount&id=eq."+encodeURIComponent(saved.order_id));
   const actual=rows?.[0];
   if(!actual||actual.appointment_date!==draft.date||String(actual.appointment_time||"").slice(0,5)!==draft.time||
    (draft.action==="create"&&((draft.radiators!=null&&actual.radiators!==draft.radiators)||
-    (draft.floor_loops!=null&&actual.floor_loops!==draft.floor_loops)))){
+    (draft.floor_loops!=null&&actual.floor_loops!==draft.floor_loops)||
+    Number(actual.travel_amount||0)!==Number(draft.travel_amount||0)))){
    throw new Error("Изменение выполнено, но не удалось подтвердить запись повторным чтением. Проверьте календарь.");
   }
   setPendingDraft(null);
@@ -579,11 +586,13 @@ async function send(event){
   if(!response.ok||!data.reply)throw new Error(data.error||"Ошибка сервера ИИ.");
   if(data.proposal){
     const p=data.proposal;
-    const draft=await db("rpc/rabota_ai_prepare_order_v2","POST",{
+    const withTravel=p.action==="create"&&p.travel_amount>0;
+    const draft=await db(withTravel?"rpc/rabota_ai_prepare_order_v3":"rpc/rabota_ai_prepare_order_v2","POST",{
       p_action:p.action,p_client_name:p.client_name,p_date:p.date,p_time:p.time,
       p_master:p.master,p_phone:p.phone,p_address:p.address,p_price:p.price,
       p_details:p.details,p_original_date:p.original_date,
-      p_radiators:p.radiators,p_floor_loops:p.floor_loops
+      p_radiators:p.radiators,p_floor_loops:p.floor_loops,
+      ...(withTravel?{p_travel_amount:p.travel_amount}:{})
     });
     if(!draft||!draft.draft_id)throw new Error("Не удалось подготовить подтверждение заявки.");
     setPendingDraft(draft);

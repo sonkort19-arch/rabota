@@ -142,6 +142,22 @@ test("an interrupted payment is checked against the exact server receipt before 
   assert.deepEqual(calls.map(call=>call[1]),["POST","GET","GET"]);
 });
 
+test("road receipt uses gross and reconciliation keeps the wash price",async()=>{
+  const order={...sample,travelAmount:1000};
+  const {model,calls}=harness({request:async(path,method)=>{
+    if(method==="POST")throw new Error("Network interrupted");
+    assert.match(path,/select=[^&]*travel_amount/);
+    return [{...receipt,travel_amount:1000,payment_amount:11000}];
+  }});
+  assert.throws(()=>model.recordFullPayment(order,fullPayment,"company"),/полную/);
+  const gross={...fullPayment,amount:11000};
+  await model.recordFullPayment(order,gross,"company");
+  await model.recordFullPayment(order,gross,"company");
+  assert.deepEqual(calls.map(call=>call[1]),["POST","GET"]);
+  assert.deepEqual(calls[0][2],{p_order_id:sample.id,p_amount:11000,p_method:"card"});
+  assert.equal(order.price,10000);
+});
+
 test("an ambiguous response cannot claim another actor or a different payment amount",async()=>{
   const {model,calls}=harness({request:async(path,method)=>{
     if(method==="POST")throw new Error("Network interrupted");
@@ -158,6 +174,23 @@ test("only a completed order with its full recorded payment can be refunded",()=
   assert.throws(()=>model.recordFullRefund({...order,status:"В работе"},"Причина"),/полный возврат/);
   assert.throws(()=>model.recordFullRefund(order," " ),/причину/);
   assert.equal(calls.length,0);
+});
+
+test("road refund reuses the trip decision and gross receipt on retry",async()=>{
+  const order={...sample,status:"Выполнен",paid:true,paymentAmount:11000,travelAmount:1000};
+  const note="Отмена заказа с дорогой";
+  let tries=0;
+  const {model,calls}=harness({request:async()=>{
+    if(++tries===1)throw new Error("Network interrupted");
+    return {order_id:sample.id,amount:11000,refunded_at:"2026-11-25T12:00:00Z",replayed:true};
+  }});
+  assert.throws(()=>model.recordFullRefund(order,note),/состоялась ли поездка/);
+  await assert.rejects(model.recordFullRefund(order,note,false),/Network interrupted/);
+  assert.throws(()=>model.recordFullRefund(order,note,true),/с теми же реквизитами/);
+  await model.recordFullRefund(order,note,false);
+  assert.deepEqual(calls[0],calls[1]);
+  assert.equal(calls[0][2].p_amount,11000);
+  assert.strictEqual(calls[0][2].p_travel_taken,false);
 });
 
 test("a refund of a payment received by the master retries only the same audit request",async()=>{
@@ -217,6 +250,17 @@ test("status changes compare the exact version and do not rewrite the order fiel
   assert.deepEqual(calls,[["rabota_orders?id=eq.test-order&updated_at=is.null","PATCH",{
     status:"В работе",completed_at:null
   }]]);
+});
+
+test("road edits and cancellation send only the intended fields with the open-time version",async()=>{
+  const {model,calls}=harness();
+  const order={...sample,travelAmount:1000};
+  await model.persistOrder({...order,travelAmount:1200},{base:order});
+  await model.persistOrder({...order,status:"Отменён",travelTaken:false},{base:order,statusOnly:true});
+  assert.deepEqual(calls,[
+    ["rabota_orders?id=eq.test-order&updated_at=eq."+encodeURIComponent(version),"PATCH",{travel_amount:1200}],
+    ["rabota_orders?id=eq.test-order&updated_at=eq."+encodeURIComponent(version),"PATCH",{status:"Отменён",travel_taken:false}]
+  ]);
 });
 
 test("disjoint concurrent edits retry only the local delta against the fresh server version",async()=>{
@@ -286,6 +330,22 @@ test("a lost create response is reconciled after reopening by the saved id and a
   assert.equal((await second.model.persistOrder(changed,{createChoice:{previous},beforeWrite:()=>assert.fail("already committed")})).orderId,saved.id);
   assert.deepEqual(second.calls,[["rabota_orders?select=*&id=eq."+saved.id+"&limit=1","GET"]]);
   assert.equal(entries.size,0);
+});
+
+test("a zero-road order keeps the fingerprint of an interrupted pre-upgrade create",async()=>{
+  const storage=testStorage();
+  const draft={...sample,id:null,status:"Отменён",travelAmount:0,travelTaken:null};
+  // Payload shape accepted by the previous version, before travel columns existed.
+  const legacy={name:sample.name,phone:sample.phone,address:sample.address,client_source:"",
+    radiator_type:sample.radiatorType,radiators:sample.radiators,floor_loops:sample.floorLoops,
+    master:sample.master,appointment_date:sample.date,appointment_time:sample.time,
+    price:sample.price,paid:false,status:"Отменён",details:sample.details};
+  const previous=await createWriteIntents("test-order",{getStorage:()=>storage,crypto:webcrypto}).begin(actor,legacy);
+  const saved={...legacy,id:previous.requestId,created_by:actor,travel_amount:0,travel_taken:null};
+  const {model,calls}=harness({storage,request:async()=>[saved]});
+  await assert.rejects(model.persistOrder(draft),{code:"ORDER_CREATE_PENDING"});
+  assert.equal((await model.persistOrder(draft,{createChoice:{previous}})).orderId,saved.id);
+  assert.deepEqual(calls.map(call=>call[1]),["GET"]);
 });
 
 test("retry after the write never arrived reuses its UUID, and another actor cannot be claimed",async()=>{

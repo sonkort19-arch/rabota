@@ -187,6 +187,34 @@ test("CSV exports negative company share as a numeric field while escaping signe
   assert.match(row,/;1000;1000;2000;-1000;/);
 });
 
+test("profit report records the full customer payment while reporting travel receipts and accrual separately",()=>{
+  const payroll=payrollFor([{...receipt("a",11000),travelAmount:1000}], [
+    {orderId:"a",earned:6500,actualPaid:10000,companyShare:3500}
+  ]);
+  payroll.travelHistory=[{orderId:"a",delta:1200},{orderId:"a",delta:-200}];
+  const record=order({price:10000,travelAmount:1000,paymentAmount:11000});
+  const [row]=filterRows([record],{payroll});
+  assert.equal(row.reportPrice,10000);
+  assert.equal(row.reportTotalPrice,11000);
+  assert.equal(row.reportReceived,11000);
+  assert.equal(row.reportSalary,6500);
+  assert.equal(row.reportProfit,3500);
+  assert.equal(row.reportPaymentMismatch,false);
+  assert.equal(row.reportTravelEarned,1000);
+  assert.equal(row.reportTravelUncovered,0);
+  const csv=csvFor([row]);
+  assert.match(csv,/Поступило за дорогу/);
+  assert.match(csv,/;10000;11000;6500;3500;.*;1000;11000;1000;0;1000;0$/);
+
+  payroll.orders=[];
+  payroll.accounting.refunds=[{orderId:"a",amount:11000,travelAmount:1000}];
+  const refunded=summary([reportRow(record,{payroll})]);
+  assert.equal(refunded.received,0);
+  assert.equal(refunded.travelReceived,1000);
+  assert.equal(refunded.travelRefunded,1000);
+  assert.equal(refunded.travelUncovered,1000);
+});
+
 test("Raul report adapter is assigned-user scoped and guarded by role",()=>{
   const fs=require("node:fs");
   const path=require("node:path");

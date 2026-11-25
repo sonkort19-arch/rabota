@@ -29,6 +29,7 @@
 .rd-pay-sum-top{display:flex;justify-content:space-between;align-items:center;gap:8px}
 .rd-pay-sum-top span{color:#72809a;font-size:12px;font-weight:650}
 .rd-pay-sum-view{margin-top:0}
+.rd-pay-breakdown{margin:4px 0 0;font-size:12px;line-height:1.35;color:#52647e;overflow-wrap:anywhere}
 .rd-pay-sum-view strong{
   display:block;font-variant-numeric:tabular-nums;font-size:29px;
   line-height:1.25;letter-spacing:-.5px;overflow-wrap:anywhere

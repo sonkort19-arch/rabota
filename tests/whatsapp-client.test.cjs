@@ -16,6 +16,14 @@ test("Booking draft includes appointment facts without internal notes",()=>{
   assert.ok(!msg.includes("Внутренняя заметка"));
   assert.ok(!msg.includes(order.phone));
 });
+test("Booking confirmation itemizes the wash, travel and customer total without changing other drafts",()=>{
+  const withTravel={...order,price:10000,travelAmount:1000.25};
+  assert.match(wa.bookingText(withTravel),/Стоимость промывки — 10 000 ₽\nДорога — 1 000,25 ₽\nИтого — 11 000,25 ₽$/);
+  assert.equal(new URL(wa.bookingLink(withTravel)).searchParams.get("text"),wa.bookingText(withTravel));
+  assert.equal(wa.bookingText({...withTravel,price:null}),wa.bookingText(order));
+  assert.equal(wa.bookingText({...withTravel,travelAmount:0}),wa.bookingText(order));
+  assert.equal(wa.reviewText(withTravel),wa.reviewText(order));
+});
 test("Review draft asks for honest review, never claims it was sent",()=>{
   const msg=wa.reviewText(order);
   assert.match(msg,/отзыв/);

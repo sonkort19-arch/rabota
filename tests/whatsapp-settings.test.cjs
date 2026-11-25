@@ -25,6 +25,8 @@ test("Saved templates are used in both manual WhatsApp drafts",()=>{
  });
  assert.equal(wa.getSettings().booking,state.booking);
  assert.equal(wa.bookingText(order),"Добрый день, Александр! Запись на 20.11.2026 в 12:00. Мастер: Рауль.");
+ assert.equal(wa.bookingText({...order,price:16000,travelAmount:1000}),wa.bookingText(order)+
+  "\n\nСтоимость промывки — 16 000 ₽\nДорога — 1 000 ₽\nИтого — 17 000 ₽");
  assert.match(wa.reviewText(order),/https:\/\/example.org\/review/);
  assert.match(new URL(wa.bookingLink(order)).searchParams.get("text"),/Запись на 20.11.2026/);
  assert.match(new URL(wa.reviewLink(order)).searchParams.get("text"),/Оставьте отзыв/);

@@ -146,7 +146,13 @@
   function bookingText(order){
     if(!normalizePhone(order?.phone))throw new Error("Укажите номер клиента в формате +7.");
     prettyDate(order.date);prettyTime(order.time);
-    return renderTemplate(getSettings().booking,order);
+    const message=renderTemplate(getSettings().booking,order);
+    const travel=Number(order.travelAmount);
+    const wash=order.price!=null&&clean(order.price)!==""?Number(order.price):NaN;
+    if(!Number.isFinite(wash)||wash<0||!Number.isFinite(travel)||travel<=0)return message;
+    const format=value=>value.toLocaleString("ru-RU").replace(/[\u00a0\u202f]/g," ")+" ₽";
+    const summary=["Стоимость промывки — "+format(wash),"Дорога — "+format(travel),"Итого — "+format(wash+travel)];
+    return message+"\n\n"+summary.join("\n");
   }
   function sourceReviewUrl(order,settings){
     const source=validSource(order?.clientSource);

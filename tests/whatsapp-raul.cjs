@@ -37,6 +37,15 @@ test("single-job draft puts date/time on line 1 and new-order title on line 2",(
  assert.match(wa.singleDraft({...seed,status:"Отменён"}),/^Дата и время:.*\nОтмена заказа/);
  assert.throws(()=>wa.singleDraft({...seed,master:"Олег"}),/Раулем/);
 });
+test("Raul WhatsApp drafts break out travel from the wash and show the customer total",()=>{
+ const order={...seed,price:10000,travelAmount:1000,date:"2026-11-12"};
+ const breakdown=/Стоимость промывки — 10 000 ₽\nДорога — 1 000 ₽\nИтого клиенту — 11 000 ₽/;
+ assert.match(wa.singleDraft(order),breakdown);
+ assert.match(wa.dailyDraft([order],new Date("2026-11-11T12:00:00Z")),breakdown);
+ assert.match(wa.singleDraft({...order,price:null}),/Стоимость промывки — не указана\nДорога — 1 000 ₽/);
+ assert.doesNotMatch(wa.singleDraft({...order,price:null}),/Итого клиенту/);
+ assert.match(wa.singleDraft({...order,travelAmount:0}),/Стоимость: 10 000 ₽/);
+});
 test("unassigned real-case order filters internal comments but preserves working fields",()=>{
  const russlan={...seed,id:"9964a02d",name:"Руслан",phone:"89188210384",
   address:"ул. Зураба Магкаева, 12Б, подъезд 5, этаж 4, кв. 65",

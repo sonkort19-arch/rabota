@@ -4,25 +4,31 @@ const assert=require("node:assert/strict");
 const fs=require("node:fs");
 const vm=require("node:vm");
 const path=require("node:path");
+const {travelAmount}=require("../order-model.js");
 
 const html=fs.readFileSync(path.join(__dirname,"..","index.html"),"utf8");
 const migration=fs.readFileSync(path.join(__dirname,"..","sql","006-owner-safe-delete-order.sql"),"utf8");
 const start=html.indexOf('    deleteOrderBtn.addEventListener("click",async()=>{');
 const end=html.indexOf('    document.getElementById("newOrderBtn").addEventListener',start);
+const guardStart=html.indexOf("    function orderHasTravelHistory(order){");
+const guardEnd=html.indexOf("    function openForm(id,",guardStart);
 assert.ok(start>=0&&end>start,"deletion handler exists in main order UI");
-const handlerSource=html.slice(start,end);
+assert.ok(guardStart>=0&&guardEnd>guardStart,"deletion history guard exists in main order UI");
+const handlerSource=html.slice(guardStart,guardEnd)+html.slice(start,end);
 
-function setup({role="owner",paid=false,reply={ok:true},typed="УДАЛИТЬ",confirmed=true,refreshError=null}={}){
+function setup({role="owner",paid=false,reply={ok:true},typed="УДАЛИТЬ",confirmed=true,refreshError=null,
+  tripCost=0,travelHistory=[]}={}){
   const calls=[];
   const saveBtn={disabled:false};
   const deleteBtn={hidden:role!=="owner",disabled:paid,addEventListener(_,fn){this.run=fn}};
   const formStatus={textContent:"",classList:{add(){},remove(){}}};
   const order={id:"test-id",name:"Test Client",date:"2026-11-11",time:"18:00",
-    paid,paymentAmount:null,paidAt:null};
+    paid,paymentAmount:null,paidAt:null,travelAmount:tripCost};
   const context={
     currentRole:role,editingId:"test-id",orderSaving:false,accessGeneration:1,
     deleteOrderBtn:deleteBtn,formStatus,form:{querySelector:()=>saveBtn},
     getOrders:()=>[order],orderHasFinancialHistory:o=>Boolean(o.paid||o.paymentAmount!=null||o.paidAt),
+    payrollLookup:{snapshot:{travelHistory}},financeSnapshotReady:true,financeStatus:()=>({stale:false}),
     confirm:()=>confirmed,prompt:()=>typed,
     dbRequest:async(path,method,payload)=>{
       calls.push({path,method,payload});
@@ -31,12 +37,12 @@ function setup({role="owner",paid=false,reply={ok:true},typed="УДАЛИТЬ",c
     },
     reloadOrders:async()=>{if(refreshError)throw refreshError;calls.push({event:"reloaded"})},
     closeForm:()=>calls.push({event:"closed"}),
-    window:{__rdLeadsRefresh:async()=>calls.push({event:"leads"})},
+    window:{__rdLeadsRefresh:async()=>calls.push({event:"leads"}),__rdTravelAmount:travelAmount},
     alert:msg=>calls.push({event:"alert",msg}),
     friendlyError:error=>error.message,console:{warn(){}}
   };
   vm.runInNewContext(handlerSource,context);
-  return {run:deleteBtn.run,calls,formStatus,deleteBtn,context};
+  return {run:deleteBtn.run,calls,formStatus,deleteBtn,context,order};
 }
 
 test("delete control is visible only for owner editing an existing order",()=>{
@@ -64,6 +70,17 @@ test("paid order can't trigger deletion",async()=>{
   const h=setup({paid:true});
   await h.run();
   assert.equal(h.calls.length,0);
+});
+test("order with travel history is protected even after setting the road amount to zero",async()=>{
+  for(const options of [{tripCost:1000},{travelHistory:[{orderId:"test-id",delta:1000},{orderId:"test-id",delta:-1000}]}]){
+    const h=setup(options);
+    await h.run();
+    assert.equal(h.calls.length,0);
+    assert.match(h.formStatus.textContent,/удалить нельзя/);
+    h.context.updateOrderDeleteButton(h.order);
+    assert.equal(h.deleteBtn.disabled,true);
+    assert.match(h.deleteBtn.textContent,/история начислений за дорогу/);
+  }
 });
 test("successful deletion refreshes and closes only after RPC success",async()=>{
   const h=setup();

@@ -5,6 +5,7 @@
 const {test}=require("node:test");
 const assert=require("node:assert/strict");
 const fs=require("node:fs"),vm=require("node:vm"),path=require("node:path");
+const {orderCustomerTotal,travelAmount,travelOutcomeLabel,payableAmount,payableOrderTotal}=require("../order-model.js");
 const script=fs.readFileSync(path.join(__dirname,"../orders-list.js"),"utf8");
 class Element {
  constructor(tag="div"){
@@ -59,6 +60,8 @@ function fixture(role){
   querySelector:()=>null,addEventListener(){},removeEventListener(){}
  };
  const window={__rdCurrentPage:"orders",__rdDecorateOrder:()=>legacy++,__rdRefresh:()=>refreshed++,
+  __rdOrderCustomerTotal:orderCustomerTotal,__rdTravelAmount:travelAmount,__rdTravelOutcomeLabel:travelOutcomeLabel,
+  __rdPayableOrderAmount:payableAmount,__rdPayableOrderTotal:payableOrderTotal,
   __rdOrderNotes:{display:()=>""}};
  vm.runInNewContext(script,{document,window,currentRole:role,Intl,Date,Number,String,Array,Event});
  const card=el("article","order-card"),actions=el("div","actions");

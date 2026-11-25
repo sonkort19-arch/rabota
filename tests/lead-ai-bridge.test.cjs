@@ -128,7 +128,7 @@ test("module is loaded before app code and preserves original integrations",()=>
   assert.ok(bridgeScript&&bridgeScript.index<
     html.indexOf("const leadAIBridge=window.__rdCreateLeadAIBridge"));
   assert.match(html,/window\.__rdLeadContext=\(\)=>leadAIBridge\.context\(\)/);
-  assert.match(html,/window\.__rdLeadOpenOrder=lead=>leadAIBridge\.openLeadOrder\(lead\)/);
+  assert.match(html,/window\.__rdLeadOpenOrder=lead=>\{\s*const result=leadAIBridge\.openLeadOrder\(lead\);\s*syncOrderTravelFields\(\);\s*return result;/);
   assert.match(html,/preventPreviewSubmit\(event\),true/);
   assert.match(html,/leadAIBridge\.prepareChatLink\(event\)/);
   assert.match(html,/src="\/lead-assistant\.js(?:\?v=[^"]+)?"/);

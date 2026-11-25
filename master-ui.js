@@ -12,6 +12,7 @@
       typeof deps.openMasterOrderDialog!=="function"||
       !deps.doc||!deps.ordersNode)throw new TypeError("Нет зависимостей интерфейса мастера");
     const DateImpl=deps.DateImpl||Date; // deterministic tests; production uses native Date
+    const orderCustomerTotal=deps.orderCustomerTotal||root?.__rdOrderCustomerTotal||(order=>order.price);
     const {make,parseDate,formatDate,getOrders,
       getCurrentRole,getCurrentTab,doc,ordersNode,
       openMasterOrderDialog,STATUSES}=deps;
@@ -140,8 +141,9 @@ function makeMasterScheduleRow(order,isNext=false) {
       const classes={"Записан":"s-booked","В работе":"s-progress","Выполнен":"s-done","Отменён":"s-cancelled"};
       const meta=make("span","master-schedule-meta");
       meta.append(make("span","status-badge "+classes[state],state));
-      const priceText=order.price==null||order.price===""?
-        "Стоимость не указана":Number(order.price).toLocaleString("ru-RU")+" ₽";
+      const total=orderCustomerTotal(order);
+      const priceText=total==null||total===""?
+        "Стоимость не указана":Number(total).toLocaleString("ru-RU",{maximumFractionDigits:2})+" ₽";
       const price=make("span","master-schedule-price",priceText);
       toggle.append(main,time,chevron,workNode,meta,price);
       if(state==="Выполнен"&&!order.paid)

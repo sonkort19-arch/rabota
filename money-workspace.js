@@ -211,7 +211,8 @@
       item.dataset.orderId=orderId;
       item.dataset.paymentType=order.type;
       const chevron=el("span","mw-payment-chevron","›");chevron.setAttribute("aria-hidden","true");
-      const detail=[timestamp===null?"":paymentTime.format(timestamp),method,refund?"Возврат клиенту":""].filter(Boolean);
+      const detail=[timestamp===null?"":paymentTime.format(timestamp),method,refund?"Возврат клиенту":"",
+        order.travelAmount>0?"Дорога "+rub(order.travelAmount):""].filter(Boolean);
       item.append(name,el("strong",refund?"mw-payment-amount mw-minus":"mw-payment-amount",
         (refund?"−":"+")+paymentCurrency.format(order.amount)),chevron,el("small","mw-payment-meta",detail.join(" · ")));
       rows.append(item);
@@ -273,9 +274,15 @@
       .concat((m.refunds||[]).map(o=>({...o,type:"refund"})))
       .filter(o=>o.amount!=null&&Number.isFinite(Number(o.amount))&&Number(o.amount)>=0);
     const amounts={cash:0,card:0,unknown:0};
+    let travelCents=0,hasTravel=false;
     for(const o of rows){
       const cents=Math.round(Number(o.amount)*100);
-      amounts[validMethod(o.method)?o.method:"unknown"]+=o.type==="refund"?-cents:cents;
+      const sign=o.type==="refund"?-1:1;
+      amounts[validMethod(o.method)?o.method:"unknown"]+=sign*cents;
+      if(o.travelAmount>0){
+        hasTravel=true;
+        travelCents+=sign*Math.round(o.travelAmount*100);
+      }
     }
     const total=(amounts.cash+amounts.card+amounts.unknown)/100;
     const breakdown=el("details","mw-payment-breakdown");
@@ -287,6 +294,8 @@
     for(const [method,label] of [["cash","Наличные"],["card","Карта"],["unknown","Способ не указан"]]){
       methodRows.append(box("",el("span","",label),el("strong","",paymentCurrency.format(amounts[method]/100))));
     }
+    if(hasTravel)methodRows.append(box("",el("span","","В том числе дорога"),
+      el("strong","",paymentCurrency.format(travelCents/100))));
     breakdown.append(summary,methodRows);
     breakdown.addEventListener("toggle",()=>{if(breakdown.isConnected)paymentBreakdownOpen=breakdown.open;});
     cards.append(breakdown);
@@ -490,13 +499,14 @@
   }
   function renderOwner(root,accounting,companyProfit){
     const items=[];
+    const orderNote=(row,reference)=>[reference,row.travelAmount>0?"Дорога "+rub(row.travelAmount):""].filter(Boolean).join(" · ");
     for(const row of accounting.receipts){
       items.push({...row,kind:"receipt",title:"Оплата заказа · "+(row.name||"Клиент"),
-        occurredAt:row.occurredAt||row.paidAt,note:row.reference});
+        occurredAt:row.occurredAt||row.paidAt,note:orderNote(row,row.reference)});
     }
     for(const row of accounting.refunds){
       items.push({...row,kind:"refund",title:"Возврат по заказу · "+(row.name||"Клиент"),
-        note:row.note||row.reference});
+        note:orderNote(row,row.note||row.reference)});
     }
     for(const row of accounting.expenses)items.push({...row,kind:"expense",title:"Расход CRM"});
     for(const row of accounting.payouts)items.push({...row,kind:"payout",title:"Выплата зарплаты"});
@@ -511,6 +521,11 @@
       ["Расходы CRM и кассы",accounting.expenseTotal+accounting.manualExpense],["Выплаты зарплаты",accounting.payoutTotal],
       [accounting.unverifiedMarginCount?"Подтверждённая доля компании":"Доля компании по заказам",accounting.companyShare]
     ];
+    if(accounting.travelReceiptTotal>0||accounting.travelRefundTotal>0||accounting.travelAccrual>0){
+      metrics.push(["Поступило за дорогу",accounting.travelReceiptTotal],["Начислено за дорогу",accounting.travelAccrual]);
+      if(accounting.travelRefundTotal>0)metrics.push(["Возвращено за дорогу",accounting.travelRefundTotal]);
+      if(accounting.uncoveredTravel>0)metrics.push(["Дорога за счёт компании",accounting.uncoveredTravel]);
+    }
     if(companyProfit!=null)metrics.push([accounting.unverifiedMarginCount?"Учтённая прибыль":"Прибыль компании",companyProfit]);
     for(const [label,amount] of metrics)
       stats.append(box("mw-money-stat",el("small","",label),el("strong","",rub(amount))));

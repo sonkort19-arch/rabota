@@ -174,3 +174,37 @@ check_financial_replay cashbook \
   "SELECT min(id::text) FROM public.rabota_cashbook_entries WHERE request_id='$cashbook_request'
    HAVING count(*)=1 AND sum(amount)=28.34"
 echo 'PASS: concurrent retries for an expense and a cashbook operation return one committed ledger entry each'
+
+db -c 'CREATE ROLE service_role NOLOGIN;'
+db -f sql/20261125131547_rabota_order_travel_payroll.sql
+db -f tests/sql/order-travel-payroll.sql
+db -f tests/sql/verified-order-refunds.sql
+
+# A payout started from a stale balance must see the committed trip reversal.
+travel_order='10000000-0000-4000-8000-000000000153'
+travel_payout='20000000-0000-4000-8000-000000000153'
+db -c "INSERT INTO public.rabota_orders(id,name,master,assigned_user_id,status,price,travel_amount)
+ VALUES('$travel_order','Fixture concurrent travel reversal','Рауль','$raul','Записан',10000,1000);" >/dev/null
+travel_due="$(db -c "BEGIN; $as_owner SELECT public.rabota_payroll_snapshot_v3()->>'due'; ROLLBACK;" | tail -1)"
+PGAPPNAME=rabota_travel_cancel_first db -c "BEGIN; $as_owner
+ UPDATE public.rabota_orders SET status='Отменён',travel_taken=false WHERE id='$travel_order';
+ SELECT pg_sleep(3); COMMIT;" >"$cluster/travel-first.log" 2>&1 &
+first_pid=$!
+wait_for "SELECT EXISTS(SELECT 1 FROM pg_stat_activity WHERE application_name='rabota_travel_cancel_first' AND wait_event='PgSleep')"
+PGAPPNAME=rabota_travel_payout_second db -c "BEGIN; $as_owner
+ SELECT public.rabota_payroll_payout_v3($travel_due,'cash','Fixture stale payout','$travel_payout','$raul');
+ COMMIT;" >"$cluster/travel-second.log" 2>&1 &
+second_pid=$!
+wait_for "SELECT EXISTS(SELECT 1 FROM pg_stat_activity WHERE application_name='rabota_travel_payout_second' AND wait_event_type='Lock')"
+wait "$first_pid" || { cat "$cluster/travel-first.log" >&2; exit 1; }
+if wait "$second_pid"; then
+  echo 'A payout used the pre-correction travel balance' >&2
+  exit 1
+fi
+grep -Fq 'Сумма больше задолженности по зарплате' "$cluster/travel-second.log"
+test "$(db -c "SELECT count(*)=2 AND sum(delta)=0
+ FROM private.rabota_payroll_travel_events WHERE order_id='$travel_order'")" = t
+test "$(db -c "SELECT NOT EXISTS(SELECT 1 FROM public.rabota_finance_operations WHERE request_id='$travel_payout')")" = t
+echo 'PASS: travel correction and concurrent payouts serialize on the payroll master'
+
+db -f tests/sql/ai-order-travel.sql

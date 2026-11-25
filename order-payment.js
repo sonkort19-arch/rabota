@@ -18,6 +18,7 @@
         '  <div class="rd-pay-sum-card">'+
         '   <div class="rd-pay-sum-top"><span>Полная стоимость заказа</span></div>'+
         '   <div class="rd-pay-sum-view"><strong id="rdPaySumValue"></strong></div>'+
+        '   <p class="rd-pay-breakdown" hidden></p>'+
         '  </div>'+
         '  <p class="rd-pay-adjust" id="rdPayAdjust"></p>'+
         '  <fieldset><legend>Способ оплаты</legend>'+
@@ -33,12 +34,18 @@
       document.body.append(overlay);
       const $=selector=>overlay.querySelector(selector);
       const dialog=$(".rd-pay-dialog");
-      const amount=window.__rdPayableOrderAmount(order.price);
+      const amount=window.__rdPayableOrderTotal(order);
+      const travel=window.__rdTravelAmount(order.travelAmount);
       const error=$(".rd-pay-error");
       const confirm=$(".rd-pay-confirm");
       $("#rdPayTitle").textContent=complete?"Завершение заказа":"Получение оплаты";
       $("#rdPayClient").textContent=order.name||"Клиент";
       $("#rdPaySumValue").textContent=amount===null?"Сумма не указана":fmt(amount);
+      if(amount!==null&&travel>0){
+        const breakdown=$(".rd-pay-breakdown");
+        breakdown.textContent="Промывка "+fmt(order.price)+" · Дорога "+fmt(travel);
+        breakdown.hidden=false;
+      }
       $("#rdPayAdjust").textContent=!canPay
         ?"Не удалось обновить данные платежей. Можно сохранить заказ без оплаты."
         :amount===null?"Укажите стоимость заказа перед приёмом оплаты."

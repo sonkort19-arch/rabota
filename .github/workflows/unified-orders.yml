@@ -6,15 +6,24 @@ on:
       - 'index.html'
       - 'app-shell.css'
       - 'orders-workspace.*'
-      - 'order-payment.js'
+      - 'order-payment.*'
       - 'order-model.js'
       - 'order-sync.js'
       - 'calendar-model.js'
+      - 'finance-model.js'
+      - 'finance-payroll.js'
+      - 'master-quick-*.css'
       - 'master-ui.js'
       - 'money-workspace.js'
+      - 'mobile-order-form.css'
+      - 'profit-report.js'
       - 'redesign.js'
-      - 'orders-list.js'
+      - 'orders-list.*'
       - 'owner-parity.js'
+      - 'whatsapp-client.js'
+      - 'whatsapp-order.js'
+      - 'tests/module-navigation-browser.cjs'
+      - 'tests/travel-surcharge-browser.cjs'
       - 'tests/unified-orders-browser.cjs'
       - '.github/workflows/unified-orders.yml'
   push:
@@ -23,15 +32,24 @@ on:
       - 'index.html'
       - 'app-shell.css'
       - 'orders-workspace.*'
-      - 'order-payment.js'
+      - 'order-payment.*'
       - 'order-model.js'
       - 'order-sync.js'
       - 'calendar-model.js'
+      - 'finance-model.js'
+      - 'finance-payroll.js'
+      - 'master-quick-*.css'
       - 'master-ui.js'
       - 'money-workspace.js'
+      - 'mobile-order-form.css'
+      - 'profit-report.js'
       - 'redesign.js'
-      - 'orders-list.js'
+      - 'orders-list.*'
       - 'owner-parity.js'
+      - 'whatsapp-client.js'
+      - 'whatsapp-order.js'
+      - 'tests/module-navigation-browser.cjs'
+      - 'tests/travel-surcharge-browser.cjs'
       - 'tests/unified-orders-browser.cjs'
       - '.github/workflows/unified-orders.yml'
 
@@ -70,3 +88,7 @@ jobs:
         env:
           TEST_BROWSER: ${{ matrix.browser }}
         run: node tests/unified-orders-browser.cjs
+      - name: Travel surcharge workflows with isolated data
+        env:
+          TEST_BROWSER: ${{ matrix.browser }}
+        run: node tests/travel-surcharge-browser.cjs

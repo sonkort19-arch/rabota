@@ -44,6 +44,15 @@
     const n=Number(value);
     return Number.isFinite(n)?n.toLocaleString("ru-RU").replace(/[\u00a0\u202f]/g," ")+" ₽":"не указана";
   }
+  function priceLines(order){
+    const travel=Number(order.travelAmount);
+    const wash=order.price!=null&&order.price!==""?Number(order.price):NaN;
+    if(!Number.isFinite(travel)||travel<=0)
+      return order.price!=null&&order.price!==""?["Стоимость: "+displayPrice(order.price)]:[];
+    const lines=["Стоимость промывки — "+displayPrice(order.price),"Дорога — "+displayPrice(travel)];
+    if(Number.isFinite(wash)&&wash>=0)lines.push("Итого клиенту — "+displayPrice(wash+travel));
+    return lines;
+  }
   const INACTIVE=new Set(["Отменён","Выполнен"]);
   // Only explicitly classified master instructions go to WhatsApp.
   // Old unclassified comments are never silently leaked or discarded.
@@ -76,7 +85,7 @@
       ...(clean(order.phone)?["Телефон: "+clean(order.phone)]:[]),
       ...(clean(order.address)?["Адрес: "+clean(order.address)]:[]),
       "Работа: "+workDescription(order),
-      ...(order.price!=null&&order.price!==""?["Стоимость: "+displayPrice(order.price)]:[])
+      ...priceLines(order)
     ];
     const useful=notesForMaster(order.details);
     if(useful)lines.push("Примечание: "+useful);
@@ -200,7 +209,7 @@
           ...(clean(o.phone)?["Телефон: "+clean(o.phone)]:[]),
           ...(clean(o.address)?["Адрес: "+clean(o.address)]:[]),
           "Работа: "+workDescription(o),
-          ...(o.price!=null&&o.price!==""?["Стоимость: "+displayPrice(o.price)]:[])
+          ...priceLines(o)
         ];
         const useful=notesForMaster(o.details);
         if(useful)extra.push("Примечание: "+useful);

@@ -41,25 +41,36 @@
     const receipt=options.receiptsByOrder
       ?options.receiptsByOrder.get(orderId)
       :options.payroll?.accounting?.receipts?.find(item=>item.orderId===orderId);
+    const travel=receipt?.travelAmount??Math.max(0,Number(order.travelAmount)||0);
+    const receiptTravel=receipt?.travelAmount??0;
+    const refundedTravel=refund?(refund.travelAmount??receiptTravel):0;
+    const travelEarned=options.travelByOrder?options.travelByOrder.get(orderId)??0:
+      round((options.payroll?.travelHistory??[]).reduce((total,event)=>
+        event.orderId===orderId?total+event.delta:total,0));
+    const totalPrice=validPrice?round(price+travel):null;
+    const receiptWash=receipt?round(receipt.amount-receiptTravel):null;
     const paymentIsMissing=paid&&(order.paymentAmount==null||order.paymentAmount==="");
     const received=!refund&&receipt?receipt.amount:0;
     const paymentVerified=Boolean(paymentIsMissing&&receipt);
     const paymentAmountMissing=paymentIsMissing&&!receipt;
     const paymentMismatch=paid&&validPrice&&!paymentIsMissing&&Number.isFinite(Number(order.paymentAmount))&&
-      Math.abs(Number(order.paymentAmount)-price)>=.01;
+      round(Number(order.paymentAmount))!==totalPrice;
     const earned=order.status==="Выполнен"&&paid&&!refund;
     const masterId=options.payroll?.masterId||options.masterId;
     const raul=Boolean(masterId)&&(receipt?receipt.masterId:order.assignedUserId)===masterId;
     const calculated=!refund&&!hold?.payrollOnHold&&Boolean(receipt&&(projection||!raul));
     const salary=calculated?(projection?round(projection.actualPaid-projection.companyShare):0):null;
-    const profit=calculated?projection?.companyShare??receipt.amount:null;
+    const profit=calculated?projection?.companyShare??receiptWash:null;
     const holdReference=!order.referenceCode?orderReference?.code(hold?.orderNumber):null;
     return Object.assign({},order,holdReference?{orderNumber:hold.orderNumber,referenceCode:holdReference}:null,{
       status:refund?"Отменён":order.status,
       reportPrice:validPrice?price:null,
+      reportTravel:travel,reportTotalPrice:totalPrice,reportTravelReceived:receiptTravel,
+      reportTravelRefunded:refundedTravel,reportTravelEarned:travelEarned,
+      reportTravelUncovered:Math.max(0,round(travelEarned-receiptTravel+refundedTravel)),
       reportReceived:received,reportEarned:!refund&&(earned||Boolean(projection)),reportCalculated:calculated,
       reportSalary:salary,reportProfit:profit,
-      reportCalculationAmount:projection?.actualPaid??receipt?.amount??null,
+      reportCalculationAmount:projection?.actualPaid??receiptWash,
       reportRuleVersion:projection?.ruleVersion??null,
       reportRefundedAmount:refund?.amount??null,
       reportPaymentMissing:!refund&&paymentAmountMissing,reportPaymentMismatch:!refund&&paymentMismatch,
@@ -72,15 +83,23 @@
   }
   function summary(rows){
     const total={count:rows.length,price:0,received:0,salary:0,profit:0,uncalculated:0,missingPayments:0,mismatchedPayments:0};
+    const road={travel:0,travelReceived:0,travelRefunded:0,travelEarned:0};
     rows.forEach(row=>{
       total.price=round(total.price+(row.reportPrice??0));
       total.received=round(total.received+row.reportReceived);
+      road.travel=round(road.travel+(row.reportTravel??0));
+      road.travelReceived=round(road.travelReceived+(row.reportTravelReceived??0));
+      road.travelRefunded=round(road.travelRefunded+(row.reportTravelRefunded??0));
+      road.travelEarned=round(road.travelEarned+(row.reportTravelEarned??0));
       if(row.reportPaymentMissing)total.missingPayments++;
       if(row.reportPaymentMismatch)total.mismatchedPayments++;
       if(row.reportCalculated){
         total.salary=round(total.salary+row.reportSalary);
         total.profit=round(total.profit+row.reportProfit);
       }else if(row.reportEarned)total.uncalculated++;
+    });
+    if(Object.values(road).some(value=>value>0))Object.assign(total,road,{
+      travelUncovered:Math.max(0,round(road.travelEarned-road.travelReceived+road.travelRefunded))
     });
     return total;
   }
@@ -108,7 +127,10 @@
     const [from,to]=bounds(options.period||"all",today,options.from,options.to);
     const payrollByOrder=options.payroll?.state==="active"?
       new Map(options.payroll.orders.map(item=>[item.orderId,item])):null;
-    const rowOptions=options.payroll?{...options,payrollByOrder,
+    const travelByOrder=new Map();
+    for(const event of options.payroll?.travelHistory??[])
+      travelByOrder.set(event.orderId,round((travelByOrder.get(event.orderId)??0)+event.delta));
+    const rowOptions=options.payroll?{...options,payrollByOrder,travelByOrder,
       receiptsByOrder:new Map((options.payroll.accounting?.receipts??[]).map(item=>[item.orderId,item])),
       refundsByOrder:new Map(reportRefunds(options.payroll).map(item=>[item.orderId,item])),
       holdsByOrder:new Map((options.payroll.holds??[]).map(item=>[item.orderId,item]))}:options;
@@ -141,7 +163,8 @@
     ].filter(Boolean);
   }
   function csvFor(rows){
-    const cols=["Заказ","Дата создания","Дата записи","Дата закрытия","Клиент","Мастер","Статус","Цена","Учтённая оплата","Зарплата","Доля компании","Сведения о сумме оплаты"];
+    const cols=["Заказ","Дата создания","Дата записи","Дата закрытия","Клиент","Мастер","Статус","Цена промывки","Учтённая оплата","Зарплата за промывку","Доля компании","Сведения о сумме оплаты",
+      "Дорога","Итого по заказу","Поступило за дорогу","Возвращено за дорогу","Начислено за дорогу","Дорога за счёт компании"];
     const data=rows.map(r=>[r.referenceCode||r.orderNumber||"",getDate(r,"created"),r.date||"",
       getDate(r,"closed"),r.name,r.master,r.status,r.reportPrice==null?"":r.reportPrice,
       r.reportPaymentUnverified?"":r.reportReceived,r.reportPayrollOnHold?"На сверке":r.reportSalary??"",r.reportProfit??"",
@@ -151,7 +174,8 @@
         r.reportPaymentMismatch?"Оплата отличается от цены":
         r.reportPaymentVerified?"Сумма подтверждена сверкой":"Сумма указана",
         ...holdDetails(r)
-      ].join(" · ")]);
+      ].join(" · "),r.reportTravel??0,r.reportTotalPrice??"",r.reportTravelReceived??0,r.reportTravelRefunded??0,
+      r.reportTravelEarned??0,r.reportTravelUncovered??0]);
     return "\uFEFF"+[cols,...data].map(row=>row.map(quoteCsv).join(";")).join("\r\n");
   }
   function node(tag,cls,value){
@@ -255,7 +279,7 @@
     table.append(columns);
     const thead=node("thead");
     const tr=node("tr");
-    for(const label of ["Заказ","Дата","Клиент","Статус","Цена","Платежи","Зарплата","Доля компании"]){
+    for(const label of ["Заказ","Дата","Клиент","Статус","Промывка","Платежи","Зарплата","Доля компании"]){
       const th=node("th","",label);th.scope="col";tr.append(th);
     }
     thead.append(tr);table.append(thead);
@@ -293,7 +317,7 @@
       const orders=getOrders(),masterId=getRaulMasterId?.(),today=moscowDay(new Date()),payroll=getPayroll?.();
       const versioned=payroll?.state==="active";
       const explanationText=
-        "Для новых начислений зарплата Рауля составляет 50% полной подтверждённой оплаты плюс 1 500 ₽. Доля компании равна оплате за вычетом начисленной зарплаты, до затрат на материалы, дорогу и налоги. Выплаченная зарплата уже учтена в начислении. Исторические расчёты сохранены.";
+        "После полной оплаты зарплата Рауля за промывку составляет 50% её стоимости плюс 1 500 ₽. Доплата за дорогу начисляется отдельно при сохранении заказа. Доля компании равна стоимости промывки за вычетом зарплаты за промывку. Дорога за счёт компании показана отдельно. Исторические расчёты сохранены.";
       if(explanation.textContent!==explanationText)explanation.textContent=explanationText;
       const key=JSON.stringify([state,finance?.revision,masterId,today,versioned]);
       if(renderKey===key&&(finance?.revision!=null||renderedOrders===orders))return;
@@ -306,7 +330,11 @@
         (heldCount?" · На сверке: "+heldCount:"")+
         (totals.uncalculated?" · Без расчёта доли: "+totals.uncalculated:"")+
          (totals.missingPayments?" · Нет суммы платежа: "+totals.missingPayments:"")+
-         (totals.mismatchedPayments?" · Оплата отличается от цены: "+totals.mismatchedPayments:"");
+         (totals.mismatchedPayments?" · Оплата отличается от цены: "+totals.mismatchedPayments:"")+
+         (totals.travel!==undefined?" · Дорога: получено "+money(totals.travelReceived)+
+           (totals.travelRefunded?", возвращено "+money(totals.travelRefunded):"")+
+           ", начислено "+money(totals.travelEarned)+
+           (totals.travelUncovered?", за счёт компании "+money(totals.travelUncovered):""):"");
       tbody.replaceChildren();
       // Like HelloClient: period totals go above individual orders, after the header.
       // Totals include every matching order, not just the visible page of 100.
@@ -360,6 +388,12 @@
           "Источник: "+(row.clientSource||"не указан")
         ];
         if(row.reportCalculated)parts.push("Расчёт: "+money(row.reportCalculationAmount)+" − "+money(row.reportSalary)+" = "+money(row.reportProfit));
+        if(row.reportTravel||row.reportTravelEarned||row.reportTravelReceived||row.reportTravelRefunded){
+          parts.push("Дорога "+money(row.reportTravel),"Итого по заказу "+(row.reportTotalPrice==null?"—":money(row.reportTotalPrice)),
+            "Получено за дорогу "+money(row.reportTravelReceived),"Начислено за дорогу "+money(row.reportTravelEarned));
+          if(row.reportTravelRefunded)parts.push("Возвращено за дорогу "+money(row.reportTravelRefunded));
+          if(row.reportTravelUncovered)parts.push("Дорога за счёт компании "+money(row.reportTravelUncovered));
+        }
         if(row.reportPaymentVerified)parts.push("Сумма оплаты подтверждена сверкой");
         if(row.reportPaymentMissing)parts.push(row.reportPaymentUnverified?
           "Сумма оплаты пока не подтверждена":

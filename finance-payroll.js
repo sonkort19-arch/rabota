@@ -174,9 +174,10 @@
        const heading=el("h2","","Выплата проведена");heading.id="fp-modal-title";
        const notice=div("fp-success",el("strong","fp-success-amount",money(receipt.amount)),
          el("span","",name+" · "+(intent.method==="cash"?"наличные":"карта")));
+       const overpaid=Math.max(0,Number(receipt.overpaid)||-Number(receipt.due));
        const updated=div("fp-modal-balance",
-         el("span","",result.refreshError?"Остаток по квитанции":"Осталось выплатить"),
-         el("strong","",money(receipt.due)));
+         el("span","",overpaid?"Переплата":result.refreshError?"Остаток по квитанции":"Осталось выплатить"),
+         el("strong","",money(overpaid||Math.max(0,Number(receipt.due)))));
        modal.replaceChildren(div("fp-modal-heading",heading,button("×","fp-close",close)),notice,updated);
        if(result.refreshError)modal.append(el("p","fp-hint","Выплата записана. Обновите отчёт, чтобы сверить текущий остаток."));
        modal.append(div("fp-actions",button("Закрыть","fp-primary",close)));
@@ -233,6 +234,11 @@
      el("h2","fp-balance-label",owner?name:"Моя зарплата"),
      el("span","fp-balance-eyebrow",owner?"Осталось выплатить":"Осталось получить"),
      el("strong","fp-balance-value",money(m.due))));
+   if(m.overpaid>0){
+     const overpayment=el("p","fp-hint fp-travel-overpayment","Переплата "+money(m.overpaid)+
+       ". Учтём в следующих начислениях.");
+     hero.append(overpayment);
+   }
    if(owner&&m.employeeId){
      const pending=savedIntent(m);
      const actions=el("div","fp-v3-actions");
@@ -247,9 +253,15 @@
      }
      hero.append(actions);
    }
-   wrap.append(hero,div("fp-person-summary",
+   const summary=div("fp-person-summary",
      div("fp-person-summary-item",el("span","","Начислено"),el("strong","",money(m.earned))),
-     div("fp-person-summary-item",el("span","","Выплачено"),el("strong","",money(m.paid)))));
+     div("fp-person-summary-item",el("span","","Выплачено"),el("strong","",money(m.paid))));
+   if(m.travelHistory?.length){
+     summary.append(
+       div("fp-person-summary-item",el("span","","Начислено за промывку"),el("strong","",money(m.baseEarned))),
+       div("fp-person-summary-item",el("span","","Начислено за дорогу"),el("strong","",money(m.travelEarned))));
+   }
+   wrap.append(hero,summary);
    if(owner&&m.holds?.length)wrap.append(cutoverReview(m.holds));
    const tabs=el("div","fp-subtabs");
    const views=[["accruals","Начисления"],["payments","Выплаты"]];
@@ -266,10 +278,17 @@
    wrap.append(tabs);
    const accruals=state.view==="accruals",refunds=state.view==="refunds";
    const orderTitle=item=>[item.reference,item.title].filter(Boolean).join(" · ")||"Заказ";
+   const travelOrders=new Set((m.travelHistory??[]).map(item=>item.orderId));
    const items=accruals?(m.accruals??[]).map(item=>({
      stamp:item.earnedAt,title:orderTitle(item),
-     detail:"Оплачено клиентом "+money(item.actualPaid),amount:item.earned
-   })):refunds?m.refunds.map(item=>({
+     detail:(travelOrders.has(item.orderId)?"Промывка оплачена клиентом ":"Оплачено клиентом ")+money(item.actualPaid),
+     amount:item.earned
+   })).concat((m.travelHistory??[]).map(item=>({
+     stamp:item.occurredAt,title:"Дорога · "+(item.reference||window.__rdOrderReference?.code(item.orderNumber)||
+       (item.orderNumber==null?"Заказ":"№"+String(item.orderNumber).padStart(5,"0"))),
+     detail:item.delta<0?"Корректировка начисления за дорогу":"Доплата за дорогу",
+     amount:item.delta,travel:true
+   }))):refunds?m.refunds.map(item=>({
      stamp:item.occurredAt,title:orderTitle(item),
      detail:"Возвращено клиенту "+money(item.amount)+(item.earnedAt?" · Начисление от "+localDate(item.earnedAt):""),
      amount:item.earnedReversed
@@ -301,10 +320,11 @@
    else {
      const ledger=el("div","fp-ledger");
      for(const row of selected){
-       const amount=row.amount==null?"—":(Number(row.amount)===0?"":accruals?"+":"−")+money(row.amount);
-       ledger.append(div("fp-ledger-row",el("span","fp-date",localDate(row.stamp)),
+       const positive=accruals&&row.amount>=0;
+       const amount=row.amount==null?"—":(Number(row.amount)===0?"":positive?"+":"−")+money(Math.abs(row.amount));
+       ledger.append(div("fp-ledger-row"+(row.travel?" fp-travel-row":""),el("span","fp-date",localDate(row.stamp)),
          div("fp-ledger-description",el("strong","",row.title),el("small","",row.detail)),
-         el("strong",accruals?"fp-positive":"fp-negative",amount)));
+         el("strong",positive?"fp-positive":"fp-negative",amount)));
      }
      wrap.append(ledger);
    }

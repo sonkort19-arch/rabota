@@ -46,18 +46,41 @@
   };
   const scheduleFields=["appointment_date","appointment_time","master","assigned_user_id","status"];
   const linkedFields=[scheduleFields,
-    ["status","completed_at","price","paid","payment_amount","payment_method","payment_received_by","paid_at","paid_by"],
+    ["status","completed_at","price","travel_amount","travel_taken","paid","payment_amount","payment_method","payment_received_by","paid_at","paid_by"],
     ["phone","lead_id"]];
   const resolvableFields=new Set(["name","phone","address","client_source","radiator_type",
-    "radiators","floor_loops","price","details"]);
+    "radiators","floor_loops","price","travel_amount","travel_taken","details"]);
   function changedFields(base,target){
     return Object.fromEntries(Object.entries(target).filter(([key,value])=>base[key]!==value));
   }
-  function payableAmount(value){
-    if(typeof value!=="number"&&typeof value!=="string")return null;
+  function moneyAmount(value){
+    if((typeof value!=="number"&&typeof value!=="string")||String(value).trim()==="")return null;
     const amount=Number(value);
-    return Number.isFinite(amount)&&amount>0&&amount<=10000000&&
-      Math.round(amount*100)/100===amount?amount:null;
+    const cents=Math.round(amount*100);
+    return Number.isSafeInteger(cents)&&amount>=0&&cents/100===amount?amount:null;
+  }
+  function payableAmount(value){
+    const amount=moneyAmount(value);
+    return amount>0&&amount<=10000000?amount:null;
+  }
+  function travelAmount(value){
+    if(value==null||value==="")return 0;
+    const amount=moneyAmount(value);
+    return amount===null||amount>10000000?null:amount;
+  }
+  function orderCustomerTotal(order){
+    const wash=moneyAmount(order?.price),travel=travelAmount(order?.travelAmount);
+    if(wash===null||travel===null)return null;
+    const cents=Math.round(wash*100)+Math.round(travel*100);
+    return Number.isSafeInteger(cents)?cents/100:null;
+  }
+  function payableOrderTotal(order){
+    return payableAmount(order?.price)===null?null:payableAmount(orderCustomerTotal(order));
+  }
+  function travelOutcomeLabel(order){
+    if(order.status!=="Отменён")return "";
+    if(order.travelTaken===true)return "поездка состоялась";
+    return order.travelTaken===false?"поездки не было":"";
   }
   function createOrdersModel(deps){
     if(!deps||!Array.isArray(deps.statuses)||
@@ -91,6 +114,7 @@ function readOrder(row) {
         master:row.master || "",date:row.appointment_date || "",
         time:row.appointment_time ? row.appointment_time.slice(0,5) : "",
         price:row.price == null ? null : Number(row.price),assignedUserId:row.assigned_user_id || null,
+        travelAmount:Number(row.travel_amount??0),travelTaken:typeof row.travel_taken==="boolean"?row.travel_taken:null,
         paid:Boolean(row.paid),status:row.status || "Записан",details:row.details || "",
         paymentMethod:row.payment_method||"",paymentAmount:row.payment_amount==null?null:Number(row.payment_amount),
         paymentReceivedBy:row.payment_received_by||"",paidAt:row.paid_at||null,paidBy:row.paid_by||null
@@ -98,6 +122,13 @@ function readOrder(row) {
     }
 
 function serializeOrder(order) {
+      const travel=travelAmount(order.travelAmount);
+      const status=STATUSES.includes(order.status)?order.status:"Записан";
+      if(travel===null)throw new Error("Укажите стоимость дороги от 0 до 10 000 000 ₽ с точностью до копеек.");
+      if(travel>0&&orderCustomerTotal(order)>10000000)
+        throw new Error("Стоимость заказа вместе с дорогой не может превышать 10 000 000 ₽.");
+      if(travel>0&&status==="Отменён"&&typeof order.travelTaken!=="boolean")
+        throw new Error("Укажите, состоялась ли поездка.");
       const obj = {
         name:String(order.name || "").trim(),phone:String(order.phone || "").trim(),
         address:String(order.address || ""),client_source:String(order.clientSource || "").slice(0,40),
@@ -107,12 +138,13 @@ function serializeOrder(order) {
         master:order.master || "", appointment_date:order.date || null,
         appointment_time:order.time || null,
         price:order.price === "" || order.price == null ? null : Number(order.price),
-        paid:Boolean(order.paid),status:STATUSES.includes(order.status) ? order.status : "Записан",
+        travel_amount:travel,travel_taken:travel>0&&status==="Отменён"?order.travelTaken:null,
+        paid:Boolean(order.paid),status,
         details:order.details || "",completed_at:order.completedAt || null
       };
       if (order.paymentMethod && order.paid) {
         obj.payment_method=order.paymentMethod;
-        obj.payment_amount=order.paymentAmount??order.price;
+        obj.payment_amount=order.paymentAmount??payableOrderTotal(order);
         obj.payment_received_by=order.paymentReceivedBy||"company";
         obj.paid_at=order.paidAt||new Date().toISOString();
         obj.paid_by=order.paidBy||getCurrentUserId();
@@ -131,8 +163,9 @@ function orderHasFinancialHistory(order){
 
     function createPayload(data){
       // Completion time is generated by the form. It is not part of the user's input.
-      const {completed_at,...payload}=data;
-      return payload;
+      const {completed_at,travel_amount,travel_taken,...payload}=data;
+      // Preserve the identity of unresolved writes from before the surcharge existed.
+      return travel_amount>0?{...payload,travel_amount,travel_taken}:payload;
     }
     async function finishWriteIntent(intents,intent){
       try{await intents.finish(intent);}
@@ -216,6 +249,7 @@ function orderHasFinancialHistory(order){
       const snapshot=base?serializeOrder(base):null;
       const data=serializeOrder(order);
       const wanted=statusOnly?{status:data.status,completed_at:data.completed_at}:data;
+      if(statusOnly&&data.travel_amount>0)wanted.travel_taken=data.travel_taken;
       const changes=base?changedFields(snapshot,wanted):wanted;
       const conflict=(fields=[],current={},version=null,canResolve=false)=>Object.assign(new Error(
         "Заказ не обновлён. Он изменился на другом устройстве или стал недоступен. Ваш черновик сохранён в форме."
@@ -287,7 +321,7 @@ function orderHasFinancialHistory(order){
       refundAttempts.clear();
     }
     function recordFullPayment(order,{amount,method},receiver){
-      const id=String(order?.id??""),expected=payableAmount(order?.price),actor=getCurrentUserId();
+      const id=String(order?.id??""),expected=payableOrderTotal(order),actor=getCurrentUserId();
       if(!id||!actor)throw new Error("Перед оплатой сохраните заказ и войдите в CRM.");
       if(order.status==="Отменён")throw new Error("Отменённый заказ нельзя оплатить.");
       if(expected===null||payableAmount(amount)!==expected)
@@ -311,13 +345,13 @@ function orderHasFinancialHistory(order){
       };
       const readReceipt=async()=>{
         const rows=await dbRequest(
-          "rabota_orders?select=id,status,price,paid,payment_amount,payment_method,payment_received_by,paid_by&id=eq."+
+          "rabota_orders?select=id,status,price,travel_amount,paid,payment_amount,payment_method,payment_received_by,paid_by&id=eq."+
           encodeURIComponent(id)+"&limit=1","GET");
         ensureAccount();
         const row=Array.isArray(rows)&&rows.length===1?rows[0]:null;
         if(!row||String(row.id)!==id)throw new Error("Не удалось проверить запись оплаты.");
         if(row.paid===false&&row.payment_amount==null)return false;
-        if(row.paid===true&&row.status==="Выполнен"&&payableAmount(row.price)===expected&&
+        if(row.paid===true&&row.status==="Выполнен"&&payableOrderTotal({price:row.price,travelAmount:row.travel_amount})===expected&&
           payableAmount(row.payment_amount)===expected&&row.payment_method===method&&
           row.payment_received_by===receiver&&row.paid_by===actor)return true;
         throw new Error("В заказе уже есть платёж с другими реквизитами. Проверьте карточку.");
@@ -359,25 +393,29 @@ function orderHasFinancialHistory(order){
     }
 
     const refundIntents=deps.refundIntents||root?.__rdCreateWriteIntents?.("order-refund");
-    function recordFullRefund(order,note){
+    function recordFullRefund(order,note,travelTaken){
       const id=String(order?.id??""),amount=payableAmount(order?.paymentAmount),actor=getCurrentUserId();
       if(!id||!actor||order.paid!==true||order.status!=="Выполнен"||
-        amount===null||amount!==payableAmount(order.price))
+        amount===null||amount!==payableOrderTotal(order))
         throw new Error("Можно учесть только полный возврат по завершённому и полностью оплаченному заказу.");
+      const withTravel=travelAmount(order.travelAmount)>0;
+      if(withTravel&&typeof travelTaken!=="boolean")throw new Error("Укажите, состоялась ли поездка.");
+      const trip=withTravel?travelTaken:null;
       note=String(note??"").trim();
       if(!note||Array.from(note).length>240)throw new Error("Укажите причину возврата до 240 символов.");
       let attempt=refundAttempts.get(id);
       if(attempt){
-        if(attempt.actor!==actor||attempt.note!==note||attempt.amount!==amount)
+        if(attempt.actor!==actor||attempt.note!==note||attempt.amount!==amount||attempt.trip!==trip)
           throw new Error("Повторите проверку возврата с теми же реквизитами.");
         if(attempt.receipt)return Promise.resolve(attempt.receipt);
         if(attempt.promise)return attempt.promise;
       }else{
-        attempt={actor,note,amount,promise:null,receipt:null};
+        attempt={actor,note,amount,trip,promise:null,receipt:null};
         refundAttempts.set(id,attempt);
       }
       const generation=paymentGeneration;
       const payload={p_order_id:id,p_amount:amount,p_note:note};
+      if(withTravel)payload.p_travel_taken=trip;
       const ensureAccount=()=>{
         if(generation!==paymentGeneration||actor!==getCurrentUserId())
           throw new Error("Сеанс изменился. Проверьте возврат в заказе.");
@@ -438,6 +476,11 @@ function findTightBookings(date,time,master,excludeId) {
   if(root){
     root.__rdCreateOrdersModel=createOrdersModel;root.__rdOrderReference=orderReference;
     root.__rdPayableOrderAmount=payableAmount;
+    root.__rdTravelAmount=travelAmount;
+    root.__rdOrderCustomerTotal=orderCustomerTotal;
+    root.__rdTravelOutcomeLabel=travelOutcomeLabel;
+    root.__rdPayableOrderTotal=payableOrderTotal;
   }
-  if(typeof module!=="undefined"&&module.exports)module.exports={createOrdersModel,orderReference,payableAmount};
+  if(typeof module!=="undefined"&&module.exports)
+    module.exports={createOrdersModel,orderReference,payableAmount,travelAmount,orderCustomerTotal,payableOrderTotal,travelOutcomeLabel};
 })(typeof window!=="undefined"?window:null);

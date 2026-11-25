@@ -907,6 +907,9 @@ function refreshHomeSlots(){
  const options=homeSlotOptions();
  if(picker.dataset.options!==options.key)picker.replaceWith(homeSlotPicker(options));
 }
+function customerAmount(order){
+ return window.__rdOrderCustomerTotal(order);
+}
 function drawHome(){
  if(!ready||activePage!=="home")return;
  const root=$("rdHome");
@@ -918,7 +921,7 @@ function drawHome(){
  const customers=new Set(thisMonth.map(o=>normalizePhone(o.phone)||String(o.name||"").toLocaleLowerCase("ru")).filter(Boolean));
  const completed=thisMonth.filter(o=>o.status==="Выполнен");
  // Monetary figure represents recorded paid job prices by appointment date, not bank or cash receipts.
- const paid=thisMonth.filter(o=>o.paid&&o.price!=null&&Number.isFinite(Number(o.price)));
+ const paid=thisMonth.filter(o=>o.paid).map(customerAmount).filter(amount=>amount!==null);
  const inProgress=orders.filter(o=>o.status==="В работе");
  const unpaid=orders.filter(o=>o.status==="Выполнен"&&!o.paid);
  const noMaster=orders.filter(o=>!smText(o.master)&&o.status!=="Выполнен");
@@ -930,7 +933,7 @@ function drawHome(){
   dashboardMetric("Долги",unpaid.length,{filter:"unpaid"})
  );
  root.append(metrics);
- const paidTotal=paid.reduce((sum,o)=>sum+Number(o.price),0);
+ const paidTotal=paid.reduce((cents,amount)=>cents+Math.round(amount*100),0)/100;
  const paidSummary=makeNode("div","rd-home-paid-summary");
  paidSummary.append(
   boxText("span","Стоимость оплаченных заказов за месяц","rd-home-paid-label"),
@@ -1009,9 +1012,11 @@ function drawHome(){
  const latest=panel("Последние заказы");
  const recent=[...getOrders()].sort((a,b)=>String(b.createdAt||"").localeCompare(String(a.createdAt||""))).slice(0,5);
  if(!recent.length)latest.append(boxText("div","Заказов пока нет","rd-empty"));
- recent.forEach(o=>rowEntry(latest,o.name||"Клиент",
-  (o.date?dateLong(o.date):"Без даты")+(o.master?" · "+o.master:""),
-  o.price==null?"—":cash(o.price),()=>openDashboardOrders({orderId:o.id})));
+ recent.forEach(o=>{
+  const amount=customerAmount(o);
+  rowEntry(latest,o.name||"Клиент",(o.date?dateLong(o.date):"Без даты")+(o.master?" · "+o.master:""),
+   amount===null?"—":cash(amount),()=>openDashboardOrders({orderId:o.id}));
+ });
  analytics.append(latest);
  if(currentRole==="owner"){
   const assistant=panel("ИИ-помощник","Вопросы о заказах и расписании");
@@ -1103,7 +1108,10 @@ function drawCalendar(){
  const byTime=(a,b)=>String(a.time||"").localeCompare(String(b.time||""));
  const statusClass=o=>o.status==="Выполнен"?"is-done":o.status==="В работе"?"is-progress":"is-booked";
  const statusName=o=>o.status||"Записан";
- const amount=o=>o.price!=null&&o.price!==""&&Number.isFinite(Number(o.price))?cash(o.price):null;
+ const amount=o=>{
+  const total=customerAmount(o);
+  return total===null?null:cash(total);
+ };
  const dayCount=n=>n+" "+(n%10===1&&n%100!==11?"запись":n%10>=2&&n%10<=4&&(n%100<12||n%100>14)?"записи":"записей");
  const selectDay=date=>selectCalendarDate(date,true);
  for(let i=0;i<7;i++){
@@ -1286,10 +1294,11 @@ function drawClients(){
     String(b.time||"").localeCompare(String(a.time||"")));
   for(const o of entries){
    const card=makeNode("article","rd-history-row");
+   const total=customerAmount(o);
    card.append(boxText("strong",(o.date?dateLong(o.date):"Без даты")+(o.time?" · "+o.time:"")),
      boxText("span",(o.status||"Записан")+(o.master?" · "+o.master:"")),
      boxText("span",o.address||"Адрес не указан"),
-     boxText("span",(o.price==null?"Стоимость не указана":cash(o.price))+" · "+(o.paid?"Оплачено":"Не оплачено")));
+     boxText("span",(total===null?"Стоимость не указана":cash(total))+" · "+(o.paid?"Оплачено":"Не оплачено")));
    if(currentRole==="owner"||currentRole==="manager"){
     const btn=makeNode("button","secondary","Открыть заявку");btn.type="button";btn.addEventListener("click",()=>openForm(o.id));card.append(btn);
    }

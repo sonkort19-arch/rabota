@@ -91,6 +91,24 @@
 #orderForm .order-schedule-grid {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
+#orderForm #orderTravelTakenField { grid-column: 1 / -1; }
+#orderForm .order-customer-total {
+  grid-column: 1 / -1;
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+  padding: 5px 0 0;
+  color: #52647e;
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+#orderForm .order-customer-total output {
+  color: #203b67;
+  font-weight: 750;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
 #orderForm .order-form-scroll label {
   margin-top: 11px;
   margin-bottom: 5px;
@@ -327,9 +345,6 @@
   }
   body.rd #orderOverlay.master-quick #orderMasterField {
     display:none!important; /* Value is still populated and validated in JavaScript. */
-  }
-  body.rd #orderOverlay.master-quick #orderPriceField {
-    grid-column:1/-1;
   }
   body.rd #orderOverlay.master-quick #orderForm #oaCalendar {
     margin-top:7px;

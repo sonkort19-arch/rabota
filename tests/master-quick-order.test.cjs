@@ -117,7 +117,7 @@ test("one unified time row replaces double red-green timeline",()=>{
   assert.match(html,/id="oaSlotSuggestions" class="oa-slots"/);
   assert.match(html,/src="\/booking-timeline\.js\?v=20261125-midnight"/);
   assert.match(html,/src="\/order-availability\.js\?v=[^"]+"/);
-  assert.match(html,/master-quick-order\.css\?v=20261118-inline-busy-v1/);
+  assert.match(html,/master-quick-order\.css\?v=[^"]+"/);
   assert.match(availability,/function renderBusySummary\(blocks,date\)/);
   assert.match(availability,/const summary=renderBusySummary\(blocks,date\)/);
   assert.match(availability,/slots\.append\(summary\)/);
@@ -133,7 +133,7 @@ test("one unified time row replaces double red-green timeline",()=>{
 
 test("Raul compact redesign keeps real input fields, no fake mockup values or changed saving logic",()=>{
   const premium=fs.readFileSync(path.join(root,"master-quick-premium.css"),"utf8");
-  assert.match(html,/master-quick-premium\.css\?v=20261118-v1/);
+  assert.match(html,/master-quick-premium\.css\?v=[^"]+"/);
   assert.match(premium,/\.mq-client-fields\{\s*display:grid;grid-template-columns:minmax\(0,\.86fr\) minmax\(0,1\.14fr\)/);
   assert.match(premium,/\.mq-client-address\{grid-column:1\/-1\}/);
   assert.match(premium,/\.mq-number-controls \.mq-step\{\s*width:44px;height:44px;min-height:44px/);

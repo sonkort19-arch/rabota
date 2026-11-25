@@ -102,6 +102,25 @@ test("only the owner sees disputed historical entries separate from the payable 
  assert.equal(select(master,"fp-cutover-review").length,0);
 });
 
+test("a paid trip reversal remains in the accrual history and shows repayment credit without payment controls",()=>{
+ const activePayroll={...defaultPayroll,earned:0,paid:1000,due:0,balance:-1000,overpaid:1000,
+  baseEarned:0,travelEarned:0,travelHistory:[
+   {orderId:"trip",orderNumber:52,delta:1000,occurredAt:"2026-11-22T10:00:00Z"},
+   {orderId:"trip",orderNumber:52,delta:-1000,occurredAt:"2026-11-23T10:00:00Z"}
+  ],payouts:[{amount:1000,method:"cash",occurredAt:"2026-11-22T11:00:00Z"}]};
+ const f=fixture({activePayroll});
+ const compact=value=>value.textContent.replace(/\s/g," ");
+ assert.equal(compact(select(f.salaryRoot,"fp-balance-value")[0]),"0,00 ₽");
+ assert.match(compact(select(f.salaryRoot,"fp-travel-overpayment")[0]),/Переплата 1 000,00 ₽/);
+ assert.equal(select(f.salaryRoot,"fp-balance-payout")[0].disabled,true);
+ assert.equal(select(f.salaryRoot,"fp-v3-partial")[0].disabled,true);
+ const [adjustment,accrual]=select(f.salaryRoot,"fp-travel-row");
+ assert.match(compact(adjustment),/Дорога · №00052.*Корректировка начисления за дорогу.*−1 000,00 ₽/);
+ assert.match(compact(accrual),/Дорога · №00052.*Доплата за дорогу.*1 000,00 ₽/);
+ select(f.salaryRoot,"fp-subtab")[1].click();
+ assert.match(compact(f.salaryRoot),/История выплат.*1 000,00 ₽/);
+});
+
 test("after a lost payout response the next page resumes the original intent, even at zero due",async()=>{
  const storage=new Map(),calls=[],committed=new Map();
  const activePayroll={active:true,ready:true,actorId:"original-owner",employeeId:"raul",

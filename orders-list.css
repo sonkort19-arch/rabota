@@ -203,6 +203,8 @@ body.rd #orders .rd-list-paid:has(.rd-list-pay:empty){visibility:hidden}
 .rd-order-state.s-done{background:#e1f7e8;color:#158252}
 .rd-order-state.s-cancelled{background:#feeaec;color:#b9485c}
 .rd-order-total{margin-left:auto;font-size:22px;color:#1c2c49;white-space:nowrap;font-variant-numeric:tabular-nums}
+.rd-order-total-group{display:grid;justify-items:end;gap:2px;margin-left:auto;min-width:0}
+.rd-order-total-label{font-size:11px;font-weight:650;line-height:1.25;color:#52647e;text-align:right}
 .rd-order-payment-state{flex-basis:100%;width:max-content;max-width:100%;flex-grow:0}
 .rd-order-payment-state.is-paid{color:#14754d;background:#e4f8ee}
 .rd-order-payment-state.is-unpaid{color:#a5582c;background:#fff4ed}

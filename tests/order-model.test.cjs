@@ -4,7 +4,7 @@ const assert=require("node:assert/strict");
 const fs=require("node:fs");
 const path=require("node:path");
 const {webcrypto}=require("node:crypto");
-const {createOrdersModel,orderReference}=require("../order-model.js");
+const {createOrdersModel,orderReference,travelAmount,orderCustomerTotal,payableOrderTotal}=require("../order-model.js");
 const {createWriteIntents}=require("../app-services.js");
 
 const STATUSES=["Записан","В работе","Выполнен","Отменён"];
@@ -93,6 +93,38 @@ test("unpaid order does not manufacture payment metadata",()=>{
  assert.equal(record.paid,false);
  assert.ok(!Object.hasOwn(record,"payment_method"));
  assert.ok(!Object.hasOwn(record,"paid_at"));
+});
+test("road is optional for legacy and new orders and totals use exact kopecks",()=>{
+ const {model}=setup();
+ const legacy=model.readOrder(base);
+ assert.equal(legacy.travelAmount,0);
+ assert.equal(legacy.travelTaken,null);
+ assert.equal(orderCustomerTotal(legacy),12000);
+ for(const empty of [null,undefined,""])assert.equal(travelAmount(empty),0);
+ for(const invalid of [-1,1.001,Infinity,"abc",true,10000001])assert.equal(travelAmount(invalid),null);
+ assert.equal(orderCustomerTotal({price:"10000.10",travelAmount:"1000.20"}),11000.3);
+ assert.equal(payableOrderTotal({price:10000,travelAmount:1000}),11000);
+ assert.equal(payableOrderTotal({price:0,travelAmount:1000}),null);
+ assert.equal(payableOrderTotal({price:1,travelAmount:10000000}),null);
+ const draft=model.serializeOrder({...legacy,price:null,travelAmount:500});
+ assert.equal(draft.price,null);
+ assert.equal(draft.travel_amount,500);
+ assert.equal(draft.paid,false);
+ assert.equal(Object.hasOwn(draft,"payment_amount"),false);
+ assert.throws(()=>model.serializeOrder({...legacy,travelAmount:10000000}),/вместе с дорогой/);
+});
+test("cancellation with a positive road amount requires an explicit outcome",()=>{
+ const {model}=setup();
+ const order={...model.readOrder(base),travelAmount:900,status:"Отменён"};
+ assert.throws(()=>model.serializeOrder(order),/состоялась ли поездка/);
+ for(const travelTaken of [false,true]){
+   const row=model.serializeOrder({...order,travelTaken});
+   assert.equal(row.travel_amount,900);
+   assert.equal(row.travel_taken,travelTaken);
+   assert.equal(model.readOrder(row).travelTaken,travelTaken);
+ }
+ assert.equal(model.serializeOrder({...order,status:"В работе",travelTaken:true}).travel_taken,null);
+ assert.equal(model.serializeOrder({...order,travelAmount:0,travelTaken:true}).travel_taken,null);
 });
 test("unsupported status falls back to confirmed booking",()=>{
  const {model}=setup();
