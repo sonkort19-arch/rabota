@@ -789,6 +789,15 @@ async function checkLargeOrderList(browser,kind){
         assert.equal(await cards(page).count(),1,"the focused calendar day still shows its appointments");
         await chooseMode(page,"all");
         assert.match(await pager.innerText(),/2 из 20/);
+        const workspace=page.locator("#appScreen");
+        await workspace.evaluate(node=>node.scrollTop=240);
+        const nav=role==="owner"?"#rdMobileNav":"#mwMasterNav";
+        const destination=role==="owner"?'[data-page="reports"]':'[data-mw-page="reports"]';
+        const ordersButton=role==="owner"?'[data-page="orders"]':'[data-mw-page="orders"]';
+        await page.locator(nav).locator(destination).click();
+        await page.locator(nav).locator(ordersButton).click();
+        assert.match(await pager.innerText(),/2 из 20/);
+        await page.waitForFunction(()=>Math.abs(document.getElementById("appScreen").scrollTop-240)<=1);
         await page.locator("#owSearchToggle").click();
         await page.locator("#owSearchInput").fill(rows.at(-1).name);
         assert.equal(await cards(page).count(),1,"search includes records beyond the current page");
@@ -800,6 +809,10 @@ async function checkLargeOrderList(browser,kind){
         await page.locator("#owFilterApply").click();
         assert.equal(await cards(page).count(),20,"filter includes matching records from every page");
         assert.equal(await pager.count(),0);
+        assert.equal(await page.evaluate(id=>window.__rdOrdersWorkspace.show({orderId:id}),rows.at(-1).id),true);
+        const details=page.locator(role==="owner"?".rd-order-dialog":".master-order-sheet");
+        assert.match(await details.innerText(),/Архивный клиент 0799/);
+        assert.match(await pager.innerText(),/20 из 20/);
         assert.deepEqual(writes,[]);
       }finally{await s.close();}
     }

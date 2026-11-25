@@ -44,19 +44,19 @@
       if(!order?.date||order.date>date||
         String(order.master||"").trim().toLocaleLowerCase("ru-RU")!==masterKey||
         (excludeId!=null&&String(order.id)===String(excludeId)))continue;
-      const dayOffset=(dayNumber(order.date)-selectedDay)*MINUTES_PER_DAY;
-      if(!Number.isFinite(dayOffset))continue;
+      const offsetMinutes=(dayNumber(order.date)-selectedDay)*MINUTES_PER_DAY;
+      if(!Number.isFinite(offsetMinutes))continue;
       const block=estimate(order,travelFn);
-      if(block&&(dayOffset===0||(block.end!==null&&block.end+dayOffset>0)))
-        blocks.push({...block,date:order.date,dayOffset});
+      if(block&&(offsetMinutes===0||(block.end!==null&&block.end+offsetMinutes>0)))
+        blocks.push({...block,date:order.date,offsetMinutes});
     }
-    return blocks.sort((a,b)=>a.dayOffset+a.start-b.dayOffset-b.start);
+    return blocks.sort((a,b)=>(a.offsetMinutes+a.start)-(b.offsetMinutes+b.start));
   }
   function findInDay(blocks,time){
     const selected=minute(time);
     if(selected===null)return null;
     return blocks.find(block=>block.end!==null&&
-      selected>=block.start+block.dayOffset&&selected<block.end+block.dayOffset)||null;
+      selected>=block.start+block.offsetMinutes&&selected<block.end+block.offsetMinutes)||null;
   }
   function findAt(orders,time,date,master,excludeId,travelFn){
     return findInDay(forDay(orders,date,master,excludeId,travelFn),time);

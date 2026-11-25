@@ -49,17 +49,18 @@
   }
   function moveDialog(delta){
     const workspace=window.__rdOrdersWorkspace;
-    const next=dialogPosition().at(delta);
-    if(!next)return;
-    activeId=String(next);
+    const {previous,next}=dialogPosition();
+    const target=delta<0?previous:next;
+    if(!target)return;
+    activeId=String(target);
     workspace?.revealOrder(activeId);
     paintDialog(true);
   }
   function dialogPosition(){
     const position=window.__rdOrdersWorkspace?.listPosition(activeId);
-    if(position)return {...position,at:delta=>delta<0?position.previous:position.next};
+    if(position)return position;
     const rows=visibleCards(),index=rows.findIndex(row=>row.dataset.rdOrderId===activeId);
-    return {index,total:rows.length,at:delta=>rows[index+delta]?.dataset.rdOrderId};
+    return {index,total:rows.length,previous:rows[index-1]?.dataset.rdOrderId,next:rows[index+1]?.dataset.rdOrderId};
   }
   function labeledRow(label,value,variant){
     if(value===null||value===undefined||value==="")return null;

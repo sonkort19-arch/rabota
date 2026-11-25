@@ -109,8 +109,7 @@
     };
     const nav=node("nav","ow-list-pages");nav.setAttribute("aria-label","Страницы заказов");
     const prev=node("button","secondary","Назад"),next=node("button","secondary","Далее");
-    const current=node("span","ow-list-page",(state.listPage+1)+" из "+pages);
-    current.setAttribute("aria-label","Страница "+current.textContent);
+    const current=node("span","ow-list-page","Страница "+(state.listPage+1)+" из "+pages);
     prev.type=next.type="button";
     prev.disabled=state.listPage===0;next.disabled=state.listPage===pages-1;
     prev.addEventListener("click",()=>change(-1));next.addEventListener("click",()=>change(1));
@@ -357,6 +356,7 @@
     if(currentRole==="master"){
       const order=getOrders().find(o=>String(o.id)===String(orderId)&&o.assignedUserId===currentUser?.id);
       if(!order)return false;
+      revealOrder(order.id);
       window.__rdOpenMasterOrder?.(order.id);return true;
     }
     return Boolean(window.__rdOpenOrderDetail?.(String(orderId)));
