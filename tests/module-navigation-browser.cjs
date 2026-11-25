@@ -793,10 +793,24 @@ async function legacyLinks(browser) {
     const s = await fixture(browser, root, 390, role);
     try {
       for (const [legacy, view, selector] of [
-        ["/expenses.html", "expenses", "#exMain"], ["/growth.html", "growth", "#gwMain"],
+        ["/expenses.html", "expenses", "#exList .ex-item"], ["/growth.html", "growth", "#gwContent .gw-task"],
       ]) {
-        await s.page.goto(origin + legacy, { waitUntil: "commit" });
+        const destination = origin + "/?view=" + view;
+        // Owners see integrated modules before order/team startup has finished.
+        // Observe this redirected document's team read before replacing it.
+        const staffRead = role === "owner" ? s.page.waitForResponse(response => {
+          const url = new URL(response.url());
+          return url.pathname === "/rest/v1/rabota_members" && !url.searchParams.has("user_id") &&
+            response.request().frame().url() === destination;
+        }) : null;
+        const [, staff] = await Promise.all([s.page.goto(origin + legacy, { waitUntil: "commit" }), staffRead]);
+        await s.page.waitForURL(destination, {waitUntil:"commit"});
         await s.page.locator(role === "owner" ? selector : "#ordersArea").waitFor();
+        if (staff) {
+          assert.ok(staff.ok());
+          assert.equal(await staff.finished(), null);
+        }
+        await s.page.waitForLoadState("networkidle");
         if (role === "owner") assert.equal(new URL(s.page.url()).searchParams.get("view"), view);
       }
     } finally { await s.close(); }
