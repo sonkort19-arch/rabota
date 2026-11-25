@@ -1,5 +1,4 @@
 .ex-main{width:min(100%,690px);min-width:0;margin-inline:auto;color:var(--ui-ink)}
-.ex-subtitle{font-size:12px;color:var(--ui-muted);margin:0 0 16px}
 .ex-summary{border:1px solid #e2eaf7;background:#f5f8ff;border-radius:17px;padding:16px;margin-bottom:16px}
 .ex-summary-top{display:flex;align-items:center;gap:8px;justify-content:space-between;color:#556180;font-size:12px;font-weight:580}
 .ex-month-controls{display:flex;align-items:center;gap:4px;white-space:nowrap}

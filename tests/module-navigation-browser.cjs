@@ -20,6 +20,10 @@ const expense = { id: "fixture-expense", kind: "expense", amount: 1200, note: "[
   created_at: stamp, voided_at: null, order_id: null };
 const task = { id: "fixture-task", owner_id: "fixture-owner", kind: "day", title: "Тестовая задача",
   start_on: today, end_on: today, sort_order: 0, completed: false };
+const leads = [
+  { id: "fixture-lead-1", name: "Марина тестовый лид", phone: "79001112233", status: "new", updated_at: stamp },
+  { id: "fixture-lead-2", name: "Олег тестовый лид", phone: "79134445566", status: "new", updated_at: stamp },
+];
 const roles = ["owner", "manager", "master"];
 const trace = endpoint => ["user", "membership", "orders", "expenses", "operations", "payroll", "growth"].includes(endpoint);
 const sectionRoots = {
@@ -32,6 +36,10 @@ const sectionsByRole = {
   owner: ["home", "expenses", "growth", "finance", "reports", "leads", "clients", "settings", "orders"],
   manager: ["leads", "clients", "settings", "home", "orders"],
   master: ["payments", "reports", "settings", "orders"],
+};
+const sectionTitles = {
+  home: "Главная", orders: "Заказы", calendar: "Заказы", expenses: "Расходы", growth: "Развитие MOBA",
+  finance: "Платежи", payments: "Платежи", reports: "Отчёты", leads: "Лиды", clients: "Клиенты", settings: "Настройки",
 };
 const slowReads = { owner: ["operations", "growth"], manager: ["rabota_leads"], master: ["payroll"] };
 
@@ -123,6 +131,7 @@ async function fixture(browser, source, width, role) {
       if (bucket === "staff") json = [member, fixtureMaster];
       if (bucket === "orders") json = orders;
       if (bucket === "growth") json = role === "owner" ? state.tasks : [];
+      if (bucket === "rabota_leads" && role !== "master") json = leads;
       if (["expenses", "operations"].includes(bucket)) json = role === "owner" ? state.expenses : [];
       if (bucket === "payroll") {
         json = {version: 3, accounting_version: 1, activated_at: stamp,
@@ -161,6 +170,7 @@ function navigation(page, view) {
 }
 
 async function destination(page, view) {
+  await page.locator("#rdMobileNav").waitFor();
   const { dock, menu } = navigation(page, view);
   if (await dock.count()) return dock;
   await page.locator("#rdMobileMoreBtn").click();
@@ -256,6 +266,57 @@ async function assertDock(page, role) {
   return state;
 }
 
+async function assertHeaderLayout(page, view, initial = null) {
+  const title = sectionTitles[view];
+  const heading = page.locator("#appTitle");
+  await heading.waitFor();
+  assert.equal(await heading.innerText(), title, view + ": one current section title");
+  assert.equal(await page.getByRole("heading", {name: title, exact: true}).count(), 1, view + ": no duplicate heading");
+  assert.equal(await page.locator(".rd-top, #rdTopSearch, #rdProfileToggle, #rdShellProfileMenu").count(), 0,
+    view + ": the old global toolbar and alternate profile are removed");
+  assert.equal(await page.locator("#appScreen").getByText("Данные из Supabase", {exact: true}).isVisible(), false);
+  const profile = page.locator("#rdProfileTrigger");
+  await profile.waitFor();
+  assert.equal(await page.locator('[aria-controls="rdProfileMenu"]').count(), 1, view + ": sole account trigger");
+  assert.ok((await profile.innerText()).trim().length <= 2, view + ": no account name beside the circle");
+  const layout = await profile.evaluate(node => {
+    const app = document.getElementById("appScreen");
+    const title = document.getElementById("appTitle");
+    const button = node.getBoundingClientRect();
+    const text = document.createRange();
+    text.selectNodeContents(title);
+    const textRects = [...text.getClientRects()];
+    const style = getComputedStyle(node);
+    return {
+      top: button.top, right: innerWidth - button.right, width: button.width, height: button.height,
+      round: [style.borderTopLeftRadius, style.borderTopRightRadius, style.borderBottomLeftRadius,
+        style.borderBottomRightRadius].every(value => value === "50%" || parseFloat(value) >= button.width / 2),
+      clickable: node.contains(document.elementFromPoint(button.x + button.width / 2, button.y + button.height / 2)),
+      titleTop: title.getBoundingClientRect().top, titleLeft: title.getBoundingClientRect().left,
+      titleFits: textRects.every(rect => rect.right <= button.left + 1 || rect.top >= button.bottom || rect.bottom <= button.top),
+      scroll: document.scrollingElement.scrollTop || app.scrollTop,
+    };
+  });
+  assert.ok(layout.top >= 0 && layout.top <= 70 && layout.right >= 0 && layout.right <= 40,
+    view + ": profile at the upper-right edge " + JSON.stringify(layout));
+  assert.ok(layout.width >= 44 && Math.abs(layout.width - layout.height) < 1 && layout.round && layout.clickable,
+    view + ": unobstructed, round profile touch target " + JSON.stringify(layout));
+  if (layout.scroll < 1) {
+    assert.ok(layout.titleTop >= 0 && layout.titleTop <= layout.top + layout.height,
+      view + ": heading starts in the profile row without an empty strip");
+    assert.ok(layout.titleFits, view + ": title text does not overlap profile");
+  }
+  if (initial) {
+    for (const key of ["top", "right", "width", "height"])
+      assert.ok(Math.abs(layout[key] - initial[key]) <= 1, view + ": profile moves after transition or scroll (" + key + ")");
+    if (initial.scroll < 1 && layout.scroll < 1) {
+      assert.ok(Math.abs(layout.titleTop - initial.titleTop) <= 1 && Math.abs(layout.titleLeft - initial.titleLeft) <= 1,
+        view + ": headings align between routes " + JSON.stringify({initial, layout}));
+    }
+  }
+  return layout;
+}
+
 async function assertPeriodControls(page, selector, count) {
   const controls = page.locator(selector);
   assert.equal(await controls.count(), count);
@@ -274,11 +335,13 @@ async function assertScrollRestored(page, role) {
     await page.locator("#owFilterStatus").selectOption("Записан");
     await page.locator("#owFilterApply").click();
   }
+  const header = await assertHeaderLayout(page, "orders");
   const scroll = await scroller.evaluate(node => {
     node.scrollTop = 350;
     return node.scrollTop;
   });
   assert.ok(scroll > 100, "fixture must contain a long order list");
+  await assertHeaderLayout(page, "orders", header);
   await assertDock(page, role);
   const waitForScroll = () => page.waitForFunction(({ master, scroll }) => {
     const scroller = master ? document.getElementById("appScreen") : document.scrollingElement;
@@ -307,23 +370,49 @@ async function assertScrollRestored(page, role) {
     await waitForScroll();
   }
   assert.equal(await orderModes.locator('[data-ow-mode="all"]').getAttribute("aria-selected"), "true");
+  await assertHeaderLayout(page, "orders", header);
   await assertDock(page, role);
 }
 
 async function assertProfileTargets(page, role) {
-  const isMaster = role === "master";
-  if (!isMaster) await switchSection(page, role, "settings");
-  const trigger = page.locator(isMaster ? "#rdProfileTrigger" : "#rdProfileToggle");
+  await switchSection(page, role, "settings");
+  const trigger = page.locator("#rdProfileTrigger");
   const menuId = await trigger.getAttribute("aria-controls");
   const menu = page.locator("#" + menuId);
   assert.equal(await menu.count(), 1, "profile trigger resolves to one menu");
-  if (!isMaster) assert.equal(await page.locator("#rdProfileMenu").count(), 1);
+  assert.equal(menuId, "rdProfileMenu");
   await trigger.press("Enter");
   await menu.waitFor();
   assert.equal(await trigger.getAttribute("aria-expanded"), "true");
+  assert.equal(await menu.evaluate(node => node.contains(document.activeElement)), true,
+    "keyboard opening advances focus into the profile menu");
+  assert.equal(await menu.getByRole("button", {name:/Выйти/}).count(), 1);
+  assert.equal(await menu.locator("#rdProfileRole").innerText(),
+    {owner:"Владелец", manager:"Менеджер", master:"Мастер"}[role]);
+  const viewport = page.viewportSize(), bounds = await menu.boundingBox();
+  assert.ok(bounds && bounds.x >= 0 && bounds.y >= 0 && bounds.x + bounds.width <= viewport.width + 1,
+    "account dropdown stays inside the viewport");
   await page.keyboard.press("Escape");
   await menu.waitFor({ state: "hidden" });
   assert.equal(await trigger.evaluate(node => node === document.activeElement), true);
+  await trigger.click();
+  await menu.waitFor();
+  const bell = menu.locator("#pushBellBtn");
+  assert.equal(await bell.isVisible(), role === "master");
+  if (role === "master") {
+    await bell.click();
+    const notifications = menu.locator("#pushPopover");
+    await notifications.waitFor();
+    await notifications.locator("#closePushPopover").click();
+    await notifications.waitFor({ state: "hidden" });
+  }
+  await page.locator("#appTitle").click();
+  await menu.waitFor({state:"hidden"});
+  await trigger.click();
+  await menu.waitFor();
+  await switchSection(page, role, "orders");
+  assert.equal(await trigger.getAttribute("aria-expanded"), "false");
+  await menu.waitFor({state:"hidden"});
 }
 
 async function assertRapidNavigation(page, role) {
@@ -368,25 +457,31 @@ async function roleLayout(browser, width, role) {
   const s = await fixture(browser, root, width, role);
   const { page, state, requests, documents } = s;
   for (const read of slowReads[role]) state.gates.set(read, deferred());
+  const access = deferred();
+  state.gates.set("membership", access);
   try {
     await page.goto(origin + (role === "owner" ? "/" : "/?view=growth"));
+    assert.equal(await page.locator("#rdProfileTrigger").isVisible(), false, "profile is hidden until the account is verified");
+    state.gates.delete("membership");
+    access.release();
     await page.locator("#appScreen").waitFor();
     await page.locator("#ordersArea").waitFor();
     await assertDock(page, role);
     const identity = await page.evaluate(() => window.fixtureDocument);
-    let previousHeader;
+    await page.evaluate(() => { window.fixtureProfile = document.getElementById("rdProfileTrigger"); });
+    let initialHeader;
     for (const view of sectionsByRole[role]) {
       await switchSection(page, role, view);
       const dock = await assertDock(page, role);
+      const header = await assertHeaderLayout(page, view, initialHeader);
+      initialHeader ??= header;
+      assert.equal(await page.evaluate(() => window.fixtureProfile === document.getElementById("rdProfileTrigger")),
+        true, "navigation retains the original account control");
       if (role !== "master") {
         assert.equal(await page.locator("#rdMobileMoreBtn").getAttribute("aria-expanded"), "false");
         assert.equal(await page.locator('#rdMobileNav [aria-current="page"]').count(), 1);
       }
       if (role === "owner" && ["expenses", "growth"].includes(view)) {
-        const header = await page.locator("#rdProfileToggle").boundingBox();
-        assert.ok(header && header.y >= 0 && header.x + header.width <= width + 1, JSON.stringify(header));
-        if (previousHeader) assert.ok(Math.abs(header.y - previousHeader.y) <= 2, "header jumps between modules");
-        previousHeader = header;
         if (view === "expenses") await assertPeriodControls(page, "#exPrev, #exNext", 2);
         else await assertPeriodControls(page, ".gw-tabs button", 4);
       }
@@ -434,6 +529,7 @@ async function roleLayout(browser, width, role) {
       identity,{timeout:20000});
     await reopened.locator(sectionRoots[role === "master" ? "orders" : reopenedView]).waitFor({timeout:20000});
     await assertDock(reopened, role);
+    await assertHeaderLayout(reopened, role === "master" ? "orders" : reopenedView, initialHeader);
     assert.equal(documents.length, 2, "only the explicit reopen requested a new document");
     assert.equal(requests.filter(name => name === "user").length, 2);
     if (role === "owner") {
@@ -556,7 +652,7 @@ function summarize(results) {
   return out;
 }
 
-module.exports = { fixture, go };
+module.exports = { fixture, go, assertHeaderLayout };
 if (require.main === module) (async () => {
   const browser = await (browserName === "webkit" ? webkit : chromium).launch({
     executablePath: process.env.TEST_BROWSER_PATH || undefined,

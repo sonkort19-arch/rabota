@@ -56,7 +56,7 @@
         make("span","",(order.date?formatDate(order.date):"Без даты")+
           " · "+(order.time||"Без времени")+" · "+(order.status||"Записан")));
       action.addEventListener("click",()=>{
-        pop(false);bell.focus({preventScroll:true});
+        window.__rdCloseProfile?.(true);
         window.__rdOpenMasterOrder?.(order.id);
       });
       reviewList.append(action);
@@ -189,6 +189,7 @@
     finally{test.disabled=false;}
   });
   window.__rdRefreshMasterNotices=loadUnread;
+  window.__rdClosePushPopover=()=>pop(false);
   window.__rdDisableMasterPush=disablePush;
   let initializedUser=null;
   window.__rdInitMasterPush=()=>{

@@ -110,19 +110,19 @@ test("finance refresh failure only marks finance as unavailable, not stale order
  const start=main.indexOf("    function reportSync(error, source=");
  const end=main.indexOf("    async function reloadOrders(",start);
  assert.ok(start>=0&&end>start,"sync indicator function exists");
- const node=()=>({textContent:"",classList:{toggle(){}}});
- const nodes=new Map(["syncStatus","rdOrdersSynced","rdHomeSynced","rdCalendarSynced"]
-   .map(id=>[id,node()]));
+ const status={textContent:"",hidden:true,classList:{toggle(){}}};
  const fn=new Function("document","Date",main.slice(start,end)+"\nreturn reportSync;")(
-   {getElementById:id=>nodes.get(id)||null},Date);
+   {getElementById:id=>id==="syncStatus"?status:null},Date);
  fn(new Error("financial timeout"),"finance");
- assert.match(nodes.get("syncStatus").textContent,/Заявки обновлены/);
- assert.match(nodes.get("syncStatus").textContent,/финансы недоступны/);
- assert.doesNotMatch(nodes.get("syncStatus").textContent,/Не удалось обновить заявки/);
+ assert.equal(status.hidden,false);
+ assert.match(status.textContent,/Заявки обновлены/);
+ assert.match(status.textContent,/финансы недоступны/);
+ assert.doesNotMatch(status.textContent,/Не удалось обновить заявки/);
  fn(new Error("orders timeout"));
- assert.match(nodes.get("syncStatus").textContent,/Не удалось обновить заявки/);
+ assert.match(status.textContent,/Не удалось обновить заявки/);
  fn(null);
- assert.match(nodes.get("syncStatus").textContent,/Обновлено/);
+ assert.equal(status.hidden,true);
+ assert.equal(status.textContent,"");
 });
 test("changed order data restores focus to the same master's order row",()=>{
  const start=main.indexOf("    function loadOrderData(");
@@ -175,47 +175,36 @@ test("Raul status filters use five compact accessible icons without changing sta
  assert.doesNotMatch(script,/chip\.append\(statusIcon\(value\),el\("span","mw-filter-caption",label\)\)/);
  assert.doesNotMatch(styles,/\.mw-status-filters \.mw-filter-caption/);
 });
-test("Raul orders use minimal header only on the orders page, preserving other sections",()=>{
+test("Master routes use the shared section heading",()=>{
  const script=fs.readFileSync(path.join(root,"money-workspace.js"),"utf8");
  const styles=fs.readFileSync(path.join(root,"money-workspace.css"),"utf8");
- assert.match(script,/classList\.toggle\("mw-orders-minimal-header",[\s\S]*?page==="orders"&&api\(\)\?\.snapshot\(\)\?\.role==="master"/);
- assert.match(script,/classList\.remove\("mw-orders-minimal-header"\)/);
- assert.match(styles,/#masterBrand\.master-brand/);
- assert.match(styles,/\.mw-orders-minimal-header > header \.master-header-info/);
- assert.match(styles,/#ordersArea > \.list-head #listTitle/);
- assert.match(styles,/--master-brand-height:0px/);
- assert.match(styles,/--master-heading-height:55px/);
- assert.match(styles,/\.mw-orders-minimal-header > header \.master-header-actions/);
+ assert.match(script,/reports:"Отчёты",payments:"Платежи",settings:"Настройки"/);
+ assert.match(script,/window\.__rdSetScreenHeading\?\.\(title\)/);
+ assert.match(script,/window\.__rdCloseProfile\?\.\(\)/);
+ assert.doesNotMatch(script,/mw-orders-minimal-header|mw-payments-header|mw-settings-title/);
+ assert.doesNotMatch(styles,/mw-orders-minimal-header|mw-payments-header|--master-brand-height/);
  assert.match(html,/href="\/money-workspace\.css\?v=[^"]+"/);
  assert.match(html,/src="\/money-workspace\.js\?v=[^"]+"/);
 });
-test("master brand uses inline vector, not an unloaded PNG",()=>{
- assert.match(html,/class="master-brand-icon"/);
- assert.match(html,/<linearGradient id="master-brand-gradient"/);
+test("the app starts with one shared section heading",()=>{
+ assert.equal((html.match(/id="appTitle"/g)||[]).length,1);
+ assert.match(html,/<main id="appScreen" hidden>\s*<div class="rd-screen-heading"><h1 id="appTitle">Заказы<\/h1>/);
+ assert.doesNotMatch(html,/id="masterBrand"|class="master-header-info"/);
 });
 
-test("Raul profile photo stays circular and the account menu stays usable",()=>{
- const start=html.indexOf('<div class="rd-profile" id="rdProfile">');
+test("the shared profile retains Raul's photo and accessible account control",()=>{
+ const start=html.indexOf('<div class="rd-profile" id="rdProfile"');
  const end=html.indexOf('<div class="rd-profile-menu"',start);
  assert.ok(start>=0&&end>start,"profile trigger is present");
  const profile=html.slice(start,end);
  assert.ok(profile.includes('id="rdProfileTrigger"'),"original trigger ID kept");
  assert.ok(profile.includes('aria-controls="rdProfileMenu"'),"dropdown remains wired");
- assert.ok(profile.includes('class="rd-profile-photo" src="/icons/raul-profile-avatar-20261114.jpg"'));
+ assert.match(profile,/class="rd-profile-photo" hidden src="\/icons\/raul-profile-avatar-20261114\.jpg"/);
  assert.ok(profile.includes('<svg viewBox="0 0 24 24"'),"original SVG fallback kept");
  const avatar=fs.readFileSync(path.join(root,"icons/raul-profile-avatar-20261114.jpg"));
  assert.ok(avatar.length>1000&&avatar.length<10000,"small local image exists");
  assert.deepEqual([...avatar.subarray(0,3)],[0xff,0xd8,0xff],"valid JPEG signature");
- const cssStart=html.indexOf('<style id="raul-round-profile-photo-20261114">');
- const cssEnd=html.indexOf('</style>',cssStart);
- assert.ok(cssStart>=0&&cssEnd>cssStart,"avatar CSS included");
- const avatarCss=html.slice(cssStart,cssEnd);
- assert.ok(avatarCss.includes('body.rd #rdProfileTrigger > .rd-profile-photo{display:none}'),
-  "picture hidden by default for other roles");
- assert.ok(avatarCss.includes('#appScreen.rd-master.master-mode'),"role-specific style");
- assert.ok(avatarCss.includes('border-radius:50%'),"round photo");
- assert.ok(avatarCss.includes('object-fit:cover'),"photo fills circle");
- assert.ok(avatarCss.includes('pointer-events:none'),"profile button receives taps");
+ assert.match(html,/querySelector\("#rdProfileTrigger \.rd-profile-photo"\)\.hidden=!\(currentRole==="master"/);
  assert.ok(html.includes('const profileTrigger=document.getElementById("rdProfileTrigger")'),
   "original profile click handler stays available");
 });

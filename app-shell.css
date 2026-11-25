@@ -1,0 +1,175 @@
+body.rd {
+  --rd-screen-top:calc(8px + env(safe-area-inset-top, 0px));
+  --rd-screen-gutter:12px;
+  --rd-profile-size:44px;
+  --rd-profile-right:max(var(--rd-screen-gutter), env(safe-area-inset-right, 0px));
+}
+
+body.rd #appScreen:is(.rd-owner,.rd-manager,.rd-master.master-mode) {
+  padding-top:var(--rd-screen-top);
+  scroll-padding-top:var(--rd-screen-top);
+}
+
+body.rd #appScreen > .rd-screen-heading {
+  display:flex;
+  align-items:center;
+  box-sizing:border-box;
+  min-height:var(--rd-profile-size);
+  margin:0 0 6px;
+  padding-right:calc(var(--rd-profile-size) + 12px);
+}
+
+body.rd .rd-screen-heading > #appTitle {
+  margin:0;
+  color:#1b2b45;
+  font-size:clamp(22px, 4.8vw, 26px);
+  font-weight:750;
+  line-height:1.18;
+  letter-spacing:-.4px;
+  overflow-wrap:anywhere;
+}
+
+body.rd #rdProfile {
+  position:fixed;
+  top:var(--rd-screen-top);
+  right:var(--rd-profile-right);
+  z-index:50;
+}
+
+body.rd #rdProfile[hidden] {display:none}
+
+body.rd #rdProfileTrigger {
+  position:relative;
+  display:grid;
+  place-items:center;
+  box-sizing:border-box;
+  width:var(--rd-profile-size);
+  height:var(--rd-profile-size);
+  padding:0;
+  overflow:hidden;
+  border:1px solid #dae4f6;
+  border-radius:50%;
+  background:#eef3ff;
+  color:#3d59a3;
+}
+
+body.rd #rdProfileTrigger > .rd-profile-photo:not([hidden]) {
+  position:absolute;
+  inset:0;
+  width:100%;
+  height:100%;
+  object-fit:cover;
+  pointer-events:none;
+}
+
+body.rd #rdProfileMenu {
+  position:absolute;
+  top:calc(100% + 8px);
+  right:0;
+  width:min(288px, calc(100vw - var(--rd-profile-right) - max(var(--rd-screen-gutter), env(safe-area-inset-left, 0px))));
+  max-height:calc(100dvh - var(--rd-screen-top) - var(--rd-profile-size) - env(safe-area-inset-bottom, 0px) - 20px);
+  box-sizing:border-box;
+  padding:12px;
+  overscroll-behavior:contain;
+}
+
+body.rd #rdProfileMenu .rd-profile-identity {
+  display:flex;
+  align-items:center;
+  gap:10px;
+  padding:2px 2px 8px;
+}
+
+body.rd #rdProfileMenu .rd-profile-initial {
+  display:grid;
+  place-items:center;
+  flex:0 0 36px;
+  aspect-ratio:1;
+  border-radius:50%;
+  background:#e9efff;
+  color:#3759be;
+  font-weight:700;
+}
+
+body.rd #rdProfileMenu .rd-profile-text {
+  display:grid;
+  min-width:0;
+  gap:2px;
+  overflow-wrap:anywhere;
+}
+
+body.rd #rdProfileMenu .rd-profile-text small {font-size:12px;color:#586986}
+
+body.rd #rdProfileMenu #logoutBtn,
+body.rd #rdProfileMenu #pushBellBtn {
+  display:flex;
+  align-items:center;
+  justify-content:flex-start;
+  gap:9px;
+  width:100%;
+  min-height:44px;
+  height:auto;
+  padding:8px 10px;
+  text-align:left;
+}
+
+body.rd #rdProfileMenu #pushBellBtn svg {width:20px;height:20px;flex:none}
+
+body.rd #rdProfileMenu #pushUnreadCount {
+  position:static;
+  margin-left:auto;
+  border:0;
+  line-height:20px;
+}
+
+body.rd #rdProfileMenu #pushPopover {
+  position:static;
+  width:100%;
+  max-height:min(45dvh, 370px);
+  margin:7px 0 0;
+  box-shadow:none;
+}
+
+body.rd #appScreen > #syncStatus:not([hidden]) {margin:0 0 8px}
+
+body.rd #appScreen .rd-inline-search {
+  display:block;
+  width:100%;
+  min-width:0;
+  min-height:44px;
+  box-sizing:border-box;
+  padding:8px 12px;
+  border:1px solid #dbe4f4;
+  border-radius:11px;
+  background:#fff;
+  color:#213653;
+  font-size:16px;
+}
+
+body.rd #appScreen .rd-inline-search[hidden] {display:none}
+body.rd #rdLeadSearch,body.rd #rdOrderSearch {margin:0 0 8px}
+body.rd #rdCalendarIntro {margin:0 0 8px}
+
+@media (min-width:791px) {
+  body.rd #appScreen:is(.rd-view-expenses,.rd-view-growth) > .rd-screen-heading {
+    max-width:690px;
+    margin-inline:auto;
+  }
+  body.rd #appScreen.rd-unified-orders > .rd-screen-heading {
+    max-width:760px;
+    margin-inline:auto;
+  }
+}
+
+@media (max-width:790px) {
+  body.rd #appScreen:is(.rd-owner,.rd-manager,.rd-master.master-mode) {
+    padding-left:max(var(--rd-screen-gutter), env(safe-area-inset-left, 0px));
+    padding-right:var(--rd-profile-right);
+  }
+  body.rd #appScreen.rd-master.master-mode {
+    --master-brand-height:0px;
+    --master-heading-height:0px;
+  }
+  body.rd #appScreen.rd-master.master-mode.rd-unified-orders {--master-tabs-height:0px}
+  body.rd #appScreen.rd-master.master-mode #ordersArea > .tabs {top:0}
+}

@@ -205,6 +205,18 @@ async function checkGeometry(s) {
   const { page, role, width } = s;
   assert.equal(await selectedDay(page), TODAY, role + ": Moscow date, not UTC date");
   assert.equal(await page.locator('#owViewSwitch [data-ow-mode="calendar"]').getAttribute("aria-selected"), "true");
+  const tools = await page.locator("#ordersArea #owTools .ow-toolbar").evaluate(row => {
+    const buttons = [...row.querySelectorAll("button")].filter(button => button.getClientRects().length);
+    return buttons.map(button => {
+      const box = button.getBoundingClientRect();
+      return { left: box.left, right: box.right, width: box.width, height: box.height, center: box.y + box.height / 2 };
+    });
+  });
+  assert.equal(tools.length, 4, role + ": calendar, all orders, search and filters share one row");
+  assert.ok(tools.every((tool, index) => tool.width >= 44 && tool.height >= 44 &&
+    Math.abs(tool.center - tools[0].center) < 2 && tool.left >= 0 &&
+    tool.right <= width && (index === 0 || tool.left >= tools[index - 1].right)),
+  role + ": toolbar controls fit as separate touch targets: " + JSON.stringify(tools));
   const geometry = await page.locator("#weekDays").evaluate(strip => {
     const box = strip.getBoundingClientRect();
     const visible = [...strip.querySelectorAll(".day")].filter(day => {
@@ -252,8 +264,10 @@ async function checkFilters(s) {
   const { page, role } = s;
   await chooseMode(page, "all");
   const original = await cards(page).count();
-  await page.locator("#owFilterToggle").click();
-  assert.equal(await page.locator("#owFilters").evaluate(dialog => dialog.open), true);
+  const toggle = page.locator("#ordersArea #owTools #owFilterToggle");
+  await toggle.click();
+  assert.equal(await page.locator("#ordersArea #owTools #owFilters").isVisible(), true);
+  assert.equal(await toggle.getAttribute("aria-expanded"), "true");
   assert.equal(await page.locator("#owFilterMaster").isVisible(), role !== "master");
   await page.locator("#owFilterStatus").selectOption("Выполнен");
   assert.equal(await cards(page).count(), original, "draft filter does not change results");
@@ -326,9 +340,9 @@ async function checkInteraction(s) {
   await chooseMode(page, "calendar");
   assert.equal(await selectedDay(page), TOMORROW, "day survives mode switch");
 
-  await page.locator("#owSearchToggle").click();
-  assert.equal(await page.locator("#owSearch").isVisible(), true);
-  assert.match(await page.locator("#owSearch").innerText(), /Поиск по всем заказам/);
+  await page.locator("#ordersArea #owTools #owSearchToggle").click();
+  assert.equal(await page.locator("#ordersArea #owTools #owSearch").isVisible(), true);
+  assert.equal(await page.getByRole("searchbox", { name: "Поиск по всем заказам" }).isVisible(), true);
   await page.locator("#owSearchInput").fill("Архив");
   await namesInclude(page, ["Архив Завершён", "Архив Отмена"]);
   assert.equal(await cards(page).count(), role === "master" ? 2 : 3,

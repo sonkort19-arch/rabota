@@ -5,6 +5,7 @@ on:
     paths:
       - 'owner-parity.js'
       - 'contextual-search.css'
+      - 'app-shell.css'
       - 'redesign.js'
       - 'index.html'
       - 'app-services.js'
@@ -26,6 +27,7 @@ on:
     paths:
       - 'owner-parity.js'
       - 'contextual-search.css'
+      - 'app-shell.css'
       - 'redesign.js'
       - 'index.html'
       - 'app-services.js'
@@ -74,6 +76,7 @@ jobs:
         run: |
           node tests/mobile-nav-stability.cjs
           node tests/module-navigation-browser.cjs
+          node tests/ui-smoke-v2.js
           node tests/finance-stability-browser.cjs
           node tests/startup-schedule-browser.cjs
       - name: Owner order list, status icons and fixed navigation in iPhone Safari

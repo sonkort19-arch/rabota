@@ -178,16 +178,17 @@
     const desc=node("p","pr-description","Список заказов, оплата, зарплата мастерам и доля компании.");
     menu.append(card,desc);
     const detail=node("section","pr-detail");detail.hidden=true;
-    const heading=node("div","pr-heading");
+    const heading=node("nav","pr-heading");
     const back=button("Отчёты","pr-back",()=>{
       if(typeof onBack==="function"){onBack();return;}
       state.open=false;detail.hidden=true;menu.hidden=false;
       rootEl.closest("#rdReports")?.classList.remove("rd-reports-detail-open");
     });
     back.setAttribute("aria-label","Вернуться ко всем отчётам");
-    heading.setAttribute("aria-label","Отчёты / Прибыль по заказам");
-    heading.append(back,node("span","pr-crumb-sep","/"),
-      node("h2","","Прибыль по заказам"));
+    heading.setAttribute("aria-label","Путь к отчёту");
+    const separator=node("span","pr-crumb-sep","/");
+    separator.setAttribute("aria-hidden","true");
+    heading.append(back,separator,node("h2","","Прибыль по заказам"));
     const controls=node("div","pr-controls");
     const period=makeSelect([["month","Текущий месяц"],["previous","Прошлый месяц"],["week","Эта неделя"],["all","За всё время"],["custom","Свой период"]],
       "Период отчёта",state.period,value=>{state.period=value;custom.hidden=value!=="custom";redraw()});

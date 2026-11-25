@@ -1,6 +1,4 @@
 .gw-main{width:min(100%,690px);min-width:0;margin-inline:auto;color:var(--ui-ink)}
-.gw-heading{margin:0 0 18px}
-.gw-heading>span{font-size:12px;color:var(--ui-muted)}
 .gw-hero{border:1px solid #e2eaf7;border-radius:18px;background:#f5f8ff;padding:17px 17px 15px;margin-bottom:17px;box-shadow:0 1px 5px #334c8704}
 .gw-hero-caption{font-size:12px;color:#5d668b;font-weight:600}
 .gw-hero strong{display:block;font-size:32px;letter-spacing:-1px;line-height:1.25;font-weight:800;color:var(--ui-link);margin:7px 0 1px;font-variant-numeric:tabular-nums}

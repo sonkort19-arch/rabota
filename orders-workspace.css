@@ -7,89 +7,42 @@ body.rd #appScreen.rd-unified-orders{
   padding-bottom:calc(156px + env(safe-area-inset-bottom,0px));
 }
 body.rd #appScreen.rd-unified-orders :is(#ordersArea,#orders,#owViewSwitch,#owSearch){min-width:0;max-width:100%;box-sizing:border-box}
-body.rd #appScreen.rd-unified-orders :is(#masterBrand,.rd-top,#rdOrdersIntro,#rdOrderStats,#rdOrderToolbar,#rdOrdersDayPicker,#mwMasterFilterbar,#rdOrdersFilterToggle),
+body.rd #appScreen.rd-unified-orders :is(#rdOrdersIntro,#rdOrderStats,#rdOrderToolbar,#rdOrdersDayPicker,#mwMasterFilterbar,#rdOrdersFilterToggle),
 body.rd #appScreen.rd-unified-orders #ordersArea>.tabs,
 body.rd #appScreen.rd-unified-orders #orders>.rd-list-columns{display:none!important}
 body.rd #appScreen.rd-unified-orders [hidden]{display:none!important}
 
-/* One useful header, with the original notifications/profile controls. */
-body.rd #appScreen.rd-unified-orders>header,
-body.rd #appScreen.rd-master.master-mode.rd-unified-orders>header{
-  display:flex;align-items:center;justify-content:space-between;gap:12px;
-  min-height:66px;margin:0 0 12px;padding:6px 0;
-  border:0;box-shadow:none;background:var(--ow-background);border-radius:0;
-}
-body.rd #appScreen.rd-unified-orders>header .master-header-info,
-body.rd #appScreen.rd-master.master-mode.rd-unified-orders>header .master-header-info{
-  display:block;flex:1 1 auto;min-width:0;width:auto;
-}
-body.rd #appScreen.rd-unified-orders>header #appTitle{
-  display:block;max-width:none;margin:0;color:var(--ow-ink);
-  font-size:26px;line-height:1.12;font-weight:800;letter-spacing:-.65px;
-}
-body.rd #appScreen.rd-unified-orders>header .master-header-meta{display:block;margin-top:3px;min-width:0}
-body.rd #appScreen.rd-unified-orders>header #roleName{
-  display:block;margin:0;font-size:13px;line-height:1.3;color:var(--ow-muted);
-  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
-}
-body.rd #appScreen.rd-unified-orders>header #roleName:before,
-body.rd #appScreen.rd-master.master-mode.rd-unified-orders>header #roleName:not(:empty):before{content:none}
-body.rd #appScreen.rd-unified-orders>header .master-header-actions,
-body.rd #appScreen.rd-master.master-mode.rd-unified-orders>header .master-header-actions{
-  position:relative;top:auto;right:auto;display:flex;align-items:center;
-  justify-content:flex-end;gap:7px;flex:0 0 auto;min-width:0;pointer-events:auto;
-}
-body.rd #appScreen.rd-unified-orders .ow-icon-button,
-body.rd #appScreen.rd-unified-orders>header #pushBellBtn{
+/* Search, view and filter controls stay with the orders content. */
+body.rd #appScreen.rd-unified-orders #owTools{min-width:0;margin:0 0 10px}
+body.rd #appScreen.rd-unified-orders #owTools .ow-toolbar{display:flex;align-items:center;gap:6px;min-width:0}
+body.rd #appScreen.rd-unified-orders #owTools .ow-icon-button{
   display:inline-flex;align-items:center;justify-content:center;
-  flex:0 0 40px;box-sizing:border-box;width:40px;height:40px;
-  min-width:40px;min-height:40px;margin:0;padding:9px;
+  flex:0 0 44px;box-sizing:border-box;width:44px;height:44px;
+  min-width:44px;min-height:44px;margin:0;padding:9px;
   border:1px solid #d7e1f6;border-radius:12px;
   color:#355caa;background:#f8faff;box-shadow:none;cursor:pointer;
 }
-body.rd #appScreen.rd-unified-orders .ow-icon-button svg,
-body.rd #appScreen.rd-unified-orders>header #pushBellBtn svg{display:block;width:22px;height:22px;flex:none}
-body.rd #appScreen.rd-unified-orders>header .rd-profile{position:relative;flex:0 0 42px;width:42px;min-width:42px}
-body.rd #appScreen.rd-unified-orders>header .rd-profile-trigger{
-  position:relative;display:grid;place-items:center;box-sizing:border-box;
-  min-width:42px;width:42px;min-height:42px;height:42px;
-  padding:0;margin:0;border:1px solid #dce5f7;border-radius:50%;
-  overflow:hidden;background:#edf3ff;color:#355caa;
-}
-body.rd #appScreen.rd-unified-orders>header .rd-profile-photo{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;border-radius:50%}
-body.rd #appScreen.rd-unified-orders>header .rd-profile-menu{
-  position:absolute;top:calc(100% + 10px);right:0;z-index:200;
-  width:min(250px,calc(100vw - 24px));padding:12px;
-  border:1px solid var(--ow-border);border-radius:16px;background:#fff;
-  box-shadow:0 12px 35px #23396120;color:var(--ow-ink);
-}
-body.rd #appScreen.rd-unified-orders>header .rd-profile-identity{display:flex;gap:9px;align-items:center;padding:2px 0 11px}
-body.rd #appScreen.rd-unified-orders>header .rd-profile-text{display:flex;flex-direction:column;gap:2px;min-width:0}
-body.rd #appScreen.rd-unified-orders>header .rd-profile-text small{font-size:12px;color:var(--ow-muted)}
-body.rd #appScreen.rd-unified-orders>header .rd-profile-logout{display:flex;align-items:center;gap:9px;min-height:42px;width:100%;border:0;border-radius:9px;background:#f0f4fc;color:#335787}
-body.rd #appScreen.rd-unified-orders>header .rd-profile-logout svg{flex:none;width:21px;height:21px}
-
-/* The two views share one list and one selected appointment date. */
+body.rd #appScreen.rd-unified-orders #owTools .ow-icon-button svg{display:block;width:22px;height:22px;flex:none}
 body.rd #appScreen.rd-unified-orders #owViewSwitch{
-  display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px;
-  margin:0 0 13px;padding:4px;border:1px solid #d6e0f5;
-  border-radius:15px;background:#f9fbff;
+  display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:3px;flex:1 1 0;
+  margin:0;padding:2px;border:1px solid #d6e0f5;border-radius:14px;background:#f9fbff;
 }
 body.rd #appScreen.rd-unified-orders #owViewSwitch button{
-  min-width:0;min-height:39px;margin:0;padding:8px 5px;
+  min-width:0;min-height:44px;margin:0;padding:6px 4px;
   border:0;border-radius:11px;background:transparent;color:#61718e;
-  font-size:14px;font-weight:750;line-height:1.3;box-shadow:none;
+  font-size:clamp(12px,3.5vw,14px);font-weight:750;line-height:1.3;box-shadow:none;
 }
 body.rd #appScreen.rd-unified-orders #owViewSwitch button[aria-selected="true"]{color:#284cc7;background:#e4ebff}
-body.rd #appScreen.rd-unified-orders #owSearch{margin:0 0 12px}
-body.rd #appScreen.rd-unified-orders #owSearch>label{display:block;margin:0 0 7px;font-size:12px;font-weight:650;color:#627490}
-body.rd #appScreen.rd-unified-orders #owSearch>div{display:flex;align-items:center;gap:7px;min-width:0}
+body.rd #appScreen.rd-unified-orders #owSearch{display:flex;flex:1 1 0;align-items:center;gap:6px;min-height:50px;margin:0}
 body.rd #appScreen.rd-unified-orders #owSearchInput{
   box-sizing:border-box;flex:1 1 0;min-width:0;width:100%;height:44px;
   margin:0;padding:9px 12px;border:1px solid #cbd9f4;border-radius:12px;
   background:#fff;color:var(--ow-ink);font-size:16px;box-shadow:none;
 }
-body.rd #appScreen.rd-unified-orders #owSearchClose{flex:0 0 40px;min-width:40px;min-height:42px;padding:5px;border-radius:11px;border:1px solid var(--ow-border);background:#fff;color:#4e6388;font-size:21px}
+body.rd #appScreen.rd-unified-orders #owFilterToggle[aria-expanded="true"],
+body.rd #appScreen.rd-unified-orders #owFilterToggle.has-filters{background:#e4ecff;border-color:#b6c9ef;color:#2c57c9}
+body.rd #appScreen.rd-unified-orders #owFilterSummary{display:flex;align-items:center;justify-content:space-between;gap:7px;margin:7px 0 0;padding:7px 9px;border-radius:10px;background:#e9effb;color:#52688d;font-size:12px;line-height:1.35;overflow-wrap:anywhere}
+body.rd #appScreen.rd-unified-orders #owFilterSummary button{flex:none;min-height:32px;padding:4px 7px;border:0;background:transparent;color:#315ac7;font-size:12px;font-weight:650}
 
 /* The compact orders header omits routine sync text but keeps read failures visible. */
 body.rd #appScreen.rd-unified-orders.rd-view-orders > #syncStatus.sync-error{
@@ -175,7 +128,7 @@ body.rd #appScreen.rd-unified-orders #masterTodaySummary .master-next-caption{fl
 body.rd #appScreen.rd-unified-orders #masterTodaySummary .master-next-value{flex:1 1 auto;min-width:0;font-size:12px;line-height:1.35;font-weight:750;color:#2c55ac;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 body.rd #appScreen.rd-unified-orders #ordersArea>.list-head{
   display:flex;align-items:center;justify-content:space-between;gap:7px;
-  min-height:42px;margin:9px 0 7px;padding:0;min-width:0;
+  min-height:32px;margin:9px 0 7px;padding:0;min-width:0;
 }
 body.rd #appScreen.rd-unified-orders #ordersArea>.list-head #listTitle{
   display:block!important;flex:1 1 auto;min-width:0;margin:0;font-size:17px;
@@ -183,11 +136,6 @@ body.rd #appScreen.rd-unified-orders #ordersArea>.list-head #listTitle{
 }
 body.rd #appScreen.rd-unified-orders #ordersArea>.list-head #orderCount{flex:none;margin:0;padding:0;background:transparent;color:#7b89a1;font-size:11px;white-space:nowrap;font-weight:500}
 body.rd #appScreen.rd-unified-orders #ordersArea>.list-head .rd-orders-list-actions{display:contents}
-body.rd #appScreen.rd-unified-orders #owFilterToggle{flex:0 0 36px;min-width:36px;width:36px;min-height:36px;height:36px;padding:8px;border-radius:11px}
-body.rd #appScreen.rd-unified-orders #owFilterToggle[aria-expanded="true"],
-body.rd #appScreen.rd-unified-orders #owFilterToggle.has-filters{background:#e4ecff;border-color:#b6c9ef;color:#2c57c9}
-body.rd #appScreen.rd-unified-orders #owFilterSummary{display:flex;align-items:center;justify-content:space-between;gap:7px;margin:0 0 9px;padding:7px 9px;border-radius:10px;background:#e9effb;color:#52688d;font-size:12px;line-height:1.35;overflow-wrap:anywhere}
-body.rd #appScreen.rd-unified-orders #owFilterSummary button{flex:none;min-height:32px;padding:4px 7px;border:0;background:transparent;color:#315ac7;font-size:12px;font-weight:650}
 
 /* Both roles retain their original actionable DOM, styled to one geometry. */
 body.rd #appScreen.rd-unified-orders #orders{display:flex;flex-direction:column;gap:9px;margin:0;min-width:0}
@@ -291,37 +239,12 @@ body.rd #mwMasterNav{grid-template-columns:repeat(4,minmax(0,1fr))}
     --rd-mobile-more-gap:6px;
   }
   body.rd #appScreen.rd-unified-orders:is(.rd-owner,.rd-manager){
-    --ow-orders-bottom-padding:calc(var(--rd-mobile-dock-height) + 84px);
-  }
-  body.rd #appScreen.rd-unified-orders,
-  body.rd #appScreen.rd-owner.rd-view-orders.rd-unified-orders,
-  body.rd #appScreen.rd-manager.rd-view-orders.rd-unified-orders{
-    padding:calc(74px + env(safe-area-inset-top,0px)) 12px var(--ow-orders-bottom-padding,calc(156px + env(safe-area-inset-bottom,0px)))!important;
-    scroll-padding-top:calc(74px + env(safe-area-inset-top,0px));
-  }
-  body.rd #appScreen.rd-unified-orders>header{
-    position:fixed;z-index:97;top:0;left:0;right:0;transform:none;box-sizing:border-box;
-    width:100%;max-width:none;height:calc(65px + env(safe-area-inset-top,0px));
-    min-height:65px;margin:0;
-    padding:calc(5px + env(safe-area-inset-top,0px)) max(12px,env(safe-area-inset-right,0px)) 7px max(12px,env(safe-area-inset-left,0px));
+    padding-bottom:calc(var(--rd-mobile-dock-height) + 84px);
   }
   body.rd > #orderOverlay:not(.master-quick){z-index:110}
   html.rd-master-scroll-locked body.rd #appScreen.rd-master.master-mode.rd-unified-orders:not([hidden]){
-    --master-brand-height:0px;--master-heading-height:65px;
-    padding-top:calc(74px + env(safe-area-inset-top,0px))!important;
     padding-bottom:calc(156px + env(safe-area-inset-bottom,0px));
-    scroll-padding-top:calc(74px + env(safe-area-inset-top,0px));
   }
-  html.rd-master-scroll-locked body.rd #appScreen.rd-master.master-mode.rd-unified-orders:not([hidden])::before{content:none;display:none}
-  html.rd-master-scroll-locked body.rd #appScreen.rd-master.master-mode.rd-unified-orders:not([hidden])>header{
-    display:flex;position:fixed;top:0;left:50%;right:auto;transform:translateX(-50%);
-    width:min(100vw,670px);height:calc(65px + env(safe-area-inset-top,0px))!important;
-    min-height:65px!important;margin:0!important;
-    padding:calc(5px + env(safe-area-inset-top,0px)) 12px 7px!important;
-    background:var(--ow-background)!important;pointer-events:auto;
-  }
-  body.rd #appScreen.rd-master.master-mode.rd-unified-orders>header .master-header-info{display:block!important}
-  html.rd-master-scroll-locked body.rd #appScreen.rd-master.master-mode.rd-unified-orders>header .master-header-actions{position:relative;top:auto;right:auto;gap:7px}
   body.rd #appScreen.rd-unified-orders #ordersArea>#newOrderBtn{
     position:fixed;z-index:34;right:max(14px,env(safe-area-inset-right,0px));
     bottom:calc(83px + env(safe-area-inset-bottom,0px));left:auto;
@@ -342,14 +265,11 @@ body.rd #mwMasterNav{grid-template-columns:repeat(4,minmax(0,1fr))}
   body.rd #appScreen.rd-unified-orders #ordersArea>#newOrderBtn .new-order-label{display:inline;font-size:14px}
 }
 @media(min-width:791px){
-  body.rd #appScreen.rd-unified-orders>header,
   body.rd #appScreen.rd-unified-orders #ordersArea{max-width:760px;margin-left:auto;margin-right:auto}
   body.rd #appScreen.rd-unified-orders #ordersArea>#newOrderBtn{position:fixed;z-index:34;right:28px;bottom:28px;width:auto;min-width:122px;min-height:46px;padding:10px 18px;border-radius:999px;background:linear-gradient(110deg,#4079f3,#603be9);font-size:14px;box-shadow:0 6px 16px #445de72e}
   body.rd #appScreen.rd-master.master-mode.rd-unified-orders #ordersArea>#newOrderBtn{bottom:100px;right:max(22px,calc((100vw - 690px)/2 + 20px))}
 }
 @media(max-width:350px){
-  body.rd #appScreen.rd-unified-orders>header #appTitle{font-size:24px}
-  body.rd #appScreen.rd-unified-orders>header .master-header-actions{gap:5px}
   body.rd #appScreen.rd-unified-orders:is(.rd-master.master-mode,.rd-owner,.rd-manager) #calendarPanel.master-calendar-compact{padding:9px 7px}
   body.rd #appScreen.rd-unified-orders:is(.rd-master.master-mode,.rd-owner,.rd-manager) #calendarPanel.master-calendar-compact .panel-top{grid-template-columns:24px minmax(0,1fr) 24px auto;gap:2px}
   body.rd #appScreen.rd-unified-orders:is(.rd-master.master-mode,.rd-owner,.rd-manager) #calendarPanel.master-calendar-compact .nav>.secondary{min-width:24px;width:24px}
@@ -364,28 +284,21 @@ body.rd #mwMasterNav{grid-template-columns:repeat(4,minmax(0,1fr))}
   body.rd #appScreen.rd-unified-orders #masterTodaySummary .master-next-value{font-size:11px}
 }
 
-/* Native modal: editable filter draft is separate from the displayed list. */
-dialog#owFilters.ow-filters-dialog{
-  box-sizing:border-box;width:min(440px,calc(100vw - 24px));max-width:calc(100vw - 24px);
-  max-height:calc(100dvh - 32px);padding:18px;margin:auto;
-  border:1px solid #dae3f4;border-radius:20px;background:#fbfcff;
-  color:#203250;box-shadow:0 18px 60px #1a305b30;overflow:auto;
+/* Filter drafts expand inside the orders content. */
+body.rd #appScreen.rd-unified-orders #owFilters{
+  box-sizing:border-box;min-width:0;margin:8px 0 0;padding:8px 11px 11px;
+  border:1px solid var(--ow-border);border-radius:15px;background:#fbfcff;color:var(--ow-ink);
 }
-dialog#owFilters::backdrop{background:rgba(20,35,65,.32);backdrop-filter:blur(3px)}
-dialog#owFilters .ow-dialog-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:0 0 15px}
-dialog#owFilters .ow-dialog-head h2{margin:0;font-size:19px;line-height:1.25;color:#1c2e4f}
-dialog#owFilters .ow-dialog-head button{display:grid;place-items:center;flex:none;min-width:38px;min-height:38px;padding:5px;border:1px solid #dce4f3;border-radius:11px;background:#fff;color:#596e90;font-size:19px}
-dialog#owFilters .ow-dialog-head button svg{display:block;width:20px;height:20px}
-dialog#owFilters #owFilterForm{display:flex;flex-direction:column;gap:14px;min-width:0}
-dialog#owFilters #owFilterForm label{display:flex;flex-direction:column;gap:6px;margin:0;font-size:13px;line-height:1.3;color:#536785;font-weight:650}
-dialog#owFilters #owFilterForm :is(input,select){box-sizing:border-box;width:100%;min-width:0;max-width:100%;min-height:44px;margin:0;padding:10px 11px;border:1px solid #d3def2;border-radius:11px;background:#fff;color:#203553;font-size:16px;font-family:inherit}
-dialog#owFilters #owFilterForm [hidden]{display:none!important}
-dialog#owFilters .ow-dialog-actions{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:4px}
-dialog#owFilters .ow-dialog-actions button{display:flex;align-items:center;justify-content:center;min-width:0;min-height:44px;padding:9px 11px;border:1px solid #d4e0f4;border-radius:12px;background:#fff;color:#47618e;font-size:14px;font-weight:700}
-dialog#owFilters .ow-dialog-actions button[type="submit"]{border-color:transparent;background:#4165df;color:#fff}
-@media(max-width:540px){
-  dialog#owFilters.ow-filters-dialog{position:fixed;inset:auto 0 0;box-sizing:border-box;width:100%;max-width:100%;max-height:85dvh;margin:0;padding:18px 16px calc(18px + env(safe-area-inset-bottom,0px));border-radius:22px 22px 0 0;border-bottom:0}
-}
+body.rd #appScreen.rd-unified-orders #owFilterForm{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px;min-width:0;margin:0}
+body.rd #appScreen.rd-unified-orders #owFilterForm :is(.ow-filter-head,.ow-filter-actions,label[for="owFilterDate"]),
+body.rd #appScreen.rd-unified-orders.rd-master #owFilterForm label[for="owFilterStatus"]{grid-column:1/-1}
+body.rd #appScreen.rd-unified-orders #owFilterForm .ow-filter-head{display:flex;align-items:center;justify-content:space-between;gap:8px;min-width:0}
+body.rd #appScreen.rd-unified-orders #owFilterTitle{margin:0;font-size:16px;line-height:1.25;color:var(--ow-ink)}
+body.rd #appScreen.rd-unified-orders #owFilterForm label{display:flex;flex-direction:column;gap:5px;min-width:0;margin:0;color:#536785;font-size:13px;line-height:1.3;font-weight:650}
+body.rd #appScreen.rd-unified-orders #owFilterForm :is(input,select){box-sizing:border-box;width:100%;min-width:0;max-width:100%;min-height:44px;margin:0;padding:8px 9px;border:1px solid #d3def2;border-radius:11px;background:#fff;color:#203553;font-size:16px;font-family:inherit}
+body.rd #appScreen.rd-unified-orders #owFilterForm .ow-filter-actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+body.rd #appScreen.rd-unified-orders #owFilterForm .ow-filter-actions button{display:flex;align-items:center;justify-content:center;min-width:0;min-height:44px;padding:8px 10px;border:1px solid #d4e0f4;border-radius:11px;background:#fff;color:#47618e;font-size:14px;font-weight:700}
+body.rd #appScreen.rd-unified-orders #owFilterForm #owFilterApply{border-color:transparent;background:#4165df;color:#fff}
 /* Existing appointment utilities keep their own handlers in Settings. */
 body.rd #rdSettings>.ow-settings-tools{box-sizing:border-box;min-width:0;margin:14px 0;padding:16px;border:1px solid #dde5f3;border-radius:15px;background:#fff;color:#223453}
 body.rd #rdSettings>.ow-settings-tools h2{margin:0 0 12px;font-size:16px;line-height:1.3;font-weight:750;color:#223453}
@@ -395,8 +308,7 @@ body.rd #rdSettings>.ow-settings-tools .rd-raul-share-tools{display:flex;flex-wr
 body.rd #rdSettings>.ow-settings-tools .rd-raul-share-tomorrow{flex:1 1 250px;border-color:#cbe7d6;background:#edf8f1;color:#27794d}
 body.rd #rdSettings>.ow-settings-tools .rd-raul-share-settings{flex:1 1 130px}
 body.rd #rdSettings>.ow-settings-tools button:focus-visible{outline:3px solid #92aff4;outline-offset:2px}
-body.rd #appScreen.rd-unified-orders :is(button,input,select):focus-visible,
-dialog#owFilters :is(button,input,select):focus-visible{outline:3px solid #92aff4;outline-offset:2px}
+body.rd #appScreen.rd-unified-orders :is(button,input,select):focus-visible{outline:3px solid #92aff4;outline-offset:2px}
 @media(prefers-reduced-motion:reduce){body.rd #appScreen.rd-unified-orders *{animation:none!important;scroll-behavior:auto!important}}
 
 
@@ -404,9 +316,6 @@ dialog#owFilters :is(button,input,select):focus-visible{outline:3px solid #92aff
 @media(max-width:790px){
  body.rd #appScreen:not(.rd-master){
    padding-bottom:calc(var(--rd-mobile-dock-height) + 29px);
- }
- body.rd #appScreen :is(#exTitle,#exMain > .ex-subtitle,#gwMain > .gw-heading){
-   padding-inline-end:calc(44px + max(0px,env(safe-area-inset-right,0px) - 12px));
  }
  body.rd > #rdMobileNav:not([hidden]){
    box-sizing:border-box;

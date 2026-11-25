@@ -11,17 +11,14 @@ assert.ok(inline,"base inline style");
 const links=[...html.matchAll(/<link rel="stylesheet" href="\/([^"?]+)(?:\?[^"]*)?">/g)].map(m=>m[1]);
 assert.ok(links.includes("money-workspace.css"),"master UI stylesheet loaded");
 assert.ok(links.indexOf("money-workspace.css")>links.indexOf("master-dense-enhancements.css"),"master patches load after base styles");
+assert.ok(links.indexOf("app-shell.css")>links.indexOf("money-workspace.css"),"flow title and fixed profile load after master styles");
 const i=links.indexOf("master-dense.css");
 assert.deepEqual(links.slice(i,i+2),["master-dense.css","master-dense-enhancements.css"]);
 const styles=[inline,...links.map(file=>fs.readFileSync(path.join(root,file),"utf8"))].join("\n");
 const fixture=[
 '<main id="appScreen" class="rd-master master-mode">',
-'<div id="masterBrand" class="master-brand"><svg class="master-brand-icon" width="38" height="38" viewBox="0 0 48 48"><rect width="48" height="48" rx="12" fill="#5367e8"/></svg><div class="master-brand-text"><strong>Работа</strong><span>Сервис промывки отопления</span></div></div>',
-'<header><div class="master-header-info"><h1>Мои заказы</h1><div class="master-header-meta"><span class="muted" id="roleName">Рауль</span>',
-'<button id="masterBalanceQuick" class="master-balance-quick"><span class="balance-label">К выплате</span><strong class="balance-amount">20 250 ₽</strong><span class="balance-arrow">›</span></button></div></div>',
-'<div class="master-header-actions"><section id="masterPushPanel" class="push-panel push-compact">',
-'<button class="push-bell" aria-label="Уведомления">☼</button></section><button class="secondary" id="logoutBtn">Выйти</button></div></header>',
-'<div class="sync-note" id="syncStatus">Обновлено 17:33</div><div id="ordersArea">',
+'<div class="rd-screen-heading"><h1 id="appTitle">Заказы</h1></div>',
+'<div class="sync-note" id="syncStatus" hidden></div><div id="ordersArea">',
 '<section id="mwMasterFilterbar" class="mw-master-filterbar"><input class="mw-filter-search" placeholder="Поиск по заказам"><div class="mw-status-filters">',
 ...["Все","Записаны","В работе","Выполнены","Отменены"].map(label=>'<button type="button" class="mw-filter-chip" aria-label="Фильтр: '+label+'"><span class="mw-filter-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="22" height="22"><circle cx="12" cy="12" r="9"></circle></svg></span></button>'),
 '</div></section>',
@@ -50,7 +47,12 @@ const fixture=[
 '<span class="master-schedule-work">Радиаторы: 5</span>',
 '<span class="master-schedule-meta"><span class="status-badge s-booked">Записан</span></span>',
 '<strong class="master-schedule-price">11 000 ₽</strong></button></article>',
-'</div></div><nav id="mwMasterNav" class="mw-bottom-nav"><button class="mw-nav-btn is-active"><span class="mw-icon">▣</span>Расписание</button><button class="mw-nav-btn">Заказы</button><button class="mw-nav-btn">Финансы</button><button class="mw-nav-btn">Профиль</button></nav></main>'
+'</div></div></main>',
+'<div id="rdProfile" class="rd-profile"><button id="rdProfileTrigger" type="button" aria-label="Открыть меню профиля" aria-controls="rdProfileMenu">Р</button>',
+'<div id="rdProfileMenu" class="rd-profile-menu" hidden><div class="rd-profile-identity"><span class="rd-profile-initial">Р</span><span class="rd-profile-text"><strong>Рауль</strong><small>Мастер</small></span></div>',
+'<section id="masterPushPanel" class="push-panel push-compact"><button id="pushBellBtn" class="push-bell" type="button">Уведомления</button>',
+'<div id="pushPopover" class="push-popover" hidden><strong>Новые заявки</strong></div></section><button id="logoutBtn" type="button">Выйти</button></div></div>',
+'<nav id="mwMasterNav" class="mw-bottom-nav"><button class="mw-nav-btn is-active"><span class="mw-icon">▣</span>Заказы</button><button class="mw-nav-btn">Платежи</button><button class="mw-nav-btn">Отчёты</button><button class="mw-nav-btn">Настройки</button></nav>'
 ].join("");
 (async()=>{
 const browserName=process.env.TEST_BROWSER||"webkit";
@@ -67,8 +69,8 @@ try{
   const result=await page.evaluate(()=>{
    const dim=sel=>{const node=document.querySelector(sel),r=node.getBoundingClientRect();return {height:r.height,size:parseFloat(getComputedStyle(node).fontSize)}};
    return {scroll:document.documentElement.scrollWidth,width:document.documentElement.clientWidth,
-    title:dim("#appScreen header h1"),newOrder:dim("#newOrderBtn"),bell:dim(".push-bell"),
-    logout:dim("#logoutBtn"),tab:dim(".mw-bottom-nav .mw-nav-btn"),next:dim(".master-next-jump"),
+    title:dim("#appTitle"),newOrder:dim("#newOrderBtn"),profile:dim("#rdProfileTrigger"),
+    tab:dim(".mw-bottom-nav .mw-nav-btn"),next:dim(".master-next-jump"),
     time:dim(".master-schedule-time"),name:dim(".master-schedule-name"),
     summary:dim(".master-today-summary"),card:dim(".master-schedule-toggle"),avatar:dim(".master-schedule-avatar"),
     calendar:dim("#calendarPanel"),calendarDate:dim("#calendarDate"),
@@ -83,7 +85,6 @@ try{
     })(),
     calendarDay:dim("#weekDays .day"),calendarToday:dim("#goToday"),
     calendarPrevious:dim("#prevWeek"),calendarNext:dim("#nextWeek"),
-    logo:dim(".master-brand-icon"),
     filterLayout:(()=>{
       const parent=document.querySelector(".mw-status-filters");
       const buttons=[...parent.querySelectorAll(".mw-filter-chip")];
@@ -92,13 +93,6 @@ try{
       return {parentWidth:r.width,buttonWidths:boxes.map(b=>b.width),
         firstLeft:boxes[0].left,lastRight:boxes.at(-1).right,right:r.right,left:r.left,
         gap:parseFloat(getComputedStyle(parent).gap),overflow:parent.scrollWidth>parent.clientWidth};
-    })(),
-    headerOverlap:(()=>{
-      const a=document.querySelector(".master-balance-quick").getBoundingClientRect();
-      const b=document.querySelector(".push-bell").getBoundingClientRect();
-      const c=document.querySelector("#logoutBtn").getBoundingClientRect();
-      const overlaps=(x,y)=>x.left<y.right&&x.right>y.left&&x.top<y.bottom&&x.bottom>y.top;
-      return overlaps(a,b)||overlaps(a,c);
     })()};
   });
   assert.ok(result.scroll<=result.width+1,"horizontal overflow at "+width+" "+JSON.stringify(result));
@@ -110,58 +104,49 @@ try{
     "filter row fills available width at "+width+": "+JSON.stringify(filters));
   assert.equal(filters.overflow,false,"filter bar does not scroll sideways at "+width);
   assert.ok(filters.buttonWidths[0]>=40,"status filter remains tappable at "+width);
-  for(const key of ["newOrder","bell","logout","tab","next"])
+  for(const key of ["newOrder","profile","tab","next"])
    assert.ok(result[key].height>=43.5,key+" tap target at "+width+" height "+result[key].height);
   assert.ok(result.time.size<=19.1,"time font "+width);
   assert.ok(result.name.size<=15.1,"client font "+width);
-  assert.ok(result.title.size<=21.1,"title font "+width);
+  assert.ok(result.title.size>=22&&result.title.size<=26.1,"compact title font "+width);
   assert.ok(result.summary.height<=120,"today block height "+width+" "+result.summary.height);
   assert.ok(result.card.height<=88,"compact card at "+width+": "+result.card.height);
   assert.ok(result.card.height>=62,"compact card remains tappable at "+width);
   assert.ok(result.avatar.height>=26.5&&result.avatar.height<=29.5,"compact avatar geometry at "+width);
-  assert.equal(result.headerOverlap,false,"balance must not overlap notifications/logout at "+width);
-  assert.ok(result.logo.height>=33.5,"compact master brand logo visible at "+width);
   assert.ok(result.calendar.height<=205,"calendar must be compact at "+width+": "+result.calendar.height);
   assert.ok(result.calendar.height>=146,"calendar remains usable at "+width);
   assert.ok(result.calendarWeek.height<=55,"week row must remain one row at "+width+": "+result.calendarWeek.height);
   for(const key of ["calendarDate","calendarDay","calendarToday","calendarPrevious","calendarNext"])
     assert.ok(result[key].height>=43.5,key+" usable touch target at "+width+": "+result[key].height);
 
-  // Orders-only treatment: sticky iPhone header holds profile/notifications,
-  // but the brand, redundant titles and their reserved vertical space vanish.
-  await page.evaluate(()=>{
-    document.documentElement.classList.add("rd-master-scroll-locked");
-    document.querySelector("#appScreen").classList.add("mw-orders-minimal-header");
-  });
-  const clean=await page.evaluate(()=>{
+  const shell=await page.evaluate(()=>{
     const r=selector=>document.querySelector(selector).getBoundingClientRect();
-    const display=selector=>getComputedStyle(document.querySelector(selector)).display;
-    const view=r("#appScreen"),topbar=r("#appScreen > header"),search=r(".mw-filter-search");
-    const bellRect=r(".push-bell"), profileRect=r("#logoutBtn");
-    const chipRect=r(".mw-status-filters"),searchBox=r(".mw-filter-search");
-    return {brand:display("#masterBrand"),title:display(".master-header-info"),
-      listTitle:display("#listTitle"),count:display("#orderCount"),
-      toolbar:topbar.height,searchTop:search.top,headerBottom:topbar.bottom,
-      searchRight:searchBox.right,bellLeft:bellRect.left,
-      statusTop:chipRect.top,searchBottom:searchBox.bottom,
-      bellTop:bellRect.top,profileTop:profileRect.top,
-      bell:bellRect.height,logout:profileRect.height,
-      appWidth:view.width,scrollWidth:document.documentElement.scrollWidth,
-      viewportWidth:document.documentElement.clientWidth};
+    const profile=document.querySelector("#rdProfile"),menu=document.querySelector("#rdProfileMenu");
+    const heading=r(".rd-screen-heading"),title=r("#appTitle"),trigger=r("#rdProfileTrigger");
+    const search=r(".mw-filter-search"),chips=r(".mw-status-filters");
+    const initiallyClosed=menu.getClientRects().length===0;
+    menu.hidden=false;
+    const bell=r("#pushBellBtn"),logout=r("#logoutBtn"),panel=r("#rdProfileMenu");
+    document.querySelector("#pushPopover").hidden=false;
+    const notices=r("#pushPopover");
+    return {initiallyClosed,fixed:getComputedStyle(profile).position==="fixed",
+      sibling:profile.parentElement===document.querySelector("#appScreen").parentElement,
+      headingHeight:heading.height,headingTop:heading.top,headingBottom:heading.bottom,
+      titleRight:title.right,profileLeft:trigger.left,profileTop:trigger.top,
+      searchTop:search.top,searchAfterMenu:r(".mw-filter-search").top,
+      searchBottom:search.bottom,statusTop:chips.top,
+      menuLeft:panel.left,menuRight:panel.right,noticeLeft:notices.left,noticeRight:notices.right,
+      bell:bell.height,logout:logout.height,viewportWidth:document.documentElement.clientWidth};
   });
-  assert.equal(clean.brand,"none","orders remove branding at "+width);
-  assert.equal(clean.title,"none","orders remove upper heading at "+width);
-  assert.equal(clean.listTitle,"none","orders hide duplicate list heading at "+width);
-  assert.notEqual(clean.count,"none","order counter stays visible at "+width);
-  assert.ok(clean.toolbar<=1,"empty header must occupy zero height at "+width+": "+JSON.stringify(clean));
-  assert.ok(Math.abs(clean.searchTop-clean.bellTop)<8&&Math.abs(clean.searchTop-clean.profileTop)<8,
-    "search, bell, profile share one row at "+width+": "+JSON.stringify(clean));
-  assert.ok(clean.searchRight<=clean.bellLeft-5,
-    "search must not overlap notification button at "+width+": "+JSON.stringify(clean));
-  assert.ok(clean.statusTop>=clean.searchBottom-2&&clean.statusTop-clean.searchBottom<28,
-    "status icons follow the top row without blank strip at "+width+": "+JSON.stringify(clean));
-  assert.ok(clean.bell>=43.5&&clean.logout>=43.5,"alerts and profile remain tappable at "+width);
-  assert.ok(clean.scrollWidth<=clean.viewportWidth+1,"no horizontal overflow with clean header at "+width);
+  const detail=width+": "+JSON.stringify(shell);
+  assert.ok(shell.fixed&&shell.sibling&&shell.initiallyClosed,"single fixed profile starts closed at "+detail);
+  assert.ok(shell.headingHeight<=45&&Math.abs(shell.headingTop-shell.profileTop)<2,"title fits the profile row at "+detail);
+  assert.ok(shell.titleRight<=shell.profileLeft-5,"title leaves room for profile at "+detail);
+  assert.ok(shell.searchTop>=shell.headingBottom-1&&shell.searchAfterMenu===shell.searchTop,"profile leaves the local search in flow at "+detail);
+  assert.ok(shell.statusTop>=shell.searchBottom-2&&shell.statusTop-shell.searchBottom<28,"status icons follow search at "+detail);
+  assert.ok(shell.menuLeft>=0&&shell.menuRight<=shell.viewportWidth+1,"profile stays within the viewport at "+detail);
+  assert.ok(shell.noticeLeft>=shell.menuLeft&&shell.noticeRight<=shell.menuRight+1,"notifications stay within the profile at "+detail);
+  assert.ok(shell.bell>=43.5&&shell.logout>=43.5,"alerts and sign-out remain tappable at "+detail);
 
   await page.close();
  }

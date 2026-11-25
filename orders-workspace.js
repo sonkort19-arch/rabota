@@ -76,18 +76,21 @@
   }
   function selectMode(mode){
     if(!["calendar","all"].includes(mode))return;
+    closeFilters();
     if(state.searchOpen)restoreSearch(false);
     state.mode=mode;
     navigateMode(mode);
   }
   function openSearch(){
     if(state.searchOpen)return;
+    closeFilters();
     state.searchReturn={mode:state.mode,date:selectedDate,status:state.status,master:state.master,listDate:state.date,quick:state.quick};
     state.searchOpen=true;state.query="";state.status="";state.master="";state.date="";state.quick="";
     navigateMode("all");
     $("owSearchInput")?.focus({preventScroll:true});
   }
   function restoreSearch(redraw=true){
+    closeFilters();
     const previous=state.searchReturn;
     state.searchOpen=false;state.query="";state.searchReturn=null;
     if(previous){
@@ -108,9 +111,13 @@
       const option=node("option","",title);option.value=value;return option;
     }));
   }
-  function closeFilters(){
-    if($("owFilters")?.open)$("owFilters").close();
-    $("owFilterToggle")?.setAttribute("aria-expanded","false");
+  function closeFilters(restoreFocus=false){
+    const panel=$("owFilters");
+    if(!panel||panel.hidden)return;
+    panel.hidden=true;
+    const toggle=$("owFilterToggle");
+    toggle?.setAttribute("aria-expanded","false");
+    if(restoreFocus)toggle?.focus({preventScroll:true});
   }
   function resetForAccount(){
     closeFilters();
@@ -121,19 +128,23 @@
     if($("owSearch"))$("owSearch").hidden=true;
   }
   function openFilters(){
-    const dialog=$("owFilters");if(!dialog||dialog.open)return;
+    const panel=$("owFilters");
+    if(!panel)return;
+    if(!panel.hidden){closeFilters();return;}
     $("owFilterStatus").value=state.status;
     const master=$("owFilterMaster"),masters=[...new Set(getOrders().map(o=>String(o.master||"").trim()).filter(Boolean))].sort((a,b)=>a.localeCompare(b,"ru"));
     addOptions(master,[["","Все мастера"],...masters.map(name=>[name,name])]);
     master.value=state.master;master.closest("label").hidden=currentRole==="master";
     const date=$("owFilterDate");date.value=state.date;
     date.closest("label").hidden=currentTab==="calendar"||state.searchOpen;
-    dialog.showModal();$("owFilterToggle").setAttribute("aria-expanded","true");
+    panel.hidden=false;$("owFilterToggle").setAttribute("aria-expanded","true");
     $("owFilterStatus").focus({preventScroll:true});
   }
   function mount(){
     if(mounted||!isActive())return;
-    const area=$("ordersArea"),calendar=$("calendarPanel"),head=area.querySelector(".list-head");
+    const area=$("ordersArea"),calendar=$("calendarPanel");
+    const tools=node("section");tools.id="owTools";tools.setAttribute("aria-label","Управление заказами");
+    const toolbar=node("div","ow-toolbar");
     const modes=node("div","ow-view-switch");modes.id="owViewSwitch";modes.setAttribute("role","tablist");modes.setAttribute("aria-label","Вид заказов");
     for(const [value,label] of [["calendar","По дням"],["all","Все заказы"]]){
       const tab=node("button","",label);tab.type="button";tab.dataset.owMode=value;
@@ -145,40 +156,43 @@
       event.preventDefault();const value=event.key==="Home"?"calendar":event.key==="End"?"all":currentTab==="calendar"?"all":"calendar";
       selectMode(value);modes.querySelector('[data-ow-mode="'+value+'"]').focus({preventScroll:true});
     });
-    const search=node("section","ow-search");search.id="owSearch";search.hidden=true;
-    const label=node("label","","Поиск по всем заказам");label.htmlFor="owSearchInput";
-    const row=node("div","ow-search-row"),input=node("input");input.id="owSearchInput";input.type="search";
-    input.placeholder="Имя, телефон, адрес или номер";input.autocomplete="off";
+    const search=node("div","ow-search");search.id="owSearch";search.hidden=true;
+    const input=node("input");input.id="owSearchInput";input.type="search";
+    input.setAttribute("aria-label","Поиск по всем заказам");
+    input.placeholder="Имя, телефон, адрес, №";input.autocomplete="off";
     input.addEventListener("input",()=>{state.query=input.value;render();});
-    input.addEventListener("keydown",event=>{if(event.key==="Escape"){event.preventDefault();restoreSearch();}});
-    row.append(input,button("owSearchClose","Закрыть поиск","close",()=>restoreSearch()));search.append(label,row);
-    area.insertBefore(modes,calendar);area.insertBefore(search,modes);
-    const header=$("appScreen").querySelector(":scope > header .master-header-actions");
-    header?.prepend(button("owSearchToggle","Найти заказ","search",openSearch));
+    search.append(input,button("owSearchClose","Закрыть поиск","close",()=>restoreSearch()));
+    const searchToggle=button("owSearchToggle","Найти заказ","search",openSearch);
+    searchToggle.setAttribute("aria-controls","owSearch");searchToggle.setAttribute("aria-expanded","false");
     const filter=button("owFilterToggle","Фильтры заказов","filter",openFilters);
-    filter.setAttribute("aria-haspopup","dialog");filter.setAttribute("aria-controls","owFilters");filter.setAttribute("aria-expanded","false");
-    (head.querySelector(".rd-orders-list-actions")||head).append(filter);
+    filter.setAttribute("aria-controls","owFilters");filter.setAttribute("aria-expanded","false");
+    toolbar.append(modes,searchToggle,search,filter);
     const summary=node("div","ow-filter-summary");summary.id="owFilterSummary";summary.hidden=true;
-    head.insertAdjacentElement("afterend",summary);
-    const dialog=node("dialog","ow-filters-dialog");dialog.id="owFilters";dialog.setAttribute("aria-labelledby","owFilterTitle");
+    const panel=node("section");panel.id="owFilters";panel.hidden=true;
+    panel.setAttribute("aria-labelledby","owFilterTitle");
     const form=node("form");form.id="owFilterForm";
     const title=node("h2","","Фильтры заказов");title.id="owFilterTitle";
-    const top=node("div","ow-dialog-head");top.append(title,button("owFilterCancel","Закрыть фильтры","close",closeFilters));
+    const top=node("div","ow-filter-head");
+    top.append(title,button("owFilterCancel","Закрыть фильтры","close",()=>closeFilters(true)));
     const status=field("owFilterStatus","Статус");
     addOptions(status.input,[["","Все статусы"],["Записан","Записаны"],["В работе","В работе"],["Выполнен","Выполнены"],["Отменён","Отменены"],["unpaid","Ожидают оплаты"]]);
     const master=field("owFilterMaster","Мастер"),date=field("owFilterDate","Дата","input");date.input.type="date";
-    const actions=node("div","ow-dialog-actions");
+    const actions=node("div","ow-filter-actions");
     const reset=node("button","secondary","Сбросить");reset.id="owFilterReset";reset.type="button";
     reset.addEventListener("click",()=>{status.input.value="";master.input.value="";date.input.value="";});
     const apply=node("button","primary","Применить");apply.id="owFilterApply";apply.type="submit";
-    actions.append(reset,apply);form.append(top,status.label,master.label,date.label,actions);dialog.append(form);document.body.append(dialog);
+    actions.append(reset,apply);form.append(top,status.label,master.label,date.label,actions);panel.append(form);
+    tools.append(toolbar,panel,summary);area.insertBefore(tools,calendar);
     form.addEventListener("submit",event=>{
       event.preventDefault();state.status=status.input.value;state.master=currentRole==="master"?"":master.input.value;
-      state.date=currentTab==="calendar"||state.searchOpen?"":date.input.value;state.quick="";closeFilters();render();
+      state.date=currentTab==="calendar"||state.searchOpen?"":date.input.value;state.quick="";closeFilters(true);render();
     });
-    dialog.addEventListener("cancel",event=>{event.preventDefault();closeFilters();});
-    dialog.addEventListener("click",event=>{if(event.target===dialog){const r=dialog.getBoundingClientRect();if(event.clientX<r.left||event.clientX>r.right||event.clientY<r.top||event.clientY>r.bottom)closeFilters();}});
-    dialog.addEventListener("close",()=>$("owFilterToggle")?.setAttribute("aria-expanded","false"));
+    tools.addEventListener("keydown",event=>{
+      if(event.key!=="Escape"||panel.hidden&&!state.searchOpen)return;
+      event.preventDefault();
+      if(!panel.hidden)closeFilters(true);
+      else restoreSearch();
+    });
     const today=$("goToday");today.querySelector("span").textContent="Сегодня";today.setAttribute("aria-label","Вернуться к сегодняшнему дню");
     const settings=$("rdSettings");
     if(settings){
@@ -242,8 +256,7 @@
       return;
     }
     mount();beforeRender();
-    $("appTitle").textContent="Заказы";
-    $("owSearchToggle").hidden=false;$("owSearchToggle").setAttribute("aria-expanded",String(state.searchOpen));
+    $("owSearchToggle").hidden=state.searchOpen;$("owSearchToggle").setAttribute("aria-expanded",String(state.searchOpen));
     $("owSearch").hidden=!state.searchOpen;$("owViewSwitch").hidden=state.searchOpen;
     for(const tab of $("owViewSwitch").querySelectorAll("button")){
       const selected=tab.dataset.owMode===(currentTab==="calendar"?"calendar":"all");

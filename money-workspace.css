@@ -21,7 +21,7 @@ body.rd #appScreen.rd-master.master-mode #ordersArea>#newOrderBtn{
 }
 body.rd #appScreen.rd-master.master-mode{padding-bottom:calc(130px + env(safe-area-inset-bottom))}
 body.rd #appScreen.rd-master.master-mode .mw-master-reports{
-  display:block;color:#1d2b46;padding:3px 0 70px;
+  display:block;color:#1d2b46;padding:0 0 16px;
 }
 .mw-back{display:inline-flex;align-items:center;min-height:42px;border:0;background:transparent;color:#3f60c7;font-weight:750;padding:4px 0;font-size:13px}
 .mw-entry{
@@ -66,10 +66,9 @@ textarea.mw-input{min-height:69px;resize:vertical;line-height:1.4}
 .mw-radio input{accent-color:#416bdf;width:16px;height:16px}
 .mw-modal-actions{display:flex;flex-direction:column-reverse;gap:4px;margin-top:2px}
 .mw-modal-actions .mw-main-button{margin:0}
-.mw-owner-payments{display:flex;flex-direction:column;gap:11px;margin:8px 0 15px;color:#24324d}
+.mw-owner-payments{display:flex;flex-direction:column;gap:11px;margin:0 0 15px;color:#24324d}
 .mw-owner-data{display:flex;flex-direction:column;gap:11px;min-width:0}
-.mw-owner-heading{display:flex;justify-content:space-between;align-items:center;gap:8px}
-.mw-owner-heading h2{margin:0;font-size:19px}
+.mw-owner-actions{display:flex;justify-content:flex-end}
 .mw-owner-create{border:0;background:#5276eb;color:#fff;min-height:44px;border-radius:12px;padding:9px 16px;font-size:13px;font-weight:750}
 .mw-owner-create:disabled{opacity:.55;cursor:default}
 .mw-create-menu{display:flex;flex-direction:column;gap:2px;padding:5px;border:1px solid #dce5f6;border-radius:13px;background:#fff;box-shadow:0 6px 18px #304e8017}
@@ -161,7 +160,7 @@ body.rd #appScreen.rd-master.master-mode #orders .master-day-heading[hidden]{
 /* Customer payment and refund history for the authenticated master. */
 .mw-master-payments{
   display:flex;flex-direction:column;gap:16px;min-width:0;
-  padding:4px 0 16px;color:#1e2c4e;
+  padding:0 0 16px;color:#1e2c4e;
   --mw-ink:#1e2c4e;--mw-muted:#596984;--mw-line:#d9e3f3;--mw-blue:#1855d9;
 }
 .mw-master-payments strong{font-variant-numeric:tabular-nums}
@@ -226,11 +225,6 @@ body.rd #appScreen.rd-master.master-mode #orders .master-day-heading[hidden]{
 .mw-payment-chevron{color:#687b9c;font-size:19px;line-height:.9}
 .mw-payment-meta{
   grid-column:1/-1;color:var(--mw-muted);font-size:12px;line-height:1.3;
-}
-@media(max-width:790px){
-  body.rd #appScreen.rd-master.master-mode.mw-payments-header #masterBrand .master-brand-text span{display:none}
-  body.rd #appScreen.rd-master.master-mode.mw-payments-header > header #appTitle{font-size:23px}
-  body.rd #appScreen.rd-master.master-mode.mw-payments-header > header #roleName{font-size:14px}
 }
 .mw-order-modal-open{overflow:hidden!important}
 .mw-order-modal-backdrop{
@@ -336,10 +330,7 @@ body.rd #appScreen.rd-master.master-mode #orders .mw-filter-empty{
 }
 
 
-/* iOS master viewport scroll isolation, 2026-11-13.
-   The account screen is the ONLY vertical page scroller. This prevents Safari's
-   document rubber-band from pulling the pinned header away from the content.
-   Other roles, login screen and desktop scrolling keep their original behavior. */
+/* On iOS the master screen owns vertical scrolling and the fixed bottom nav. */
 @media (max-width:790px) {
   html.rd-master-scroll-locked,
   html.rd-master-scroll-locked body.rd {
@@ -379,123 +370,6 @@ body.rd #appScreen.rd-master.master-mode #orders .mw-filter-empty{
 }
 
 
-/* Master viewport header shield and fixed rows — iOS PWA.
-   Both visual header rows are fixed against the viewport scroll; the opaque
-   shield closes the iPhone safe-area gap so cards cannot appear above them.
-   Narrow master-only scope protects owner/manager layouts and order modals. */
-@media (max-width:790px) {
-  html.rd-master-scroll-locked body.rd #appScreen.rd-master.master-mode:not([hidden]) {
-    --master-topbar-width:min(100vw,670px);
-    padding-top:calc(
-      var(--master-sticky-safe, env(safe-area-inset-top, 0px))
-      + var(--master-brand-height,54px)
-      + var(--master-heading-height,39px)
-      + 8px
-    )!important;
-    scroll-padding-top:calc(
-      var(--master-sticky-safe, env(safe-area-inset-top, 0px))
-      + var(--master-brand-height,54px)
-      + var(--master-heading-height,39px)
-      + 8px
-    );
-  }
-  html.rd-master-scroll-locked body.rd #appScreen.rd-master.master-mode:not([hidden])::before {
-    content:"";
-    position:fixed;
-    z-index:95;
-    top:0;
-    left:50%;
-    transform:translateX(-50%);
-    width:var(--master-topbar-width);
-    height:calc(
-      var(--master-sticky-safe, env(safe-area-inset-top, 0px))
-      + var(--master-brand-height,54px)
-      + var(--master-heading-height,39px)
-      + 2px
-    );
-    background:#f2f6ff;
-    pointer-events:none;
-  }
-  html.rd-master-scroll-locked body.rd #appScreen.rd-master.master-mode:not([hidden]) #masterBrand.master-brand {
-    position:fixed;
-    z-index:96;
-    top:var(--master-sticky-safe, env(safe-area-inset-top, 0px));
-    left:50%;
-    right:auto;
-    transform:translateX(-50%);
-    width:var(--master-topbar-width);
-    max-width:670px;
-    height:var(--master-brand-height,54px);
-    min-height:var(--master-brand-height,54px);
-    margin:0;
-    border:0;
-    border-radius:0;
-    padding:5px 112px 5px 12px;
-    background:#f2f6ff;
-    box-shadow:none;
-  }
-  html.rd-master-scroll-locked body.rd #appScreen.rd-master.master-mode:not([hidden]) > header {
-    position:fixed;
-    z-index:97;
-    top:calc(
-      var(--master-sticky-safe, env(safe-area-inset-top, 0px))
-      + var(--master-brand-height,54px)
-    );
-    left:50%;
-    right:auto;
-    transform:translateX(-50%);
-    box-sizing:border-box;
-    width:var(--master-topbar-width);
-    max-width:670px;
-    height:var(--master-heading-height,39px);
-    min-height:var(--master-heading-height,39px);
-    margin:0;
-    border:0;
-    padding:2px 12px 5px;
-    border-radius:0;
-    background:#f2f6ff;
-    box-shadow:none;
-    overflow:visible;
-  }
-  /* Profile and push popovers remain above the shield, and dialogs remain above
-     both header rows (dialogs use z-index 350/440/1800). */
-  html.rd-master-scroll-locked body.rd #appScreen.rd-master.master-mode > header .master-header-actions {
-    z-index:135;
-  }
-}
-
-/* Raul orders: remove redundant branding/headlines without disturbing other pages.
-   Preserve the fixed notification/profile controls and make the sticky iOS shield
-   match the single remaining header row (no blank brand/heading spacer). */
-@media(max-width:790px){
-  body.rd #appScreen.rd-master.master-mode.mw-orders-minimal-header > #masterBrand.master-brand,
-  body.rd #appScreen.rd-master.master-mode.mw-orders-minimal-header > header .master-header-info{
-    display:none!important;
-  }
-  body.rd #appScreen.rd-master.master-mode.mw-orders-minimal-header > header{
-    display:block;
-    box-sizing:border-box;
-    height:55px;
-    min-height:55px;
-    margin:0 0 8px;
-  }
-  body.rd #appScreen.rd-master.master-mode.mw-orders-minimal-header > header .master-header-actions{
-    top:4px;right:10px;
-  }
-  body.rd #appScreen.rd-master.master-mode.mw-orders-minimal-header #ordersArea > .list-head{
-    justify-content:flex-end;
-    min-height:18px;
-    margin:9px 1px 8px;
-  }
-  body.rd #appScreen.rd-master.master-mode.mw-orders-minimal-header #ordersArea > .list-head #listTitle{
-    display:none!important;
-  }
-  html.rd-master-scroll-locked body.rd #appScreen.rd-master.master-mode.mw-orders-minimal-header{
-    --master-brand-height:0px;
-    --master-heading-height:55px;
-  }
-}
-
 /* Detail-only order reference. Keep main calendar and list rows unchanged. */
 .rd-order-reference-row{
   display:flex;align-items:center;flex-wrap:wrap;gap:8px;
@@ -517,54 +391,3 @@ body.rd #appScreen.rd-master.master-mode #orders .mw-filter-empty{
   outline:2px solid #4e6fdb;outline-offset:2px;
 }
 .rd-order-reference-slot:empty{display:none}
-
-
-/* Raul orders, iPhone: one useful top row, not an empty sticky header.
-   Put search beside the existing bell and profile. Only the orders view
-   changes; money, reports, settings and owner/manager are unaffected. */
-@media (max-width:790px) {
-  html.rd-master-scroll-locked body.rd #appScreen.rd-master.master-mode.mw-orders-minimal-header:not([hidden]) {
-    --master-brand-height:0px;
-    --master-heading-height:48px;
-  }
-  html.rd-master-scroll-locked body.rd #appScreen.rd-master.master-mode.mw-orders-minimal-header:not([hidden]) > header {
-    height:0!important;
-    min-height:0!important;
-    margin:0!important;
-    padding:0!important;
-    background:transparent!important;
-    border:0!important;
-    box-shadow:none!important;
-    pointer-events:none;
-  }
-  html.rd-master-scroll-locked body.rd #appScreen.rd-master.master-mode.mw-orders-minimal-header > header .master-header-actions {
-    position:absolute;
-    top:4px;
-    right:10px;
-    z-index:135;
-    pointer-events:auto;
-  }
-  html.rd-master-scroll-locked body.rd #appScreen.rd-master.master-mode.mw-orders-minimal-header #mwMasterFilterbar .mw-filter-search {
-    position:fixed;
-    z-index:96;
-    top:calc(var(--master-sticky-safe, env(safe-area-inset-top, 0px)) + 5px);
-    left:max(10px, calc((100vw - 670px) / 2 + 10px));
-    right:max(160px, calc((100vw - 670px) / 2 + 160px));
-    box-sizing:border-box;
-    width:auto;
-    max-width:none;
-    height:43px;
-    min-height:43px;
-    margin:0;
-    padding:8px 11px;
-    border-radius:12px;
-    pointer-events:auto;
-  }
-  html.rd-master-scroll-locked body.rd #appScreen.rd-master.master-mode.mw-orders-minimal-header #mwMasterFilterbar .mw-status-filters {
-    margin-top:0;
-  }
-  /* The fixed shield is now only as tall as the occupied, single header row. */
-  html.rd-master-scroll-locked body.rd #appScreen.rd-master.master-mode.mw-orders-minimal-header:not([hidden])::before {
-    height:calc(var(--master-sticky-safe, env(safe-area-inset-top, 0px)) + 50px);
-  }
-}

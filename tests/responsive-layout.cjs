@@ -60,6 +60,36 @@ async function scan(page,label){
   return {label,width:innerWidth,overflow:document.documentElement.scrollWidth-viewport,issues:issues.slice(0,16)};
  },label);
 }
+async function verifyProfile(page,role){
+ const heading=page.locator('#appScreen > .rd-screen-heading');
+ const profile=page.locator('#rdProfile');
+ const trigger=page.locator('#rdProfileTrigger');
+ const menu=page.locator('#rdProfileMenu');
+ await heading.waitFor();
+ await trigger.waitFor();
+ assert.equal(await page.locator('#appTitle').count(),1,'one flow title per document');
+ assert.equal(await profile.count(),1,'one fixed profile per document');
+ assert.equal(await profile.evaluate(node=>node.parentElement===document.querySelector('#appScreen').parentElement
+  &&getComputedStyle(node).position==='fixed'),true,'profile is fixed outside the scrolling app');
+ const control=await trigger.boundingBox();
+ assert.ok(control.width>=43.5&&control.height>=43.5,'profile is tappable');
+ const titleBefore=await heading.boundingBox();
+ await trigger.click();
+ await menu.waitFor();
+ assert.deepEqual(await heading.boundingBox(),titleBefore,'opening profile keeps the flow title in place');
+ assert.equal(await menu.locator('#logoutBtn').isVisible(),true,'sign-out is inside the profile');
+ if(role==='master'){
+  await menu.locator('#pushBellBtn').click();
+  await menu.locator('#pushPopover').waitFor();
+  await page.keyboard.press('Escape');
+  assert.equal(await menu.locator('#pushPopover').isVisible(),false,'Escape closes nested notifications');
+  assert.equal(await menu.isVisible(),true,'profile remains available after closing notifications');
+ }else{
+  assert.equal(await menu.locator('#pushBellBtn').isVisible(),false,'master notifications are role-scoped');
+ }
+ await page.keyboard.press('Escape');
+ assert.equal(await menu.isVisible(),false,'Escape closes the profile');
+}
 (async()=>{const browser=await chromium.launch({executablePath:process.env.CHROMIUM_PATH||'/usr/bin/chromium',args:['--no-sandbox']});try{
  const {page,context,writes,errors}=await setup(browser);
  await page.goto('https://crm.test/');await page.locator('.rd-shell').waitFor();
@@ -92,16 +122,14 @@ async function scan(page,label){
      const count=page.locator('#orderCount');
      const initialCount=await count.innerText();
      await toggle.scrollIntoViewIfNeeded();
-     const listBefore=await page.locator('#orders').boundingBox();
      await toggle.click();
-     const dialog=page.locator('#owFilters');
-     assert.equal(await dialog.evaluate(el=>el.open),true,'mobile filters use a modal dialog');
-     const listAfter=await page.locator('#orders').boundingBox();
-     assert.ok(Math.abs(listBefore.y-listAfter.y)<2,'opening filters must not shift the orders list');
+     const panel=page.locator('#ordersArea #owTools #owFilters');
+     assert.equal(await panel.isVisible(),true,'mobile filters expand within Orders');
+     results.push(await scan(page,'orders-filters-expanded'));
      await page.locator('#owFilterStatus').selectOption('Выполнен');
      assert.equal(await count.innerText(),initialCount,'draft filters do not apply before confirmation');
      await page.locator('#owFilterCancel').click();
-     assert.equal(await dialog.evaluate(el=>el.open),false,'close dismisses the filter dialog');
+     assert.equal(await panel.isVisible(),false,'close collapses the filter panel');
      await toggle.click();
      assert.equal(await page.locator('#owFilterStatus').inputValue(),'','reopening restores saved selection');
      await page.locator('#owFilterStatus').selectOption('Выполнен');
@@ -113,7 +141,7 @@ async function scan(page,label){
      assert.notEqual(await count.innerText(),initialCount,'Reset stays draft until Apply');
      await page.locator('#owFilterApply').click();
      assert.equal(await count.innerText(),initialCount,'reset and apply restores the full list');
-     results.push(await scan(page,'orders-filter-sheet'));
+     results.push(await scan(page,'orders-filters-collapsed'));
     }
     await page.locator('.rd-list-toggle').first().click();results.push(await scan(page,'order-details'));
     await page.locator('.rd-order-close').click(); // Modal must be closed before testing another action.
@@ -168,6 +196,7 @@ async function scan(page,label){
   for(const role of ['owner','manager','master']){
    const mobile=await setup(browser,devices[profile],role),p=mobile.page;
    await p.goto('https://crm.test/');await p.locator('#appScreen').waitFor({state:'visible'});
+   await verifyProfile(p,role);
    if(role==='master'){
     await p.locator('.master-schedule-toggle').first().click();results.push(await scan(p,profile+' master schedule'));
     await p.locator('.master-order-sheet .mw-order-modal-close').click();

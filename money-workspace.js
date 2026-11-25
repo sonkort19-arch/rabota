@@ -64,7 +64,6 @@
     payments.setAttribute("aria-label","Платежи мастера");
     const settings=el("section","mw-master-settings");settings.id="mwMasterSettings";settings.hidden=true;
     settings.setAttribute("aria-label","Настройки мастера");
-    settings.append(el("h2","mw-settings-title","Настройки"));
     window.__rdWhatsAppSettings?.mount(settings);
     const toolbar=el("section","mw-master-filterbar");toolbar.id="mwMasterFilterbar";
     toolbar.setAttribute("aria-label","Фильтры заказов");
@@ -138,10 +137,6 @@
     }else empty?.remove();
   }
   function updateNav(){
-    // Only Raul's order list uses the simplified header. Restore headings on other pages.
-    $("appScreen")?.classList.toggle("mw-orders-minimal-header",
-      page==="orders"&&api()?.snapshot()?.role==="master");
-    $("appScreen")?.classList.toggle("mw-payments-header",page==="payments"&&api()?.snapshot()?.role==="master");
     const nav=$("mwMasterNav");if(!nav)return;
     for(const b of nav.querySelectorAll("button")){
       const active=b.dataset.mwPage===(page==="day"||page==="orders"?"orders":page);
@@ -154,8 +149,9 @@
     const reports=$("mwMasterReports"),payments=$("mwMasterPayments"),
       settings=$("mwMasterSettings"),orders=$("ordersArea"),finance=$("financePanel");
     if(!reports||!payments||!orders||!finance)return;
-    if(restore&&which!==page){
-      scrollPositions.set(page,window.__rdMasterViewportScroll?.position?.()??window.scrollY??0);
+    if(which!==page){
+      window.__rdCloseProfile?.();
+      if(restore)scrollPositions.set(page,window.__rdMasterViewportScroll?.position?.()??window.scrollY??0);
     }
     page=which;
     window.__rdMasterCurrentPage=page;
@@ -164,15 +160,14 @@
     if(settings)settings.hidden=which!=="settings";
     const filters=$("mwMasterFilterbar");
     if(filters)filters.hidden=which!=="orders"||Boolean(window.__rdOrdersWorkspace?.isActive?.());
-    const title=$("appTitle");
+    const title={reports:"Отчёты",payments:"Платежи",settings:"Настройки"}[which]||"Заказы";
+    window.__rdSetScreenHeading?.(title);
     if(which==="reports"||which==="payments"||which==="settings"){
       orders.hidden=true;finance.hidden=true;
-      if(title)title.textContent=which==="reports"?"Отчёты":which==="payments"?"Платежи":"Настройки";
       if(which==="reports")renderMaster();
       else if(which==="payments")renderMasterPayments();
       else window.__rdWhatsAppSettings?.refresh();
     }else{
-      if(title)title.textContent="Заказы";
       orders.hidden=false;finance.hidden=true;
       if(which==="day")window.__rdSyncMasterToday?.();
       const tab=orders.querySelector('.tab[data-tab="'+(which==="day"?"calendar":"all")+'"]');
@@ -419,8 +414,7 @@
         }));
       const status=readStatus(),receipt=el("p","mw-owner-receipt"),content=el("div","mw-owner-data");
       receipt.setAttribute("role","status");receipt.hidden=true;
-      panel.append(box("mw-owner-payments",
-        box("mw-owner-heading",el("h2","","Учётная касса"),create),menu,status,receipt,content));
+      panel.append(box("mw-owner-payments",box("mw-owner-actions",create),menu,status,receipt,content));
       ownerView={panel,menu,create,status,receipt,content,revision:null,book:null};
     }
     updateOwnerPayments();
@@ -585,8 +579,6 @@
       switchPage("day",false);
     }else{
       navigationUser=null;
-      $("appScreen")?.classList.remove("mw-orders-minimal-header");
-      $("appScreen")?.classList.remove("mw-payments-header");
       const nav=$("mwMasterNav"),reports=$("mwMasterReports"),
         payments=$("mwMasterPayments"),settings=$("mwMasterSettings");
       if(nav)nav.hidden=true;

@@ -1,4 +1,4 @@
-/* Focused browser regression for the Orders mobile filter sheet.
+/* Focused browser regression for the inline Orders filters.
  * Uses synthetic data and blocks all real writes. Run with Playwright + Chromium.
  */
 "use strict";
@@ -62,26 +62,33 @@ async function setup(browser,device){
 async function mobile(browser,name,device){
  const {page,context,writes,errors}=await setup(browser,device);
  try{
-  const toggle=page.locator("#owFilterToggle"),
-    count=page.locator("#orderCount"),dialog=page.locator("#owFilters");
+  const toggle=page.locator("#ordersArea #owTools #owFilterToggle"),
+    count=page.locator("#orderCount"),panel=page.locator("#ordersArea #owTools #owFilters");
   const status=page.locator("#owFilterStatus");
   const visibleRows=page.locator("#orders .rd-list-row:visible");
   const first=await count.innerText();
   assert.equal(await visibleRows.count(),9,name+": all synthetic orders initially visible");
-  const before=await page.locator("#orders").boundingBox();
+  const firstCard=visibleRows.first();
+  const before=await firstCard.boundingBox();
   await toggle.click();
-  assert.equal(await dialog.evaluate(e=>e.open),true,name+": dialog opens");
-  assert.equal(await dialog.evaluate(e=>e.tagName),"DIALOG",name+": filters use the native top layer");
-  const after=await page.locator("#orders").boundingBox();
-  assert.ok(Math.abs(before.y-after.y)<2,name+": list is not shifted");
+  assert.equal(await panel.isVisible(),true,name+": filters expand inside Orders");
+  assert.equal(await toggle.getAttribute("aria-expanded"),"true",name+": expanded state is announced");
+  const after=await firstCard.boundingBox(),panelBox=await panel.boundingBox();
+  assert.ok(panelBox.y+panelBox.height<=after.y,name+": filter panel leaves cards unobscured");
   await status.selectOption("Выполнен");
   assert.equal(await count.innerText(),first,name+": filter is still a draft");
   assert.equal(await visibleRows.count(),9,name+": drafting a filter does not alter cards");
   await page.locator("#owFilterCancel").click();
-  assert.equal(await dialog.evaluate(e=>e.open),false,name+": closed");
+  assert.equal(await panel.isVisible(),false,name+": closed");
+  assert.equal(await toggle.evaluate(e=>e===document.activeElement),true,name+": toggle regains keyboard focus");
+  assert.ok(Math.abs((await firstCard.boundingBox()).y-before.y)<2,name+": closing restores list position");
   assert.equal(await count.innerText(),first,name+": cancel leaves applied results unchanged");
   await toggle.click();
   assert.equal(await status.inputValue(),"",name+": reopening after cancel restores applied status");
+  await status.press("Escape");
+  assert.equal(await panel.isVisible(),false,name+": Escape closes the filters");
+  assert.equal(await toggle.getAttribute("aria-expanded"),"false",name+": collapsed state is announced");
+  await toggle.click();
   await status.selectOption("Выполнен");
   await page.locator("#owFilterApply").click();
   const filtered=await count.innerText();
@@ -111,8 +118,7 @@ async function mobile(browser,name,device){
  }finally{await context.close();}
 }
 async function desktop(browser){
- // Unified desktop and mobile views deliberately use the same draft/apply dialog.
- await mobile(browser,"desktop native filters",{viewport:{width:1024,height:820}});
+ await mobile(browser,"desktop inline filters",{viewport:{width:1024,height:820}});
 }
 (async()=>{
  const browser=await chromium.launch({executablePath:process.env.CHROMIUM_PATH||"/usr/bin/chromium",args:["--no-sandbox"]});

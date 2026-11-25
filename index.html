@@ -247,7 +247,7 @@
   <link rel="stylesheet" href="/master-dense.css?v=20261113-stage8">
   <link rel="stylesheet" href="/master-dense-enhancements.css?v=20261117-compact-v1">
   <link rel="stylesheet" href="/master-completed-day.css?v=20261117-v1">
-  <link rel="stylesheet" href="/money-workspace.css?v=20261125-accounting">
+  <link rel="stylesheet" href="/money-workspace.css?v=20261125-fullscreen">
   <link rel="stylesheet" href="/master-order-sheet.css?v=20261117-icon-align-v2">
   <link rel="stylesheet" href="/master-quick-order.css?v=20261118-inline-busy-v1">
   <link rel="stylesheet" href="/master-quick-premium.css?v=20261118-v1">
@@ -361,50 +361,16 @@
       body.rd #appScreen.rd-master.master-mode #calendarPanel.master-calendar-compact .week{gap:3px}
     }
   </style>
-  <!-- Raul's account photo: one tappable round button, existing profile menu unchanged. -->
-  <style id="raul-round-profile-photo-20261114">
-    body.rd #rdProfileTrigger > .rd-profile-photo{display:none}
-    body.rd #appScreen.rd-master.master-mode .master-header-actions #rdProfileTrigger.rd-profile-trigger{
-      position:relative;
-      box-sizing:border-box;
-      width:45px;min-width:45px;height:45px;min-height:45px;
-      margin:0;padding:0;
-      overflow:hidden;
-      border:1px solid #eaf0ff;
-      border-radius:50%;
-      background:linear-gradient(140deg,#528dff,#3552ed);
-      box-shadow:0 5px 14px rgba(56,89,212,.22);
-      isolation:isolate;
-    }
-    body.rd #appScreen.rd-master.master-mode .master-header-actions #rdProfileTrigger > .rd-profile-photo{
-      display:block;
-      position:absolute;
-      inset:0;
-      z-index:1;
-      width:100%;height:100%;
-      max-width:none;
-      margin:0;padding:0;
-      border:0;border-radius:50%;
-      object-fit:cover;object-position:center;
-      pointer-events:none;
-    }
-    @media(max-width:790px){
-      body.rd #appScreen.rd-master.master-mode > header .master-header-actions #rdProfileTrigger.rd-profile-trigger{
-        box-sizing:border-box;
-        width:44px;min-width:44px;height:44px;min-height:44px;
-        border-radius:50%;
-      }
-    }
-  </style>
   <link rel="stylesheet" href="/master-calendar-load.css?v=20261117-single-outline-v1">
   <link rel="stylesheet" href="/whatsapp-settings.css?v=20261124-wa-focus-v1">
   <link rel="stylesheet" href="/client-source.css?v=20261118-v1">
   <!-- Reports inherit the final light CRM palette, including on dark-mode iPhones. -->
-  <link rel="stylesheet" href="/profit-report.css?v=20261120-breadcrumb-v1">
-  <link rel="stylesheet" href="/contextual-search.css?v=20261120-raul-parity-v4">
-  <link rel="stylesheet" href="/expenses.css?v=20261124-stability">
-  <link rel="stylesheet" href="/growth.css?v=20261124-stability">
-  <link rel="stylesheet" href="/orders-workspace.css?v=20261124-order-sync-status">
+  <link rel="stylesheet" href="/profit-report.css?v=20261125-fullscreen">
+  <link rel="stylesheet" href="/contextual-search.css?v=20261125-fullscreen">
+  <link rel="stylesheet" href="/expenses.css?v=20261125-fullscreen">
+  <link rel="stylesheet" href="/growth.css?v=20261125-fullscreen">
+  <link rel="stylesheet" href="/orders-workspace.css?v=20261125-fullscreen">
+  <link rel="stylesheet" href="/app-shell.css?v=20261125-fullscreen">
 </head>
 <body>
 
@@ -472,68 +438,10 @@
     </div>
   </section>
   <main id="appScreen" hidden>
-    <div id="masterBrand" class="master-brand" hidden aria-label="Работа — сервис промывки отопления">
-      <svg class="master-brand-icon" viewBox="0 0 48 48" width="38" height="38" aria-hidden="true" focusable="false"><defs><linearGradient id="master-brand-gradient" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#477bfa"/><stop offset="1" stop-color="#6040ed"/></linearGradient></defs><rect width="48" height="48" rx="12" fill="url(#master-brand-gradient)"/><g stroke="white" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" fill="none"><path d="M15 8c-3 2.8 2.7 4.3 0 7M24 7c-3 2.8 2.7 4.3 0 7M33 8c-3 2.8 2.7 4.3 0 7"/><rect x="9.2" y="19" width="6.3" height="20" rx="2.7"/><rect x="17" y="19" width="6.3" height="20" rx="2.7"/><rect x="24.8" y="19" width="6.3" height="20" rx="2.7"/><rect x="32.6" y="19" width="6.3" height="20" rx="2.7"/><path d="M7 24h2.2M38.9 24H41M7 35h2.2M38.9 35H41"/></g></svg>
-      <div class="master-brand-text"><strong>Работа</strong><span>Сервис промывки отопления</span></div>
-    </div>
-    <header><div class="master-header-info"><h1 id="appTitle">Работа</h1>
-      <div class="master-header-meta"><span class="muted" id="roleName"></span>
-
-      </div>
-    </div><div class="master-header-actions">
-        <section id="masterPushPanel" class="push-panel push-compact" hidden aria-label="Уведомления мастера">
-          <button id="pushBellBtn" class="push-bell" type="button" aria-label="Открыть уведомления" aria-expanded="false" aria-controls="pushPopover">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9"/><path d="M10 21h4"/></svg>
-            <span id="pushUnreadCount" class="push-unread" hidden>0</span>
-          </button>
-          <div id="pushPopover" class="push-popover" hidden aria-label="Уведомления и заказы для проверки">
-            <div class="push-popover-head">
-              <strong>Уведомления</strong>
-              <button type="button" class="push-close" id="closePushPopover" aria-label="Закрыть уведомления">×</button>
-            </div>
-            <div class="push-setting-row">
-              <div class="push-setting-label">
-                <strong>Уведомления на телефон</strong>
-                <span>О новых заказах</span>
-              </div>
-              <label class="push-toggle">
-                <input id="pushToggle" type="checkbox" role="switch" aria-label="Уведомления о новых заказах на телефон" disabled>
-                <span id="pushToggleText">Выкл</span>
-              </label>
-            </div>
-            <div id="pushStatus" class="push-status" role="status" aria-live="polite"></div>
-            <div id="masterStatusReviewList" class="push-review-list" hidden aria-label="Заказы, требующие проверки статуса"></div>
-            <div class="push-list-heading">Новые заявки</div>
-            <div id="recentNotificationList"><div class="push-empty">Загрузка…</div></div>
-            <button class="secondary" id="testPushBtn" type="button" hidden>Проверить уведомление на телефоне</button>
-          </div>
-        </section>
-      <div class="rd-profile" id="rdProfile">
-        <button class="rd-profile-trigger" id="rdProfileTrigger" type="button" aria-label="Открыть меню профиля" aria-haspopup="true" aria-controls="rdProfileMenu" aria-expanded="false">
-          <svg viewBox="0 0 24 24" width="23" height="23" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <circle cx="12" cy="8" r="3.7"/><path d="M4.5 20v-1.6a7.5 7.5 0 0 1 15 0V20H4.5Z"/>
-          </svg>
-          <img class="rd-profile-photo" src="/icons/raul-profile-avatar-20261114.jpg" width="104" height="104" alt="" aria-hidden="true" decoding="async">
-        </button>
-        <div class="rd-profile-menu" id="rdProfileMenu" hidden aria-label="Меню профиля">
-          <div class="rd-profile-identity">
-            <span class="rd-profile-initial" id="rdProfileInitial" aria-hidden="true">Р</span>
-            <span class="rd-profile-text"><strong id="rdProfileName">Рауль</strong><small id="rdProfileRole">Мастер</small></span>
-          </div>
-          <button class="rd-profile-logout" id="logoutBtn" type="button">
-            <svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-              <path d="M9 4H5a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h4"/><path d="m14 8 4 4-4 4M8 12h10"/>
-            </svg>
-            <span>Выйти</span>
-          </button>
-        </div>
-      </div>
-    </div></header>
+    <div class="rd-screen-heading"><h1 id="appTitle">Заказы</h1></div>
     <a id="aiChatLink" class="secondary ai-chat-entry" href="/ai.html" hidden>✦ Открыть ИИ-чат</a>
-    <div class="sync-note" id="syncStatus" role="status">Синхронизация...</div>
-    <section id="exMain" class="rd-view ex-main" aria-labelledby="exTitle" hidden>
-      <h1 class="rd-view-title" id="exTitle">Расходы</h1>
-      <p class="ex-subtitle">Дополнительные затраты бизнеса, без зарплат</p>
+    <div class="sync-note" id="syncStatus" role="status" hidden></div>
+    <section id="exMain" class="rd-view ex-main" aria-label="Расходы" hidden>
       <section class="ex-summary" aria-label="Итог расходов">
         <div class="ex-summary-top"><span>Расходы за месяц</span><div class="ex-month-controls"><button id="exPrev" type="button" aria-label="Предыдущий месяц">‹</button><strong id="exMonth">—</strong><button id="exNext" type="button" aria-label="Следующий месяц">›</button></div></div>
         <strong id="exMonthlyTotal" class="ex-large-number">—</strong>
@@ -573,8 +481,7 @@
         <p id="exEmpty" class="ex-empty" hidden>За выбранный месяц расходов пока нет.</p>
       </section>
     </section>
-    <section id="gwMain" class="rd-view gw-main" aria-labelledby="gwTitle" hidden>
-      <div class="gw-heading"><h1 class="rd-view-title" id="gwTitle">Развитие MOBA</h1><span>Личный план владельца</span></div>
+    <section id="gwMain" class="rd-view gw-main" aria-label="Развитие MOBA" hidden>
       <section class="gw-hero" aria-label="Главная цель">
         <div class="gw-hero-caption">Цель на 2027 год</div>
         <strong id="gwTarget">—</strong>
@@ -644,6 +551,55 @@
       <div id="financeContent"></div>
     </section>
   </main>
+
+  <div class="rd-profile" id="rdProfile" hidden>
+    <button class="rd-profile-trigger" id="rdProfileTrigger" type="button" aria-label="Открыть меню профиля" aria-haspopup="dialog" aria-controls="rdProfileMenu" aria-expanded="false">
+      <svg viewBox="0 0 24 24" width="23" height="23" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <circle cx="12" cy="8" r="3.7"/><path d="M4.5 20v-1.6a7.5 7.5 0 0 1 15 0V20H4.5Z"/>
+      </svg>
+      <img class="rd-profile-photo" hidden src="/icons/raul-profile-avatar-20261114.jpg" width="104" height="104" alt="" aria-hidden="true" decoding="async">
+    </button>
+    <div class="rd-profile-menu" id="rdProfileMenu" role="dialog" hidden aria-label="Меню профиля">
+      <div class="rd-profile-identity">
+        <span class="rd-profile-initial" id="rdProfileInitial" aria-hidden="true">Р</span>
+        <span class="rd-profile-text"><strong id="rdProfileName">Рауль</strong><small id="rdProfileRole">Мастер</small></span>
+      </div>
+        <section id="masterPushPanel" class="push-panel push-compact" hidden aria-label="Уведомления мастера">
+          <button id="pushBellBtn" class="push-bell" type="button" aria-label="Открыть уведомления" aria-expanded="false" aria-controls="pushPopover">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9"/><path d="M10 21h4"/></svg>
+            <span>Уведомления</span>
+            <span id="pushUnreadCount" class="push-unread" hidden>0</span>
+          </button>
+          <div id="pushPopover" class="push-popover" hidden aria-label="Уведомления и заказы для проверки">
+            <div class="push-popover-head">
+              <strong>Уведомления</strong>
+              <button type="button" class="push-close" id="closePushPopover" aria-label="Закрыть уведомления">×</button>
+            </div>
+            <div class="push-setting-row">
+              <div class="push-setting-label">
+                <strong>Уведомления на телефон</strong>
+                <span>О новых заказах</span>
+              </div>
+              <label class="push-toggle">
+                <input id="pushToggle" type="checkbox" role="switch" aria-label="Уведомления о новых заказах на телефон" disabled>
+                <span id="pushToggleText">Выкл</span>
+              </label>
+            </div>
+            <div id="pushStatus" class="push-status" role="status" aria-live="polite"></div>
+            <div id="masterStatusReviewList" class="push-review-list" hidden aria-label="Заказы, требующие проверки статуса"></div>
+            <div class="push-list-heading">Новые заявки</div>
+            <div id="recentNotificationList"><div class="push-empty">Загрузка…</div></div>
+            <button class="secondary" id="testPushBtn" type="button" hidden>Проверить уведомление на телефоне</button>
+          </div>
+        </section>
+      <button class="rd-profile-logout" id="logoutBtn" type="button">
+        <svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M9 4H5a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h4"/><path d="m14 8 4 4-4 4M8 12h10"/>
+        </svg>
+        <span>Выйти</span>
+      </button>
+    </div>
+  </div>
 
   <div class="overlay" id="orderOverlay" hidden>
     <section class="sheet" role="dialog" aria-modal="true" aria-labelledby="formTitle">
@@ -936,6 +892,8 @@
       ["startupScreen","loginScreen","accessScreen","appScreen"].forEach(id => {
         document.getElementById(id).hidden = (id !== which);
       });
+      document.getElementById("rdProfile").hidden=which!=="appScreen";
+      if(which!=="appScreen")window.__rdCloseProfile?.();
       document.documentElement.classList.toggle("rd-master-scroll-locked",
         which==="appScreen"&&currentRole==="master");
       // Order dialogs live outside appScreen and must also leave the account view.
@@ -1065,6 +1023,7 @@
       const node=document.getElementById("syncStatus");
       if(!node)return;
       node.classList.toggle("sync-error",Boolean(error));
+      node.hidden=!error;
       node.textContent=error?
         (source==="finance"
           ?"Заявки обновлены, но финансы недоступны. Баланс не обновлён."
@@ -1077,13 +1036,7 @@
                 :source==="saved-refund"
                   ?"Возврат учтён. Список заказов пока не обновился."
             :"Не удалось обновить заявки. Расписание может быть устаревшим."):
-        "Обновлено "+new Date().toLocaleTimeString("ru-RU",{hour:"2-digit",minute:"2-digit"});
-      const ordersStatus=document.getElementById("rdOrdersSynced");
-      if(ordersStatus){ordersStatus.textContent=node.textContent;ordersStatus.classList.toggle("sync-error",Boolean(error));}
-      const homeStatus=document.getElementById("rdHomeSynced");
-      if(homeStatus){homeStatus.textContent=node.textContent;homeStatus.classList.toggle("sync-error",Boolean(error));}
-      const calendarStatus=document.getElementById("rdCalendarSynced");
-      if(calendarStatus){calendarStatus.textContent=node.textContent;calendarStatus.classList.toggle("sync-error",Boolean(error));}
+        "";
     }
     function loadOrderData(background=false) {
       const sync=window.__rdOrderSync;
@@ -2421,15 +2374,14 @@
         currentRole==="master"?"Мастер":"Менеджер";
       document.getElementById("rdProfileMenu").hidden=true;
       document.getElementById("rdProfileTrigger").setAttribute("aria-expanded","false");
-      document.getElementById("appTitle").textContent=currentRole==="master"?"Мои заказы":"Работа";
-      document.getElementById("roleName").textContent=currentRole==="master"?currentMasterName:
-         currentRole==="owner"?"Администратор":"Менеджер";
+      window.__rdSetScreenHeading("Заказы");
+      document.querySelector("#rdProfileTrigger .rd-profile-photo").hidden=!(currentRole==="master"&&
+        currentMasterName.trim().toLocaleLowerCase("ru-RU")==="рауль");
       document.querySelector('[data-tab="all"]').textContent=currentRole==="master"?"Расписание":"Все заказы";
       document.querySelector('[data-tab="calendar"]').textContent="По дням";
       document.getElementById("appScreen").classList.toggle("master-mode",currentRole==="master");
       document.getElementById("appScreen").classList.toggle("rd-owner",currentRole==="owner");
       document.getElementById("appScreen").classList.toggle("rd-manager",currentRole==="manager");
-      document.getElementById("masterBrand").hidden=currentRole!=="master";
       document.getElementById("masterPushPanel").hidden=currentRole!=="master";
       // Only the master's floating button uses the short visible label.
       // The accessible name continues to describe the full action.
@@ -2692,22 +2644,27 @@
     const profileRoot=document.getElementById("rdProfile");
     const profileTrigger=document.getElementById("rdProfileTrigger");
     const profileMenu=document.getElementById("rdProfileMenu");
+    window.__rdSetScreenHeading=title=>{document.getElementById("appTitle").textContent=title;};
     function closeProfileMenu(focusTrigger=false){
       if(profileMenu.hidden)return;
+      window.__rdClosePushPopover?.();
       profileMenu.hidden=true;
       profileTrigger.setAttribute("aria-expanded","false");
       if(focusTrigger)profileTrigger.focus({preventScroll:true});
     }
-    profileTrigger.addEventListener("click",()=>{
-      const open=profileMenu.hidden;
-      profileMenu.hidden=!open;
-      profileTrigger.setAttribute("aria-expanded",String(open));
+    window.__rdCloseProfile=closeProfileMenu;
+    profileTrigger.addEventListener("click",event=>{
+      if(!profileMenu.hidden){closeProfileMenu();return;}
+      profileMenu.hidden=false;
+      profileTrigger.setAttribute("aria-expanded","true");
+      if(event.detail===0)
+        document.getElementById(currentRole==="master"?"pushBellBtn":"logoutBtn").focus({preventScroll:true});
     });
-    document.addEventListener("click",event=>{
+    document.addEventListener("pointerdown",event=>{
       if(!profileMenu.hidden&&!profileRoot.contains(event.target))closeProfileMenu();
     });
     document.addEventListener("keydown",event=>{
-      if(event.key==="Escape"&&!profileMenu.hidden)closeProfileMenu(true);
+      if(event.key==="Escape"&&!profileMenu.hidden&&document.getElementById("pushPopover").hidden)closeProfileMenu(true);
     });
     document.getElementById("logoutBtn").addEventListener("click",()=>{
       closeProfileMenu();
@@ -2746,16 +2703,16 @@
   <script src="/whatsapp-order.js?v=20261111-master-notes"></script>
   <script src="/whatsapp-client.js?v=20261118-safety-fix-v1"></script>
   <script src="/whatsapp-settings.js?v=20261124-wa-focus-v1"></script>
-  <script src="/profit-report.js?v=20261125-accounting"></script>
+  <script src="/profit-report.js?v=20261125-fullscreen"></script>
   <script src="/expenses.js?v=20261124-stability"></script>
   <script src="/growth.js?v=20261124-integrated-modules"></script>
-  <script src="/redesign.js?v=20261125-accounting"></script>
-  <script src="/master-notifications.js?v=20261124-fast-start"></script>
+  <script src="/redesign.js?v=20261125-fullscreen"></script>
+  <script src="/master-notifications.js?v=20261125-fullscreen"></script>
   <script src="/orders-list.js?v=20261124-payroll-v3"></script>
   <script src="/owner-parity.js?v=20261124-unified-v1"></script>
-  <script src="/finance-payroll.js?v=20261125-accounting"></script>
-  <script src="/money-workspace.js?v=20261125-accounting"></script>
+  <script src="/finance-payroll.js?v=20261125-fullscreen"></script>
+  <script src="/money-workspace.js?v=20261125-fullscreen"></script>
   <script src="/lead-assistant.js?v=20261124-stability"></script>
-  <script src="/orders-workspace.js?v=20261124-account-dialogs"></script>
+  <script src="/orders-workspace.js?v=20261125-fullscreen"></script>
 </body>
 </html>

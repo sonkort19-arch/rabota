@@ -4,6 +4,7 @@
 "use strict";
 const {chromium,webkit,devices}=require("playwright");
 const {mockAccountingSnapshot}=require("./fixtures/legacy-payroll.cjs");
+const {assertHeaderLayout}=require("./module-navigation-browser.cjs");
 const {readFileSync,existsSync}=require("node:fs");
 const path=require("node:path");
 const assert=require("node:assert/strict");
@@ -97,6 +98,7 @@ async function runOne(browser,label,device){
  const {page,context,writes,errors}=await setup(browser,device);
  try{
   await assertDocked(page,label+" initial");
+  const header=await assertHeaderLayout(page,"orders");
   const tabs=page.locator("#rdMobileNav .rd-nav-btn");
   assert.equal(await tabs.count(),5,label+": five navigation actions");
   assert.deepEqual(await tabs.evaluateAll(items=>items.map(item=>item.dataset.page||(item.id==="rdMobileMoreBtn"?"more":"unknown"))),
@@ -110,43 +112,20 @@ async function runOne(browser,label,device){
    await page.evaluate(v=>window.scrollTo({top:(document.documentElement.scrollHeight-innerHeight)*v,behavior:"instant"}),fraction);
    await page.waitForTimeout(70);
    await assertDocked(page,label+" scroll "+fraction);
+   if(fraction===.5)await assertHeaderLayout(page,"orders",header);
   }
   for(const section of ["calendar","orders","leads","orders","home","orders"]){
    await goSection(page,section);
    await assertDocked(page,label+" switch "+section);
   }
-  // On non-search screens the header must not occupy any space.
   await goSection(page,"home");
-  const head=await page.evaluate(()=>{
-    const app=document.getElementById("appScreen");
-    const top=app.querySelector(":scope > .rd-top");
-    const toggle=document.getElementById("rdProfileToggle");
-    const title=document.querySelector("#rdHome .rd-view-title");
-    const rect=top.getBoundingClientRect();
-    const avatar=toggle.getBoundingClientRect();
-    return {headerHeight:rect.height,background:getComputedStyle(top).backgroundColor,
-      visibleSearch:getComputedStyle(document.getElementById("rdTopSearch")).display!=="none",
-      syncDisplayed:getComputedStyle(document.getElementById("syncStatus")).display!=="none",
-      avatarWidth:avatar.width,avatarHeight:avatar.height,titleTop:title.getBoundingClientRect().top};
-  });
-  assert.ok(head.headerHeight<=1,label+": no empty header height "+JSON.stringify(head));
-  assert.equal(head.background,"rgba(0, 0, 0, 0)",label+": header is transparent");
-  assert.equal(head.visibleSearch,false,label+": no unused global search");
-  assert.equal(head.syncDisplayed,false,label+": routine sync label does not waste space");
-  assert.ok(head.avatarWidth>=40&&head.avatarHeight>=40,label+": floating avatar stays tappable");
-  // On standalone iPhones top safe area can be nonzero; no artificial toolbar should be added.
-  const expectedTopLimit=await page.evaluate(()=>{
-    const avatarTop=document.getElementById("rdProfileToggle").getBoundingClientRect().top;
-    return avatarTop+52;
-  });
-  assert.ok(head.titleTop<expectedTopLimit,label+": content begins beside avatar without spacer "+JSON.stringify(head));
-  await page.locator("#rdProfileToggle").click();
-  assert.equal(await page.locator("#appScreen > section#rdShellProfileMenu").isVisible(),true,label+": floating profile opens");
-  assert.equal(await page.locator("#rdProfileMenu").count(),1,label+": order and floating profile menus have distinct IDs");
-  await page.locator("#rdProfileToggle").click();
+  await assertHeaderLayout(page,"home",header);
+  assert.equal(await page.locator("#syncStatus").isVisible(),false,label+": routine sync label does not waste space");
+  await page.locator("#rdProfileTrigger").click();
+  await page.locator("#rdProfileMenu").waitFor();
+  await page.locator("#rdProfileTrigger").click();
   await page.locator('#rdMobileNav [data-page="orders"]').click();
   assert.equal(await page.locator("#owSearchToggle").isVisible(),true,label+": orders still have search");
-  assert.equal(await page.locator("#rdTopSearch").isVisible(),false,label+": no duplicate orders search");
   await goSection(page,"settings");
   await page.locator("#rdMobileMoreBtn").click();
   assert.equal(await page.locator("#rdMobileMoreSheet").isVisible(),true,label+": more menu opens");
@@ -167,8 +146,10 @@ async function runOne(browser,label,device){
   if(size){
    await page.setViewportSize({width:size.width,height:Math.max(400,size.height-130)});
    await assertDocked(page,label+" shorter viewport");
+   await assertHeaderLayout(page,"orders",header);
    await page.setViewportSize(size);
    await assertDocked(page,label+" restored viewport");
+   await assertHeaderLayout(page,"orders",header);
   }
   await page.locator("#owSearchToggle").click();
   await page.locator("#owSearchInput").focus();
@@ -176,41 +157,14 @@ async function runOne(browser,label,device){
   await page.locator("#owSearchInput").blur();
   await page.locator("#owSearchClose").click();
 
-  // Every owner destination must avoid the old empty top strip.
-  for(const section of ["home","calendar","clients","finance","reports","settings"]){
+  for(const section of ["home","calendar","clients","finance","reports","settings","leads"]){
     await goSection(page,section);
-    const info=await page.evaluate(()=>{
-      const app=document.getElementById("appScreen");
-      const header=app.querySelector(":scope > .rd-top");
-      const unified=app.classList.contains("rd-unified-orders");
-      const avatar=document.getElementById(unified?"rdProfileTrigger":"rdProfileToggle");
-      return {
-        unified,
-        noSearchClass:app.classList.contains("rd-no-global-search"),
-        height:header.getBoundingClientRect().height,
-        background:getComputedStyle(header).backgroundColor,
-        searchVisible:getComputedStyle(document.getElementById("rdTopSearch")).display!=="none",
-        syncVisible:getComputedStyle(document.getElementById("syncStatus")).display!=="none",
-        avatarWidth:avatar.getBoundingClientRect().width,
-        avatarHeight:avatar.getBoundingClientRect().height,
-        appTopPadding:parseFloat(getComputedStyle(app).paddingTop)
-      };
-    });
-    assert.equal(info.noSearchClass,true,label+": "+section+" activates compact header mode");
-    assert.ok(info.height<=1,label+": "+section+" empty toolbar must be zero-height: "+JSON.stringify(info));
-    if(!info.unified)assert.equal(info.background,"rgba(0, 0, 0, 0)",label+": "+section+" transparent header");
-    assert.equal(info.searchVisible,false,label+": "+section+" does not display unrelated search");
-    assert.equal(info.syncVisible,false,label+": "+section+" does not display routine sync status");
-    assert.ok(info.avatarWidth>=40 && info.avatarHeight>=40,label+": "+section+" profile remains usable");
-    assert.ok(info.appTopPadding<110,label+": "+section+" top content uses available space");
-    if(info.unified){
-      assert.equal(await page.locator("#appTitle").innerText(),"Заказы",label+": useful unified heading");
-      assert.equal(await page.locator("#calendarPanel").isVisible(),true,label+": calendar remains accessible within Orders");
-    }
+    await assertHeaderLayout(page,section,header);
+    assert.equal(await page.locator("#syncStatus").isVisible(),false,label+": "+section+" does not display routine sync status");
+    if(section==="calendar")assert.equal(await page.locator("#calendarPanel").isVisible(),true,label+": calendar remains accessible within Orders");
     await assertDocked(page,label+" "+section+" without empty top");
   }
-  await goSection(page,"leads");
-  assert.equal(await page.locator("#rdTopSearch").isVisible(),true,label+": leads search remains");
+  assert.equal(await page.locator("#rdLeads #rdLeadSearch").isVisible(),true,label+": leads retain their own search");
   await page.locator('#rdMobileNav [data-page="orders"]').click();
   await page.locator("#owSearchToggle").click();
   assert.equal(await page.locator("#owSearchInput").isVisible(),true,label+": orders search remains");
@@ -239,9 +193,11 @@ async function runOne(browser,label,device){
   await page.evaluate(()=>{window.fixtureMobileNavigation=document.getElementById("rdMobileNav")});
   await page.locator('#rdMobileNav [data-page="expenses"]').click();
   await page.locator("#exMain").waitFor();
+  await assertHeaderLayout(page,"expenses",header);
   await assertDocked(page,label+" expenses dock");
   await goSection(page,"growth");
   await page.locator("#gwMain").waitFor();
+  await assertHeaderLayout(page,"growth",header);
   await assertDocked(page,label+" development dock");
   await page.locator("#rdMobileMoreBtn").click();
   assert.ok(await page.locator("#rdMobileMoreSheet").isVisible(),label+": development menu opens");

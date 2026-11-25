@@ -3,6 +3,7 @@
  */
 "use strict";
 const assert = require("node:assert/strict");
+const {existsSync} = require("node:fs");
 const path = require("node:path");
 const {chromium} = require("playwright");
 const {fixture,go} = require("./module-navigation-browser.cjs");
@@ -16,7 +17,7 @@ async function check(browser,role){
     await page.goto("https://crm.test/");
     await go(page,"home");
     const home = page.locator("#rdHome");
-    await home.getByRole("heading",{name:"Главная",exact:true}).waitFor();
+    await page.getByRole("heading",{name:"Главная",exact:true}).waitFor();
     assert.equal(await home.locator(".rd-home-metrics button").count(),3);
     assert.equal(await home.locator(".rd-home-actions .rd-svgicon").count(),3);
     assert.equal(await page.locator("#rdTopSearch").isVisible(),false);
@@ -64,10 +65,22 @@ async function check(browser,role){
     await history.getByRole("button",{name:"Все клиенты"}).click();
     assert.equal(await clients.count(),1,"returning keeps the client search");
     await go(page,"leads");
-    assert.equal(await page.locator("#rdTopSearch").isVisible(),true);
+    const leadSearch=page.locator("#rdLeads #rdLeadSearch");
+    const leads=page.locator("#laLeadList .la-lead");
+    await leads.first().waitFor();
+    assert.equal(await leads.count(),2);
+    await leadSearch.fill("8 (913) 444-55-66");
+    assert.equal(await leads.count(),1);
+    assert.match(await leads.innerText(),/Олег тестовый лид/);
+    await go(page,"clients");
+    assert.equal(await page.locator("#rdClientSearch").inputValue(),"Тестовый заказ 17");
+    assert.equal(await clients.count(),1);
+    await go(page,"leads");
+    assert.equal(await leadSearch.inputValue(),"8 (913) 444-55-66");
+    assert.equal(await leads.count(),1);
     if(role==="owner"){
       await go(page,"finance");
-      await page.getByRole("heading",{name:"Учётная касса"}).waitFor();
+      await page.getByRole("heading",{name:"Платежи",exact:true}).waitFor();
       const create=page.locator("#financePanel .mw-owner-create");
       await create.click();
       await page.getByRole("button",{name:/Создать приход/}).waitFor();
@@ -94,7 +107,7 @@ async function check(browser,role){
 
 async function runSmoke(){
   const browser = await chromium.launch({
-    executablePath:process.env.CHROMIUM_PATH||"/usr/bin/chromium",
+    executablePath:process.env.CHROMIUM_PATH||(existsSync("/usr/bin/chromium")?"/usr/bin/chromium":undefined),
     args:["--no-sandbox"]
   });
   try{

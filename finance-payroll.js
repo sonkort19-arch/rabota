@@ -315,9 +315,10 @@
      const v3State={view:"accruals",month:"all"};
      const back=button("Отчёты","fp-link fp-crumb-back",()=>onBack?.());
      back.setAttribute("aria-label","Вернуться ко всем отчётам");
-     const nav=div("fp-report-head",back,el("span","fp-crumb-sep","/"),
-       el("h2","fp-report-title","Зарплата"));
-     nav.setAttribute("aria-label","Отчёты / Зарплата");
+     const nav=el("nav","fp-report-head"),separator=el("span","fp-crumb-sep","/");
+     nav.setAttribute("aria-label","Путь к отчёту");
+     separator.setAttribute("aria-hidden","true");
+     nav.append(back,separator,el("h2","fp-report-title","Зарплата"));
      const status=el("p","fp-status-text"),content=el("div","");
      const retry=button("Повторить","secondary fp-retry",()=>void window.__rdMoneyUi?.reloadPayroll?.());
      const state=div("fp-data-status",status,retry);

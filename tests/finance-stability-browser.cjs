@@ -278,8 +278,10 @@ async function ownerCashbook(browser){
   const initial=gate();state.holds.set(bookName,initial);
   try{
     await page.goto(origin+"/?view=finance");
-    const heading=page.locator(".mw-owner-heading"),data=page.locator(".mw-money-stats");
-    await heading.waitFor();
+    const actions=page.locator(".mw-owner-actions"),data=page.locator(".mw-money-stats");
+    await actions.waitFor();
+    assert.equal(await page.locator("#appTitle").textContent(),"Платежи");
+    assert.equal(await page.locator("#financePanel").getByRole("heading",{name:"Учётная касса",exact:true}).count(),0);
     await waitCall(calls,bookName,1);
     assert.equal(await data.isVisible(),false);
     await dock(page,"orders").click();
@@ -300,11 +302,11 @@ async function ownerCashbook(browser){
     assert.match(await archivedTransfer.innerText(),/Из прежнего учёта/);
     assert.equal(await archivedTransfer.getByRole("button").count(),0);
     await page.evaluate(()=>{
-      window.financeHeading=document.querySelector(".mw-owner-heading");
+      window.financeActions=document.querySelector(".mw-owner-actions");
       window.financeCards=document.querySelector(".mw-money-stats");
       window.financeList=document.querySelector(".mw-owner-history");
     });
-    const same=()=>page.evaluate(()=>window.financeHeading===document.querySelector(".mw-owner-heading")&&
+    const same=()=>page.evaluate(()=>window.financeActions===document.querySelector(".mw-owner-actions")&&
       window.financeCards===document.querySelector(".mw-money-stats")&&
       window.financeList===document.querySelector(".mw-owner-history"));
     const reload=gate();state.holds.set(financeName,reload);
@@ -378,8 +380,9 @@ async function latePaymentScripts(browser){
   try{
     await f.page.goto(origin+"/?view=finance",{waitUntil:"commit"});
     await f.page.waitForFunction(()=>window.__rdFinanceStatus?.().ready===true);
-    await f.page.locator("#financePanel").waitFor();
-    assert.equal(await f.page.locator(".mw-owner-heading").count(),0);
+    await f.page.waitForFunction(()=>document.getElementById("financePanel")?.hidden===false);
+    assert.equal(await f.page.locator("#appTitle").innerText(),"Платежи");
+    assert.equal(await f.page.locator(".mw-owner-actions").count(),0);
     payroll.release();
     await f.page.waitForFunction(()=>Boolean(window.__rdPayrollReport));
     assert.equal(await f.page.locator(".mw-money-stats").count(),0);
@@ -396,6 +399,9 @@ async function ownerReports(browser){
     await page.locator("#rdReports .pr-menu .pr-report-link").filter({hasText:"Прибыль по заказам"}).click();
     const table=page.locator(".pr-table");
     await table.waitFor();
+    assert.equal(await page.locator("#appTitle").textContent(),"Отчёты");
+    const breadcrumb=page.getByRole("navigation",{name:"Путь к отчёту"});
+    assert.equal(await breadcrumb.getByRole("heading",{name:"Прибыль по заказам"}).count(),1);
     await page.locator(".pr-row-open").first().click();
     await page.evaluate(()=>{window.initialTotal=document.querySelector(".pr-total-row");});
     state.fail.add("rabota_finance_operations");
@@ -411,6 +417,7 @@ async function ownerReports(browser){
     await page.locator("#rdReports .rd-salary-entry").click();
     const salary=v3Report(page);
     await salary.waitFor();
+    assert.equal(await breadcrumb.getByRole("heading",{name:"Зарплата"}).count(),1);
     state.fail.add("rabota_finance_operations");
     await page.evaluate(()=>void window.__rdMoneyUi.refreshFinance());
     await page.getByText(/Показаны последние расчёты зарплаты/).waitFor();
@@ -587,6 +594,7 @@ async function v3Master(browser,width){
     await page.goto(origin);
     const nav=page.locator("#mwMasterNav");
     await nav.locator('[data-mw-page="reports"]').click();
+    assert.equal(await page.locator("#appTitle").textContent(),"Отчёты");
     await page.locator("#mwMasterReports").getByRole("button",{name:/Зарплата/i}).click();
     const report=v3Report(page);
     await report.waitFor();
@@ -599,6 +607,7 @@ async function v3Master(browser,width){
     await nav.locator('[data-mw-page="payments"]').click();
     const payments=page.locator("#mwMasterPayments");
     await payments.waitFor();
+    assert.equal(await page.locator("#appTitle").textContent(),"Платежи");
     for(const order of [directReceipt,refundedOrder]){
       const row=paymentRow(payments,order.id);
       await row.waitFor();

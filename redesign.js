@@ -114,7 +114,7 @@ function storeOrderFilters(tab){
 }
 function restoreOrderFilters(tab){
  const state=orderTabFilters[tab];if(!state)return;
- const master=$("rdMasterFilter"),status=$("rdStatusFilter"),search=$("rdTopSearch");
+ const master=$("rdMasterFilter"),status=$("rdStatusFilter"),search=$("rdOrderSearch");
  if(master)master.value=state.master;
  if(status)status.value=state.status;
  rdSearchTerm=state.search;
@@ -136,10 +136,9 @@ function panel(title,intro){
  if(intro)n.append(boxText("div",intro,"rd-panel-intro"));return n;
 }
 function rowEntry(parent,label,desc,meta,action){const row=makeNode("div","rd-row");const left=makeNode("div","rd-row-main");left.append(boxText("strong",label),boxText("span",desc));row.append(left,boxText("span",meta,"rd-row-meta"));if(action){row.style.cursor="pointer";row.tabIndex=0;row.setAttribute("role","button");row.addEventListener("click",action);row.addEventListener("keydown",e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();action()}})}parent.append(row)}
-function sectionView(id,title,subtitle){
+function sectionView(id,title){
  const n=makeNode("section","rd-view");n.id=id;
- n.append(boxText("div","CRM / Работа · московское время","rd-view-kicker"),
- boxText("h1",title,"rd-view-title"),boxText("p",subtitle,"rd-view-subtitle"));
+ n.setAttribute("aria-label",title);
  return n;
 }
 function stats(node,items){
@@ -176,38 +175,7 @@ function navButton(key){const btn=makeNode("button","rd-nav-btn");btn.type="butt
 function permittedSections(){
  return sections.filter(canOpen);
 }
-function makeProfileMenu(){
- const toggle=makeNode("button","rd-user rd-profile-trigger");
- toggle.type="button";toggle.id="rdProfileToggle";
- toggle.setAttribute("aria-label","Профиль и выход из аккаунта");
- toggle.setAttribute("aria-expanded","false");
- toggle.setAttribute("aria-haspopup","dialog");
- toggle.setAttribute("aria-controls","rdShellProfileMenu");
- toggle.append(boxText("span",currentRole==="owner"?"В":"М","rd-user-dot"),
-  boxText("strong",currentRole==="owner"?"Владелец":"Менеджер"));
- const menu=makeNode("section","rd-profile-menu");menu.id="rdShellProfileMenu";menu.hidden=true;
- menu.setAttribute("role","dialog");menu.setAttribute("aria-label","Профиль");
- menu.append(boxText("strong","Мой кабинет","rd-profile-title"),
-  boxText("span",currentRole==="owner"?"Владелец":"Менеджер","rd-profile-role"));
- const logout=makeNode("button","rd-profile-logout","Выйти из аккаунта");
- logout.type="button";logout.addEventListener("click",()=>{$("logoutBtn").click()});
- menu.append(logout);
- function close(){menu.hidden=true;toggle.setAttribute("aria-expanded","false")}
- toggle.addEventListener("click",event=>{
-  const opening=menu.hidden;
-  menu.hidden=!opening;toggle.setAttribute("aria-expanded",String(opening));
-  if(opening&&event.detail===0)logout.focus({preventScroll:true});
- });
- document.addEventListener("pointerdown",event=>{
-  if(!menu.hidden&&!toggle.contains(event.target)&&!menu.contains(event.target))close();
- });
- document.addEventListener("keydown",event=>{
-  if(event.key==="Escape"&&!menu.hidden){close();toggle.focus({preventScroll:true})}
- });
- return {toggle,menu,close};
-}
 let closeMobileMore=()=>{};
-let closeShellProfile=()=>{};
 const sectionScroll=new Map();
 function build(){
  if(ready)return;
@@ -217,26 +185,14 @@ function build(){
  const nav=makeNode("nav","rd-nav");
  for(const key of permittedSections().filter(key=>key!=="calendar"))nav.append(navButton(key));
  side.append(nav);
- const foot=makeNode("div","rd-sidefoot");foot.append(boxText("strong","Мой кабинет"),boxText("div","Система заказов и расписания."));
- const logout=makeNode("button","","Выйти из аккаунта");logout.type="button";logout.addEventListener("click",()=>$("logoutBtn").click());foot.append(logout);side.append(foot);
- const top=makeNode("div","rd-top");
- const search=makeNode("input","rd-top-search");search.id="rdTopSearch";search.type="search";search.placeholder="Поиск заказов, клиентов, адресов...";search.setAttribute("aria-label","Поиск по заказам, клиентам и адресам");
+ const search=makeNode("input","rd-inline-search");
+ search.id="rdOrderSearch";search.type="search";search.placeholder="Поиск по заказам";
+ search.setAttribute("aria-label","Поиск по заказам");
  search.addEventListener("input",()=>{
- if(activePage==="leads"){leadsSearchTerm=search.value;window.__rdLeadsSearch?.(leadsSearchTerm);return}
- if(activePage==="orders")clearQuickFilter();
- rdSearchTerm=window.__rdOrderReference.normalize(search.value);
- if(activePage==="clients"){selectedClientKey=null;drawClients();return}
- if(rdSearchTerm&&activePage!=="orders"){
-  const intendedSearch=rdSearchTerm;
-  navigate("orders");
-  rdSearchTerm=intendedSearch;
-  orderTabFilters.all.search=intendedSearch;
-  $("rdTopSearch").value=intendedSearch;
- }
- filterCards();
-});
- top.append(search,boxText("span","Данные из Supabase","rd-top-title"));
- const profile=makeProfileMenu();top.append(profile.toggle);closeShellProfile=profile.close;
+   clearQuickFilter();
+   rdSearchTerm=window.__rdOrderReference.normalize(search.value);
+   filterCards();
+ });
  const mobile=makeNode("nav","rd-mobilebar");mobile.id="rdMobileNav";
  mobile.setAttribute("aria-label","Основные разделы приложения");
  const primaryMobileSections=currentRole==="owner"?
@@ -269,13 +225,14 @@ function build(){
   moreSheet.append(navButton(key));
  }
  const setMoreOpen=opening=>{
-  if(opening)profile.close();
+  if(opening)window.__rdCloseProfile?.();
   moreSheet.hidden=!opening;
   veil.hidden=!opening;
   navMore.setAttribute("aria-expanded",String(opening));
   body.classList.toggle("rd-more-open",opening);
   // The menu is outside the app; background controls must not receive input.
   app.inert=opening;
+  if($("rdProfile"))$("rdProfile").inert=opening;
  };
  const closeMore=()=>setMoreOpen(false);
  closeMobileMore=closeMore;
@@ -293,7 +250,7 @@ function build(){
  window.addEventListener("resize",()=>{
   if(window.innerWidth>790&&!moreSheet.hidden)closeMore();
  });
- app.prepend(top,side,profile.menu);
+ app.prepend(side);
  // Keep mobile navigation outside the main scrolling/content container.
  // Mobile Safari can otherwise paint a fixed descendant at an incorrect
  // vertical position after long-list scrolls or browser viewport changes.
@@ -301,39 +258,37 @@ function build(){
  body.append(veil,moreSheet,mobile);
  window.addEventListener("pagehide",closeMore);
  const syncMobileNavigationVisibility=()=>{
-  if(app.hidden){closeMore();profile.close();}
+  if(app.hidden){closeMore();window.__rdCloseProfile?.();}
   mobile.hidden=app.hidden;
  };
  new MutationObserver(syncMobileNavigationVisibility).observe(app,{
   attributes:true,attributeFilter:["hidden"]
  });
  syncMobileNavigationVisibility();
- const home=sectionView("rdHome","Главная","Краткая сводка заказов и расписания");
- const homeTitlebar=makeNode("div","rd-home-titlebar");
- const homeSync=makeNode("span","rd-home-synced",$("syncStatus")?.textContent||"");
- homeSync.id="rdHomeSynced";homeSync.setAttribute("role","status");
- homeTitlebar.append(home.querySelector(".rd-view-title"),homeSync);
- home.insertBefore(homeTitlebar,home.querySelector(".rd-view-subtitle"));
- const leads=sectionView("rdLeads","Лиды","Звонки, консультации и повторные контакты");
+ const home=sectionView("rdHome","Главная");
+ const leads=sectionView("rdLeads","Лиды");
+ const leadSearch=makeNode("input","rd-inline-search");
+ leadSearch.id="rdLeadSearch";leadSearch.type="search";leadSearch.placeholder="Поиск по лидам";
+ leadSearch.setAttribute("aria-label","Поиск лидов");
+ leadSearch.addEventListener("input",()=>{
+   leadsSearchTerm=leadSearch.value;
+   window.__rdLeadsSearch?.(leadsSearchTerm);
+ });
+ leads.append(leadSearch);
  const leadsRoot=makeNode("div","rd-leads-mount");leadsRoot.id="rdLeadsMount";leads.append(leadsRoot);
- const clients=sectionView("rdClients","Клиенты","Клиенты из доступных вам заказов");
+ const clients=sectionView("rdClients","Клиенты");
  const clientsToolbar=makeNode("div","rd-toolbar");
- const clientsInput=makeNode("input");clientsInput.id="rdClientSearch";clientsInput.type="search";clientsInput.placeholder="Найти клиента или телефон";clientsInput.setAttribute("aria-label","Поиск клиентов");
+ const clientsInput=makeNode("input","rd-inline-search");clientsInput.id="rdClientSearch";clientsInput.type="search";clientsInput.placeholder="Найти клиента или телефон";clientsInput.setAttribute("aria-label","Поиск клиентов");
  clientsInput.addEventListener("input",()=>{selectedClientKey=null;drawClients()});
  clientsToolbar.id="rdClientToolbar";clientsToolbar.append(clientsInput);clients.append(clientsToolbar);
  clients.append(makeNode("div","rd-client-list"));clients.querySelector(".rd-client-list").id="rdClientsList";
  const clientHistory=makeNode("section","rd-panel rd-client-history");clientHistory.id="rdClientHistory";clientHistory.hidden=true;clients.append(clientHistory);
- const calendar=sectionView("rdCalendarIntro","Календарь","Расписание, занятость мастеров и редактирование записей");
+ const calendar=sectionView("rdCalendarIntro","Действия календаря");
  calendar.classList.add("rd-calendar-intro");
- const calendarTitlebar=makeNode("div","rd-calendar-titlebar");
- const calendarSync=makeNode("span","rd-calendar-synced",$("syncStatus")?.textContent||"");
- calendarSync.id="rdCalendarSynced";calendarSync.setAttribute("role","status");
- calendarTitlebar.append(calendar.querySelector(".rd-view-title"),calendarSync);
  const quickCalendar=makeNode("button","rd-cal-slots","Подбор времени");
  quickCalendar.type="button";
  quickCalendar.addEventListener("click",()=>window.__rdQuickSlots?.open());
- calendarTitlebar.append(quickCalendar);
- calendar.insertBefore(calendarTitlebar,calendar.querySelector(".rd-view-subtitle"));
+ calendar.append(quickCalendar);
  const calendarNav=makeNode("div","rd-toolbar");calendarNav.id="rdCalendarNavigation";
  const previous=makeNode("button","secondary rd-cal-step","‹");
  previous.type="button";previous.title="Предыдущая неделя";previous.setAttribute("aria-label","Предыдущая неделя");
@@ -384,7 +339,7 @@ function build(){
  dayDetail.setAttribute("aria-live","polite");
  board.append(boardHeading,weekGrid,weekStrip,makeNode("div","rd-calendar-divider"),dayDetail);
  boardHeading.append(doneLabel);
- const ordersTitle=sectionView("rdOrdersIntro","Заказы","Все заявки, статусы, поиск и быстрые действия");
+ const ordersTitle=sectionView("rdOrdersIntro","Действия по заказам");
  const ordersQuick=makeNode("button","rd-orders-quick-slots","Подбор времени");
  ordersQuick.type="button";
  ordersQuick.addEventListener("click",()=>window.__rdQuickSlots?.open());
@@ -403,11 +358,6 @@ function build(){
  raulPhone.addEventListener("click",()=>window.__rdWhatsApp?.configurePhone());
  raulShareTools.append(raulTomorrow,raulPhone);
  ordersTitle.append(raulShareTools);
- const titleBar=makeNode("div","rd-orders-titlebar");
- const synced=makeNode("span","rd-orders-synced",$("syncStatus")?.textContent||"");
- synced.id="rdOrdersSynced";synced.setAttribute("role","status");
- titleBar.append(ordersTitle.querySelector(".rd-view-title"),synced);
- ordersTitle.insertBefore(titleBar,ordersTitle.querySelector(".rd-view-subtitle"));
  const orderStats=makeNode("div","");orderStats.id="rdOrderStats";
  const filterToggle=makeNode("button","rd-orders-filter-toggle","Фильтры");
  filterToggle.id="rdOrdersFilterToggle";filterToggle.type="button";
@@ -447,7 +397,7 @@ function build(){
   if(currentTab==="history")orderHistoryDateFilter="";
   else if(currentTab==="all")orderListDateFilter="";
   orderDate.value=currentTab==="calendar"?selectedDate:"";
-  statusSelect.value="";masterSelect.value="";rdSearchTerm="";$("rdTopSearch").value="";
+  statusSelect.value="";masterSelect.value="";rdSearchTerm="";$("rdOrderSearch").value="";
   orderTabFilters[currentTab]={master:"",status:"",search:""};
   clearQuickFilter();render();
  });
@@ -529,8 +479,7 @@ function build(){
   if(filterDialog.open&&window.innerWidth>790)closeMobileOrderFilters();
  });
  profitReport=null;
- const financeTitle=sectionView("rdFinanceIntro","Финансы","Платежи, касса и история операций");
- const reports=sectionView("rdReports","Отчёты","");
+ const reports=sectionView("rdReports","Отчёты");
  const reportsRoot=makeNode("div","rd-reports-root");
  reports.append(reportsRoot);
  salaryRoot=makeNode("div","rd-salary-report");
@@ -587,19 +536,18 @@ function build(){
    if(focused&&salaryRoot.contains(focused)&&/^(INPUT|SELECT|TEXTAREA)$/.test(focused.tagName))return;
    ownerSalaryReport?.render();
  };
- const settings=sectionView("rdSettings","Настройки","Сообщения клиентам и параметры приложения");
+ const settings=sectionView("rdSettings","Настройки");
  window.__rdWhatsAppSettings?.mount(settings);
  app.insertBefore(settings,$("ordersArea"));
  app.insertBefore(reports,$("ordersArea"));
  app.insertBefore(home,$("ordersArea"));
  app.insertBefore(clients,$("ordersArea"));
  app.insertBefore(leads,$("ordersArea"));
- $("ordersArea").prepend(ordersTitle,orderStats,orderTools,orderToolbarHome,calendar,calendarNav,board);
+ $("ordersArea").prepend(search,ordersTitle,orderStats,orderTools,orderToolbarHome,calendar,calendarNav,board);
  const listHead=$("ordersArea").querySelector(".list-head");
  const listActions=makeNode("div","rd-orders-list-actions");
  listActions.append($("orderCount"),filterToggle);
  listHead.append(listActions);
- $("financePanel").prepend(financeTitle);
  // Staff access administration is still available, but should not obscure the booking list.
  settings.append($("teamPanel"));
  // Keep the order editor inside the orders section.
@@ -626,7 +574,7 @@ function build(){
 function navigate(key,updateHistory=true){
  if(!ready||app.hidden||!canOpen(key))return;
  closeMobileMore();
- closeShellProfile();
+ window.__rdCloseProfile?.();
  if(key==="ai"){openAiChat();return}
  if(updateHistory&&locationPage()!==key){
   const url=new URL(window.location.href);
@@ -641,17 +589,12 @@ function navigate(key,updateHistory=true){
  if(!changed&&ownerModules.has(key))return;
  if(changed)sectionScroll.set(activePage,verticalScrollPosition());
  if(activePage==="orders"&&key!=="orders")storeOrderFilters(currentTab);
- const globalSearch=$("rdTopSearch");
- const searchNeeded=key==="leads"||(key==="orders"&&!window.__rdOrdersWorkspace);
- if(globalSearch){
-  // This input belongs to Orders and Leads only, not to every CRM screen.
-  globalSearch.hidden=!searchNeeded;
-  globalSearch.placeholder=key==="leads"?"Поиск лидов по имени и телефону...":"Поиск заказов, клиентов, адресов...";
-  if(key==="leads"){globalSearch.value=leadsSearchTerm;rdSearchTerm="";}
-  if(!searchNeeded){globalSearch.value="";rdSearchTerm="";}
- }
+ const orderSearch=$("rdOrderSearch");
+ if(orderSearch)orderSearch.hidden=key!=="orders"||Boolean(window.__rdOrdersWorkspace);
+ if(key!=="orders")rdSearchTerm="";
  // Update navigation and section visibility together.
  activePage=key;window.__rdCurrentPage=key;
+ window.__rdSetScreenHeading?.(titles[key]);
  const isOrders=key==="orders",isCalendar=key==="calendar";
  // Initial calendar date must be Moscow today, not the date left in the Orders tab.
  // Revisiting calendar later keeps an explicitly selected date.
@@ -677,9 +620,7 @@ function navigate(key,updateHistory=true){
  $("orders").hidden=!isOrders;
  $("newOrderBtn").hidden=!isOrders || !(currentRole==="owner"||currentRole==="manager");
  $("teamPanel").hidden=key!=="settings"||currentRole!=="owner";
- $("rdFinanceIntro").hidden=key!=="finance";
  app.className=app.className.replace(/\brd-view-\S+/g,"").trim()+" rd-view-"+key;
- app.classList.toggle("rd-no-global-search",!searchNeeded);
  document.querySelectorAll(".rd-nav-btn[data-page]").forEach(btn=>
   btn.setAttribute("aria-current",btn.dataset.page===key?"page":"false"));
  const moreButton=$("rdMobileMoreBtn");
@@ -710,8 +651,9 @@ document.addEventListener("visibilitychange",refreshVisibleModule);
 window.__rdResetOwnerModules=()=>{
  sectionScroll.clear();
  leadsSearchTerm="";
- if($("rdTopSearch"))$("rdTopSearch").value="";
- closeShellProfile();
+ if($("rdLeadSearch"))$("rdLeadSearch").value="";
+ if($("rdOrderSearch"))$("rdOrderSearch").value="";
+ window.__rdCloseProfile?.();
  for(const module of ownerModules.values())module.reset();
 };
 function drawChart(parent,values,month){
@@ -840,7 +782,7 @@ function openDashboardOrders({filter="",orderId=null,date=""}={}){
  if(window.__rdOrdersWorkspace){window.__rdOrdersWorkspace.show({filter,orderId,date});return;}
  navigate("orders");
  // Clear stale manual filters before selecting a dashboard shortcut.
- const dateInput=$("rdOrderDate"),master=$("rdMasterFilter"),status=$("rdStatusFilter"),search=$("rdTopSearch");
+ const dateInput=$("rdOrderDate"),master=$("rdMasterFilter"),status=$("rdStatusFilter"),search=$("rdOrderSearch");
  orderListDateFilter="";rdSearchTerm="";summaryFilter="";
  if(dateInput)dateInput.value="";
  if(master)master.value="";
@@ -938,7 +880,7 @@ function refreshHomeSlots(){
 function drawHome(){
  if(!ready||activePage!=="home")return;
  const root=$("rdHome");
- while(root.children.length>3)root.lastElementChild.remove();
+ root.replaceChildren();
  const orders=activeOrders(),today=todayMoscow(),month=today.slice(0,7);
  root.dataset.date=today;
  if(currentRole==="owner"||currentRole==="manager")root.append(homeSlotPicker());
@@ -1377,7 +1319,7 @@ function applySummaryFilter(key){
  if(window.__rdOrdersWorkspace){window.__rdOrdersWorkspace.show({filter:key});return;}
  summaryFilter=summaryFilter===key?"":key;
  currentTab="all";orderListDateFilter="";
- const date=$("rdOrderDate"),master=$("rdMasterFilter"),status=$("rdStatusFilter"),search=$("rdTopSearch");
+ const date=$("rdOrderDate"),master=$("rdMasterFilter"),status=$("rdStatusFilter"),search=$("rdOrderSearch");
  if(date)date.value="";if(master)master.value="";if(status)status.value="";if(search)search.value="";
  rdSearchTerm="";orderTabFilters.all={master:"",status:"",search:""};
  render();
@@ -1423,7 +1365,7 @@ function filterCards(){
    if(currentTab==="history")orderHistoryDateFilter="";
    else orderListDateFilter="";
    $("rdOrderDate").value="";$("rdMasterFilter").value="";$("rdStatusFilter").value="";
-   rdSearchTerm="";$("rdTopSearch").value="";
+   rdSearchTerm="";$("rdOrderSearch").value="";
    orderTabFilters[currentTab]={master:"",status:"",search:""};
    render();
   });

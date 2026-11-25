@@ -173,12 +173,6 @@ body.rd :is(#rdReports,.pr-report-scope) .pr-table .pr-total-row>td{
 }
 body.rd :is(#rdReports,.pr-report-scope) .pr-table th:first-child,
 body.rd :is(#rdReports,.pr-report-scope) .pr-table td:first-child{width:78px;min-width:78px;max-width:78px}
-body.rd #appScreen.rd-view-reports #rdReports>.rd-view-title{
-  font-size:22px;line-height:1.2;margin:0 0 4px;
-}
-body.rd #appScreen.rd-view-reports #rdReports>.rd-view-subtitle{
-  font-size:12px;line-height:1.35;margin:0 0 10px;
-}
 body.rd #mwMasterReports .pr-report-scope {max-width:100%;width:100%}
 body.rd #mwMasterReports .pr-detail {margin:0;padding:0}
 @media(max-width:790px){
@@ -229,15 +223,13 @@ body.rd #rdReports .rd-report-section-items .pr-report-arrow{
 }
 
 
-/* Report drill-down navigation like HelloClient: one compact breadcrumb, no duplicate page title. */
+/* Report navigation below the shared section heading. */
 body.rd #rdReports.rd-reports-detail-open > .rd-view-title{display:none}
-body.rd #rdReports .pr-detail .pr-heading,
-body.rd #rdReports #rdSalaryReport .fp-report-head{
+body.rd :is(#rdReports,#mwMasterReports) :is(.pr-heading,.fp-report-head){
   display:flex;align-items:center;flex-wrap:wrap;column-gap:8px;row-gap:0;
-  margin:0 0 10px;min-width:0;
+  margin:0 0 8px;min-width:0;
 }
-body.rd #rdReports .pr-detail .pr-heading .pr-back,
-body.rd #rdReports #rdSalaryReport .fp-report-head .fp-crumb-back{
+body.rd :is(#rdReports,#mwMasterReports) :is(.pr-heading,.fp-report-head) :is(.pr-back,.fp-crumb-back){
   appearance:none;box-sizing:border-box;display:inline-flex;align-items:center;
   justify-content:flex-start;min-height:44px;padding:0 1px;
   margin:0;border:0;border-radius:0;box-shadow:none;
@@ -245,16 +237,13 @@ body.rd #rdReports #rdSalaryReport .fp-report-head .fp-crumb-back{
   font:inherit;font-size:15px;font-weight:500;line-height:1.25;
   text-decoration:none;cursor:pointer;
 }
-body.rd #rdReports .pr-detail .pr-heading .pr-back:hover,
-body.rd #rdReports #rdSalaryReport .fp-report-head .fp-crumb-back:hover{
+body.rd :is(#rdReports,#mwMasterReports) :is(.pr-heading,.fp-report-head) :is(.pr-back,.fp-crumb-back):hover{
   color:var(--pr-blue,#4656f5);
 }
-body.rd #rdReports .pr-detail .pr-heading .pr-crumb-sep,
-body.rd #rdReports #rdSalaryReport .fp-report-head .fp-crumb-sep{
+body.rd :is(#rdReports,#mwMasterReports) :is(.pr-heading,.fp-report-head) :is(.pr-crumb-sep,.fp-crumb-sep){
   color:var(--pr-muted,#686b72);opacity:.7;font-size:16px;
 }
-body.rd #rdReports .pr-detail .pr-heading h2,
-body.rd #rdReports #rdSalaryReport .fp-report-head .fp-report-title{
+body.rd :is(#rdReports,#mwMasterReports) :is(.pr-heading,.fp-report-head) h2{
   margin:0;color:var(--pr-ink,#202123);
   font-size:17px;line-height:1.25;font-weight:650;letter-spacing:-.2px;
 }
@@ -267,7 +256,6 @@ body.rd #rdReports .pr-detail .pr-controls select{
   background-position:right 9px center;
 }
 body.rd #rdReports .pr-detail .pr-controls select:focus-visible,
-body.rd #rdReports .pr-detail .pr-heading .pr-back:focus-visible,
-body.rd #rdReports #rdSalaryReport .fp-report-head .fp-crumb-back:focus-visible{
+body.rd :is(#rdReports,#mwMasterReports) :is(.pr-heading,.fp-report-head) :is(.pr-back,.fp-crumb-back):focus-visible{
   outline:2px solid var(--pr-blue,#4656f5);outline-offset:2px;
 }
