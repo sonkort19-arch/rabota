@@ -94,6 +94,19 @@ async function assertDocked(page,label){
  assert.equal(state.visible,true,label+": dock remains visible");
  assert.ok(Math.abs(state.bottom-state.viewport)<=3,label+": dock touches bottom; "+JSON.stringify(state));
 }
+async function assertOrderPages(page,label,expected){
+ const rows=page.locator("#orders .rd-list-row:visible");
+ const next=page.getByRole("navigation",{name:"Страницы заказов"}).getByRole("button",{name:"Далее",exact:true});
+ const seen=[];
+ for(let offset=0;offset<expected.length;offset+=40){
+  const ids=await rows.evaluateAll(cards=>cards.map(card=>card.dataset.rdOrderId));
+  assert.equal(ids.length,Math.min(40,expected.length-offset),label+": page contains the expected number of orders");
+  seen.push(...ids);
+  if(offset+40<expected.length)await next.click();
+ }
+ assert.equal(await next.isDisabled(),true,label+": navigation ends on the last page");
+ assert.deepEqual(seen.sort(),expected.map(order=>order.id).sort(),label+": every expected order appears exactly once");
+}
 async function runOne(browser,label,device){
  const {page,context,writes,errors}=await setup(browser,device);
  try{
@@ -177,10 +190,10 @@ async function runOne(browser,label,device){
   await page.locator("#owFilterStatus").selectOption("Записан");
   await page.locator("#owFilterApply").click();
   const filtered=page.locator("#orders .rd-list-row:visible");
-  assert.equal(await filtered.count(),orders.filter(order=>order.status==="Записан").length,label+": status filter preserves the actual result set");
   assert.deepEqual(await filtered.evaluateAll(rows=>[...new Set(rows.map(row=>row.dataset.status))]),["Записан"],label+": filtered cards have the requested status");
+  await assertOrderPages(page,label+" status filter",orders.filter(order=>order.status==="Записан"));
   await page.locator("#owFilterSummary button").click();
-  assert.equal(await page.locator("#orders .rd-list-row:visible").count(),orders.length,label+": clearing filters restores all orders");
+  await assertOrderPages(page,label+" clearing filters",orders);
   assert.ok(await page.locator("#orders .rd-list-row").count()>0,label+": actual owner order rows are preserved");
 
 
