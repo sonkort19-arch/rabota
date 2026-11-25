@@ -3,7 +3,6 @@
    Scoped to #rdReports so orders, finance, calendar and the master UI are unchanged. */
 body.rd :is(#rdReports,.pr-report-scope) {
   --pr-bg:var(--ui-surface,#fff);
-  --pr-soft:var(--ui-muted-surface,#f7f7f8);
   --pr-ink:var(--ui-ink,#202123);
   --pr-muted:var(--ui-muted,#686b72);
   --pr-border:var(--ui-border,#e7e7e7);
@@ -28,9 +27,6 @@ body.rd :is(#rdReports,.pr-report-scope) .pr-report-link {
 }
 body.rd :is(#rdReports,.pr-report-scope) .pr-report-arrow {font-size:20px;color:var(--pr-blue)}
 body.rd :is(#rdReports,.pr-report-scope) .pr-description {font-size:13px;color:var(--pr-muted);margin:5px 3px 0;line-height:1.4}
-body.rd :is(#rdReports,.pr-report-scope) .pr-heading {display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:0 0 8px}
-body.rd :is(#rdReports,.pr-report-scope) .pr-heading h2 {font-size:17px;font-weight:750;letter-spacing:-.35px;margin:0;color:var(--pr-ink)}
-body.rd :is(#rdReports,.pr-report-scope) .pr-back,
 body.rd :is(#rdReports,.pr-report-scope) .pr-export,
 body.rd :is(#rdReports,.pr-report-scope) .pr-more-btn {
   appearance:none;min-height:34px;padding:6px 10px;border-radius:9px;
@@ -38,7 +34,6 @@ body.rd :is(#rdReports,.pr-report-scope) .pr-more-btn {
   color:var(--pr-ink);font:inherit;font-size:12px;font-weight:650;cursor:pointer;
   box-shadow:none;
 }
-body.rd :is(#rdReports,.pr-report-scope) .pr-back {background:var(--pr-soft);border-color:var(--pr-border);color:var(--pr-ink)}
 body.rd :is(#rdReports,.pr-report-scope) .pr-controls {
   display:grid;grid-template-columns:repeat(3,minmax(0,1fr));
   gap:6px;margin:0 0 6px;
@@ -135,8 +130,6 @@ body.rd :is(#rdReports,.pr-report-scope) select:focus-visible {
   outline:2px solid var(--pr-blue);outline-offset:2px;
 }
 @media(max-width:790px) {
-  body.rd :is(#rdReports,.pr-report-scope) .pr-heading {gap:8px}
-  body.rd :is(#rdReports,.pr-report-scope) .pr-heading h2 {font-size:16px}
   body.rd :is(#rdReports,.pr-report-scope) .pr-controls {grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}
   body.rd :is(#rdReports,.pr-report-scope) .pr-controls input {grid-column:span 2}
   body.rd :is(#rdReports,.pr-report-scope) .pr-quick-actions .pr-export {grid-column:auto}
@@ -185,11 +178,6 @@ body.rd #mwMasterReports .pr-detail {margin:0;padding:0}
 
 
 /* Dense sectioned report index (owner only); no empty navigation destinations. */
-body.rd #rdReports > .rd-view-kicker,
-body.rd #rdReports > .rd-view-subtitle{display:none}
-body.rd #rdReports > .rd-view-title{
-  font-size:21px;line-height:1.2;margin:0 0 13px;
-}
 body.rd #rdReports .pr-menu{margin-top:0;display:flex;flex-direction:column;gap:12px}
 body.rd #rdReports .rd-report-section{min-width:0}
 body.rd #rdReports .rd-report-section-title{
@@ -222,29 +210,21 @@ body.rd #rdReports .rd-report-section-items .pr-report-arrow{
 }
 
 
-/* Report navigation below the shared section heading. */
-body.rd #rdReports.rd-reports-detail-open > .rd-view-title{display:none}
-body.rd :is(#rdReports,#mwMasterReports) :is(.pr-heading,.fp-report-head){
-  display:flex;align-items:center;flex-wrap:wrap;column-gap:8px;row-gap:0;
+/* The back button and title are part of the current report. */
+body.rd :is(#rdReports,#mwMasterReports,.pr-report-scope) :is(.pr-heading,.fp-report-head){
+  display:flex;align-items:center;justify-content:flex-start;gap:8px;
   margin:0 0 8px;min-width:0;
 }
-body.rd :is(#rdReports,#mwMasterReports) :is(.pr-heading,.fp-report-head) :is(.pr-back,.fp-crumb-back){
+body.rd :is(#rdReports,#mwMasterReports,.pr-report-scope) :is(.pr-heading,.fp-report-head) :is(.pr-back,.fp-report-back){
   appearance:none;box-sizing:border-box;display:inline-flex;align-items:center;
-  justify-content:flex-start;min-height:44px;padding:0 1px;
-  margin:0;border:0;border-radius:0;box-shadow:none;
-  background:transparent;color:var(--pr-muted,#686b72);
-  font:inherit;font-size:15px;font-weight:500;line-height:1.25;
-  text-decoration:none;cursor:pointer;
+  min-height:44px;flex:0 0 auto;margin:0;padding:0 9px;border:0;
+  border-radius:9px;background:#eef2ff;box-shadow:none;
+  color:#365cc2;font:inherit;font-size:13px;font-weight:650;
+  white-space:nowrap;cursor:pointer;
 }
-body.rd :is(#rdReports,#mwMasterReports) :is(.pr-heading,.fp-report-head) :is(.pr-back,.fp-crumb-back):hover{
-  color:var(--pr-blue,#4656f5);
-}
-body.rd :is(#rdReports,#mwMasterReports) :is(.pr-heading,.fp-report-head) :is(.pr-crumb-sep,.fp-crumb-sep){
-  color:var(--pr-muted,#686b72);opacity:.7;font-size:16px;
-}
-body.rd :is(#rdReports,#mwMasterReports) :is(.pr-heading,.fp-report-head) h2{
-  margin:0;color:var(--pr-ink,#202123);
-  font-size:17px;line-height:1.25;font-weight:650;letter-spacing:-.2px;
+body.rd :is(#rdReports,#mwMasterReports,.pr-report-scope) :is(.pr-heading,.fp-report-head) h2{
+  min-width:0;margin:0;color:var(--pr-ink,#202123);overflow-wrap:anywhere;
+  font-size:17px;line-height:1.2;font-weight:700;letter-spacing:-.2px;
 }
 /* The entire native iPhone select remains tappable; only its chevron is restyled. */
 body.rd #rdReports .pr-detail .pr-controls select{
@@ -255,6 +235,6 @@ body.rd #rdReports .pr-detail .pr-controls select{
   background-position:right 9px center;
 }
 body.rd #rdReports .pr-detail .pr-controls select:focus-visible,
-body.rd :is(#rdReports,#mwMasterReports) :is(.pr-heading,.fp-report-head) :is(.pr-back,.fp-crumb-back):focus-visible{
+body.rd :is(#rdReports,#mwMasterReports,.pr-report-scope) :is(.pr-heading,.fp-report-head) :is(.pr-back,.fp-report-back):focus-visible{
   outline:2px solid var(--pr-blue,#4656f5);outline-offset:2px;
 }

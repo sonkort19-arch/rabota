@@ -67,15 +67,6 @@ function uiIcon(name,extra=""){
  svg.innerHTML=iconPaths[name]||iconPaths.orders;return svg;
 }
 let activePage="home",ready=false,lastOrderKey="",rdSearchTerm="",selectedClientKey=null,builtRole=null,calendarMode="week",calendarMaster="",calendarStatus="",calendarHideDone=false,calendarOpened=false,profitReport=null,salaryRoot=null,ownerSalaryReport=null;
-let closeOwnerSalaryReport=null;
-function syncOwnerReportHeading(){
- if(activePage!=="reports")return;
- if(salaryRoot&&!salaryRoot.hidden&&closeOwnerSalaryReport)
-  window.__rdSetScreenHeading?.("Зарплата",closeOwnerSalaryReport);
- else if(profitReport?.isOpen())
-  window.__rdSetScreenHeading?.("Прибыль по заказам",profitReport.close);
- else window.__rdSetScreenHeading?.("Отчёты");
-}
 let leadsSearchTerm="";
 let calendarWeekCache="",calendarDetailCache="",calendarMastersCache="";
 let calendarFiltersOpen=false;
@@ -194,7 +185,7 @@ function build(){
  const nav=makeNode("nav","rd-nav");
  for(const key of permittedSections().filter(key=>key!=="calendar"))nav.append(navButton(key));
  side.append(nav);
- const search=makeNode("input","rd-inline-search");
+ const search=makeNode("input","rd-inline-search rd-opening");
  search.id="rdOrderSearch";search.type="search";search.placeholder="Поиск по заказам";
  search.setAttribute("aria-label","Поиск по заказам");
  search.addEventListener("input",()=>{
@@ -241,8 +232,9 @@ function build(){
   body.classList.toggle("rd-more-open",opening);
   // The menu is outside the app; background controls must not receive input.
   app.inert=opening;
-  $("rdScreenHeader").inert=opening;
+  $("rdProfile").inert=opening;
   $("newOrderBtn").inert=opening;
+  $("newExpenseBtn").inert=opening;
  };
  const closeMore=()=>setMoreOpen(false);
  closeMobileMore=closeMore;
@@ -271,7 +263,7 @@ function build(){
  syncMobileNavigationVisibility();
  const home=sectionView("rdHome","Главная");
  const leads=sectionView("rdLeads","Лиды");
- const leadSearch=makeNode("input","rd-inline-search");
+ const leadSearch=makeNode("input","rd-inline-search rd-opening");
  leadSearch.id="rdLeadSearch";leadSearch.type="search";leadSearch.placeholder="Поиск по лидам";
  leadSearch.setAttribute("aria-label","Поиск лидов");
  leadSearch.addEventListener("input",()=>{
@@ -281,7 +273,7 @@ function build(){
  leads.append(leadSearch);
  const leadsRoot=makeNode("div","rd-leads-mount");leadsRoot.id="rdLeadsMount";leads.append(leadsRoot);
  const clients=sectionView("rdClients","Клиенты");
- const clientsToolbar=makeNode("div","rd-toolbar");
+ const clientsToolbar=makeNode("div","rd-toolbar rd-opening");
  const clientsInput=makeNode("input","rd-inline-search");clientsInput.id="rdClientSearch";clientsInput.type="search";clientsInput.placeholder="Найти клиента или телефон";clientsInput.setAttribute("aria-label","Поиск клиентов");
  clientsInput.addEventListener("input",()=>{selectedClientKey=null;drawClients()});
  clientsToolbar.id="rdClientToolbar";clientsToolbar.append(clientsInput);clients.append(clientsToolbar);
@@ -489,17 +481,13 @@ function build(){
  salaryRoot=makeNode("div","rd-salary-report");
  salaryRoot.id="rdSalaryReport";salaryRoot.hidden=true;
  reportsRoot.append(salaryRoot);
- ownerSalaryReport=null;closeOwnerSalaryReport=null;
+ ownerSalaryReport=null;
  if(currentRole==="owner"){
    profitReport=window.__rdCreateProfitReport?.(reportsRoot,{getOrders:()=>window.__rdOwnerReportOrders?.()??[],
       getRaulMasterId:()=>window.__rdReportMasterId?.(),
       getPayroll:()=>window.__rdPayrollSnapshot?.(),
-      getFinanceStatus:()=>window.__rdFinanceStatus?.(),embedded:true,
-      onOpenChange:open=>{
-        syncOwnerReportHeading();
-        restoreVerticalScroll(0);
-        if(open)$("rdScreenBack")?.focus({preventScroll:true});
-      }})||null;
+      getFinanceStatus:()=>window.__rdFinanceStatus?.(),
+      onOpenChange:()=>restoreVerticalScroll(0)})||null;
    const menu=reportsRoot.querySelector(".pr-menu");
    if(menu){
      // Keep the report hub dense: only link real, working reports.
@@ -507,6 +495,7 @@ function build(){
      menu.querySelector(".pr-description")?.remove();
      function reportGroup(title,label,icon,entry){
        const section=makeNode("section","rd-report-section");
+       if(!menu.querySelector(".rd-report-section"))section.classList.add("rd-opening");
        const heading=makeNode("h2","rd-report-section-title",title);
        const items=makeNode("div","rd-report-section-items");
        const arrow=entry.querySelector(".pr-report-arrow")||makeNode("span","pr-report-arrow","›");
@@ -519,20 +508,25 @@ function build(){
      const openSalary=makeNode("button","pr-report-link rd-salary-entry");
      openSalary.type="button";openSalary.textContent="Зарплата";
      openSalary.append(makeNode("span","pr-report-arrow","›"));
-     closeOwnerSalaryReport=()=>{
+     const closeSalary=()=>{
        salaryRoot.hidden=true;salaryRoot.replaceChildren();
        menu.hidden=false;ownerSalaryReport=null;
-       syncOwnerReportHeading();
        restoreVerticalScroll(0);
        openSalary.focus({preventScroll:true});
      };
      openSalary.addEventListener("click",()=>{
        menu.hidden=true;salaryRoot.hidden=false;
-       ownerSalaryReport=window.__rdPayrollReport?.mount(salaryRoot,{embedded:true})||null;
-       if(!ownerSalaryReport)salaryRoot.textContent="Модуль зарплаты недоступен. Обновите страницу.";
-       syncOwnerReportHeading();
+       ownerSalaryReport=window.__rdPayrollReport?.mount(salaryRoot,{onBack:closeSalary})||null;
+       if(!ownerSalaryReport){
+         const heading=makeNode("header","fp-report-head rd-opening");
+         const back=makeNode("button","fp-link fp-report-back","Назад");
+         back.type="button";back.setAttribute("aria-label","Назад к отчётам");
+         back.addEventListener("click",closeSalary);
+         heading.append(back,makeNode("h2","fp-report-title","Зарплата"));
+         salaryRoot.replaceChildren(heading,makeNode("p","","Модуль зарплаты недоступен. Обновите страницу."));
+       }
        restoreVerticalScroll(0);
-       $("rdScreenBack")?.focus({preventScroll:true});
+       salaryRoot.querySelector(".fp-report-back")?.focus({preventScroll:true});
        // Reload the existing financial snapshot; no payroll data is duplicated.
        void window.__rdOwnerPayrollReload?.();
      });
@@ -597,14 +591,16 @@ function navigate(key,updateHistory=true){
   window.__rdCloseOrderFilters?.();
  const changed=activePage!==key;
  if(!changed&&ownerModules.has(key))return;
- if(changed)sectionScroll.set(activePage,verticalScrollPosition());
+ if(changed){
+  sectionScroll.set(activePage,verticalScrollPosition());
+  if(activePage==="expenses")ownerModules.get("expenses")?.close();
+ }
  if(activePage==="orders"&&key!=="orders")storeOrderFilters(currentTab);
  const orderSearch=$("rdOrderSearch");
  if(orderSearch)orderSearch.hidden=key!=="orders"||Boolean(window.__rdOrdersWorkspace);
  if(key!=="orders")rdSearchTerm="";
  // Update navigation and section visibility together.
  activePage=key;window.__rdCurrentPage=key;
- window.__rdSetScreenHeading?.(titles[key]);
  const isOrders=key==="orders",isCalendar=key==="calendar";
  // Initial calendar date must be Moscow today, not the date left in the Orders tab.
  // Revisiting calendar later keeps an explicitly selected date.
@@ -629,6 +625,7 @@ function navigate(key,updateHistory=true){
  $("ordersArea").querySelector(".list-head").hidden=!isOrders;
  $("orders").hidden=!isOrders;
  $("newOrderBtn").hidden=!isOrders || !(currentRole==="owner"||currentRole==="manager");
+ $("newExpenseBtn").hidden=key!=="expenses"||currentRole!=="owner";
  $("teamPanel").hidden=key!=="settings"||currentRole!=="owner";
  app.className=app.className.replace(/\brd-view-\S+/g,"").trim()+" rd-view-"+key;
  const desktopNav=$("rdSideNav");
@@ -649,7 +646,6 @@ function navigate(key,updateHistory=true){
  else if(key==="leads"){window.__rdLeadsRender?.();window.__rdLeadsSearch?.(leadsSearchTerm);}
  else if(key==="settings"){window.__rdWhatsAppSettings?.refresh();void window.__rdLoadTeam?.();}
  else if(key==="reports"){
-  syncOwnerReportHeading();
   profitReport?.render();
   if(salaryRoot&&!salaryRoot.hidden)ownerSalaryReport?.render();
  }
@@ -848,7 +844,7 @@ function homeSlotOptions(){
 function homeSlotPicker({primary,spots,key}=homeSlotOptions()){
  const section=makeNode("section","rd-home-slot-picker");
  section.dataset.options=key;
- const header=makeNode("div","rd-home-slot-heading");
+ const header=makeNode("div","rd-home-slot-heading rd-opening");
  const heading=makeNode("div");
  heading.append(boxText("h2","Подбор времени"),boxText("p","Предварительные варианты для клиента"));
  const all=makeNode("button","rd-home-slots-all","Все варианты ›");
@@ -1258,7 +1254,7 @@ function drawClients(){
  list.replaceChildren();history.replaceChildren();
  if(selected){
   list.hidden=true;toolbar.hidden=true;history.hidden=false;
-  const back=makeNode("button","secondary","‹ Все клиенты");back.type="button";
+  const back=makeNode("button","secondary rd-opening","‹ Все клиенты");back.type="button";
   back.addEventListener("click",()=>{selectedClientKey=null;drawClients()});history.append(back);
   history.append(boxText("h2",selected.name||"Без имени"),boxText("p",(selected.phone||"Телефон не указан")+" · "+selected.items.length+" заказ(ов)","rd-muted"));
   const entries=[...selected.items].sort((a,b)=>String(b.date||b.createdAt||"").localeCompare(String(a.date||a.createdAt||""))||
@@ -1399,7 +1395,6 @@ window.__rdAccess=()=>{
   const requested=locationPage();
   if(requested!==activePage)navigate(requested,false);
   else if(requested==="reports"){
-   syncOwnerReportHeading();
    profitReport?.render();
    if(salaryRoot&&!salaryRoot.hidden)ownerSalaryReport?.render();
   }

@@ -1,26 +1,13 @@
 .ex-main{width:min(100%,690px);min-width:0;margin-inline:auto;color:var(--ui-ink)}
-.ex-summary{border:1px solid #e2eaf7;background:#f5f8ff;border-radius:17px;padding:16px;margin-bottom:16px}
-.ex-summary-top{display:flex;align-items:center;gap:8px;justify-content:space-between;color:#556180;font-size:12px;font-weight:580}
-.ex-month-controls{display:flex;align-items:center;gap:4px;white-space:nowrap}
-.ex-month-controls strong{color:#3c4974;font-size:12px;min-width:90px;text-align:center}
-.ex-month-controls button{flex:0 0 44px;width:44px;height:44px;border:0;background:#ebefff;border-radius:9px;color:var(--ui-link);font-size:23px;display:grid;place-items:center;line-height:1}
-.ex-large-number{display:block;font-size:32px;line-height:1.3;letter-spacing:-1px;color:var(--ui-link);margin:11px 0 10px;font-weight:800;font-variant-numeric:tabular-nums}
-.ex-summary-bottom{display:flex;justify-content:space-between;color:#72798a;font-size:11px;gap:10px;border-top:1px solid #e1e5f6;padding-top:10px}
-.ex-card{background:var(--ui-surface);border:1px solid var(--ui-border);border-radius:17px}
-.ex-formcard{padding:17px 15px 15px}
+.ex-summary{border:1px solid #e2eaf7;background:#f5f8ff;border-radius:17px;padding:14px 16px;margin:9px 0 0}
+.ex-summary-top{color:#556180;font-size:12px;font-weight:650}
+.ex-month-controls{display:grid;grid-template-columns:44px minmax(0,1fr) 44px;align-items:center;gap:6px;min-width:0}
+.ex-month-controls strong{color:#3c4974;font-size:14px;line-height:1.2;text-align:center}
+.ex-month-controls button{width:44px;height:44px;border:0;background:#ebefff;border-radius:10px;color:var(--ui-link);font-size:23px;display:grid;place-items:center;line-height:1}
+.ex-large-number{display:block;font-size:30px;line-height:1.25;letter-spacing:-1px;color:var(--ui-link);margin:5px 0 8px;font-weight:800;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.ex-summary-bottom{display:flex;flex-wrap:wrap;justify-content:space-between;color:#596781;font-size:12px;gap:4px 10px;border-top:1px solid #e1e5f6;padding-top:8px}
 .ex-main h2{font-size:17px;letter-spacing:-.25px;line-height:1.3;margin:0;font-weight:740}
-.ex-formcard h2{margin-bottom:14px}
-.ex-formcard form{display:flex;flex-direction:column;gap:0}
-.ex-formcard label{font-size:12px;font-weight:680;color:#4a5262;margin:0 0 6px}
-.ex-formcard input,.ex-formcard select{width:100%;height:47px;min-height:44px;border:1px solid var(--ui-border);background:var(--ui-surface);color:var(--ui-ink);border-radius:11px;padding:10px 13px;margin-bottom:13px;font-size:16px}
-.ex-formcard input::placeholder{color:#acb0ba}
-.ex-formcard select{appearance:auto;padding-right:10px}
-.ex-tip{font-size:11.5px;color:#7d828e;line-height:1.55;margin:-1px 0 15px}
-.ex-save{display:block;width:100%;border:0;color:#fff;background:var(--ui-accent);border-radius:12px;font-size:14px;font-weight:720;min-height:48px;padding:13px 12px}
-.ex-save:disabled{opacity:.5;cursor:wait}
-.ex-message{font-size:12px;line-height:1.5;margin-top:9px;min-height:0;color:#ae3645}
-.ex-message.is-success{color:#157a51}
-.ex-history{margin-top:22px;padding-bottom:12px}
+.ex-history{margin-top:16px;padding-bottom:12px}
 .ex-history-head{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin-bottom:12px}
 .ex-history-head span{font-size:11px;color:var(--ui-muted)}
 .ex-categories{display:flex;flex-wrap:wrap;gap:7px;margin-bottom:13px}
@@ -39,5 +26,53 @@
 .ex-empty{background:var(--ui-surface);border:1px solid var(--ui-border);padding:23px 16px;border-radius:14px;color:var(--ui-muted);font-size:13px;line-height:1.5}
 .ex-main .module-load,.gw-main .module-load{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;margin:0 0 12px;color:var(--ui-muted);font-size:13px;line-height:1.5}
 .ex-main .module-load button,.gw-main .module-load button{min-height:40px}
-@media (min-width:791px){.ex-summary{padding:20px}.ex-formcard{padding:21px}}
-@media (max-width:360px){.ex-summary-top{align-items:flex-start;flex-direction:column}.ex-month-controls{width:100%;justify-content:space-between}}
+
+.ex-dialog {
+  position:fixed;
+  inset:calc(var(--ex-viewport-top,0px) + var(--ex-viewport-height,100dvh) / 2) auto auto
+    calc(50% + (env(safe-area-inset-left,0px) - env(safe-area-inset-right,0px)) / 2);
+  width:min(460px, calc(100% - 24px - env(safe-area-inset-left,0px) - env(safe-area-inset-right,0px)));
+  max-height:calc(var(--ex-viewport-height,100dvh) - 24px - env(safe-area-inset-top,0px) - env(safe-area-inset-bottom,0px));
+  margin:0;
+  padding:14px 16px 16px;
+  transform:translate(-50%, -50%);
+  overflow-y:auto;
+  overscroll-behavior:contain;
+  border:1px solid var(--ui-border);
+  border-radius:19px;
+  background:var(--ui-surface);
+  color:var(--ui-ink);
+  box-shadow:0 18px 50px #182b5433;
+}
+
+.ex-dialog::backdrop {background:#101c3566}
+.ex-dialog-heading {display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:8px}
+.ex-dialog-heading h2 {font-size:19px}
+.ex-dialog-heading .close {flex:0 0 44px;width:44px;height:44px;padding:0}
+.ex-dialog fieldset {min-width:0;margin:0;padding:0;border:0}
+.ex-dialog form label {margin:8px 0 4px;color:#425574;font-size:12px}
+.ex-dialog form label:first-child {margin-top:0}
+.ex-dialog form :is(input,select) {
+  min-height:44px;
+  padding:8px 11px;
+  border-color:#dbe4f3;
+  background:var(--ui-surface);
+  color:var(--ui-ink);
+  font-size:16px;
+}
+
+.ex-tip {margin:8px 0 10px;color:#596781;font-size:12px;line-height:1.4}
+.ex-save {display:block;width:100%;min-height:44px;padding:9px 12px;border-radius:12px;font-size:14px}
+.ex-save:disabled {opacity:.55;cursor:wait}
+.ex-status,.ex-message {color:#a23342;font-size:13px;line-height:1.4;overflow-wrap:anywhere}
+.ex-status:not(:empty) {margin-top:9px}
+.ex-message:not(:empty),.ex-review {margin-bottom:8px}
+.ex-status.is-success {color:#157a51}
+.ex-review {min-height:44px}
+
+@media (max-width:699px) {
+  .ex-dialog {
+    inset-block-start:calc(var(--ex-viewport-top,0px) + var(--ex-viewport-height,100dvh) - 10px - env(safe-area-inset-bottom,0px));
+    transform:translate(-50%, -100%);
+  }
+}

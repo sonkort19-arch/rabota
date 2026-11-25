@@ -13,14 +13,13 @@ assert.doesNotThrow(()=>new Function(src));
 assert(html.includes('id="pushUnreadCount"')&&html.includes('id="pushPopover"'));
 assert(html.includes('id="pushToggle" type="checkbox" role="switch"'));
 assert.match(html,/src="\/master-notifications\.js\?v=[\w-]+"/);
-const headerStart=html.indexOf('<header id="rdScreenHeader"');
-const headerEnd=html.indexOf('</header>',headerStart);
 const appStart=html.indexOf('<main id="appScreen"');
+const appEnd=html.indexOf('</main>',appStart);
 const profile=html.indexOf('id="rdProfile"');
 const menu=html.indexOf('id="rdProfileMenu"');
 const panel=html.indexOf('id="masterPushPanel"');
-assert(headerStart>=0&&profile>headerStart&&menu>profile&&panel>menu&&panel<headerEnd&&headerEnd<appStart,
-  "notifications live in the shared header profile outside the scrolling workspace");
+assert(appStart>=0&&appEnd>appStart&&profile>=0&&menu>profile&&panel>menu&&
+  (panel<appStart||profile>appEnd),"notifications live in the fixed profile outside the scrolling workspace");
 assert(panel<html.indexOf('id="logoutBtn"')&&html.indexOf('id="logoutBtn"')<html.indexOf('id="orderOverlay"'),
   "profile holds the notification panel and sign-out");
 assert.equal((html.match(/id="masterPushPanel"/g)||[]).length,1);

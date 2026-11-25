@@ -4,7 +4,7 @@
 "use strict";
 const {chromium,webkit,devices}=require("playwright");
 const {mockAccountingSnapshot}=require("./fixtures/legacy-payroll.cjs");
-const {assertHeaderLayout}=require("./module-navigation-browser.cjs");
+const {assertProfileLayout}=require("./module-navigation-browser.cjs");
 const {readFileSync,existsSync}=require("node:fs");
 const path=require("node:path");
 const assert=require("node:assert/strict");
@@ -98,7 +98,7 @@ async function runOne(browser,label,device){
  const {page,context,writes,errors}=await setup(browser,device);
  try{
   await assertDocked(page,label+" initial");
-  const header=await assertHeaderLayout(page,"orders");
+  const header=await assertProfileLayout(page,"orders");
   const tabs=page.locator("#rdMobileNav .rd-nav-btn");
   assert.equal(await tabs.count(),5,label+": five navigation actions");
   assert.deepEqual(await tabs.evaluateAll(items=>items.map(item=>item.dataset.page||(item.id==="rdMobileMoreBtn"?"more":"unknown"))),
@@ -113,14 +113,14 @@ async function runOne(browser,label,device){
    await scroller.evaluate((node,v)=>node.scrollTo({top:(node.scrollHeight-node.clientHeight)*v,behavior:"instant"}),fraction);
    await page.waitForTimeout(70);
    await assertDocked(page,label+" scroll "+fraction);
-   if(fraction===.5)await assertHeaderLayout(page,"orders",header);
+   if(fraction===.5)await assertProfileLayout(page,"orders",header);
   }
   for(const section of ["calendar","orders","leads","orders","home","orders"]){
    await goSection(page,section);
    await assertDocked(page,label+" switch "+section);
   }
   await goSection(page,"home");
-  await assertHeaderLayout(page,"home",header);
+  await assertProfileLayout(page,"home",header);
   assert.equal(await page.locator("#syncStatus").isVisible(),false,label+": routine sync label does not waste space");
   await page.locator("#rdProfileTrigger").click();
   await page.locator("#rdProfileMenu").waitFor();
@@ -147,10 +147,10 @@ async function runOne(browser,label,device){
   if(size){
    await page.setViewportSize({width:size.width,height:Math.max(400,size.height-130)});
    await assertDocked(page,label+" shorter viewport");
-   await assertHeaderLayout(page,"orders",header);
+   await assertProfileLayout(page,"orders",header);
    await page.setViewportSize(size);
    await assertDocked(page,label+" restored viewport");
-   await assertHeaderLayout(page,"orders",header);
+   await assertProfileLayout(page,"orders",header);
   }
   await page.locator("#owSearchToggle").click();
   await page.locator("#owSearchInput").focus();
@@ -160,7 +160,7 @@ async function runOne(browser,label,device){
 
   for(const section of ["home","calendar","clients","finance","reports","settings","leads"]){
     await goSection(page,section);
-    await assertHeaderLayout(page,section,header);
+    await assertProfileLayout(page,section,header);
     assert.equal(await page.locator("#syncStatus").isVisible(),false,label+": "+section+" does not display routine sync status");
     if(section==="calendar")assert.equal(await page.locator("#calendarPanel").isVisible(),true,label+": calendar remains accessible within Orders");
     await assertDocked(page,label+" "+section+" without empty top");
@@ -194,11 +194,11 @@ async function runOne(browser,label,device){
   await page.evaluate(()=>{window.fixtureMobileNavigation=document.getElementById("rdMobileNav")});
   await page.locator('#rdMobileNav [data-page="expenses"]').click();
   await page.locator("#exMain").waitFor();
-  await assertHeaderLayout(page,"expenses",header);
+  await assertProfileLayout(page,"expenses",header);
   await assertDocked(page,label+" expenses dock");
   await goSection(page,"growth");
   await page.locator("#gwMain").waitFor();
-  await assertHeaderLayout(page,"growth",header);
+  await assertProfileLayout(page,"growth",header);
   await assertDocked(page,label+" development dock");
   await page.locator("#rdMobileMoreBtn").click();
   assert.ok(await page.locator("#rdMobileMoreSheet").isVisible(),label+": development menu opens");

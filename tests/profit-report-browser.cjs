@@ -23,7 +23,7 @@ async function run(browserType,iphone){
     });
     await context.route("**/*",route=>route.abort());
     const page=await context.newPage();
-    await page.setContent('<!doctype html><html lang="ru"><head><meta name="viewport" content="width=device-width,initial-scale=1"><style>body{margin:0;font-family:Arial}#rdReports{padding:12px;box-sizing:border-box}</style></head><body class="rd"><section id="rdReports"><h1 class="rd-view-title">Отчёты</h1></section></body></html>');
+    await page.setContent('<!doctype html><html lang="ru"><head><meta name="viewport" content="width=device-width,initial-scale=1"><style>body{margin:0;font-family:Arial}#rdReports{padding:12px;box-sizing:border-box}</style></head><body class="rd"><section id="rdReports" aria-label="Отчёты"></section></body></html>');
     await page.addStyleTag({path:path.join(__dirname,"..","light-theme.css")});
     await page.addStyleTag({path:path.join(__dirname,"..","polished-v2.css")});
     await page.addStyleTag({path:reportCss});
@@ -51,9 +51,11 @@ async function run(browserType,iphone){
             {orderId:"c",amount:5000,masterId:"oleg"}]}})});
     });
     await page.locator(".pr-report-link").click();
-    assert.equal((await page.locator(".pr-heading").innerText()).replace(/\s+/g," ").trim(), "Отчёты / Прибыль по заказам");
-    assert.equal(await page.locator(".pr-heading .pr-back").count(),1);
-    assert.equal(await page.locator("#rdReports > .rd-view-title").isVisible(),false,"No duplicate report title when viewing details");
+    const profitHeading=page.locator(".pr-detail .pr-heading");
+    const back=profitHeading.getByRole("button",{name:"Назад к отчётам"});
+    assert.equal(await profitHeading.getByRole("heading",{name:"Прибыль по заказам",exact:true}).count(),1);
+    assert.ok((await back.boundingBox()).height>=44,"Report Back has a full touch target");
+    assert.equal(await page.getByRole("heading",{name:"Отчёты",exact:true}).count(),0);
     assert.equal(await page.locator('.pr-controls select[aria-label="Тип даты отчёта"]').inputValue(),"closed");
     // Default closing-date month excludes booked orders; "all" still shows every order.
     await page.locator('.pr-controls select[aria-label="Период отчёта"]').selectOption("all");
@@ -162,8 +164,8 @@ async function run(browserType,iphone){
     await page.locator(".pr-export").click();
     const download=await downloadPromise;
     assert.match(download.suggestedFilename(),/rabota-profit-orders-.*\.csv/);
-    await page.locator(".pr-heading .pr-back").click();
-    assert.equal(await page.locator("#rdReports > .rd-view-title").isVisible(),true,"Main heading reappears in the reports menu");
+    await back.click();
+    assert.equal(await profitHeading.isVisible(),false,"Report detail heading leaves with its content");
     assert.equal(await page.locator(".pr-menu").isVisible(),true,"Back returns to the report list");
     await page.locator(".pr-menu .pr-report-link").click();
     assert.equal(await page.locator(".pr-detail").isVisible(),true,"Report can reopen after going back");
@@ -260,6 +262,7 @@ async function checkOwnerPayroll(browserType,iphone){
     await page.addStyleTag({path:path.join(__dirname,"..","light-theme.css")});
     await page.addStyleTag({path:path.join(__dirname,"..","polished-v2.css")});
     await page.addStyleTag({path:path.join(__dirname,"..","finance-payroll.css")});
+    await page.addStyleTag({path:reportCss});
     await page.addScriptTag({path:path.join(__dirname,"..","finance-payroll.js")});
     await page.evaluate(()=>{
       const model={active:true,ready:true,actorId:"owner",employeeId:"raul",earned:12000,paid:5000,due:7000,
@@ -283,7 +286,11 @@ async function checkOwnerPayroll(browserType,iphone){
     assert.match(await page.locator("#rdSalaryReport .fp-balance-hero").innerText(),/7[\s\u00a0\u202f]*000/);
     await page.getByRole("button",{name:"Выплаты",exact:true}).click();
     assert.equal(await page.getByRole("heading",{name:"История выплат"}).count(),1);
-    await page.locator("#rdSalaryReport .fp-report-head .fp-link").click();
+    const heading=page.locator("#rdSalaryReport .fp-report-head");
+    const back=heading.getByRole("button",{name:"Назад к отчётам"});
+    assert.equal(await heading.getByRole("heading",{name:"Зарплата",exact:true}).count(),1);
+    assert.ok((await back.boundingBox()).height>=44,"Salary Back has a full touch target");
+    await back.click();
     assert.equal(await page.evaluate(()=>window.returnedToReports),true);
     await context.close();
   }finally{await browser.close()}

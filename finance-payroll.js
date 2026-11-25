@@ -311,22 +311,16 @@
    return wrap;
  }
  window.__rdPayrollReport={
-   mount(root,{onBack,master=false,embedded=false}){
+   mount(root,{onBack,master=false}){
      const v3State={view:"accruals",month:"all"};
-     root.replaceChildren();
-     if(!embedded){
-       const back=button("Отчёты","fp-link fp-crumb-back",()=>onBack?.());
-       back.setAttribute("aria-label","Вернуться ко всем отчётам");
-       const nav=el("nav","fp-report-head"),separator=el("span","fp-crumb-sep","/");
-       nav.setAttribute("aria-label","Путь к отчёту");
-       separator.setAttribute("aria-hidden","true");
-       nav.append(back,separator,el("h2","fp-report-title","Зарплата"));
-       root.append(nav);
-     }
+     const back=button("Назад","fp-link fp-report-back",()=>onBack?.());
+     back.setAttribute("aria-label","Назад к отчётам");
+     const heading=el("header","fp-report-head rd-opening");
+     heading.append(back,el("h2","fp-report-title","Зарплата"));
      const status=el("p","fp-status-text"),content=el("div","");
      const retry=button("Повторить","secondary fp-retry",()=>void window.__rdMoneyUi?.reloadPayroll?.());
      const state=div("fp-data-status",status,retry);
-     root.append(state,content);
+     root.replaceChildren(heading,state,content);
      let rendered=null;
      const redraw=()=>{
        const m=payroll();

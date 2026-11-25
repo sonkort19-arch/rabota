@@ -212,7 +212,7 @@ test("owner reports navigation retains salary scope outside build()",()=>{
   assert.match(ui,/calendarOpened=false,profitReport=null,salaryRoot=null,ownerSalaryReport=null/);
   assert.match(ui,/salaryRoot=makeNode\("div","rd-salary-report"\)/);
   assert.doesNotMatch(ui,/const salaryRoot=makeNode/);
-  assert.match(ui,/else if\(key==="reports"\)\{\s*syncOwnerReportHeading\(\);\s*profitReport\?\.render\(\);\s*if\(salaryRoot/);
+  assert.match(ui,/else if\(key==="reports"\)\{\s*profitReport\?\.render\(\);\s*if\(salaryRoot/);
 });
 
 test("CSV never labels unpaid orders as having a recorded payment",()=>{

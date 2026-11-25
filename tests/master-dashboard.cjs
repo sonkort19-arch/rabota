@@ -175,24 +175,24 @@ test("Raul status filters use five compact accessible icons without changing sta
  assert.doesNotMatch(script,/chip\.append\(statusIcon\(value\),el\("span","mw-filter-caption",label\)\)/);
  assert.doesNotMatch(styles,/\.mw-status-filters \.mw-filter-caption/);
 });
-test("Master routes use the shared section heading",()=>{
+test("Master navigation identifies the current section and report back stays in context",()=>{
  const script=fs.readFileSync(path.join(root,"money-workspace.js"),"utf8");
  const styles=fs.readFileSync(path.join(root,"money-workspace.css"),"utf8");
- assert.match(script,/reports:"Отчёты",payments:"Платежи",settings:"Настройки"/);
- assert.match(script,/window\.__rdSetScreenHeading\?\.\(title\)/);
+ assert.match(script,/\["reports","Отчёты","reports"\]/);
+ assert.match(script,/\["payments","Платежи","payments"\]/);
+ assert.match(script,/\["settings","Настройки","settings"\]/);
+ assert.match(script,/window\.__rdSetActiveNavItem\(nav,/);
+ assert.match(script,/querySelector\("\.pr-back,\.fp-report-back"\)/);
  assert.match(script,/window\.__rdCloseProfile\?\.\(\)/);
  assert.doesNotMatch(script,/mw-orders-minimal-header|mw-payments-header|mw-settings-title/);
  assert.doesNotMatch(styles,/mw-orders-minimal-header|mw-payments-header|--master-brand-height/);
  assert.match(html,/href="\/money-workspace\.css\?v=[^"]+"/);
  assert.match(html,/src="\/money-workspace\.js\?v=[^"]+"/);
 });
-test("the app starts with one shared section heading",()=>{
- assert.equal((html.match(/id="appTitle"/g)||[]).length,1);
- const header=html.match(/<header id="rdScreenHeader" hidden>([\s\S]*?)<\/header>/)?.[1]||"";
- assert.match(header,/^\s*<div class="rd-screen-heading">[\s\S]*?<button[^>]*id="rdScreenBack"[^>]*>[\s\S]*?<h1 id="appTitle">Заказы<\/h1>/);
- assert.match(header,/<\/div>\s*<div class="rd-profile" id="rdProfile"/);
- assert.match(html,/<\/header>\s*<main id="appScreen" aria-labelledby="appTitle" hidden>/);
- assert.doesNotMatch(html,/id="masterBrand"|class="master-header-info"/);
+test("the app keeps one accessible workspace and a separate profile control",()=>{
+ assert.match(html,/<main id="appScreen" aria-label="CRM «Работа»" hidden>/);
+ assert.equal((html.match(/id="rdProfile"/g)||[]).length,1);
+ assert.doesNotMatch(html,/id="(?:rdScreenHeader|rdScreenBack|appTitle|masterBrand)"|class="master-header-info"/);
 });
 
 test("the shared profile retains Raul's photo and accessible account control",()=>{

@@ -11,19 +11,18 @@ assert.ok(inline,"base inline style");
 const links=[...html.matchAll(/<link rel="stylesheet" href="\/([^"?]+)(?:\?[^"]*)?">/g)].map(m=>m[1]);
 assert.ok(links.includes("money-workspace.css"),"master UI stylesheet loaded");
 assert.ok(links.indexOf("money-workspace.css")>links.indexOf("master-dense-enhancements.css"),"master patches load after base styles");
-assert.ok(links.indexOf("app-shell.css")>links.indexOf("money-workspace.css"),"flow title and fixed profile load after master styles");
+assert.ok(links.indexOf("app-shell.css")>links.indexOf("money-workspace.css"),"fixed profile and viewport load after master styles");
 const i=links.indexOf("master-dense.css");
 assert.deepEqual(links.slice(i,i+2),["master-dense.css","master-dense-enhancements.css"]);
 const styles=[inline,...links.map(file=>fs.readFileSync(path.join(root,file),"utf8"))].join("\n");
 const fixture=[
-'<header id="rdScreenHeader"><div class="rd-screen-heading"><button id="rdScreenBack" hidden aria-label="Назад к отчётам">‹</button><h1 id="appTitle">Заказы</h1></div>',
 '<div id="rdProfile" class="rd-profile"><button id="rdProfileTrigger" type="button" aria-label="Открыть меню профиля" aria-controls="rdProfileMenu">Р</button>',
 '<div id="rdProfileMenu" class="rd-profile-menu" hidden><div class="rd-profile-identity"><span class="rd-profile-initial">Р</span><span class="rd-profile-text"><strong>Рауль</strong><small>Мастер</small></span></div>',
 '<section id="masterPushPanel" class="push-panel push-compact"><button id="pushBellBtn" class="push-bell" type="button">Уведомления</button>',
 '<div id="pushPopover" class="push-popover" hidden><strong>Новые заявки</strong></div></section><button id="logoutBtn" type="button">Выйти</button></div></div>',
-'</header><main id="appScreen" class="rd-master master-mode" aria-labelledby="appTitle">',
+'<main id="appScreen" class="rd-master master-mode" aria-label="CRM «Работа»">',
 '<div class="sync-note" id="syncStatus" hidden></div><div id="ordersArea">',
-'<section id="mwMasterFilterbar" class="mw-master-filterbar"><input class="mw-filter-search" placeholder="Поиск по заказам"><div class="mw-status-filters">',
+'<section id="mwMasterFilterbar" class="mw-master-filterbar rd-opening"><input class="mw-filter-search" placeholder="Поиск по заказам"><div class="mw-status-filters">',
 ...["Все","Записаны","В работе","Выполнены","Отменены"].map(label=>'<button type="button" class="mw-filter-chip" aria-label="Фильтр: '+label+'"><span class="mw-filter-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="22" height="22"><circle cx="12" cy="12" r="9"></circle></svg></span></button>'),
 '</div></section>',
 '<nav class="tabs"><button class="tab">По дням</button><button class="tab active">Расписание</button><button class="tab">История</button></nav>',
@@ -71,7 +70,7 @@ try{
    const workspace=document.getElementById("appScreen");
    return {scroll:document.documentElement.scrollWidth,width:document.documentElement.clientWidth,
     workspaceOverflow:workspace.scrollWidth-workspace.clientWidth,
-    title:dim("#appTitle"),newOrder:dim("#newOrderBtn"),profile:dim("#rdProfileTrigger"),
+    newOrder:dim("#newOrderBtn"),profile:dim("#rdProfileTrigger"),
     tab:dim(".mw-bottom-nav .mw-nav-btn"),next:dim(".master-next-jump"),
     time:dim(".master-schedule-time"),name:dim(".master-schedule-name"),
     summary:dim(".master-today-summary"),card:dim(".master-schedule-toggle"),avatar:dim(".master-schedule-avatar"),
@@ -111,7 +110,6 @@ try{
    assert.ok(result[key].height>=43.5,key+" tap target at "+width+" height "+result[key].height);
   assert.ok(result.time.size<=19.1,"time font "+width);
   assert.ok(result.name.size<=15.1,"client font "+width);
-  assert.ok(result.title.size>=19&&result.title.size<=26.1,"compact title font "+width);
   assert.ok(result.summary.height<=120,"today block height "+width+" "+result.summary.height);
   assert.ok(result.card.height<=88,"compact card at "+width+": "+result.card.height);
   assert.ok(result.card.height>=62,"compact card remains tappable at "+width);
@@ -125,32 +123,35 @@ try{
   const shell=await page.evaluate(()=>{
     const r=selector=>document.querySelector(selector).getBoundingClientRect();
     const profile=document.querySelector("#rdProfile"),menu=document.querySelector("#rdProfileMenu");
-    const header=document.querySelector("#rdScreenHeader"),app=document.querySelector("#appScreen");
-    const heading=r(".rd-screen-heading"),title=r("#appTitle"),trigger=r("#rdProfileTrigger");
+    const app=document.querySelector("#appScreen"),trigger=r("#rdProfileTrigger");
     const search=r(".mw-filter-search"),chips=r(".mw-status-filters");
     const initiallyClosed=menu.getClientRects().length===0;
+    const profilePoint=[trigger.x+trigger.width/2,trigger.y+trigger.height/2];
+    const profileHit=document.getElementById("rdProfileTrigger").contains(document.elementFromPoint(...profilePoint));
+    const searchHit=document.elementFromPoint(search.right-3,search.top+search.height/2)?.matches(".mw-filter-search");
+    profile.style.visibility="hidden";
+    const profileOverlap=app.contains(document.elementFromPoint(...profilePoint));
+    profile.style.visibility="";
     menu.hidden=false;
     const bell=r("#pushBellBtn"),logout=r("#logoutBtn"),panel=r("#rdProfileMenu");
     document.querySelector("#pushPopover").hidden=false;
     const notices=r("#pushPopover");
-    return {initiallyClosed,sharedProfile:header.contains(profile),sibling:header.parentElement===app.parentElement,
-      workspaceScroll:getComputedStyle(app).overflowY,headerBottom:r("#rdScreenHeader").bottom,
+    return {initiallyClosed,sibling:profile.parentElement===app.parentElement,profileHit,profileOverlap,searchHit,
+      fixedProfile:getComputedStyle(profile).position==="fixed",profileTop:trigger.top,profileLeft:trigger.left,
+      workspaceScroll:getComputedStyle(app).overflowY,
       workspaceTop:r("#appScreen").top,menuBottom:panel.bottom,dockTop:r("#mwMasterNav").top,
-      headingHeight:heading.height,headingCenter:(heading.top+heading.bottom)/2,headingBottom:heading.bottom,
-      titleRight:title.right,profileLeft:trigger.left,profileCenter:(trigger.top+trigger.bottom)/2,
       searchTop:search.top,searchAfterMenu:r(".mw-filter-search").top,
       searchBottom:search.bottom,statusTop:chips.top,
       menuLeft:panel.left,menuRight:panel.right,noticeLeft:notices.left,noticeRight:notices.right,
       bell:bell.height,logout:logout.height,viewportWidth:document.documentElement.clientWidth};
   });
   const detail=width+": "+JSON.stringify(shell);
-  assert.ok(shell.sharedProfile&&shell.sibling&&shell.initiallyClosed,"header profile starts closed outside the workspace at "+detail);
+  assert.ok(shell.fixedProfile&&shell.sibling&&shell.initiallyClosed,"fixed profile starts closed outside the workspace at "+detail);
+  assert.ok(shell.profileHit&&shell.searchHit&&!shell.profileOverlap,"profile and search occupy separate hit targets at "+detail);
   assert.match(shell.workspaceScroll,/^(auto|scroll)$/);
-  assert.ok(shell.workspaceTop>=shell.headerBottom-1,"workspace starts below shared header at "+detail);
+  assert.ok(Math.abs(shell.workspaceTop-shell.profileTop)<=1,"workspace starts alongside the profile at "+detail);
   assert.ok(shell.menuBottom<=shell.dockTop+1,"profile menu stays above the dock at "+detail);
-  assert.ok(shell.headingHeight<=45&&Math.abs(shell.headingCenter-shell.profileCenter)<2,"title fits the profile row at "+detail);
-  assert.ok(shell.titleRight<=shell.profileLeft-5,"title leaves room for profile at "+detail);
-  assert.ok(shell.searchTop>=shell.headingBottom-1&&shell.searchAfterMenu===shell.searchTop,"profile leaves the local search in flow at "+detail);
+  assert.ok(shell.searchTop-shell.workspaceTop<=10&&shell.searchAfterMenu===shell.searchTop,"local search starts without a top band at "+detail);
   assert.ok(shell.statusTop>=shell.searchBottom-2&&shell.statusTop-shell.searchBottom<28,"status icons follow search at "+detail);
   assert.ok(shell.menuLeft>=0&&shell.menuRight<=shell.viewportWidth+1,"profile stays within the viewport at "+detail);
   assert.ok(shell.noticeLeft>=shell.menuLeft&&shell.noticeRight<=shell.menuRight+1,"notifications stay within the profile at "+detail);

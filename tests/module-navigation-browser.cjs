@@ -296,58 +296,64 @@ async function assertDock(page, role, view) {
   return state;
 }
 
-async function assertHeaderLayout(page, view, initial = null) {
-  const title = sectionTitles[view];
-  const heading = page.locator("#appTitle");
-  await heading.waitFor();
-  assert.equal(await heading.innerText(), title, view + ": one current section title");
-  assert.equal(await page.getByRole("heading", {name: title, exact: true}).count(), 1, view + ": no duplicate heading");
-  assert.equal(await page.locator(".rd-top, #rdTopSearch, #rdProfileToggle, #rdShellProfileMenu").count(), 0,
-    view + ": the old global toolbar and alternate profile are removed");
+async function assertProfileLayout(page, view, initial = null) {
+  const duplicate = await page.getByRole("heading", {name:sectionTitles[view], exact:true}).evaluateAll(nodes =>
+    nodes.filter(node => node.getBoundingClientRect().height > 2 && node.getBoundingClientRect().width > 2).length);
+  assert.equal(duplicate, 0, view + ": active navigation replaces the visible module title");
+  assert.equal(await page.locator("#rdScreenHeader, .rd-top, #rdTopSearch, #rdProfileToggle, #rdShellProfileMenu, #rdScreenBack").count(), 0,
+    view + ": no separate top bar or global back control remains");
   assert.equal(await page.locator("#appScreen").getByText("Данные из Supabase", {exact: true}).isVisible(), false);
   const profile = page.locator("#rdProfileTrigger");
   await profile.waitFor();
   assert.equal(await page.locator('[aria-controls="rdProfileMenu"]').count(), 1, view + ": sole account trigger");
   assert.ok((await profile.innerText()).trim().length <= 2, view + ": no account name beside the circle");
-  const layout = await profile.evaluate(node => {
+  const layout = await profile.evaluate((node, roots) => {
     const app = document.getElementById("appScreen");
-    const title = document.getElementById("appTitle");
-    const header = document.getElementById("rdScreenHeader");
+    const profileRoot = document.getElementById("rdProfile");
     const button = node.getBoundingClientRect();
-    const text = document.createRange();
-    text.selectNodeContents(title);
-    const textRects = [...text.getClientRects()];
+    const activeArea = roots.map(selector => document.querySelector(selector)).find(area => area?.getClientRects().length);
+    const firstContentTop = activeArea ? Math.min(...[...activeArea.querySelectorAll("button, input, select, summary, h2, h3, p, .rd-opening, .ex-summary")]
+      .filter(control => control.getClientRects().length)
+      .map(control => control.getBoundingClientRect())
+      .filter(rect => rect.height >= 14)
+      .map(rect => rect.top)) : Infinity;
     const style = getComputedStyle(node);
+    const center = [button.x + button.width / 2, button.y + button.height / 2];
+    const clickable = node.contains(document.elementFromPoint(...center));
+    const profilePoints = [center, [button.left + 3, center[1]], [button.right - 3, center[1]],
+      [center[0], button.top + 3], [center[0], button.bottom - 3]];
+    const originalVisibility = profileRoot.style.visibility;
+    profileRoot.style.visibility = "hidden";
+    const hasContentBehindProfile = profilePoints.some(point => app.contains(document.elementFromPoint(...point)));
+    profileRoot.style.visibility = originalVisibility;
+    const content = app.getBoundingClientRect();
     return {
       top: button.top, right: innerWidth - button.right, width: button.width, height: button.height,
+      left:button.left, bottom:button.bottom,
       round: [style.borderTopLeftRadius, style.borderTopRightRadius, style.borderBottomLeftRadius,
         style.borderBottomRightRadius].every(value => value === "50%" || parseFloat(value) >= button.width / 2),
-      clickable: node.contains(document.elementFromPoint(button.x + button.width / 2, button.y + button.height / 2)),
-      titleTop: title.getBoundingClientRect().top, titleLeft: title.getBoundingClientRect().left,
-      titleFits: textRects.every(rect => rect.right <= button.left + 1 || rect.top >= button.bottom || rect.bottom <= button.top),
-      fixedHeader: getComputedStyle(header).position === "fixed" && header.parentElement === document.body,
-      headerBottom:header.getBoundingClientRect().bottom,
-      contentTop:app.getBoundingClientRect().top,
+      clickable, hasContentBehindProfile,
+      pinned: getComputedStyle(profileRoot).position === "fixed" && profileRoot.parentElement === document.body,
+      contentTop:content.top, contentLeft:content.left, contentRight:content.right, firstContentTop,
+      scroll:app.scrollTop,
       contentWidth:app.clientWidth,
       contentScrollWidth:app.scrollWidth,
     };
-  });
+  }, [sectionRoots[view === "calendar" ? "orders" : view], sectionRoots["master"+view[0].toUpperCase()+view.slice(1)]].filter(Boolean));
   assert.ok(layout.top >= 0 && layout.top <= 80 && layout.right >= 0 && layout.right <= 80,
     view + ": profile at the upper-right edge " + JSON.stringify(layout));
-  assert.ok(layout.width >= 44 && Math.abs(layout.width - layout.height) < 1 && layout.round && layout.clickable,
+  assert.ok(layout.pinned && layout.width >= 44 && Math.abs(layout.width - layout.height) < 1 && layout.round && layout.clickable,
     view + ": unobstructed, round profile touch target " + JSON.stringify(layout));
-  assert.ok(layout.fixedHeader && layout.contentTop >= layout.headerBottom - 1,
-    view + ": working area stays outside the reserved fixed header " + JSON.stringify(layout));
+  assert.ok(Math.abs(layout.contentTop - layout.top) <= 2,
+    view + ": work starts next to the profile without a full-width top gap " + JSON.stringify(layout));
+  assert.equal(layout.hasContentBehindProfile, false, view + ": the profile corner is excluded from the work area");
+  if (layout.scroll < 1 && Number.isFinite(layout.firstContentTop))
+    assert.ok(layout.firstContentTop <= layout.bottom, view + ": real content starts in the top row " + JSON.stringify(layout));
   assert.ok(layout.contentScrollWidth <= layout.contentWidth + 1,
     view + ": working area does not introduce horizontal scrolling " + JSON.stringify(layout));
-  assert.ok(layout.titleTop >= 0 && layout.titleTop <= layout.top + layout.height,
-    view + ": heading starts in the profile row without an empty strip");
-  assert.ok(layout.titleFits, view + ": title text does not overlap profile");
   if (initial) {
     for (const key of ["top", "right", "width", "height"])
       assert.ok(Math.abs(layout[key] - initial[key]) <= 1, view + ": profile moves after transition or scroll (" + key + ")");
-    assert.ok(Math.abs(layout.titleTop - initial.titleTop) <= 1 && Math.abs(layout.titleLeft - initial.titleLeft) <= 1,
-      view + ": headings align between routes and stay pinned when scrolled " + JSON.stringify({initial, layout}));
   }
   return layout;
 }
@@ -361,6 +367,16 @@ async function assertPeriodControls(page, selector, count) {
   }
 }
 
+async function assertFloatingAction(page, selector, dock, insets = {left:0, right:0}) {
+  const action = page.locator(selector);
+  await action.waitFor();
+  assert.equal(await action.evaluate(node => node.parentElement === document.body), true);
+  const box = await action.boundingBox();
+  assert.ok(box.x >= insets.left - 1 && box.x + box.width <= dock.width - insets.right + 1 &&
+    box.y + box.height <= dock.top + 1, selector + " stays inside the safe area above the dock");
+  await action.click({trial:true});
+}
+
 async function assertScrollRestored(page, role) {
   const scroller = page.locator("#appScreen");
   const orderModes = page.locator("#owViewSwitch");
@@ -370,7 +386,7 @@ async function assertScrollRestored(page, role) {
     await page.locator("#owFilterStatus").selectOption("Записан");
     await page.locator("#owFilterApply").click();
   }
-  const header = await assertHeaderLayout(page, "orders");
+  const header = await assertProfileLayout(page, "orders");
   const scroll = await scroller.evaluate(node => {
     node.scrollTop = 350;
     window.scrollTo(0, 350);
@@ -378,7 +394,7 @@ async function assertScrollRestored(page, role) {
   });
   assert.ok(scroll.content > 100, "fixture must contain a long order list");
   assert.equal(scroll.document, 0, "the shared content element is the only document scroller");
-  await assertHeaderLayout(page, "orders", header);
+  await assertProfileLayout(page, "orders", header);
   await assertDock(page, role, "orders");
   const waitForScroll = () => page.waitForFunction(previous =>
     Math.abs(document.getElementById("appScreen").scrollTop - previous) <= 2, scroll.content);
@@ -405,7 +421,7 @@ async function assertScrollRestored(page, role) {
     await waitForScroll();
   }
   assert.equal(await orderModes.locator('[data-ow-mode="all"]').getAttribute("aria-selected"), "true");
-  await assertHeaderLayout(page, "orders", header);
+  await assertProfileLayout(page, "orders", header);
   await assertDock(page, role, "orders");
 }
 
@@ -441,7 +457,8 @@ async function assertProfileTargets(page, role) {
     await notifications.locator("#closePushPopover").click();
     await notifications.waitFor({ state: "hidden" });
   }
-  await page.locator("#appTitle").click();
+  const work = await page.locator("#appScreen").boundingBox();
+  await page.mouse.click(work.x + 2, work.y + 2);
   await menu.waitFor({state:"hidden"});
   await trigger.click();
   await menu.waitFor();
@@ -456,7 +473,7 @@ async function assertRapidNavigation(page, role) {
   const navHandle = await nav.elementHandle();
   const visibilityObserver = await page.evaluateHandle(role => {
     const failures = [];
-    const selectors = ["rdScreenHeader", "appScreen", role === "master" ? "mwMasterNav" : "rdMobileNav"];
+    const selectors = ["rdProfile", "appScreen", role === "master" ? "mwMasterNav" : "rdMobileNav"];
     const observer = new MutationObserver(records => {
       for (const { target, oldValue } of records) {
         if (target.hidden || oldValue !== null) failures.push(target.id);
@@ -508,7 +525,7 @@ async function roleLayout(browser, width, role) {
     for (const view of sectionsByRole[role]) {
       await switchSection(page, role, view);
       const dock = await assertDock(page, role, view);
-      const header = await assertHeaderLayout(page, view, initialHeader);
+      const header = await assertProfileLayout(page, view, initialHeader);
       initialHeader ??= header;
       assert.equal(await page.evaluate(() => window.fixtureProfile === document.getElementById("rdProfileTrigger")),
         true, "navigation retains the original account control");
@@ -516,15 +533,17 @@ async function roleLayout(browser, width, role) {
         assert.equal(await page.locator("#rdMobileMoreBtn").getAttribute("aria-expanded"), "false");
       }
       if (role === "owner" && ["expenses", "growth"].includes(view)) {
-        if (view === "expenses") await assertPeriodControls(page, "#exPrev, #exNext", 2);
+        if (view === "expenses") {
+          await assertPeriodControls(page, "#exPrev, #exNext", 2);
+          await assertFloatingAction(page, "#newExpenseBtn", dock);
+          assert.equal(await page.locator("#exForm").isVisible(), false);
+        }
         else await assertPeriodControls(page, ".gw-tabs button", 4);
       }
+      if (role !== "owner" || view !== "expenses")
+        assert.equal(await page.locator("#newExpenseBtn").isVisible(), false, "expense entry only appears in the owner module");
       if (role !== "master" && view === "orders") {
-        const add = page.locator("#newOrderBtn");
-        const button = await add.boundingBox();
-        assert.ok(button && button.x >= 0 && button.x + button.width <= width + 1);
-        assert.ok(button.y + button.height <= dock.top + 1, "new order must sit above the navigation");
-        await add.click({ trial: true });
+        await assertFloatingAction(page, "#newOrderBtn", dock);
       }
     }
     if (role !== "master") {
@@ -563,7 +582,7 @@ async function roleLayout(browser, width, role) {
       identity,{timeout:20000});
     await reopened.locator(sectionRoots[role === "master" ? "orders" : reopenedView]).waitFor({timeout:20000});
     await assertDock(reopened, role, role === "master" ? "orders" : reopenedView);
-    await assertHeaderLayout(reopened, role === "master" ? "orders" : reopenedView, initialHeader);
+    await assertProfileLayout(reopened, role === "master" ? "orders" : reopenedView, initialHeader);
     assert.equal(documents.length, 2, "only the explicit reopen requested a new document");
     assert.equal(requests.filter(name => name === "user").length, 2);
     if (role === "owner") {
@@ -576,34 +595,32 @@ async function roleLayout(browser, width, role) {
   } finally { await s.close(); }
 }
 
-async function assertClippedControl(page, header) {
+async function assertProfileCorner(page, profile) {
   const filter = page.locator("#owFilterToggle");
   await filter.waitFor();
-  const displacement = await filter.evaluate(button => {
+  const placed = await filter.boundingBox();
+  assert.ok(placed.x + placed.width <= profile.left + 1 || placed.y >= profile.bottom,
+    "the opening order filters stay outside the profile corner");
+  await filter.click({trial:true});
+
+  const row = page.locator("#orders :is(.rd-list-toggle, .master-schedule-toggle)").nth(3);
+  await row.waitFor();
+  const displacement = await row.evaluate(button => {
     const scroller = document.getElementById("appScreen");
-    const profile = document.getElementById("rdProfileTrigger");
+    const circle = document.getElementById("rdProfileTrigger");
     const before = scroller.scrollTop;
-    // Move this real, right-aligned control to precisely the avatar's vertical
-    // position. Without clipping, it is painted under the avatar at this offset.
-    scroller.scrollTop += button.getBoundingClientRect().top - profile.getBoundingClientRect().top;
+    // Scroll a full order row to the avatar's vertical position. The work area
+    // should still be actionable on the left and excluded from the avatar corner.
+    scroller.scrollTop += button.getBoundingClientRect().top - circle.getBoundingClientRect().top;
     return scroller.scrollTop - before;
   });
-  assert.ok(displacement > 0, "the fixture exercised scrolling into the profile row");
-  const visible = await filter.evaluate(button => new Promise(resolve => {
-    const observer = new IntersectionObserver(([entry]) => {
-      observer.disconnect();
-      const {top, height} = entry.intersectionRect;
-      resolve({top, height});
-    });
-    observer.observe(button);
-  }));
-  assert.ok(visible.height === 0 || visible.top >= header.headerBottom - 1,
-    "a scrolled working control is clipped out of the fixed header: " + JSON.stringify(visible));
-  await assertHeaderLayout(page, "orders", header);
+  assert.ok(displacement > 100, "the fixture exercised real content scrolling into the profile row");
+  const rowBox = await row.boundingBox();
+  assert.ok(rowBox.y < profile.bottom && rowBox.y + rowBox.height > profile.top, "the order crossed the profile's vertical position");
+  await assertProfileLayout(page, "orders", profile);
+  await row.click({trial:true});
   await filter.evaluate(button => button.scrollIntoView({block:"start", behavior:"instant"}));
   await filter.click({trial:true});
-  const filterBox = await filter.boundingBox();
-  assert.ok(filterBox.y >= header.headerBottom - 1, "bringing the filter into view leaves it available below the header");
 }
 
 function assertDockInsets(dock, insets) {
@@ -624,28 +641,51 @@ async function safeAreaLayout(browser, width, role, height = 760, insets = safeA
     assert.match(await page.locator('meta[name="viewport"]').getAttribute("content"), /viewport-fit=cover/);
     assert.equal(await page.evaluate(() => navigator.standalone && matchMedia("(display-mode: standalone)").matches), true);
     await page.locator('#owViewSwitch [data-ow-mode="all"]').click();
-    const header = await assertHeaderLayout(page, "orders");
-    assert.ok(header.top >= insets.top && header.right >= insets.right && header.titleLeft >= insets.left,
-      "header respects top, right and left safe areas " + JSON.stringify({header, insets}));
+    const header = await assertProfileLayout(page, "orders");
+    assert.ok(header.top >= insets.top && header.right >= insets.right && header.contentLeft >= insets.left &&
+      header.contentRight <= width - insets.right + 1,
+      "the profile and work area respect the top and side safe areas " + JSON.stringify({header, insets}));
+    if (width <= 430) assert.ok(Math.abs(header.contentLeft - insets.left) <= 1 &&
+      Math.abs(header.contentRight - (width - insets.right)) <= 1,
+      "the profile corner does not narrow the rest of the phone's work area");
     const dock = await assertDock(page, role, "orders");
     assertDockInsets(dock, insets);
     assert.ok(await page.locator("#appScreen").evaluate((node, dockTop) =>
       node.getBoundingClientRect().bottom <= dockTop + 1, dock.top), "content stops above the fixed dock");
-    await assertClippedControl(page, header);
+    await assertProfileCorner(page, header);
     const scrolled = await page.locator("#appScreen").evaluate(node => {
       node.scrollTop = 280;
       window.scrollTo(0, 280);
       return {content:node.scrollTop, document:document.scrollingElement.scrollTop};
     });
     assert.deepEqual(scrolled, {content:280, document:0}, "only the shared working area scrolls");
-    await assertHeaderLayout(page, "orders", header);
+    await assertProfileLayout(page, "orders", header);
     assertDockInsets(await assertDock(page, role, "orders"), insets);
-    const add = page.locator("#newOrderBtn");
-    await add.waitFor();
-    const addBox = await add.boundingBox();
-    assert.ok(addBox.x >= insets.left - 1 && addBox.x + addBox.width <= width - insets.right + 1 &&
-      addBox.y + addBox.height <= dock.top + 1, "add order stays inside the safe area above the dock");
-    await add.click({trial:true});
+    await assertFloatingAction(page, "#newOrderBtn", dock, insets);
+
+    if (role === "owner") {
+      await switchSection(page, role, "expenses");
+      await assertFloatingAction(page, "#newExpenseBtn", dock, insets);
+      const editor = await openExpenseDialog(page);
+      const box = await editor.boundingBox();
+      assert.ok(box.x >= insets.left - 1 && box.x + box.width <= width - insets.right + 1 &&
+        box.y >= insets.top - 1 && box.y + box.height <= height - insets.bottom + 1,
+        "the expense form stays within the safe viewport in portrait and landscape");
+      await editor.locator("#exSave").click({trial:true});
+      await editor.locator("#exClose").click();
+      await editor.waitFor({state:"hidden"});
+
+      await switchSection(page, role, "reports");
+      await page.locator("#rdReports").getByRole("button", {name:/^Прибыль по заказам/}).click();
+      const back = page.locator("#rdReports").getByRole("button", {name:"Назад к отчётам"});
+      await back.waitFor();
+      const backBox = await back.boundingBox();
+      assert.ok(backBox.width >= 44 && backBox.height >= 44 && backBox.x + backBox.width <= header.left + 1,
+        "the report back action is reachable inside the work area, away from the profile");
+      await back.click({trial:true});
+      await switchSection(page, role, "orders");
+      await page.waitForFunction(previous => document.getElementById("appScreen").scrollTop === previous, scrolled.content);
+    }
 
     if (role !== "master") {
       const more = page.locator("#rdMobileMoreBtn");
@@ -673,7 +713,7 @@ async function safeAreaLayout(browser, width, role, height = 760, insets = safeA
     } else await switchSection(page, role, "payments");
     await switchSection(page, role, "orders");
     await page.waitForFunction(previous => document.getElementById("appScreen").scrollTop === previous, scrolled.content);
-    await assertHeaderLayout(page, "orders", header);
+    await assertProfileLayout(page, "orders", header);
     assertDockInsets(await assertDock(page, role, "orders"), insets);
     assert.equal(documents.length, 1);
     assert.deepEqual(writes, []);
@@ -688,23 +728,30 @@ async function desktopScrollLayout(browser) {
     await page.locator('.rd-shell [data-page="orders"]').click();
     assert.equal(await page.locator("#rdMobileNav").isVisible(), false, "desktop retains sidebar navigation");
     await page.locator('#owViewSwitch [data-ow-mode="all"]').click();
-    const header = await assertHeaderLayout(page, "orders");
-    await assertClippedControl(page, header);
+    const header = await assertProfileLayout(page, "orders");
+    await assertProfileCorner(page, header);
     const scroll = await page.locator("#appScreen").evaluate(node => {
       node.scrollTop = 300;
       window.scrollTo(0, 300);
       return {content:node.scrollTop, document:document.scrollingElement.scrollTop};
     });
     assert.deepEqual(scroll, {content:300, document:0});
-    await assertHeaderLayout(page, "orders", header);
+    await assertProfileLayout(page, "orders", header);
     await page.locator('.rd-shell [data-page="expenses"]').click();
-    await assertHeaderLayout(page, "expenses");
+    await assertProfileLayout(page, "expenses");
     assert.equal(await page.locator("#appScreen").evaluate(node => node.scrollTop), 0);
     await page.locator('.rd-shell [data-page="orders"]').click();
     await page.waitForFunction(() => document.getElementById("appScreen").scrollTop === 300);
     assert.equal(s.documents.length, 1);
     assert.deepEqual(s.writes, []);
   } finally { await s.close(); }
+}
+
+async function openExpenseDialog(page) {
+  await page.locator("#newExpenseBtn").click();
+  const dialog = page.getByRole("dialog", {name:"Новый расход"});
+  await dialog.waitFor();
+  return dialog;
 }
 
 async function dataFlow(browser) {
@@ -729,13 +776,52 @@ async function dataFlow(browser) {
     await go(page, "expenses");
     assert.equal(requests.filter(value => value === "operations").length, 1, "startup and Expenses share the running ledger read");
     assert.equal(await page.locator("#exList .ex-item").count(), 0);
+    assert.equal(await page.locator("#exMonth").isVisible(), true);
+    assert.equal(await page.locator("#exMonthlyTotal").isVisible(), true);
+    assert.equal(await page.getByRole("heading", {name:"История расходов"}).isVisible(), true);
+    assert.equal(await page.locator("#exForm").isVisible(), false, "the history is available without the expense editor");
     state.gates.get("operations").release();
     await page.locator("#exList").getByText("Тестовый расход").waitFor();
-    await page.locator("#exAmount").fill("99,50");
-    await page.locator("#exDetail").fill("Тестовая запись");
-    await page.locator("#exSave").click();
+
+    let editor = await openExpenseDialog(page);
+    await editor.locator("#exAmount").fill("77,23");
+    await editor.locator("#exClose").click();
+    await editor.waitFor({state:"hidden"});
+    assert.equal(await page.locator("#newExpenseBtn").evaluate(node => node === document.activeElement), true);
+    editor = await openExpenseDialog(page);
+    const amount = editor.locator("#exAmount"), save = editor.locator("#exSave");
+    assert.equal(await amount.inputValue(), "", "cancel discards an ordinary draft");
+    await amount.fill("0");
+    await save.click();
+    await editor.locator("#exMessage").getByText(/сумму от 0,01/i).waitFor();
+    assert.deepEqual(writes.map(write => write.endpoint), ["rabota_growth_plan"], "cancel and invalid input never write expenses");
+    await amount.fill("99,50");
+    await editor.locator("#exCategory").selectOption("Расходники");
+    await editor.locator("#exDetail").fill("Тестовая запись");
+    await editor.locator("#exOrder").fill("12345");
+    const savingExpense = deferred();
+    state.gates.set("rabota_finance_record", savingExpense);
+    state.fail.add("operations");
+    await save.click();
+    assert.equal(await save.isDisabled(), true);
+    assert.equal(await editor.locator("#exClose").isDisabled(), true);
+    await page.keyboard.press("Escape");
+    assert.equal(await editor.isVisible(), true, "a pending write cannot be dismissed as canceled");
+    savingExpense.release();
+    await editor.waitFor({state:"hidden"});
+    assert.equal(await page.locator("#newExpenseBtn").evaluate(node => node === document.activeElement), true);
+    await page.locator("#exStatus").getByText(/сохранён/i).waitFor();
+    await page.locator("#exRetry").waitFor();
+    await page.locator("#exList").getByText("Тестовый расход").waitFor();
+    assert.deepEqual(writes.at(-1).payload, {
+      p_kind:"expense", p_amount:99.5, p_master_user_id:null, p_note:"[Расходники] Тестовая запись · Заказ №12345",
+    });
+    await page.locator("#exRetry").click();
     const savedExpense = page.locator("#exList .ex-item").filter({ hasText: "Тестовая запись" });
     await savedExpense.waitFor();
+    const monthlyTotal = await page.locator("#exMonthlyTotal").innerText();
+    assert.equal(Number(monthlyTotal.replace(/[\s₽]/g, "").replace(",", ".")), 1299.5);
+    assert.equal(documents.length, 1, "acknowledged expense and recovery remain in the same document");
     page.once("dialog", dialog => dialog.accept());
     await savedExpense.getByRole("button", { name: /отменить/i }).click();
     await savedExpense.waitFor({ state: "hidden" });
@@ -771,20 +857,30 @@ async function dataFlow(browser) {
 
     await go(page, "expenses");
     state.loseResponse.add("rabota_finance_record");
-    await page.locator("#exAmount").fill("42,75");
-    await page.locator("#exDetail").fill("Сбой доставки ответа");
-    await page.locator("#exSave").click();
-    await page.locator("#exMessage").getByText(/Не удалось подтвердить запись/).waitFor();
-    await page.locator("#exList").getByText("Сбой доставки ответа").waitFor();
+    editor = await openExpenseDialog(page);
+    await editor.locator("#exAmount").fill("42,75");
+    await editor.locator("#exDetail").fill("Сбой доставки ответа");
+    await editor.locator("#exSave").click();
+    await editor.locator("#exMessage").getByText(/Не удалось подтвердить запись/).waitFor();
     const attempts = writes.filter(value => value.endpoint === "rabota_finance_record").length;
+    await editor.locator("#exSave").click();
+    await editor.locator("#exMessage").getByText(/Проверьте историю перед повтором/i).waitFor();
+    assert.equal(writes.filter(value => value.endpoint === "rabota_finance_record").length, attempts);
+    await editor.locator("#exReview").click();
+    await editor.waitFor({state:"hidden"});
+    await page.locator("#exList").getByText("Сбой доставки ответа").waitFor();
+    editor = await openExpenseDialog(page);
+    assert.equal(await editor.locator("#exAmount").inputValue(), "42,75");
+    assert.equal(await editor.locator("#exDetail").inputValue(), "Сбой доставки ответа");
     const confirmation = page.waitForEvent("dialog");
-    const click = page.locator("#exSave").click();
+    const click = editor.locator("#exSave").click();
     const dialog = await confirmation;
     assert.match(dialog.message(), /Проверьте историю/);
     await dialog.dismiss();
     await click;
     assert.equal(writes.filter(value => value.endpoint === "rabota_finance_record").length, attempts,
       "a committed expense with a dropped reply is never replayed automatically");
+    assert.equal(await page.locator("#exList .ex-item").filter({hasText:"Сбой доставки ответа"}).count(), 1);
   } finally { await s.close(); }
 }
 
@@ -831,7 +927,7 @@ function summarize(results) {
   return out;
 }
 
-module.exports = { fixture, go, assertHeaderLayout };
+module.exports = { fixture, go, assertProfileLayout };
 if (require.main === module) (async () => {
   const browser = await (browserName === "webkit" ? webkit : chromium).launch({
     executablePath: process.env.TEST_BROWSER_PATH || undefined,
@@ -860,7 +956,7 @@ if (require.main === module) (async () => {
     for (const role of ["owner", "master"])
       await safeAreaLayout(browser, 844, role, 390, {top:21, right:44, bottom:21, left:44});
     await desktopScrollLayout(browser);
-    console.log("PASS", browserName, "safe areas, standalone portrait and landscape, clipped profile strip and shared scrolling");
+    console.log("PASS", browserName, "safe areas, standalone portrait and landscape, fixed profile corner, expenses and shared scrolling");
     await dataFlow(browser);
     await legacyLinks(browser);
     console.log("PASS", browserName, "progressive rendering, connection retry, writes, freshness, history and legacy links");

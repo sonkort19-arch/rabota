@@ -15,7 +15,8 @@ body.rd {
   --rd-profile-size:44px;
   --rd-profile-right:calc(var(--rd-safe-right) + var(--rd-screen-gutter));
   --rd-screen-top:calc(var(--rd-safe-top) + 6px);
-  --rd-content-top:calc(var(--rd-screen-top) + var(--rd-profile-size) + 5px);
+  --rd-profile-gap:5px;
+  --rd-profile-row:calc(var(--rd-profile-size) + var(--rd-profile-gap));
   --rd-dock-row:48px;
   --rd-dock-top:4px;
   --rd-dock-bottom:max(4px, var(--rd-safe-bottom));
@@ -24,7 +25,11 @@ body.rd {
   --rd-sidebar-width:242px;
   --rd-content-max:1260px;
   --rd-content-left:calc(var(--rd-safe-left) + var(--rd-sidebar-width));
-  --rd-content-align:max(var(--rd-content-left), calc((100% + var(--rd-content-left) - var(--rd-safe-right) - var(--rd-content-max)) / 2));
+  --rd-content-side-gap:max(0px, calc((100vw - var(--rd-content-left) - var(--rd-safe-right) - var(--rd-content-max)) / 2));
+  --rd-corner-width:max(0px, calc(var(--rd-profile-row) + var(--rd-screen-gutter) - var(--rd-content-side-gap)));
+  --rd-opening-inset:max(0px, calc(var(--rd-corner-width) - var(--rd-screen-gutter)));
+  --rd-card-radius:14px;
+  --rd-control-radius:11px;
   --rd-fab-height:46px;
   --rd-fab-gap:10px;
 }
@@ -35,60 +40,17 @@ body.rd[data-rd-role="master"] {
   --rd-content-bottom:var(--rd-dock-height);
 }
 
-/* The header, scrollport and dock are siblings so content is clipped clear of both rails. */
-body.rd #rdScreenHeader {
+body.rd #rdProfile {
   position:fixed;
-  inset:0 0 auto;
   z-index:50;
-  display:grid;
-  grid-template-columns:minmax(0,1fr) var(--rd-profile-size);
-  align-items:center;
-  gap:8px;
-  height:var(--rd-content-top);
-  margin:0;
-  padding:var(--rd-screen-top) var(--rd-profile-right) 5px calc(var(--rd-content-align) + var(--rd-screen-gutter));
-  pointer-events:none;
+  top:var(--rd-screen-top);
+  right:var(--rd-profile-right);
+  width:var(--rd-profile-size);
 }
-
-body.rd #rdScreenHeader > * {pointer-events:auto}
-body.rd .rd-screen-heading {display:flex;align-items:center;gap:6px;min-width:0}
-body.rd .rd-screen-heading > #appTitle {
-  margin:0;
-  overflow:hidden;
-  color:#1b2b45;
-  font-size:clamp(19px, 4.8vw, 26px);
-  font-weight:750;
-  line-height:1.18;
-  letter-spacing:-.4px;
-  text-overflow:ellipsis;
-  white-space:nowrap;
-}
-
-body.rd #rdScreenBack:not([hidden]) + #appTitle {
-  display:-webkit-box;
-  -webkit-box-orient:vertical;
-  -webkit-line-clamp:2;
-  line-height:1.1;
-  white-space:normal;
-}
-
-body.rd #rdScreenBack {
-  display:grid;
-  place-items:center;
-  flex:0 0 44px;
-  min-height:44px;
-  padding:0;
-  border:0;
-  border-radius:11px;
-  background:#edf2ff;
-  color:#365cc2;
-}
-
-body.rd #rdProfile {position:relative;width:var(--rd-profile-size)}
 
 html.rd-app-open body.rd #appScreen:is(.rd-owner,.rd-manager,.rd-master.master-mode) {
   position:fixed;
-  inset:var(--rd-content-top) var(--rd-safe-right) var(--rd-content-bottom) var(--rd-content-left);
+  inset:var(--rd-screen-top) var(--rd-safe-right) var(--rd-content-bottom) var(--rd-content-left);
   width:auto;
   height:auto;
   max-width:var(--rd-content-max);
@@ -98,11 +60,43 @@ html.rd-app-open body.rd #appScreen:is(.rd-owner,.rd-manager,.rd-master.master-m
   padding:0 var(--rd-screen-gutter) var(--rd-screen-gutter);
   overflow:auto;
   overscroll-behavior:contain;
-  scroll-padding-block:8px;
+  scroll-padding-block:var(--rd-profile-row) 8px;
+  /* Exclude the profile corner from painting and hit testing during scrolling. */
+  clip-path:polygon(0 0, calc(100% - var(--rd-corner-width)) 0,
+    calc(100% - var(--rd-corner-width)) var(--rd-profile-row),
+    100% var(--rd-profile-row), 100% 100%, 0 100%);
 }
 
-html.rd-app-open body.rd:has(> #newOrderBtn:not([hidden])) #appScreen:has(> #ordersArea:not([hidden])) {
+html.rd-app-open body.rd:has(> #newOrderBtn:not([hidden])) #appScreen:has(> #ordersArea:not([hidden])),
+html.rd-app-open body.rd[data-rd-role="owner"] #appScreen:has(> #exMain:not([hidden])) {
   padding-bottom:calc(var(--rd-fab-height) + var(--rd-fab-gap) + var(--rd-screen-gutter));
+}
+
+/* A screen's first controls share the top line with the profile. */
+body.rd #appScreen .rd-opening {
+  box-sizing:border-box;
+  min-block-size:var(--rd-profile-row);
+  max-inline-size:calc(100% - var(--rd-opening-inset));
+  margin-inline-end:var(--rd-opening-inset);
+}
+
+body.rd #appScreen .gw-tabs.rd-opening {
+  margin-bottom:8px;
+}
+
+body.rd #appScreen :is(.rd-panel,.rd-client,.ex-list,.gw-card,.mw-payment-breakdown,
+                        .mw-payment-day-rows,.wa-settings-entry,.wa-template-card) {
+  border-radius:var(--rd-card-radius);
+}
+
+body.rd #appScreen :is(.ex-summary,.gw-hero) {
+  border-color:var(--rd-line);
+  border-radius:var(--rd-card-radius);
+  background:var(--rd-soft);
+}
+
+body.rd #appScreen :is(.ex-month-controls button,.pr-back,.fp-report-back) {
+  border-radius:var(--rd-control-radius);
 }
 
 body.rd #appScreen:is(.rd-owner,.rd-manager,.rd-master.master-mode) #ordersArea > .list-head {
@@ -203,9 +197,10 @@ body.rd #rdMobileNav .rd-mobile-more-trigger:not([aria-current="page"]) {
 
 body.rd #rdMobileNav .rd-mobile-more-trigger:not([aria-current="page"]) .rd-icon {color:inherit}
 
-body.rd > #newOrderBtn {display:none}
+body.rd > :is(#newOrderBtn,#newExpenseBtn) {display:none}
 
-html.rd-app-open:has(#ordersArea:not([hidden])) body.rd > #newOrderBtn:not([hidden]) {
+html.rd-app-open:has(#ordersArea:not([hidden])) body.rd > #newOrderBtn:not([hidden]),
+html.rd-app-open:has(#exMain:not([hidden])) body.rd[data-rd-role="owner"] > #newExpenseBtn:not([hidden]) {
   position:fixed;
   right:max(calc(var(--rd-safe-right) + var(--rd-screen-gutter)), calc((100vw - var(--rd-content-left) - var(--rd-content-max)) / 2 + var(--rd-screen-gutter)));
   bottom:calc(var(--rd-content-bottom) + var(--rd-fab-gap));
@@ -231,8 +226,8 @@ html.rd-app-open:has(#ordersArea:not([hidden])) body.rd > #newOrderBtn:not([hidd
   touch-action:manipulation;
 }
 
-body.rd > #newOrderBtn .plus {margin:0;font-size:23px;line-height:1}
-body.rd > #newOrderBtn:active {translate:0 1px}
+body.rd > :is(#newOrderBtn,#newExpenseBtn) .plus {margin:0;font-size:23px;line-height:1}
+body.rd > :is(#newOrderBtn,#newExpenseBtn):active {translate:0 1px}
 body.rd > #orderOverlay:not(.master-quick) {z-index:110}
 
 body.rd #rdProfileTrigger {
@@ -264,7 +259,7 @@ body.rd #rdProfileMenu {
   top:calc(100% + 8px);
   right:0;
   width:min(288px, calc(100vw - var(--rd-profile-right) - var(--rd-safe-left) - var(--rd-screen-gutter)));
-  max-height:max(0px, calc(100dvh - var(--rd-content-top) - var(--rd-content-bottom) - 10px));
+  max-height:max(0px, calc(100dvh - var(--rd-screen-top) - var(--rd-profile-size) - var(--rd-content-bottom) - 14px));
   box-sizing:border-box;
   padding:12px;
   overscroll-behavior:contain;
@@ -327,17 +322,17 @@ body.rd #rdProfileMenu #pushPopover {
   box-shadow:none;
 }
 
-body.rd #appScreen > #syncStatus:not([hidden]) {margin:0 0 8px}
+body.rd #appScreen > #syncStatus:not([hidden]) {min-block-size:0;margin:0 0 8px}
 
 body.rd #appScreen .rd-inline-search {
   display:block;
   width:100%;
   min-width:0;
-  min-height:44px;
+  min-height:var(--rd-profile-size);
   box-sizing:border-box;
   padding:8px 12px;
   border:1px solid #dbe4f4;
-  border-radius:11px;
+  border-radius:var(--rd-control-radius);
   background:#fff;
   color:#213653;
   font-size:16px;

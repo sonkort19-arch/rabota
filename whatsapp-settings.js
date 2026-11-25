@@ -13,7 +13,7 @@
     if(!wa())return;
     const id=++nextId;
     const rootBox=create("div","wa-settings-root");
-    const entry=create("button","wa-settings-entry");
+    const entry=create("button","wa-settings-entry rd-opening");
     entry.type="button";entry.setAttribute("aria-expanded","false");
     const icon=create("span","wa-settings-symbol");icon.setAttribute("aria-hidden","true");
     // Inline vector icon: no external font, emoji fallback, or extra network request.
@@ -24,7 +24,7 @@
     const editor=create("section","wa-settings-editor");
     editor.id="wa-settings-editor-"+id;editor.hidden=true;
     entry.setAttribute("aria-controls",editor.id);
-    const back=create("button","wa-settings-back","← Настройки");back.type="button";
+    const back=create("button","wa-settings-back rd-opening","← Настройки");back.type="button";
     const heading=create("h2","wa-settings-heading","WhatsApp · сообщения клиентам");
     heading.tabIndex=-1;
     editor.append(back,heading,
