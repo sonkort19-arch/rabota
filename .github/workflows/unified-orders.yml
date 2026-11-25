@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - 'index.html'
+      - 'app-shell.css'
       - 'orders-workspace.*'
       - 'order-payment.js'
       - 'order-model.js'
@@ -20,6 +21,7 @@ on:
     branches: [main, fix/crm-stability]
     paths:
       - 'index.html'
+      - 'app-shell.css'
       - 'orders-workspace.*'
       - 'order-payment.js'
       - 'order-model.js'

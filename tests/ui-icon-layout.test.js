@@ -26,7 +26,8 @@ test("global alignment stylesheet wins over earlier theme rules",()=>{
    alignmentFiles.map(file=>"/"+file));
  const moneyIndex=links.findIndex(href=>/^\/money-workspace\.css(?:\?|$)/.test(href));
  assert.ok(moneyIndex>i+alignmentFiles.length-1,"money workspace keeps its downstream overrides");
- assert.match(links.at(-1),/^\/orders-workspace\.css(?:\?|$)/);
+ assert.deepEqual(links.slice(-2).map(href=>href.split("?")[0]),
+   ["/orders-workspace.css","/app-shell.css"],"shared shell geometry follows the orders styles");
  assert.ok(css.includes(".rd-stat .rd-stat-body strong.rd-accent"));
  assert.ok(css.includes(".rd-stat .rd-stat-body .rd-stat-hint"));
  assert.ok(css.includes(".rd-nav-btn .rd-icon .rd-svgicon"));
