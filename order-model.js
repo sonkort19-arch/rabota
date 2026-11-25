@@ -54,7 +54,7 @@
     if(!deps||!Array.isArray(deps.statuses)||
        typeof deps.dbRequest!=="function"||typeof deps.reloadOrders!=="function"||
        typeof deps.getOrders!=="function"||typeof deps.getCurrentUserId!=="function"||
-       typeof deps.getFinanceOperations!=="function"||typeof deps.getFinanceCollections!=="function"){
+       typeof deps.getFinanceOperations!=="function"){
       throw new TypeError("Неверные зависимости модуля заказов");
     }
     const STATUSES=deps.statuses;
@@ -63,7 +63,6 @@
     const getOrders=deps.getOrders;
     const getCurrentUserId=deps.getCurrentUserId;
     const getFinanceOperations=deps.getFinanceOperations;
-    const getFinanceCollections=deps.getFinanceCollections;
     const paymentAttempts=new Map(),unconfirmedPayments=new Set(),confirmedPayments=new Map();
     const refundAttempts=new Map();
     let paymentGeneration=0;
@@ -116,8 +115,7 @@ function orderHasFinancialHistory(order){
       if(!order)return false;
       return Boolean(order.paid||order.paymentMethod||order.paymentAmount!=null||
         order.paymentReceivedBy||order.paidAt||order.paidBy||
-        getFinanceOperations().some(row=>String(row.order_id)===String(order.id))||
-        getFinanceCollections().some(row=>String(row.order_id)===String(order.id)));
+        getFinanceOperations().some(row=>String(row.order_id)===String(order.id)));
     }
 
 async function persistOrder(order,{refresh=true}={}) {
@@ -220,8 +218,8 @@ async function persistOrder(order,{refresh=true}={}) {
     function recordFullRefund(order,note){
       const id=String(order?.id??""),amount=payableAmount(order?.paymentAmount),actor=getCurrentUserId();
       if(!id||!actor||order.paid!==true||order.status!=="Выполнен"||
-        amount===null||amount!==payableAmount(order.price)||order.paymentReceivedBy!=="company")
-        throw new Error("Можно учесть только полный возврат по завершённому заказу, оплаченному компании.");
+        amount===null||amount!==payableAmount(order.price))
+        throw new Error("Можно учесть только полный возврат по завершённому и полностью оплаченному заказу.");
       note=String(note??"").trim();
       if(!note||Array.from(note).length>240)throw new Error("Укажите причину возврата до 240 символов.");
       let attempt=refundAttempts.get(id);

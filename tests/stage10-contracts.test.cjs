@@ -44,13 +44,18 @@ test("one order form, calendar and master summary remain wired",()=>{
   assert.match(html,/calendarModule\.renderCalendar\(\)/);
   assert.match(html,/function renderMasterSchedule\(rows,options\)\{return masterUI\.renderMasterSchedule\(rows,options\);\}/);
 });
-test("payment and master action calls remain server-side RPC paths",()=>{
-  for(const rpc of [
-    "rabota_record_order_payment","rabota_master_action",
-    "rabota_cash_distribute","rabota_cash_confirm",
-    "rabota_salary_payout_v2","rabota_finance_void"
-  ])assert.ok(html.includes("rpc/"+rpc),"missing "+rpc);
+test("payment, refund and master actions use current server-side RPCs",()=>{
+  const orders=read("order-model.js"),expenses=read("expenses.js");
+  assert.match(orders,/dbRequest\("rpc\/rabota_record_order_payment","POST"/);
+  assert.match(orders,/dbRequest\("rpc\/rabota_payroll_refund_v3","POST"/);
+  assert.match(html,/dbRequest\("rpc\/rabota_master_action","POST"/);
+  assert.match(html,/dbRequest\("rpc\/rabota_payroll_payout_v3","POST"/);
+  assert.match(html,/dbRequest\("rpc\/rabota_cashbook_record_v1","POST"/);
+  assert.match(expenses,/dbRequest\("rpc\/rabota_finance_void","POST"/);
+  assert.doesNotMatch([html,orders,read("money-workspace.js")].join("\n"),
+    /rpc\/rabota_(?:cash_distribute|cash_submit(?:_amount)?|cash_confirm(?:_amount)?|salary_payout_v2)/);
   const finance=read("finance-model.js");
+  assert.match(finance,/dbRequest\("rpc\/rabota_payroll_snapshot_v3","GET"/);
   assert.doesNotMatch(finance,/fetch\(/);
 });
 test("public client never embeds secret role keys or dangerous runtime code",()=>{

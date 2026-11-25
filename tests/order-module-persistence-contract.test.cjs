@@ -98,22 +98,22 @@ test("an ambiguous response cannot claim another actor or a different payment am
   assert.deepEqual(calls.map(call=>call[1]),["POST","GET"]);
 });
 
-test("only a complete company-held receipt can be submitted for a full refund",()=>{
+test("only a completed order with its full recorded payment can be refunded",()=>{
   const {model,calls}=harness();
   const order={...sample,status:"Выполнен",paid:true,paymentAmount:10000,paymentReceivedBy:"company"};
   assert.throws(()=>model.recordFullRefund({...order,paymentAmount:9999},"Причина"),/полный возврат/);
-  assert.throws(()=>model.recordFullRefund({...order,paymentReceivedBy:"master"},"Причина"),/полный возврат/);
+  assert.throws(()=>model.recordFullRefund({...order,status:"В работе"},"Причина"),/полный возврат/);
   assert.throws(()=>model.recordFullRefund(order," " ),/причину/);
   assert.equal(calls.length,0);
 });
 
-test("a partially acknowledged refund retries only the same audit request",async()=>{
+test("a refund of a payment received by the master retries only the same audit request",async()=>{
   let requests=0;
   const {model,calls}=harness({request:async()=>{
     if(++requests===1)throw new Error("Connection closed");
     return {order_id:sample.id,amount:10000,refunded_at:"2026-11-24T12:00:00Z",replayed:true};
   }});
-  const order={...sample,status:"Выполнен",paid:true,paymentAmount:10000,paymentReceivedBy:"company"};
+  const order={...sample,status:"Выполнен",paid:true,paymentAmount:10000,paymentReceivedBy:"master"};
   await assert.rejects(model.recordFullRefund(order,"Согласованный возврат"),/Connection closed/);
   assert.throws(()=>model.recordFullRefund(order,"Другая причина"),/теми же реквизитами/);
   assert.equal((await model.recordFullRefund(order,"Согласованный возврат")).replayed,true);

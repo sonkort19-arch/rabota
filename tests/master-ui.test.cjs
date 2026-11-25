@@ -29,7 +29,7 @@ const newOrder=(id,overrides={})=>({
   phone:"+79001234567",status:"Записан",radiators:5,floorLoops:2,
   price:10000,paid:false,...overrides
 });
-function setup({rows=[],role="master",tab="calendar",collections=[]}={}){
+function setup({rows=[],role="master",tab="calendar"}={}){
   const summary=new FakeNode("section"),ordersNode=new FakeNode("section");
   const doc={
     getElementById:id=>{
@@ -44,7 +44,6 @@ function setup({rows=[],role="master",tab="calendar",collections=[]}={}){
     make,parseDate,formatDate,STATUSES,ordersNode,doc,
     getOrders:()=>rows,
     getCurrentRole:()=>currentRole,getCurrentTab:()=>currentTab,
-    collectionForOrder:id=>collections.find(x=>String(x.order_id)===String(id))||null,
     openMasterOrderDialog:order=>opened.push(order.id)
   });
   return {ui,summary,ordersNode,opened,doc,setTab:x=>{currentTab=x;},setRole:x=>{currentRole=x;}};
@@ -82,19 +81,17 @@ test("working orders exclude only completed and cancelled",()=>{
   const {ui}=setup({rows});
   assert.deepEqual(ui.masterWorkingOrders().map(x=>x.id),["a","b"]);
 });
-test("settlements include unpaid completed or unconfirmed collections",()=>{
+test("paid and unpaid completed orders remain in history outside the working queue",()=>{
   const rows=[
     newOrder("a",{date:"2099-11-16",status:"Выполнен",paid:false}),
     newOrder("b",{date:"2099-11-17",status:"Выполнен",paid:true}),
     newOrder("c",{date:"2099-11-18",status:"Выполнен",paid:true}),
     newOrder("d",{status:"Записан",paid:false})
   ];
-  const collections=[
-    {order_id:"b",confirmed_at:null},
-    {order_id:"c",confirmed_at:"2099-11-18T18:00:00Z"}
-  ];
-  const {ui}=setup({rows,collections});
-  assert.deepEqual(ui.masterSettlementOrders().map(x=>x.id),["b","a"]);
+  const {ui,ordersNode}=setup({rows,tab:"history"});
+  assert.deepEqual(ui.masterWorkingOrders().map(x=>x.id),["d"]);
+  ui.renderMasterSchedule(rows.filter(order=>order.status==="Выполнен"));
+  assert.deepEqual(ordersNode.children.filter(node=>node.dataset.orderId).map(node=>node.dataset.orderId),["a","b","c"]);
 });
 test("schedule sorts future first, old orders last",()=>{
   const {ui}=setup();
@@ -148,11 +145,14 @@ test("master card preserves compact layout, dataset and action",()=>{
   assert.ok(toggle.children.some(n=>n.className==="master-schedule-work"&&n.textContent.includes("Радиаторы: 3")));
   toggle.click();assert.deepEqual(x.opened,["a"]);
 });
-test("paid completed card shows an unconfirmed money status",()=>{
-  const order=newOrder("b",{status:"Выполнен",paid:true});
-  const x=setup({rows:[order],collections:[{order_id:"b",company_amount:3500}]});
-  const card=x.ui.makeMasterScheduleRow(order,false);
-  assert.ok(card.children[0].children.some(n=>n.className==="master-money-note"&&n.textContent.includes("расчёт")));
+test("completed card reports an unpaid order and keeps paid history openable",()=>{
+  const x=setup();
+  const card=paid=>x.ui.makeMasterScheduleRow(newOrder("b",{status:"Выполнен",paid}),false).children[0];
+  const paidCard=card(true);
+  assert.equal(paidCard.children.some(n=>n.className==="master-money-note"),false);
+  assert.ok(card(false).children.some(n=>n.className==="master-money-note"&&n.textContent==="Оплата ещё не отмечена"));
+  paidCard.click();
+  assert.deepEqual(x.opened,["b"]);
 });
 test("schedule creates same group headings and rows for all orders",()=>{
   const rows=[
@@ -218,18 +218,17 @@ test("finance refresh does not unnecessarily replace unchanged overview",()=>{
   x.ui.renderMasterOverview(rows);
   assert.equal(oldChildren,x.summary.children);
 });
-test("master module loaded before inline use, payment RPCs unchanged",()=>{
+test("master module loads before inline use and completion delegates to server payment",()=>{
   const html=fs.readFileSync(path.join(__dirname,"..","index.html"),"utf8");
-  assert.match(html,/src="\/master-ui\.js\?v=20261124-handoff"/);
-  assert.ok(html.indexOf('src="/master-ui.js?v=20261124-handoff"')<
-    html.indexOf("const masterUI=window.__rdCreateMasterUI"));
+  const script=html.match(/src="\/master-ui\.js\?v=[^"]+"/);
+  assert.ok(script&&script.index<html.indexOf("const masterUI=window.__rdCreateMasterUI"));
   assert.match(html,/masterUI\.resetReviewOpen\(\)/);
   for(const name of ["masterClock","makeMasterScheduleRow","renderMasterOverview","renderMasterSchedule"]){
     assert.match(html,new RegExp("masterUI\\."+name+"\\("));
   }
-  for(const rpc of ["rabota_record_order_payment","rabota_cash_distribute","rabota_master_action","rabota_salary_payout_v2"]){
-    assert.ok(html.includes("rpc/"+rpc),"missing RPC "+rpc);
-  }
+  assert.match(html,/await orderModel\.recordFullPayment\(order,decision,receiver\)/);
+  assert.match(html,/await dbRequest\("rpc\/rabota_master_action","POST"/);
+  assert.doesNotMatch(html,/rpc\/rabota_cash_(?:distribute|submit|confirm)/);
   const inline=html.split("<script>\n").at(-1).split("</script>")[0];
   assert.doesNotThrow(()=>new Function(inline));
 });

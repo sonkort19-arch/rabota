@@ -103,3 +103,8 @@ test "$(db -c "SELECT earned_amount=1524.03 AND company_share=2572.08 AND rule_v
 test "$(db -c "SELECT earned_amount=11500 AND company_share=8500 AND rule_version='v3-50pct-plus-1500'
  FROM private.rabota_payroll_earnings_v3 WHERE order_id='10000000-0000-4000-8000-000000000042'")" = t
 echo 'PASS: a future rule change preserves exact earlier earnings and applies only to later payments'
+
+# Upgrade an already active v3 ledger with prior payments, payouts and handoffs.
+db -f tests/sql/accounting-cashbook-baseline.sql
+db -f sql/20261125001322_rabota_accounting_receipts.sql
+db -f tests/sql/accounting-receipts.sql

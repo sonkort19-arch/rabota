@@ -565,7 +565,6 @@ function build(){
        menu.hidden=true;salaryRoot.hidden=false;
        reports.classList.add("rd-reports-detail-open");
        ownerSalaryReport=window.__rdPayrollReport?.mount(salaryRoot,{
-         getSnapshot:()=>window.__rdOwnerPayrollSnapshot?.(),
          onBack:()=>{
            salaryRoot.hidden=true;salaryRoot.replaceChildren();
            menu.hidden=false;ownerSalaryReport=null;
@@ -603,7 +602,7 @@ function build(){
  $("financePanel").prepend(financeTitle);
  // Staff access administration is still available, but should not obscure the booking list.
  settings.append($("teamPanel"));
- // Original order editor, calendar state, and financial forms are retained.
+ // Keep the order editor inside the orders section.
  $("ordersArea").insertBefore($("newOrderBtn"),$("ordersArea").querySelector(".tabs"));
  if(currentRole==="owner"){
   const moduleRequest=async(path,method,payload)=>{
@@ -651,18 +650,15 @@ function navigate(key,updateHistory=true){
   if(key==="leads"){globalSearch.value=leadsSearchTerm;rdSearchTerm="";}
   if(!searchNeeded){globalSearch.value="";rdSearchTerm="";}
  }
- // Keep the visible screen, active navigation and legacy tab state in sync.
- // Update visibility before legacy rendering: a render error must not leave
- // the previous screen selected with the next screen's internal tab state.
+ // Update navigation and section visibility together.
  activePage=key;window.__rdCurrentPage=key;
- if(key==="finance")$("viewFinanceBtn").click();
- else if(financeActive)$("viewOrdersBtn").click();
  const isOrders=key==="orders",isCalendar=key==="calendar";
  // Initial calendar date must be Moscow today, not the date left in the Orders tab.
  // Revisiting calendar later keeps an explicitly selected date.
  if((isOrders||isCalendar)&&!calendarOpened){selectedDate=todayMoscow();calendarOpened=true;}
  $("ordersArea").hidden=!(isOrders||isCalendar);
  $("financePanel").hidden=key!=="finance";
+ if(key==="finance")window.__rdOpenFinanceView?.();
  $("rdHome").hidden=key!=="home";
  $("rdClients").hidden=key!=="clients";
  $("rdLeads").hidden=key!=="leads";

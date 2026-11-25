@@ -58,17 +58,6 @@
   font-size:11px;font-weight:700;line-height:1.25;padding:4px 6px
 }
 #appScreen.master-mode .master-schedule-details{padding:4px 12px 14px}
-#appScreen.master-mode .master-settlements{
-  margin:25px 0 16px;padding-top:17px;border-top:1px solid #dce4f2
-}
-#appScreen.master-mode .master-settlements-heading{
-  display:flex;justify-content:space-between;gap:8px;align-items:baseline
-}
-#appScreen.master-mode .master-settlements-heading h2{font-size:18px;margin:0}
-#appScreen.master-mode .master-settlements-hint{
-  font-size:12px;line-height:1.45;color:#697a94;margin:8px 0 13px
-}
-#appScreen.master-mode .master-settlements .master-schedule-toggle{background:#fffaf3}
 @media(max-width:390px){
   #appScreen.master-mode .master-schedule-toggle{
     grid-template-columns:62px minmax(0,1fr) 16px;gap:8px;padding:11px 9px

@@ -1,8 +1,7 @@
 /* Работа — зарплата владельца теперь отображается в «Отчётах», данные из финансовой модели. */
 "use strict";
 (()=>{
- const ui={tab:"payments",person:null,view:"accruals",month:"all"};
- let financeView=null,resetPayoutDialog=null,localIntent=null;
+ let resetPayoutDialog=null,localIntent=null;
  const $=id=>document.getElementById(id);
  const el=(tag,cls="",txt)=>{const n=document.createElement(tag);n.className=cls;if(txt!==undefined)n.textContent=String(txt);return n};
  const div=(cls,...children)=>{const n=el("div",cls);n.append(...children);return n};
@@ -10,9 +9,6 @@
  const money=n=>new Intl.NumberFormat("ru-RU",{minimumFractionDigits:2,maximumFractionDigits:2}).format(Number(n)||0)+" ₽";
  const localDate=s=>{if(!s)return "—";const d=new Date(String(s).length===10?s+"T12:00:00Z":s);
    return Number.isFinite(d.getTime())?new Intl.DateTimeFormat("ru-RU",{timeZone:String(s).length===10?"UTC":"Europe/Moscow",day:"2-digit",month:"2-digit",year:"numeric"}).format(d):String(s)};
- const who=(m,key)=>key==="raul"?{key,name:"Рауль",role:"Мастер",accrued:m.raulAccrued,paid:m.raulPaid,due:m.raulDue,kind:"raul_payout"}:
-   {key,name:"Тимур",role:"Помощник",accrued:m.timurAccrued,paid:m.timurPaid,due:m.timurDue,kind:"timur_payout"};
- const metric=(label,sum,hint,kind)=>div("fp-metric fp-"+kind,el("small","",label),el("strong","",money(sum)),el("span","",hint));
  const isPreview=()=>/^rabota-(?:git-[a-z0-9-]+-|[a-z0-9]{7,}-)sonkort19-6069s-projects\.vercel\.app$/i.test(String(window.location?.hostname||""));
  const isReady=m=>m?.ready ?? Boolean(m&&!m.loading&&!m.error);
  const isStale=m=>Boolean(m?.stale||m?.refreshError);
@@ -210,201 +206,12 @@
    if(intent)error.textContent="Ожидается подтверждение выплаты. Можно повторить тот же запрос.";
    modal.focus({preventScroll:true});
  }
- function payout(m,p){
-   if(!canPayout(m))return;
-   if(!Number.isFinite(p.due)||p.due<=0){window.alert("Положительного остатка к выплате нет.");return}
-   const dialog=payoutDialog(),{modal,close}=dialog;
-   const title=el("h2","","Выплата — "+p.name);title.id="fp-modal-title";
-   modal.append(div("fp-modal-heading",title,button("×","fp-close",close)));
-   modal.append(div("fp-modal-balance",el("span","","Текущий баланс"),el("strong","",money(p.due))));
-   const sumLabel=el("label","fp-label","Сумма выплаты, ₽");
-   const sum=el("input","fp-input");
-   sum.type="text";sum.inputMode="decimal";sum.autocomplete="off";
-   sum.setAttribute("aria-label","Сумма выплаты в рублях");
-   sum.value=Number(p.due).toFixed(2).replace(".",",");
-   sumLabel.append(sum);
-   const methodLabel=el("label","fp-label","Способ выплаты");
-   const method=el("select","fp-input");
-   for(const [value,label] of [["cash","Наличные"],["card","Карта"]]){
-     const option=el("option","",label);option.value=value;method.append(option);
-   }
-   methodLabel.append(method);
-   const noteLabel=el("label","fp-label","Комментарий");
-   const note=el("textarea","fp-input");
-   note.rows=2;note.maxLength=240;
-   note.value="Выплата зарплаты "+(p.key==="raul"?"Раулю":"Тимуру");
-   note.placeholder="Например: зарплата за неделю";noteLabel.append(note);
-   const doneEditing=button("Готово","fp-done",()=>{
-     document.activeElement?.blur?.();
-     modal.scrollTo?.({top:modal.scrollHeight,behavior:"smooth"});
-   });
-   const remainder=el("strong",""),error=el("p","fp-error");
-   error.setAttribute("role","alert");
-   const confirmButton=button(isPreview()?"Проверить расчёт":"Подтвердить выплату","fp-primary",()=>{});
-   const cancelButton=button("Отмена","fp-secondary",close);
-   const valid=()=>{
-     const cents=centsFromText(sum.value),limit=Math.round(Number(p.due)*100);
-     const validAmount=cents!==null&&cents>0&&cents<=limit;
-     remainder.textContent=validAmount?money((limit-cents)/100):"—";
-     const message=!sum.value.trim()?"Укажите сумму":
-       cents===null||cents<=0?"Некорректная сумма":
-       cents>limit?"Сумма больше остатка":
-       !note.value.trim()?"Добавьте комментарий":"";
-     error.textContent=message;
-     confirmButton.disabled=dialog.busy||!!message;
-     return !message;
-   };
-   sum.addEventListener("input",valid);note.addEventListener("input",valid);
-   confirmButton.addEventListener("click",async()=>{
-     if(dialog.busy||!valid())return;
-     if(isPreview()){error.textContent="Предпросмотр: выплата не записана в Supabase.";return}
-     const latest=window.__rdOwnerPayrollSnapshot?.();
-     if(latest&&!canPayout(latest)){
-       error.textContent="Обновите данные зарплаты перед выплатой.";
-       return;
-     }
-     const cents=centsFromText(sum.value),value=cents/100;
-     if(!window.confirm("Провести РЕАЛЬНУЮ выплату "+p.name+" на "+money(value)+"?"))return;
-     if(typeof window.__rdRecordPayrollPayout!=="function"){
-       error.textContent="Связь с финансовым модулем недоступна. Обновите страницу.";
-       return;
-     }
-     dialog.busy=true;confirmButton.disabled=true;cancelButton.disabled=true;
-     sum.disabled=true;note.disabled=true;method.disabled=true;doneEditing.disabled=true;
-     document.activeElement?.blur?.();
-     error.classList.add("fp-progress");
-     error.textContent="Сохраняю выплату в финансовой истории...";
-     try{
-       const result=await window.__rdRecordPayrollPayout({
-         kind:p.kind,amount:value,method:method.value,note:note.value.trim()
-       });
-       if(dialog.closed)return;
-       // The RPC has returned success. Show a receipt, never submit twice.
-       dialog.busy=false;
-       const updated=Number.isFinite(result.updatedDue)?result.updatedDue:
-         Math.max(0,Math.round((p.due-value)*100)/100);
-       const receiptTitle=el("h2","","Выплата проведена");receiptTitle.id="fp-modal-title";
-       const header=div("fp-modal-heading",receiptTitle,button("×","fp-close",close));
-       const receipt=div("fp-success",
-         el("strong","fp-success-amount",money(value)),
-         el("span","","Выплата — "+p.name+" · "+(method.value==="cash"?"наличные":"карта")),
-         el("p","","Запись подтверждена финансовой базой."));
-       const balance=div("fp-modal-balance",
-         el("span","",result.refreshError?"Расчётный остаток":"Осталось выплатить"),
-         el("strong","",money(updated)));
-       const actions=div("fp-actions",button("Закрыть","fp-primary",close));
-       modal.replaceChildren(header,receipt,balance);
-       if(result.refreshError)modal.append(el("p","fp-hint",
-         "Выплата сохранена, но обновить финансовый экран не удалось. Откройте финансы повторно; не проводите эту выплату ещё раз."));
-       modal.append(actions);
-       modal.scrollTop=0;
-     }catch(failure){
-       if(dialog.closed)return;
-       // An interrupted network response may be ambiguous: block repeat submission.
-       dialog.busy=false;error.classList.remove("fp-progress");
-       error.textContent="Не удалось подтвердить запись: "+(failure?.message||"ошибка связи")+
-         ". Проверьте финансовую историю перед новой попыткой, чтобы исключить двойную выплату.";
-       cancelButton.disabled=false;doneEditing.disabled=false;
-       confirmButton.disabled=true;sum.disabled=true;note.disabled=true;
-     }
-   });
-   modal.append(sumLabel,methodLabel,noteLabel,div("fp-keyboard-actions",doneEditing),
-     div("fp-after",el("span","","Останется выплатить"),remainder),error);
-   if(isPreview())modal.append(el("p","fp-hint",
-     "Тестовая версия: кнопка показывает результат, но реальные деньги не списывает."));
-   modal.append(div("fp-actions",cancelButton,confirmButton));
-   // Focus the dialog, not the amount field: do not force the iPhone keyboard open.
-   modal.focus({preventScroll:true});
-   valid();
- }
- function employeeList(m,redraw){
-   const section=el("section","fp-section");
-   section.append(div("fp-title-row",el("h2","","Сотрудники"),el("small","","Баланс за всё время")));
-   const list=el("div","fp-people");
-   list.append(div("fp-people-head",...["Сотрудник","Начислено","Выдано","Остаток",""].map(x=>el("span","",x))));
-   for(const key of ["raul","timur"]){
-     const p=who(m,key),open=button("","fp-person-button",()=>{ui.person=key;ui.view="accruals";ui.month="all";redraw()});
-     open.append(el("span","fp-avatar",p.name[0]),div("fp-name",el("strong","",p.name),el("small","",p.role)));
-     open.setAttribute("aria-label","Открыть историю: "+p.name);
-     const pay=button("Выплата","fp-pay",()=>payout(m,p));pay.disabled=!canPayout(m);
-     list.append(div("fp-person-row",open,el("span","fp-col-accrued",money(p.accrued)),
-       el("span","fp-col-paid",money(p.paid)),el("strong","fp-due",money(p.due)),
-       pay));
-   }
-   section.append(list,el("p","fp-hint","Начисления считаются только по выполненным и оплаченным заказам. Выплаты берутся из финансовой истории."));
-   return section;
- }
- function employeeDetail(m,redraw){
-   const p=who(m,ui.person),wrap=el("section","fp-person-detail");
-   const possessive=p.key==="raul"?"Рауля":"Тимура";
-   wrap.append(div("fp-person-heading",
-     button("← К сотрудникам","fp-link",()=>{ui.person=null;redraw()}),
-     el("span","fp-person-role",p.role)));
-   const hero=el("section","fp-balance-hero");
-   hero.setAttribute("aria-label","Баланс сотрудника "+p.name);
-   const headline=div("fp-balance-headline",
-     el("span","fp-balance-eyebrow","Зарплата · "+p.name),
-     el("h2","fp-balance-label","Баланс "+possessive),
-     el("strong","fp-balance-value",money(p.due)),
-     el("p","fp-balance-description",p.due>0?"Осталось выплатить сотруднику":"Задолженности по зарплате нет"));
-   const payoutButton=button("Выплатить","fp-balance-payout",()=>payout(m,p));
-   payoutButton.disabled=!canPayout(m)||!Number.isFinite(p.due)||p.due<=0;
-   payoutButton.setAttribute("aria-label","Выплатить зарплату: "+p.name);
-   hero.append(headline,payoutButton);
-   wrap.append(hero);
-   wrap.append(div("fp-person-summary",
-     div("fp-person-summary-item",
-       el("span","","Начислено за всё время"),
-       el("strong","",money(p.accrued))),
-     div("fp-person-summary-item",
-       el("span","","Уже выплачено"),
-       el("strong","",money(p.paid)))));
-   const tabs=el("div","fp-subtabs");
-   for(const [key,label] of [["accruals","Начисления"],["payments","Выплаты"]]){
-     const b=button(label,"fp-subtab"+(ui.view===key?" active":""),()=>{ui.view=key;ui.month="all";redraw()});
-     b.setAttribute("aria-pressed",String(ui.view===key));tabs.append(b)
-   }
-   wrap.append(tabs);
-   const items=ui.view==="accruals"?m.orders.map(o=>({date:o.date,title:o.name||"Заказ",info:"Заказ на "+money(o.price),value:ui.person==="raul"?o.raul:o.timur}))
-     :m.operations.filter(o=>!o.voided_at&&o.kind===p.kind).map(o=>({date:o.created_at,title:o.note||"Выплата",info:(o.order_id?"Автоматическое распределение":"Ручная выплата")+(o.payment_method?" · "+(o.payment_method==="cash"?"Наличные":"Карта"):" · способ не указан"),value:-Number(o.amount)}));
-   const months=[...new Set(items.map(i=>String(i.date||"").slice(0,7)).filter(x=>/^\d{4}-\d{2}$/.test(x)))].sort().reverse();
-   const period=el("select","fp-period");period.setAttribute("aria-label","Период");
-   for(const [v,name] of [["all","Все периоды"],...months.map(v=>[v,new Intl.DateTimeFormat("ru-RU",{year:"numeric",month:"long",timeZone:"UTC"}).format(new Date(v+"-01T12:00:00Z"))])]){
-     const o=el("option","",name);o.value=v;period.append(o)
-   }
-   period.value=ui.month;period.addEventListener("change",()=>{ui.month=period.value;redraw()});
-   wrap.append(div("fp-title-row",el("h3","",ui.view==="accruals"?"Начисления по заказам":"История выплат"),period));
-   const selected=items.filter(o=>ui.month==="all"||String(o.date||"").startsWith(ui.month)).sort((a,b)=>String(b.date||"").localeCompare(String(a.date||"")));
-   const total=selected.reduce((s,i)=>s+Number(i.value||0),0);
-   wrap.append(div("fp-total",el("span","","Сумма за выбранный период"),el("strong","",money(total))));
-   if(!selected.length)wrap.append(el("p","fp-hint","Записей за выбранный период нет."));
-   const ledger=el("div","fp-ledger");
-   for(const item of selected){
-     ledger.append(div("fp-ledger-row",el("span","fp-date",localDate(item.date)),
-       div("fp-ledger-description",el("strong","",item.title),el("small","",item.info)),
-       el("strong",item.value<0?"fp-negative":"fp-positive",(item.value<0?"−":"+")+money(Math.abs(item.value)))));
-   }
-   wrap.append(ledger);
-   if(ui.view==="accruals")wrap.append(el("p","fp-hint","Показана дата визита, а не дата оплаты. Начисления вычисляются по текущим данным заказов."));
-   return wrap;
- }
- function overview(m,redraw){
-   const wrap=el("div","fp-screen");
-   // Show company-wide payroll totals on the employee list only. When drilling
-   // into one employee, their balance must be the first, primary number.
-   if(ui.person){wrap.append(employeeDetail(m,redraw));return wrap;}
-   wrap.append(div("fp-metrics",
-     metric("К выплате сотрудникам",m.raulDue+m.timurDue,"Рауль и Тимур","blue"),
-     metric("Всего начислено",m.raulAccrued+m.timurAccrued,"По выполненным и оплаченным заказам","green"),
-     metric("Всего выдано",m.raulPaid+m.timurPaid,"По истории операций","purple")));
-   wrap.append(employeeList(m,redraw));return wrap
- }
  const historyMonth=new Intl.DateTimeFormat("sv-SE",{timeZone:"Europe/Moscow",year:"numeric",month:"2-digit"});
  const monthLabel=new Intl.DateTimeFormat("ru-RU",{year:"numeric",month:"long",timeZone:"UTC"});
  function cutoverReview(holds){
    const review=el("details","fp-cutover-review");
-   review.append(el("summary","","На сверке · "+holds.length+" заказов"),
-     el("p","fp-hint","Спорные начисления и выплаты исключены из доступной суммы. Местонахождение наличных указано в журнале передач по мере подтверждения."));
+   review.append(el("summary","","Архив сверки · "+holds.length+" заказов"),
+     el("p","fp-hint","Здесь сохранены спорные операции прежней системы. Они не увеличивают доступный остаток зарплаты."));
    const list=el("ul","fp-cutover-list");
    for(const hold of holds){
      const title=hold.reference||(hold.orderNumber!=null?"№"+String(hold.orderNumber).padStart(5,"0"):"Заказ");
@@ -413,7 +220,7 @@
      if(hold.payrollOnHold) item.append(el("small","","Начисление на сверке "+money(hold.earned)+
        (hold.credited?" · подтверждено выплат "+money(hold.credited):"")+
        (hold.linkedRecorded?" · в старом журнале по заказу "+money(hold.linkedRecorded):"")));
-     if(hold.cashOnHold) item.append(el("small","","Получено от клиента "+money(hold.paymentAmount)+" · сумма наличных к передаче уточняется"));
+     if(hold.cashOnHold) item.append(el("small","","Получено от клиента "+money(hold.paymentAmount)+" · историческая запись на сверке"));
      list.append(item);
    }
    review.append(list);return review;
@@ -503,19 +310,8 @@
    }
    return wrap;
  }
- function cash(m){
-   const wrap=el("div","fp-screen");
-   wrap.append(div("fp-metrics",
-     metric("Доля компании",m.companyEarned,"До прочих расходов","blue"),
-     metric("Осталось передать",m.masterHeld,"Деньги у мастера","orange"),
-     metric("Ожидает подтверждения",m.waitingOwner,"Передача отмечена","green")));
-   wrap.append(el("p","fp-hint","Это расчётная доля компании, не наличные в кассе. Ниже сохранён полный действующий финансовый отчёт и подтверждение поступлений."));
-   return wrap
- }
- // The existing salary screen now lives in owner Reports, with the same payout RPC.
  window.__rdPayrollReport={
-   mount(root,{getSnapshot,onBack,master=false}){
-     ui.person=null;ui.view="accruals";ui.month="all";
+   mount(root,{onBack,master=false}){
      const v3State={view:"accruals",month:"all"};
      const back=button("Отчёты","fp-link fp-crumb-back",()=>onBack?.());
      back.setAttribute("aria-label","Вернуться ко всем отчётам");
@@ -523,18 +319,13 @@
        el("h2","fp-report-title","Зарплата"));
      nav.setAttribute("aria-label","Отчёты / Зарплата");
      const status=el("p","fp-status-text"),content=el("div","");
-     const retry=button("Повторить","secondary fp-retry",()=>{
-       if(payroll()?.active)void window.__rdMoneyUi.reloadPayroll?.();
-       else void window.__rdOwnerPayrollReload?.();
-     });
+     const retry=button("Повторить","secondary fp-retry",()=>void window.__rdMoneyUi?.reloadPayroll?.());
      const state=div("fp-data-status",status,retry);
      root.replaceChildren(nav,state,content);
      let rendered=null;
      const redraw=()=>{
-       const active=payroll();
-       const v3=Boolean(active?.active);
-       const m=v3?active:typeof getSnapshot==="function"?getSnapshot():null;
-       const allowed=v3?Boolean(m.employeeId||m.loading||m.error):Boolean(!master&&m?.isOwner);
+       const m=payroll();
+       const allowed=Boolean(m&&(m.active&&m.employeeId||m.loading||m.error));
        const stale=isStale(m);
        const warning=m?.error||m?.refreshError;
        const message=!allowed?(master?"Данные зарплаты для этого мастера не подключены.":
@@ -551,116 +342,25 @@
          return;
        }
        const version=m.revision??JSON.stringify(m);
-       const pending=v3&&!master?savedIntent(m):null;
-       const key=JSON.stringify(v3?[version,v3State.view,v3State.month,pending?.requestId]:
-         [version,ui.person,ui.view,ui.month,stale]);
+       const pending=!master?savedIntent(m):null;
+       const key=JSON.stringify([version,v3State.view,v3State.month,pending?.requestId]);
        if(rendered===key){
-         if(v3&&!master){
+         if(!master){
            const disabled=pending?!allowV3Payout(m):!canStartV3Payout(m);
            for(const control of content.querySelectorAll?.(".fp-v3-actions button")??[])control.disabled=disabled;
          }
          return;
        }
        rendered=key;
-       content.replaceChildren(v3?v3Payroll(m,!master,v3State,redraw):overview(m,redraw));
+       content.replaceChildren(v3Payroll(m,!master,v3State,redraw));
      };
      redraw();
      return {render:redraw};
    }
  };
- window.__rdFinancePaymentTabActive=()=>ui.tab==="payments";
- window.__rdFinanceEnhance=(m,legacyContent)=>{
-   if(!m?.isOwner)return;
-   const root=$("financeContent"),history=$("financeHistory"),entry=$("financeEntry");
-   if(!root||!history||!entry)return;
-   const first=!financeView||financeView.root!==root;
-   if(first){
-     const legacy=el("div","fp-original");
-     if(!legacyContent)while(root.firstChild)legacy.append(root.firstChild);
-     const tabs=el("div","fp-tabs"),panel=el("div","fp-panel");
-     const payments=el("div","fp-payments-panel"),cash=el("div","fp-cash-panel");
-     const operations=el("p","fp-hint",isPreview()?
-       "Тестовая версия: просмотр истории без изменения реальных финансовых операций.":
-       "История финансовых операций и управление записями доступны ниже.");
-     const status=el("p","fp-status-text");
-     const retry=button("Повторить","secondary fp-retry",()=>window.__rdMoneyUi?.refreshFinance?.());
-     const dataStatus=div("fp-data-status",status,retry);
-     const historyTitle=$("financePanel")?.querySelector(":scope > h2.finance-title");
-     const view={root,legacy,tabs,payments,cash,operations,status,retry,dataStatus,historyTitle,model:null,cashRevision:null};
-     financeView=view;
-     panel.append(payments,dataStatus,cash,operations,legacy);
-     root.replaceChildren(tabs,panel);
-     for(const [value,label] of [["payments","Платежи"],["cash","Касса"],["operations","Операции"]]){
-       const b=button(label,"fp-tab",()=>{
-         if(ui.tab===value)return;
-         ui.tab=value;
-         updateFinanceTabs(view,history,entry,true);
-       });
-       b.setAttribute("data-finance-tab",value);
-       tabs.append(b);
-     }
-   }
-   financeView.model=m;
-   if(legacyContent)financeView.legacy.replaceChildren(...legacyContent.children);
-   if(isPreview()){
-     const save=$("financeSaveBtn"),form=$("financeForm");
-     if(save)save.disabled=true;
-     if(form&&!form.dataset?.financePreviewLock){
-       form.dataset.financePreviewLock="1";
-       form.addEventListener("submit",event=>{
-         event.preventDefault();
-         event.stopImmediatePropagation();
-       },true);
-     }
-   }
-   updateFinanceTabs(financeView,history,entry,first);
- };
- function updateFinanceTabs(view,history,entry,activatePayments){
-   const m=view.model,ready=isReady(m),stale=isStale(m);
-   for(const b of view.tabs.children){
-     const active=b.getAttribute("data-finance-tab")===ui.tab;
-     b.className="fp-tab"+(active?" active":"");
-     b.setAttribute("aria-pressed",String(active));
-   }
-   view.payments.hidden=ui.tab!=="payments";
-   view.cash.hidden=view.legacy.hidden=ui.tab!=="cash"||!ready;
-   view.operations.hidden=ui.tab!=="operations"||!ready;
-   history.hidden=view.operations.hidden;
-   entry.hidden=view.operations.hidden||stale;
-   if(view.historyTitle)view.historyTitle.hidden=view.operations.hidden;
-   if(!view.payments.hidden)window.__rdPaymentsRender?.(view.payments,activatePayments);
-   const message=m.error?"Не удалось загрузить финансы. "+m.error:
-     !ready?"Загружаем финансы…":
-     stale?"Показаны последние финансовые расчёты. Обновите их перед операцией."+ (m.refreshError?" "+m.refreshError:""):"";
-   view.dataStatus.hidden=ui.tab==="payments"||!message;
-   view.retry.hidden=!(m.error||stale);
-   if(view.status.textContent!==message)view.status.textContent=message;
-   view.status.setAttribute("role",m.error||m.refreshError?"alert":"status");
-   if(ready&&!view.cash.hidden){
-     const version=m.revision??JSON.stringify([m.companyEarned,m.masterHeld,m.waitingOwner]);
-     if(view.cashRevision!==version){
-       view.cash.replaceChildren(cash(m));view.cashRevision=version;
-     }
-   }
-   const locked=isPreview()||!ready||stale;
-   for(const section of [view.legacy,history,entry]){
-     for(const control of section.querySelectorAll?.("button")||[]){
-       if(locked&&!control.disabled){
-         control.disabled=true;control.dataset.financeReadLock="1";
-       }else if(!locked&&control.dataset.financeReadLock==="1"){
-         control.disabled=false;delete control.dataset.financeReadLock;
-       }
-     }
-   }
- }
  window.__rdResetPayrollUi=()=>{
    resetPayoutDialog?.();
    localIntent=null;
-   financeView?.root.replaceChildren();financeView=null;
    $("rdSalaryReport")?.replaceChildren();
-   ui.tab="payments";ui.person=null;ui.view="accruals";ui.month="all";
  };
- // A saved session can finish restoring while this script is still downloading.
- if($("financePanel")?.hidden===false&&window.__rdMoneyUi?.snapshot?.()?.role==="owner"&&
-   typeof renderFinance==="function")renderFinance();
 })();

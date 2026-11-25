@@ -9,7 +9,7 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
 const { chromium, webkit } = require("playwright");
-const {mockLegacyPayrollSnapshot}=require("./fixtures/legacy-payroll.cjs");
+const {mockAccountingSnapshot}=require("./fixtures/legacy-payroll.cjs");
 
 const ROOT = path.resolve(__dirname, "..");
 const CAPTURE_DIR = process.env.RABOTA_SCREENSHOT_DIR || "/tmp/rabota-unified-qa";
@@ -132,8 +132,10 @@ async function session(browser, role, width, writeFixture = null) {
         const orders=paid?[{order_id:saved.id,paid_amount:saved.payment_amount,earned_amount:11500,
           company_share:8500,earned_at:saved.paid_at,rule_version:3}]:[];
         const earned=paid?11500:0;
+        const receipts=saved?.paid?[{order_id:saved.id,amount:saved.payment_amount,
+          master_id:"fixture-raul",payment_method:saved.payment_method,paid_at:saved.paid_at,occurred_at:saved.paid_at}]:[];
         return route.fulfill({json:{version:3,state:"active",master_id:"fixture-raul",activated_at:"2026-11-24T09:00:00Z",
-          earned,paid:0,due:earned,orders,payouts:[],refunds:writeFixture.refund?[writeFixture.refund]:[]}});
+          earned,paid:0,due:earned,orders,payouts:[],accounting_version:1,accounting_receipts:receipts,accounting_payouts:[],refunds:writeFixture.refund?[writeFixture.refund]:[]}});
       }
       if (endpoint === "rabota_members") {
         let members = MEMBERS;
@@ -159,7 +161,7 @@ async function session(browser, role, width, writeFixture = null) {
     unexpected.push(request.method() + " " + url.origin + url.pathname);
     return route.abort();
   });
-  if(!writeFixture?.payrollV3)await mockLegacyPayrollSnapshot(context);
+  if(!writeFixture?.payrollV3)await mockAccountingSnapshot(context,{role});
   await page.goto("https://crm.test/");
   await page.locator("#appScreen.rd-unified-orders").waitFor({ state: "visible" });
   await page.locator("#owViewSwitch").waitFor({ state: "visible" });
@@ -494,7 +496,7 @@ async function checkActivatedPaymentAndRefund(browser) {
   const s=await session(browser,"owner",390,fixture);
   try{
     const {page,writes}=s;
-    await page.waitForFunction(()=>window.__rdPayrollMode?.()==="v3");
+    await page.waitForFunction(()=>window.__rdPayrollSnapshot?.()?.accountingVersion===1);
     await chooseDay(page,EMPTY_DAY);
     await page.locator("#newOrderBtn").click();
     await page.locator("#clientName").fill("Тест оплаты и возврата");
@@ -508,7 +510,7 @@ async function checkActivatedPaymentAndRefund(browser) {
     const payment=page.locator(".rd-pay-overlay");
     await payment.getByText("Полная стоимость заказа").waitFor();
     assert.equal(await payment.locator(".rd-pay-change").isVisible(),false);
-    assert.equal(await payment.locator("#rdPayAmount").isDisabled(),true);
+    assert.equal(await payment.locator("#rdPayAmount").count(),0);
     await payment.getByRole("button",{name:/^Получено 20/}).click();
     await page.locator("#orderOverlay").waitFor({state:"hidden"});
     assert.deepEqual(writes,["POST /rest/v1/rabota_orders","POST /rest/v1/rpc/rabota_record_order_payment"]);

@@ -1,4 +1,4 @@
-/* CRM Работа — compact payment sheet; keyboard appears only when editing sum. */
+/* Compact full-payment confirmation. */
 .rd-pay-overlay[hidden],.rd-pay-dialog [hidden]{display:none!important}
 .rd-pay-overlay{
   position:fixed;left:0;right:0;top:var(--rd-pay-top,0px);height:var(--rd-pay-height,100dvh);
@@ -28,28 +28,10 @@
 }
 .rd-pay-sum-top{display:flex;justify-content:space-between;align-items:center;gap:8px}
 .rd-pay-sum-top span{color:#72809a;font-size:12px;font-weight:650}
-.rd-pay-change{
-  flex-shrink:0;border:0;background:transparent;color:#455bed;min-height:36px;
-  padding:5px 0 5px 8px;font-size:13px;font-weight:700
-}
 .rd-pay-sum-view{margin-top:0}
 .rd-pay-sum-view strong{
   display:block;font-variant-numeric:tabular-nums;font-size:29px;
   line-height:1.25;letter-spacing:-.5px;overflow-wrap:anywhere
-}
-.rd-pay-sum-edit{display:flex;align-items:center;gap:7px;margin-top:7px;min-width:0}
-.rd-pay-sum-edit input{
-  box-sizing:border-box;flex:1;min-width:0;min-height:46px;border:1px solid #bbc9eb;
-  border-radius:10px;padding:8px 10px;font-size:19px;font-weight:700;color:#152749
-}
-.rd-pay-sum-edit>span{font-size:18px;font-weight:700}
-.rd-pay-edit-done{
-  flex:0 0 auto;border:0;background:#e8eeff;color:#384ccd;border-radius:10px;
-  padding:8px 10px;min-height:44px;font-size:13px;font-weight:750
-}
-.rd-pay-sr-only{
-  position:absolute!important;width:1px;height:1px;overflow:hidden;
-  clip:rect(0,0,0,0);white-space:nowrap
 }
 .rd-pay-adjust{color:#a45c17;font-size:11px;line-height:1.35;margin:6px 3px 0}
 .rd-pay-dialog fieldset{border:0;min-width:0;margin:13px 0 0;padding:0}
@@ -63,7 +45,6 @@
 .rd-pay-method:has(input:checked){border-color:#5364ed;background:#eef1ff;color:#394bd5}
 .rd-pay-method input{accent-color:#5364ed;width:19px;height:19px;flex:0 0 19px}
 .rd-pay-method span{min-width:0;font-size:12px;font-weight:700;line-height:1.25}
-.rd-pay-receiver{margin:9px 0 10px;color:#67758b;font-size:11px;line-height:1.4}
 .rd-pay-footer{
   position:sticky;bottom:0;z-index:2;margin:0 -17px;
   padding:9px 17px max(12px,env(safe-area-inset-bottom));

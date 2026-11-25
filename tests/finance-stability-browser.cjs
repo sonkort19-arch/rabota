@@ -16,6 +16,7 @@ const manager={user_id:"manager-fixture",role:"manager",active:true};
 const otherMaster={user_id:"other-master-fixture",role:"master",master_name:"Олег",active:true};
 const payrollSnapshotRpc="rabota_payroll_snapshot_v3";
 const payrollPayoutRpc="rabota_payroll_payout_v3";
+const obsoleteCustody=/Осталось передать|Ожидает подтверждения|Деньги у мастера|Передать деньги|Отметить передачу|Подтвердить получение|Ручное распределение|Сдача компании от мастера/i;
 const paidOrderValue=8001.01;
 const salaryEarned=5500.51;
 const priorPayout=700.5;
@@ -23,6 +24,8 @@ const amountDue=4800.01;
 const refundedAmount=3200;
 const reversedEarnings=3100;
 const masterCardPayment=3456.78;
+const grossReceipts=14657.79;
+const startingBookBalance=11257.29;
 const round=value=>Math.round(value*100)/100;
 const rows=[
   {id:"incoming",kind:"income",amount:1000,to_account:"card",created_at:stamp,note:"Прочий доход"},
@@ -30,6 +33,8 @@ const rows=[
 ];
 const ops=[
   {id:"expense-card",kind:"expense",amount:500,payment_method:"card",created_at:stamp,note:"Материалы"},
+  {id:"expense-voided",kind:"expense",amount:900,payment_method:"cash",created_at:stamp,voided_at:stamp,
+    note:"Отменённый тестовый расход"},
   {id:"payout-manual",kind:"raul_payout",master_user_id:master.user_id,amount:1500,payment_method:"cash",created_at:stamp,note:"Ручная выплата"},
   {id:"payout-auto",kind:"raul_payout",master_user_id:master.user_id,order_id:"transfer-order",amount:200,payment_method:"cash",created_at:stamp}
 ];
@@ -40,6 +45,23 @@ const orders=[
   ...order,order_number:100+i,paid:true,price:10000,payment_amount:10000,payment_method:"cash",
   status:"Выполнен",paid_at:stamp,created_at:stamp,completed_at:stamp,
   appointment_date:day,appointment_time:"12:00",assigned_user_id:master.user_id,master:"Рауль"
+}));
+const directReceipt={...orders[0],price:paidOrderValue,payment_amount:paidOrderValue};
+const advance={...orders[1],name:"Незавершённый оплаченный заказ",status:"Записан"};
+const partialOrder={...orders[1],id:"partial-order",order_number:102,
+  name:"Частично оплаченный заказ",payment_amount:2400};
+const refundedOrder={...orders[0],id:"refunded-order",order_number:103,name:"Заказ с возвратом",
+  payment_received_by:"master",price:refundedAmount,payment_amount:refundedAmount};
+const otherSale={...orders[1],id:"master-card-order",order_number:104,name:"Оплата на карту мастера",
+  master:otherMaster.master_name,assigned_user_id:otherMaster.user_id,
+  payment_method:"card",price:masterCardPayment,payment_amount:masterCardPayment};
+const managerOrder={...orders[0],id:"managed-unpaid-order",order_number:105,
+  name:"Заказ для оплаты менеджером",paid:false,price:4560,payment_amount:null,payment_method:null,
+  paid_at:null,payment_received_by:null};
+const sales=[directReceipt,advance,partialOrder,refundedOrder,otherSale];
+const officialReceipts=[directReceipt,refundedOrder,otherSale].map(order=>({
+  order_id:order.id,master_id:order.assigned_user_id,amount:order.payment_amount,
+  payment_method:order.payment_method,paid_at:order.paid_at,occurred_at:order.completed_at
 }));
 function gate(){
   let release;
@@ -56,11 +78,12 @@ async function fixture(browser,{source=root,latency=0,role="owner",width=390,pay
   const page=await context.newPage();
   page.setDefaultTimeout(7000);
   const member={owner,master,manager,"other-master":otherMaster}[role];
-  const state={rows:rows.slice(),holds:new Map(),fail:new Set(),denied:new Set(),
+  const state={rows:rows.slice(),orders:role==="manager"?[...sales,managerOrder]:sales,
+    holds:new Map(),fail:new Set(),denied:new Set(),
     lostPayoutResponse:false,collections:[]};
   const payoutReceipts=new Map();
   const payroll={
-    version:3,state:"active",master_id:master.user_id,activated_at:stamp,
+    version:3,state:"active",master_id:master.user_id,activated_at:stamp,accounting_version:1,
     earned:salaryEarned,paid:priorPayout,due:amountDue,
     orders:[{
       order_id:"direct-order",paid_amount:paidOrderValue,earned_amount:salaryEarned,
@@ -101,12 +124,24 @@ async function fixture(browser,{source=root,latency=0,role="owner",width=390,pay
     if(state.fail.delete(resource))return route.fulfill({status:503,json:{message:"Тестовый сетевой сбой"}});
     if(resource===payrollSnapshotRpc&&payrollV3){
       assert.equal(request.method(),"GET");
-      return route.fulfill({json:role==="owner"||role==="master" ? payroll :
-        {version:3,state:"not_applicable",activated_at:stamp}});
+      if(role==="owner")return route.fulfill({json:{...payroll,
+        accounting_receipts:officialReceipts,accounting_payouts:payroll.payouts}});
+      const scoped=officialReceipts.filter(receipt=>receipt.master_id===member.user_id);
+      if(role==="master")return route.fulfill({json:{...payroll,accounting_receipts:scoped}});
+      return route.fulfill({json:{version:3,state:"not_applicable",activated_at:stamp,
+        accounting_version:1,...(role==="other-master"?{accounting_receipts:scoped}:{})}});
     }
     if(request.method()!=="GET"){
       const data=request.postDataJSON();
       writes.push({resource,data});
+      if(resource==="rabota_record_order_payment"&&role==="manager"){
+        assert.equal(request.method(),"POST");
+        assert.deepEqual(data,{p_order_id:managerOrder.id,p_amount:managerOrder.price,p_method:"card"});
+        state.orders=state.orders.map(order=>order.id===data.p_order_id?{...order,
+          paid:true,payment_amount:data.p_amount,payment_method:data.p_method,
+          payment_received_by:"company",paid_by:member.user_id,paid_at:stamp}:order);
+        return route.fulfill({json:{ok:true}});
+      }
       if(resource===payrollPayoutRpc&&payrollV3){
         assert.equal(request.method(),"POST");
         assert.equal(role,"owner");
@@ -134,7 +169,7 @@ async function fixture(browser,{source=root,latency=0,role="owner",width=390,pay
       }
       assert.equal(resource,"rabota_cashbook_record_v1");
       state.rows=[...state.rows,{
-        id:"new-entry",kind:data.p_kind,amount:data.p_amount,
+        id:"new-entry-"+writes.length,kind:data.p_kind,amount:data.p_amount,
         from_account:data.p_from_account,to_account:data.p_to_account,created_at:stamp,note:data.p_note
       }];
       return route.fulfill({json:true});
@@ -142,15 +177,8 @@ async function fixture(browser,{source=root,latency=0,role="owner",width=390,pay
     let json=[];
     if(resource==="user")json={id:member.user_id};
     if(resource==="rabota_members")json=url.searchParams.has("user_id")?[member]:[owner,master];
-    if(resource==="rabota_orders")json=payrollV3 ? [
-      {...orders[0],price:paidOrderValue,payment_amount:paidOrderValue},
-      {...orders[1],name:"Незавершённый оплаченный заказ",status:"Записан"},
-      {...orders[1],id:"master-card-order",order_number:104,name:"Оплата на карту мастера",
-        status:"Записан",payment_method:"card",price:masterCardPayment,payment_amount:masterCardPayment},
-      {...orders[0],id:"refunded-order",order_number:103,name:"Заказ с возвратом",
-        price:refundedAmount,payment_amount:refundedAmount}
-    ] : orders;
-    if(resource==="rabota_finance_operations")json=payrollV3 ? [] : ops;
+    if(resource==="rabota_orders")json=payrollV3 ? state.orders : orders;
+    if(resource==="rabota_finance_operations")json=ops;
     if(resource==="rabota_cash_collections")json=[{
       order_id:"transfer-order",master_user_id:master.user_id,company_amount:4000,confirmed_at:stamp
     }];
@@ -168,6 +196,44 @@ async function fixture(browser,{source=root,latency=0,role="owner",width=390,pay
 }
 const dock=(page,name)=>page.locator('#rdMobileNav [data-page="'+name+'"]');
 const count=(calls,name)=>calls.filter(resource=>resource===name).length;
+async function assertNoCustody(view,calls){
+  assert.equal(await view.locator(".mw-handoff-action, .mw-handoff-card, .mw-handoff-form").count(),0);
+  assert.doesNotMatch(await view.innerText(),obsoleteCustody);
+  assert.ok(!calls.some(name=>/^rabota_cash_(?:collections|transfer_events|submit|confirm|distribute)/.test(name)),
+    "The new accounting views never query or mutate retired handoffs");
+}
+function paymentRow(view,orderId,kind="receipt",ownerView=false){
+  const selector=ownerView?".mw-owner-row[data-kind]":".mw-payment-row[data-payment-type]";
+  const attribute=ownerView?"data-kind":"data-payment-type";
+  return view.locator(selector+'[data-order-id="'+orderId+'"]['+attribute+'="'+kind+'"]');
+}
+async function assertOwnerTotals(page,balance,expenses=500,payouts=priorPayout){
+  const stats=page.locator(".mw-money-stats");
+  await page.waitForFunction(expected=>[...document.querySelectorAll('.mw-money-stats .mw-money-stat')]
+    .find(card=>card.querySelector('small')?.textContent==='Остаток учётной кассы')
+    ?.querySelector('strong')?.textContent.replace(/\s/g,'')===expected,formatMoney(balance));
+  for(const [label,amount] of [
+    ["Оплаты заказов",grossReceipts],["Возвраты клиентам",refundedAmount],
+    ["Расходы",expenses],["Выплаты зарплаты",payouts],["Остаток учётной кассы",balance]
+  ]){
+    const value=stats.locator(".mw-money-stat").filter({hasText:label}).locator("strong");
+    assert.equal(cleanMoney(await value.innerText()),formatMoney(amount),label);
+  }
+}
+async function assertOwnerReceipts(page,calls){
+  const view=page.locator(".mw-owner-payments");
+  const history=view.locator(".mw-owner-history");
+  for(const order of [directReceipt,otherSale,refundedOrder]){
+    const row=paymentRow(history,order.id,"receipt",true);
+    await row.waitFor();
+    assert.equal(await row.count(),1,"one customer receipt per order");
+    assert.ok(cleanMoney(await row.innerText()).includes("+"+formatMoney(order.payment_amount)));
+  }
+  assert.equal(await paymentRow(history,refundedOrder.id,"refund",true).count(),1);
+  assert.equal(await paymentRow(history,advance.id,"receipt",true).count(),0);
+  assert.equal(await paymentRow(history,partialOrder.id,"receipt",true).count(),0);
+  await assertNoCustody(view,calls);
+}
 async function waitCall(calls,name,expected){
   const until=Date.now()+7000;
   while(count(calls,name)<expected){
@@ -176,7 +242,7 @@ async function waitCall(calls,name,expected){
   }
 }
 async function benchmark(browser,source){
-  const f=await fixture(browser,{source,latency:150});
+  const f=await fixture(browser,{source,latency:150,payrollV3:true});
   const values=[],requests=[];
   try{
     await f.page.goto(origin);
@@ -204,14 +270,16 @@ async function benchmark(browser,source){
   }finally{await f.close();}
 }
 async function ownerCashbook(browser){
-  const f=await fixture(browser);
+  const f=await fixture(browser,{payrollV3:true});
   const {page,state,calls,writes}=f;
   const bookName="rabota_cashbook_entries",financeName="rabota_finance_operations";
+  state.collections=[{order_id:otherSale.id,master_user_id:otherMaster.user_id,
+    company_amount:1800,submitted_amount:1000,confirmed_amount:700,confirmed_at:stamp}];
   const initial=gate();state.holds.set(bookName,initial);
   try{
     await page.goto(origin+"/?view=finance");
-    const tabs=page.locator(".fp-tabs"),data=page.locator(".mw-money-stats");
-    await tabs.waitFor();
+    const heading=page.locator(".mw-owner-heading"),data=page.locator(".mw-money-stats");
+    await heading.waitFor();
     await waitCall(calls,bookName,1);
     assert.equal(await data.isVisible(),false);
     await dock(page,"orders").click();
@@ -221,15 +289,22 @@ async function ownerCashbook(browser){
     assert.equal(count(calls,bookName),1,"Rapid entries share a pending cashbook read");
     state.holds.delete(bookName);initial.release();
     await data.waitFor();
-    const amounts=()=>data.locator("strong").allTextContents().then(rows=>rows.map(row=>row.replace(/\s/g,"")));
-    assert.deepEqual(await amounts(),["12750,00₽","250,00₽","15000,00₽","2000,00₽"],
-      "Only direct receipts and confirmed handoffs enter cash; linked payouts are not subtracted twice");
+    await assertOwnerTotals(page,startingBookBalance);
+    await assertOwnerReceipts(page,calls);
+    const voided=page.locator('.mw-owner-row[data-kind="expense"][data-status="voided"]');
+    assert.equal(await voided.count(),1);
+    assert.match(await voided.innerText(),/Отменён ·/);
+    assert.match(await voided.innerText(),/Отменённый тестовый расход/);
+    const archivedTransfer=page.locator('.mw-owner-row[data-kind="transfer"]');
+    assert.equal(await archivedTransfer.count(),1);
+    assert.match(await archivedTransfer.innerText(),/Из прежнего учёта/);
+    assert.equal(await archivedTransfer.getByRole("button").count(),0);
     await page.evaluate(()=>{
-      window.financeTabs=document.querySelector(".fp-tabs");
+      window.financeHeading=document.querySelector(".mw-owner-heading");
       window.financeCards=document.querySelector(".mw-money-stats");
       window.financeList=document.querySelector(".mw-owner-history");
     });
-    const same=()=>page.evaluate(()=>window.financeTabs===document.querySelector(".fp-tabs")&&
+    const same=()=>page.evaluate(()=>window.financeHeading===document.querySelector(".mw-owner-heading")&&
       window.financeCards===document.querySelector(".mw-money-stats")&&
       window.financeList===document.querySelector(".mw-owner-history"));
     const reload=gate();state.holds.set(financeName,reload);
@@ -256,9 +331,10 @@ async function ownerCashbook(browser){
     await page.locator(".mw-finance-retry").click();
     await page.getByText("Добавлено извне",{exact:true}).waitFor();
     assert.equal(await warning.isVisible(),false);
-    assert.deepEqual(await amounts(),["12850,00₽","250,00₽","15100,00₽","2000,00₽"]);
+    await assertOwnerTotals(page,startingBookBalance+100);
 
     await page.locator(".mw-owner-create").click();
+    assert.equal(await page.getByRole("button",{name:/Перевод между счетами/i}).count(),0);
     await page.getByRole("button",{name:"＋ Создать приход",exact:true}).click();
     const modal=page.getByRole("dialog",{name:"Создать приход"});
     await modal.getByLabel("Сумма, ₽").fill("75");
@@ -276,7 +352,18 @@ async function ownerCashbook(browser){
     await page.locator(".mw-finance-retry").click();
     await page.getByText("Новая тестовая операция",{exact:true}).waitFor();
     assert.equal(writes.length,1,"Retry reloads data and never repeats a committed write");
-    assert.deepEqual(await amounts(),["12925,00₽","250,00₽","15175,00₽","2000,00₽"]);
+    await assertOwnerTotals(page,startingBookBalance+175);
+    await assertOwnerReceipts(page,calls);
+    await page.locator(".mw-owner-create").click();
+    await page.getByRole("button",{name:"− Создать расход",exact:true}).click();
+    const expense=page.getByRole("dialog",{name:"Создать расход"});
+    await expense.getByLabel("Сумма, ₽").fill("25,50");
+    await expense.getByLabel("Комментарий").fill("Тестовый расход из кассы");
+    await expense.getByRole("button",{name:"Сохранить",exact:true}).click();
+    await page.getByText("Тестовый расход из кассы",{exact:true}).waitFor();
+    assert.equal(writes.length,2);
+    assert.equal(writes[1].data.p_kind,"expense");
+    await assertOwnerTotals(page,startingBookBalance+175-25.5,525.5);
     state.denied.add(bookName);
     await page.evaluate(()=>void window.__rdMoneyUi.cashbook({force:true}).catch(()=>{}));
     await page.getByText(/Не удалось загрузить кассу/).waitFor();
@@ -284,16 +371,17 @@ async function ownerCashbook(browser){
   }finally{await f.close();}
 }
 async function latePaymentScripts(browser){
-  const f=await fixture(browser);
+  const f=await fixture(browser,{payrollV3:true});
   const payroll=gate(),money=gate();
   f.state.holds.set("/finance-payroll.js",payroll);
   f.state.holds.set("/money-workspace.js",money);
   try{
     await f.page.goto(origin+"/?view=finance",{waitUntil:"commit"});
     await f.page.waitForFunction(()=>window.__rdFinanceStatus?.().ready===true);
-    assert.equal(await f.page.locator(".fp-tabs").count(),0);
+    await f.page.locator("#financePanel").waitFor();
+    assert.equal(await f.page.locator(".mw-owner-heading").count(),0);
     payroll.release();
-    await f.page.locator(".fp-tabs").waitFor();
+    await f.page.waitForFunction(()=>Boolean(window.__rdPayrollReport));
     assert.equal(await f.page.locator(".mw-money-stats").count(),0);
     money.release();
     await f.page.locator(".mw-money-stats").waitFor();
@@ -301,7 +389,7 @@ async function latePaymentScripts(browser){
   }finally{await f.close();}
 }
 async function ownerReports(browser){
-  const f=await fixture(browser);
+  const f=await fixture(browser,{payrollV3:true});
   try{
     const {page,state}=f;
     await page.goto(origin+"/?view=reports");
@@ -321,21 +409,25 @@ async function ownerReports(browser){
     await page.waitForFunction(()=>!document.querySelector(".pr-export").disabled);
     await page.getByRole("button",{name:"Вернуться ко всем отчётам"}).click();
     await page.locator("#rdReports .rd-salary-entry").click();
-    const salaries=page.locator(".fp-person-row");
-    await salaries.first().waitFor();
+    const salary=v3Report(page);
+    await salary.waitFor();
     state.fail.add("rabota_finance_operations");
     await page.evaluate(()=>void window.__rdMoneyUi.refreshFinance());
     await page.getByText(/Показаны последние расчёты зарплаты/).waitFor();
-    assert.equal(await salaries.count(),2);
-    assert.equal(await salaries.first().locator(".fp-pay").isDisabled(),true);
+    await salaryValues(salary,priorPayout,amountDue);
+    assert.equal(await salary.getByRole("button",{name:"Выплатить всё"}).isDisabled(),true);
     await page.locator("#rdSalaryReport .fp-retry").click();
-    await page.waitForFunction(()=>!document.querySelector("#rdSalaryReport .fp-pay").disabled);
+    await page.waitForFunction(()=>document.querySelector("#rdSalaryReport .fp-balance-payout:enabled"));
   }finally{await f.close();}
 }
 
 const v3Report=page=>page.locator(".fp-v3-payroll");
 const formatMoney=value=>value.toFixed(2).replace(".",",")+"₽";
 const cleanMoney=value=>value.replace(/\s/g,"");
+function signedAmount(text,sign,amount){
+  const precise=sign+formatMoney(amount),whole=Number.isInteger(amount)?sign+amount+"₽":precise;
+  assert.ok([precise,whole].includes(cleanMoney(text)),text);
+}
 async function salaryValues(report,paid,due){
   assert.equal(cleanMoney(await report.locator(".fp-balance-value").innerText()),formatMoney(due));
   const sums=await report.locator(".fp-person-summary-item strong").allTextContents();
@@ -395,21 +487,26 @@ async function v3Revalidation(f,report){
 }
 async function v3Owner(browser,width){
   const f=await fixture(browser,{width,payrollV3:true});
-  const {page,state,writes,payoutReceipts}=f;
+  const {page,state,calls,writes,payoutReceipts}=f;
   const partial=1234.56,paid=1935.06,left=3565.45;
   const interrupted=width===390;
   try{
+    await page.goto(origin+"/?view=finance");
+    await assertOwnerReceipts(page,calls);
+    await assertOwnerTotals(page,startingBookBalance);
+    await assertPhoneFit(page.locator(".mw-owner-payments"));
     await page.goto(origin+"/?view=reports");
     const report=await openOwnerPayroll(page);
     await assertPhoneFit(report);
     await salaryValues(report,priorPayout,amountDue);
     await assertAccrual(report);
-    await report.getByText(/На сверке · 1/).click();
+    await report.getByText(/Архив сверки · 1/).click();
     const review=report.locator(".fp-cutover-review");
     await review.getByText("№00104",{exact:true}).waitFor();
-    assert.match(await review.innerText(),/сумма наличных к передаче уточняется/);
+    assert.match(await review.innerText(),/историческая запись на сверке/);
+    assert.equal(await review.getByRole("button").count(),0);
     await assertPhoneFit(review);
-    await report.getByText(/На сверке · 1/).click();
+    await report.getByText(/Архив сверки · 1/).click();
     if(interrupted){
       await assertRefunds(report);
       await v3Revalidation(f,report);
@@ -466,6 +563,10 @@ async function v3Owner(browser,width){
     assert.equal(writes.at(-1).data.p_payment_method,"cash");
     assert.notEqual(writes[0].data.p_request_id,writes.at(-1).data.p_request_id);
     assert.ok(writes.every(write=>write.resource===payrollPayoutRpc));
+    await dock(page,"finance").click();
+    await assertOwnerReceipts(page,calls);
+    await assertOwnerTotals(page,startingBookBalance-amountDue,500,salaryEarned);
+    await dock(page,"reports").click();
     if(interrupted){
       state.denied.add(payrollSnapshotRpc);
       await page.evaluate(()=>void window.__rdMoneyUi.reloadPayroll());
@@ -477,7 +578,7 @@ async function v3Owner(browser,width){
 }
 async function v3Master(browser,width){
   const f=await fixture(browser,{width,role:"master",payrollV3:true});
-  const {page,state,writes}=f;
+  const {page,state,calls,writes}=f;
   if(width===390)state.collections=[{
     order_id:"transfer-order",master_user_id:master.user_id,
     company_amount:600,submitted_amount:200,confirmed_amount:50
@@ -498,24 +599,50 @@ async function v3Master(browser,width){
     await nav.locator('[data-mw-page="payments"]').click();
     const payments=page.locator("#mwMasterPayments");
     await payments.waitFor();
-    const card=payments.locator(".mw-money-stat").filter({hasText:"Принято на карту мастера по журналу"});
-    await card.waitFor();
-    assert.equal(cleanMoney(await card.locator("strong").innerText()),formatMoney(masterCardPayment));
-    const handoff=payments.locator(".mw-handoff-card");
-    if(state.collections.length)await handoff.waitFor();
-    else assert.equal(await handoff.isVisible(),false);
+    for(const order of [directReceipt,refundedOrder]){
+      const row=paymentRow(payments,order.id);
+      await row.waitFor();
+      assert.equal(await row.count(),1);
+      signedAmount(await row.locator(".mw-payment-amount").innerText(),"+",order.payment_amount);
+    }
+    const refund=paymentRow(payments,refundedOrder.id,"refund");
+    assert.equal(await refund.count(),1);
+    signedAmount(await refund.locator(".mw-payment-amount").innerText(),"−",refundedAmount);
+    const filter=payments.getByRole("combobox",{name:"Способ оплаты заказов"});
+    await filter.selectOption("cash");
+    assert.equal(await refund.count(),1,"A refund follows the original receipt's payment method");
+    await filter.selectOption("unknown");
+    assert.equal(await refund.count(),0);
+    await filter.selectOption("all");
+    for(const order of [advance,partialOrder,otherSale])assert.equal(await paymentRow(payments,order.id).count(),0);
+    await assertNoCustody(payments,calls);
+    assert.equal(await report.locator(".fp-cutover-review").count(),0);
+    await assertPhoneFit(payments);
     assert.deepEqual(writes,[]);
   }finally{await f.close();}
 }
 async function v3Manager(browser,width){
   const f=await fixture(browser,{width,role:"manager",payrollV3:true});
   try{
-    await f.page.goto(origin+"/?view=reports");
-    await f.page.locator("#ordersArea").waitFor();
-    assert.equal(await v3Report(f.page).count(),0);
-    assert.equal(await f.page.locator('#rdMobileNav [data-page="reports"]').count(),0);
-    assert.equal(await f.page.locator('#rdMobileMoreSheet [data-page="reports"]').count(),0);
-    assert.deepEqual(f.writes,[]);
+    const {page,calls,writes}=f;
+    await page.goto(origin+"/?view=reports");
+    await page.locator("#ordersArea").waitFor();
+    assert.equal(await v3Report(page).count(),0);
+    assert.equal(await page.locator('#rdMobileNav [data-page="reports"]').count(),0);
+    assert.equal(await page.locator('#rdMobileMoreSheet [data-page="reports"]').count(),0);
+    assert.equal(await page.locator(".mw-owner-history, .mw-payment-row").count(),0);
+    if(width===390){
+      await page.locator("#orders .rd-list-row:visible").filter({hasText:managerOrder.name}).locator("button").first().click();
+      const order=page.locator(".rd-order-dialog");
+      await order.getByRole("button",{name:"Принять оплату",exact:true}).click();
+      const payment=page.getByRole("dialog",{name:"Получение оплаты"});
+      await payment.getByLabel("Карта / перевод",{exact:true}).check();
+      await payment.getByRole("button",{name:/^Получено 4/}).click();
+      await order.getByText("Оплачено · карта",{exact:true}).waitFor();
+      assert.deepEqual(writes.map(write=>write.resource),["rabota_record_order_payment"]);
+      assert.ok(calls.includes(payrollSnapshotRpc));
+    }else assert.deepEqual(writes,[]);
+    assert.equal(count(calls,"rabota_finance_operations"),0);
   }finally{await f.close();}
 }
 async function v3OtherMaster(browser){
@@ -528,6 +655,30 @@ async function v3OtherMaster(browser){
     const salaryEntry=f.page.locator("#mwMasterReports").getByRole("button",{name:/Зарплата/i});
     if(await salaryEntry.isVisible())await salaryEntry.click();
     assert.equal(await v3Report(f.page).isVisible(),false,"another master cannot open Raul's payroll");
+    await f.page.locator('#mwMasterNav [data-mw-page="payments"]').click();
+    const payments=f.page.locator("#mwMasterPayments");
+    const row=paymentRow(payments,otherSale.id);
+    await row.waitFor();
+    assert.equal(await payments.locator(".mw-payment-row").count(),1);
+    signedAmount(await row.locator(".mw-payment-amount").innerText(),"+",masterCardPayment);
+    await assertNoCustody(payments,f.calls);
+    assert.deepEqual(f.writes,[]);
+  }finally{await f.close();}
+}
+
+async function unavailableAccounting(browser){
+  const f=await fixture(browser);
+  try{
+    await f.page.goto(origin+"/?view=finance");
+    const cash=f.page.locator(".mw-owner-payments");
+    await cash.getByRole("alert").waitFor();
+    assert.equal(await cash.locator(".mw-money-stats, .mw-owner-history").count(),0);
+    assert.equal(await cash.locator(".mw-owner-create").isDisabled(),true);
+    await assertNoCustody(cash,f.calls);
+    await f.page.goto(origin+"/?view=reports");
+    await f.page.locator("#rdReports .rd-salary-entry").click();
+    await f.page.locator("#rdSalaryReport").getByText(/недоступ|не удалось/i).waitFor();
+    assert.equal(await f.page.locator("#rdSalaryReport .fp-person-row, #rdSalaryReport .fp-v3-actions").count(),0);
     assert.deepEqual(f.writes,[]);
   }finally{await f.close();}
 }
@@ -550,5 +701,7 @@ async function v3OtherMaster(browser){
       console.log("PASS",name,width,"payroll v3 owner, master and manager");
     }
     await v3OtherMaster(browser);
+    await unavailableAccounting(browser);
+    console.log("PASS",name,"scoped customer receipts and unavailable accounting without legacy fallback");
   }finally{await browser.close();}
 })().catch(error=>{console.error(error);process.exitCode=1;});

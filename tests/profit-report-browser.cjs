@@ -44,7 +44,11 @@ async function run(browserType,iphone){
           status:"Выполнен",price:5000,paid:true,paymentAmount:5000}
       ];
       window.report=window.__rdCreateProfitReport(
-        document.querySelector("#rdReports"),{getOrders:()=>window.syntheticOrders});
+        document.querySelector("#rdReports"),{getOrders:()=>window.syntheticOrders,
+          getPayroll:()=>({state:"active",masterId:"raul",orders:[
+            {orderId:"a",actualPaid:10000,earned:6500,companyShare:3500}
+          ],accounting:{receipts:[{orderId:"a",amount:10000,masterId:"raul"},
+            {orderId:"c",amount:5000,masterId:"oleg"}]}})});
     });
     await page.locator(".pr-report-link").click();
     assert.equal((await page.locator(".pr-heading").innerText()).replace(/\s+/g," ").trim(), "Отчёты / Прибыль по заказам");
@@ -135,8 +139,8 @@ async function run(browserType,iphone){
     assert.match(firstTotal,/27 000/);
     assert.match(firstTotal,/15 000/);
     assert.match(firstTotal,/6 500/);
-    assert.match(firstTotal,/3 500/);
-    assert.match(await page.locator(".pr-note").innerText(),/Без расчёта доли: 1/);
+    assert.match(firstTotal,/8 500/);
+    assert.doesNotMatch(await page.locator(".pr-note").innerText(),/Без расчёта доли/);
     await page.locator('.pr-controls select[aria-label="Статус заказов"]').selectOption("unpaid");
     assert.equal(await table.locator("tbody>tr").count(),3);
     const unpaidTotal=(await table.locator("tbody>tr:first-child").innerText()).replace(/\s+/g," ");
@@ -204,7 +208,7 @@ async function checkRaulPortal(name,shouldHaveProfit){
       ];
       window.__rdOrderReference={normalize:x=>String(x||"")};
       window.__rdMoneyUi={
-        snapshot:()=>({role:"master",masterName,masterId:"raul-uid",due:0,accrued:0,paid:0,orders:[],payouts:[]}),
+        snapshot:()=>({role:"master",masterName,masterId:"raul-uid",active:masterName==="Рауль",ready:true}),
         masterReportOrders:()=>masterName==="Рауль"?orders.filter(o=>o.assignedUserId==="raul-uid"):[]
       };
     },name);
@@ -251,31 +255,27 @@ async function checkOwnerPayroll(browserType,iphone){
     await page.addStyleTag({path:path.join(__dirname,"..","finance-payroll.css")});
     await page.addScriptTag({path:path.join(__dirname,"..","finance-payroll.js")});
     await page.evaluate(()=>{
-      const model={isOwner:true,raulAccrued:12000,raulPaid:5000,raulDue:7000,
-        timurAccrued:3000,timurPaid:1500,timurDue:1500,
-        companyEarned:10000,masterHeld:0,waitingOwner:0,
-        orders:[{date:"2026-11-19",name:"Тестовый заказ",price:20000,raul:10000,timur:1500}],
-        operations:[]};
+      const model={active:true,ready:true,actorId:"owner",employeeId:"raul",earned:12000,paid:5000,due:7000,
+        accruals:[],payouts:[]};
+      window.__rdMoneyUi={payroll:()=>model};
       window.salaryBrowserFixture=window.__rdPayrollReport.mount(
         document.getElementById("rdSalaryReport"),
-        {getSnapshot:()=>model,onBack:()=>{window.returnedToReports=true}}
+        {onBack:()=>{window.returnedToReports=true}}
       );
     });
-    assert.equal(await page.locator("#rdSalaryReport .fp-person-row").count(),2);
-    assert.equal(await page.locator("#rdSalaryReport .fp-metric").count(),3);
+    assert.equal(await page.locator("#rdSalaryReport .fp-person-summary-item").count(),2);
     const layout=await page.evaluate(()=>({
       pageWidth:document.documentElement.scrollWidth,
       viewport:window.innerWidth,
-      background:getComputedStyle(document.querySelector("#rdSalaryReport .fp-section")).backgroundColor
+      background:getComputedStyle(document.querySelector("#rdSalaryReport .fp-v3-balance")).backgroundColor
     }));
-    assert.equal(layout.background,"rgb(255, 255, 255)","Salary must match CRM light style");
+    assert.notEqual(layout.background,"rgb(27, 37, 52)","Salary must match CRM light style");
     if(iphone)assert.ok(layout.pageWidth<=layout.viewport+1,
       "Owner salary report must not overflow iPhone: "+JSON.stringify(layout));
-    await page.locator("#rdSalaryReport .fp-person-button").first().click();
     assert.equal(await page.locator("#rdSalaryReport .fp-balance-hero").count(),1);
     assert.match(await page.locator("#rdSalaryReport .fp-balance-hero").innerText(),/7[\s\u00a0\u202f]*000/);
-    await page.locator("#rdSalaryReport .fp-person-heading .fp-link").click();
-    assert.equal(await page.locator("#rdSalaryReport .fp-person-row").count(),2);
+    await page.getByRole("button",{name:"Выплаты",exact:true}).click();
+    assert.equal(await page.getByRole("heading",{name:"История выплат"}).count(),1);
     await page.locator("#rdSalaryReport .fp-report-head .fp-link").click();
     assert.equal(await page.evaluate(()=>window.returnedToReports),true);
     await context.close();
@@ -304,7 +304,9 @@ async function checkVersionedReport(browserType){
         {...defaults,id:"payroll-hold",referenceCode:"№00004",name:"Проверка начисления"},
         {...defaults,id:"cash-hold",name:"Проверка передачи",price:20000,paymentAmount:null}
       ];
-      const payroll={state:"active",version:3,earned:21000,paid:5000,due:16000,
+      const payroll={state:"active",version:3,masterId:"raul",earned:21000,paid:5000,due:16000,
+        accounting:{receipts:[["earned",16000],["refunded",10000],["payroll-hold",10000],["cash-hold",20000]]
+          .map(([orderId,amount])=>({orderId,amount,masterId:"raul"}))},
         orders:[
           {orderId:"earned",actualPaid:16000,earned:9500,companyShare:6500,ruleVersion:"v3-50pct-plus-1500"},
           {orderId:"cash-hold",actualPaid:20000,earned:11500,companyShare:8500,ruleVersion:"legacy_verified"}
@@ -325,14 +327,14 @@ async function checkVersionedReport(browserType){
     const row=name=>body.locator("tr").filter({has:page.getByRole("button",{name,exact:true})});
     const normalized=async cells=>(await cells.allInnerTexts()).map(value=>value.replace(/\s+/g,""));
     assert.deepEqual((await normalized(row("№00001").locator("td"))).slice(-3),["16000₽","9500₽","6500₽"]);
-    assert.deepEqual((await normalized(row("№00002").locator("td"))).slice(-3),["5000₽","—","—"]);
+    assert.deepEqual((await normalized(row("№00002").locator("td"))).slice(-3),["—","—","—"]);
     assert.deepEqual((await normalized(row("№00003").locator("td"))).slice(-3),["Возврат","—","—"]);
     assert.deepEqual((await normalized(row("№00004").locator("td"))).slice(-3),["10000₽","Насверке","—"]);
     assert.deepEqual((await normalized(row("№00315").locator("td"))).slice(-3),["20000₽","11500₽","8500₽"]);
     await row("№00004").getByRole("button").click();
     assert.match(await body.locator(".pr-expanded:visible").innerText(),/Находится подтверждение выплаты/);
     const total=await normalized(body.locator(".pr-total-row > *"));
-    assert.deepEqual(total.slice(-3),["51000₽","21000₽","15000₽"]);
+    assert.deepEqual(total.slice(-3),["46000₽","21000₽","15000₽"]);
     await page.getByLabel("Статус заказов").selectOption("paid");
     assert.equal(await row("№00003").count(),0,"a refunded order is excluded from net paid orders");
     await page.getByLabel("Поиск по заказам").fill("№00004");

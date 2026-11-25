@@ -149,9 +149,16 @@ test("main screen delegates requests and errors but owns session lifecycle",()=>
   assert.match(html,/getSession:\(\)=>session/);
   for(const name of ["authRequest","dbRequest","normalizePhone","phoneForDisplay","friendlyError"])
     assert.match(html,new RegExp("sharedServices\\."+name+"\\("));
-  for(const rpc of ["rabota_record_order_payment","rabota_salary_payout_v2",
-    "rabota_cash_distribute","rabota_cash_confirm","rabota_finance_void"])
-    assert.ok(html.includes("rpc/"+rpc),"Missing server-side RPC: "+rpc);
+  const callers={
+    "index.html":["rabota_master_action","rabota_payroll_payout_v3","rabota_cashbook_record_v1"],
+    "order-model.js":["rabota_record_order_payment","rabota_payroll_refund_v3"],
+    "expenses.js":["rabota_finance_record","rabota_finance_void"]
+  };
+  for(const [file,rpcs] of Object.entries(callers)){
+    const source=fs.readFileSync(path.join(__dirname,"..",file),"utf8");
+    for(const rpc of rpcs)assert.ok(source.includes('dbRequest("rpc/'+rpc+'"'),"Missing shared request: "+rpc);
+    assert.doesNotMatch(source,/dbRequest\("rpc\/rabota_(?:cash_distribute|cash_submit(?:_amount)?|cash_confirm(?:_amount)?|salary_payout_v2)"/);
+  }
   const inline=html.split("<script>\n").at(-1).split("</script>")[0];
   assert.doesNotThrow(()=>new Function(inline));
 });

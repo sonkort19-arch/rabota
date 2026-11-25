@@ -1,29 +1,11 @@
-/* CRM «Работа»: финансовые отчёты и загрузка данных.
- * Stage 5: refactor only. Payment, payout and cash RPC calls remain in index.html.
- * Server remains authoritative for balances, role checks and payments.
+/* CRM «Работа»: учёт подтверждённых поступлений, выплат и прочих расходов.
+ * Поступления и начисления подтверждает сервер. Записи и права контролируют RPC.
  */
 "use strict";
 (function(root){
-  const FINANCE_TIMUR_FEE=1500;
-  const FINANCE_RAUL_PERCENT=0.5;
   const money=amount=>Number(amount||0).toLocaleString("ru-RU",{maximumFractionDigits:2})+" ₽";
   const sumBy=(rows,fn)=>rows.reduce((total,row)=>total+Number(fn(row)||0),0);
   const roundMoney=value=>Math.round((Number(value)+Number.EPSILON)*100)/100;
-  function collectionAmounts(row){
-    const total=Number(row.company_amount)||0;
-    // Rows created before partial handoffs record only full-order timestamps.
-    const confirmedAmount=Number(row.confirmed_amount??(row.confirmed_at?total:0));
-    const submittedAmount=Number(row.submitted_amount??(row.submitted_at||row.confirmed_at?total:0));
-    return {confirmedAmount,submittedAmount,pendingAmount:roundMoney(submittedAmount-confirmedAmount),
-      waitingAmount:roundMoney(total-submittedAmount)};
-  }
-  function financeSplit(price){
-    const gross=roundMoney(price);
-    const grossCents=Math.round(gross*100);
-    const raulCents=Math.round(grossCents*FINANCE_RAUL_PERCENT);
-    const companyCents=grossCents-raulCents-FINANCE_TIMUR_FEE*100;
-    return {gross,raul:raulCents/100,timur:FINANCE_TIMUR_FEE,company:companyCents/100};
-  }
   function monetaryValue(value){
     if(typeof value!=="number"&&(typeof value!=="string"||!value.trim()))return null;
     const number=Number(value);
@@ -38,14 +20,50 @@
   function payrollSplitV3(actualPaid){
     const payment=monetaryValue(actualPaid);
     if(!(payment>0))return null;
-    const split=financeSplit(payment);
-    return {...split,raul:roundMoney(split.raul+split.timur),timur:0};
+    const cents=Math.round(payment*100);
+    const raulCents=Math.round(cents/2)+150000;
+    return {gross:payment,raul:raulCents/100,company:(cents-raulCents)/100};
+  }
+  function normalizeAccounting(snapshot){
+    if(snapshot.accounting_version==null){
+      if(snapshot.accounting_receipts!=null||snapshot.accounting_payouts!=null)
+        throw Error("Сервер вернул учётные операции без версии расчёта.");
+      return {};
+    }
+    if(snapshot.accounting_version!==1)
+      throw Error("Неизвестная версия учёта поступлений.");
+    const receiptsRaw=snapshot.accounting_receipts,payoutsRaw=snapshot.accounting_payouts;
+    if(receiptsRaw==null&&payoutsRaw==null)return {accountingVersion:1};
+    if(!Array.isArray(receiptsRaw)||(payoutsRaw!=null&&!Array.isArray(payoutsRaw)))
+      throw Error("Сервер вернул неполный журнал учёта.");
+    const orderIds=new Set();
+    const receipts=receiptsRaw.map(row=>{
+      const {order_id:orderId,master_id:masterId,payment_method:method,paid_at:paidAt,occurred_at:occurredAt}=row??{};
+      const amount=monetaryValue(row?.amount);
+      if(typeof orderId!=="string"||!orderId||orderIds.has(orderId)||amount===null||amount<=0||
+         !Object.hasOwn(row??{},"master_id")||
+         (masterId!=null&&(typeof masterId!=="string"||!masterId)))
+        throw Error("Сервер вернул неверную запись поступления.");
+      orderIds.add(orderId);
+      return {orderId,masterId:masterId??null,amount,method:method??null,paidAt:paidAt??null,occurredAt:occurredAt??null};
+    });
+    const payoutIds=new Set();
+    const payouts=payoutsRaw?.map(row=>{
+      const {id,order_id:orderId,payment_method:method,created_at:occurredAt,note}=row??{};
+      const amount=monetaryValue(row?.amount);
+      if(typeof id!=="string"||!id||payoutIds.has(id)||amount===null||amount<=0)
+        throw Error("Сервер вернул неверную запись учтённой выплаты.");
+      payoutIds.add(id);
+      return {id,orderId:orderId??null,amount,method:method??null,occurredAt:occurredAt??null,note:note??""};
+    })??null;
+    return {accountingVersion:1,accounting:{version:1,receipts,payouts}};
   }
   function normalizePayrollSnapshot(snapshot){
     const {version,state,master_id:masterId,activated_at:activatedAt}=snapshot??{};
     if(version!==3||!["active","inactive","not_applicable"].includes(state))
       throw Error("Неизвестный формат расчётов зарплаты.");
-    if(state!=="active")return {version,state};
+    const accounting=normalizeAccounting(snapshot);
+    if(state!=="active")return {version,state,...accounting};
     if(typeof masterId!=="string"||!masterId||typeof activatedAt!=="string"||!activatedAt||
        !Array.isArray(snapshot.orders)||!Array.isArray(snapshot.payouts))
       throw Error("Сервер вернул неполный расчёт зарплаты.");
@@ -113,7 +131,18 @@
       return {orderId,orderNumber:orderNumber??null,payrollOnHold,cashOnHold,reason,
         earned:heldEarned,credited,linkedRecorded,paymentAmount};
     });
-    return {version,state,masterId,activatedAt,earned,paid,due,orders,payouts,refunds,holds};
+    if(accounting.accounting){
+      const receiptsByOrder=new Map(accounting.accounting.receipts.map(row=>[row.orderId,row]));
+      for(const refund of refunds)
+        if(receiptsByOrder.get(refund.orderId)?.amount!==refund.amount)
+          throw Error("Сервер вернул возврат без соответствующего поступления.");
+      for(const order of orders){
+        const receipt=receiptsByOrder.get(order.orderId);
+        if(!receipt||receipt.amount!==order.actualPaid||receipt.masterId!==masterId)
+          throw Error("Сервер вернул начисление без соответствующего поступления.");
+      }
+    }
+    return {version,state,masterId,activatedAt,earned,paid,due,orders,payouts,refunds,holds,...accounting};
   }
   async function readPayrollSnapshot(dbRequest){
     let snapshot;
@@ -126,53 +155,66 @@
     }
     return normalizePayrollSnapshot(snapshot);
   }
-  function calculateAccruals({orders,operations,collections,masterId}){
-    const relevantOrders=masterId?orders.filter(o=>o.assignedUserId===masterId):[];
-    const eligible=relevantOrders.filter(o=>o.status==="Выполнен"&&o.paid&&Number.isFinite(o.price)&&o.price>=0);
-    const payments=operations.filter(o=>!o.voided_at);
-    const teamPayments=payments.filter(o=>o.master_user_id===masterId);
-    const raulAccrued=roundMoney(sumBy(eligible,o=>financeSplit(o.price).raul));
-    const timurAccrued=eligible.length*FINANCE_TIMUR_FEE;
-    const raulPaid=sumBy(teamPayments.filter(o=>o.kind==="raul_payout"),o=>o.amount);
-    const timurPaid=sumBy(teamPayments.filter(o=>o.kind==="timur_payout"),o=>o.amount);
-    const raulDue=roundMoney(raulAccrued-raulPaid);
-    const timurDue=roundMoney(timurAccrued-timurPaid);
-    const companyEarned=roundMoney(sumBy(eligible,o=>financeSplit(o.price).company));
-    const eligibleGross=sumBy(eligible,o=>o.price);
-    const bookedPending=relevantOrders.filter(o=>!o.paid||o.status!=="Выполнен");
-    const unconfirmedCash=collections.filter(c=>collectionAmounts(c).confirmedAmount<Number(c.company_amount));
-    const own=unconfirmedCash.filter(c=>c.master_user_id===masterId).map(collectionAmounts);
-    const masterHeld=roundMoney(sumBy(own,c=>c.waitingAmount));
-    const waitingOwner=roundMoney(sumBy(own,c=>c.pendingAmount));
-    return {relevantOrders,eligible,payments,teamPayments,raulAccrued,timurAccrued,
-      raulPaid,timurPaid,raulDue,timurDue,companyEarned,eligibleGross,
-      bookedPending,unconfirmedCash,masterHeld,waitingOwner};
-  }
-  function calculateCompanyCash({orders,collections,payments,raulDue,timurDue,useRecordedPayments=false,refunds=[]}){
-    const refundedOrders=new Set(refunds.map(row=>String(row.orderId)));
-    const receivedOrders=orders.filter(o=>o.paid&&o.status!=="Отменён"&&!refundedOrders.has(String(o.id)));
-    const receiptAmount=order=>{
-      if(!useRecordedPayments||order.paymentAmount==null||order.paymentAmount==="")return order.price;
-      const actual=monetaryValue(order.paymentAmount);
-      return actual!==null&&actual>=0?actual:0;
+  function calculateRecordedCashFlow({payroll,operations=[],manualEntries=[]}){
+    const account=payroll?.accounting;
+    if(payroll?.state!=="active"||account?.version!==1||!Array.isArray(account.payouts))return null;
+    const {receipts,payouts}=account;
+    const receiptByOrder=new Map(receipts.map(row=>[row.orderId,row]));
+    const payrollByOrder=new Map(payroll.orders.map(row=>[row.orderId,row]));
+    const heldOrders=new Set(payroll.holds.filter(row=>row.payrollOnHold).map(row=>row.orderId));
+    const refundedOrders=new Set(payroll.refunds.map(row=>row.orderId));
+    const refunds=payroll.refunds.map(refund=>({...refund,method:receiptByOrder.get(refund.orderId).method}));
+    const receiptByMethod={cash:0,card:0,unknown:0},refundByMethod={cash:0,card:0,unknown:0};
+    const method=row=>row.method==="cash"||row.method==="card"?row.method:"unknown";
+    for(const row of receipts)receiptByMethod[method(row)]=roundMoney(receiptByMethod[method(row)]+row.amount);
+    for(const row of refunds)refundByMethod[method(row)]=roundMoney(refundByMethod[method(row)]+row.amount);
+    const netReceiptByMethod={
+      cash:roundMoney(receiptByMethod.cash-refundByMethod.cash),
+      card:roundMoney(receiptByMethod.card-refundByMethod.card),
+      unknown:roundMoney(receiptByMethod.unknown-refundByMethod.unknown)
     };
-    const cashCollections=new Set(collections.map(c=>String(c.order_id)));
-    const masterUnallocated=receivedOrders.filter(o=>
-      o.paymentReceivedBy==="master"&&!cashCollections.has(String(o.id)));
-    const directReceipts=sumBy(receivedOrders.filter(o=>
-      !cashCollections.has(String(o.id))&&o.paymentReceivedBy!=="master"),receiptAmount);
-    const confirmedDeposits=roundMoney(sumBy(collections,c=>collectionAmounts(c).confirmedAmount));
-    const cashIn=roundMoney(directReceipts+confirmedDeposits);
-    const allPayouts=sumBy(payments.filter(o=>
-      (o.kind==="raul_payout"||o.kind==="timur_payout")&&!o.order_id),o=>o.amount);
-    const expenses=sumBy(payments.filter(o=>o.kind==="expense"),o=>o.amount);
-    const notCompletedPaid=sumBy(receivedOrders.filter(o=>o.status!=="Выполнен"),receiptAmount);
-    const cashBalance=roundMoney(cashIn-allPayouts-expenses);
-    const freeBalance=roundMoney(cashBalance-raulDue-timurDue-notCompletedPaid);
-    const awaiting=collections.filter(c=>collectionAmounts(c).pendingAmount>0);
-    return {receivedOrders,cashCollections,masterUnallocated,directReceipts,
-      confirmedDeposits,cashIn,allPayouts,expenses,notCompletedPaid,
-      cashBalance,freeBalance,awaiting};
+    const orderShares=[];
+    for(const receipt of receipts){
+      if(refundedOrders.has(receipt.orderId))continue;
+      const projection=payrollByOrder.get(receipt.orderId);
+      const companyShare=heldOrders.has(receipt.orderId)?null:
+        projection?.companyShare??(receipt.masterId===payroll.masterId?null:receipt.amount);
+      orderShares.push({orderId:receipt.orderId,companyShare,
+        payrollCost:companyShare===null?null:roundMoney(receipt.amount-companyShare)});
+    }
+    const expenses=[];
+    for(const row of new Map(operations.map(operation=>[operation.id,operation])).values()){
+      if(row.kind!=="expense")continue;
+      const amount=monetaryValue(row.amount);
+      if(!row.id||amount===null||amount<=0)throw Error("Некорректная запись расхода.");
+      expenses.push({id:row.id,amount,method:row.payment_method??null,occurredAt:row.created_at??null,
+        voidedAt:row.voided_at??null,note:row.note??""});
+    }
+    let manualIncome=0,manualExpense=0;
+    const manual=[];
+    for(const row of new Map(manualEntries.map(entry=>[entry.id,entry])).values()){
+      const amount=monetaryValue(row.amount);
+      if(!row.id||amount===null||amount<=0||!["income","expense","transfer"].includes(row.kind))
+        throw Error("Некорректная запись учётной кассы.");
+      manual.push({id:row.id,kind:row.kind,amount,from:row.from_account??null,to:row.to_account??null,
+        occurredAt:row.created_at??null,note:row.note??""});
+      if(row.kind==="income")manualIncome=roundMoney(manualIncome+amount);
+      if(row.kind==="expense")manualExpense=roundMoney(manualExpense+amount);
+    }
+    const receiptTotal=roundMoney(sumBy(receipts,row=>row.amount));
+    const refundTotal=roundMoney(sumBy(refunds,row=>row.amount));
+    const netReceiptTotal=roundMoney(receiptTotal-refundTotal);
+    const payoutTotal=roundMoney(sumBy(payouts,row=>row.amount));
+    const expenseTotal=roundMoney(sumBy(expenses,row=>row.voidedAt?0:row.amount));
+    const companyShare=roundMoney(sumBy(orderShares,row=>row.companyShare));
+    const unverifiedMarginCount=orderShares.filter(row=>row.companyShare===null).length;
+    return {
+      receipts,refunds,payouts,expenses,manualEntries:manual,orderShares,
+      receiptTotal,refundTotal,netReceiptTotal,receiptByMethod,netReceiptByMethod,payoutTotal,expenseTotal,
+      manualIncome,manualExpense,recordedNet:roundMoney(netReceiptTotal+manualIncome-payoutTotal-expenseTotal-manualExpense),
+      companyShare,companyProfit:roundMoney(companyShare-expenseTotal-manualExpense),
+      unverifiedMarginCount
+    };
   }
   // A confirmed write invalidates old reads. Readers share one request and
   // follow it with one new read if the data changed while it was in flight.
@@ -238,7 +280,7 @@
   }
   function createFinanceModel(deps){
     if(!deps||typeof deps.dbRequest!=="function"||
-       typeof deps.getRole!=="function"||typeof deps.getMasterName!=="function"||
+       typeof deps.getRole!=="function"||
        typeof deps.getUserId!=="function"||typeof deps.nextGeneration!=="function"||
        typeof deps.isCurrentGeneration!=="function")
       throw new TypeError("Неверные зависимости финансового модуля");
@@ -267,10 +309,13 @@
           if(generation!==operationsGeneration)
             throw new Error("Аккаунт изменился во время загрузки операций.");
           if(!Array.isArray(page))throw Error("Не удалось загрузить финансовые операции");
-          for(const row of page)rows.set(String(row.id),row);
-          if(page.length<1000)break;
+          for(const row of page){
+            if(typeof row?.id!=="string"||!row.id)throw Error("Сервер вернул неверную финансовую операцию.");
+            rows.set(row.id,row);
+          }
+          if(page.length<1000)return [...rows.values()];
         }
-        return [...rows.values()];
+        throw Error("История финансовых операций превышает лимит загрузки.");
       })().finally(()=>{
         if(operationsRead===read)operationsRead=null;
       });
@@ -282,72 +327,23 @@
       if(currentRole!=="owner"&&currentRole!=="master")return;
       const generation=deps.nextGeneration();
       const current=()=>isCurrent()&&deps.isCurrentGeneration(generation);
-      const reads=await Promise.allSettled([
-        providedOperations||readOperations({fresh}),
-        currentRole==="owner"
-          ?deps.readMasters?.()||deps.dbRequest("rabota_members?select=user_id,role,active,master_name&role=eq.master&limit=100","GET")
-          :null,
-        readCollections(current)
-      ]);
-      if(!current())return;
-      const rejected=reads.find(result=>result.status==="rejected");
-      if(rejected)throw rejected.reason;
-      const [operations,masters,currentCollections]=reads.map(result=>result.value);
-      let masterId=null;
-      if(currentRole==="owner"){
-        if(!Array.isArray(masters))throw Error("Не удалось загрузить список мастеров.");
-        masterId=masters.find(m=>m.role==="master"&&m.active&&String(m.master_name||"").trim().toLowerCase()==="рауль")?.user_id||null;
-      }else{
-        masterId=String(deps.getMasterName()||"").trim().toLowerCase()==="рауль"?deps.getUserId():null;
-      }
-      const uniqueCollections=new Map(currentCollections.map(row=>[String(row.order_id),row]));
-      const deposits=currentCollections.filter(c=>c.confirmed_amount==null&&c.confirmed_at)
-        .map(c=>({id:c.order_id,amount:Number(c.company_amount),confirmed_at:c.confirmed_at}));
-      if(currentRole==="owner"&&currentCollections.some(c=>Number(c.confirmed_amount)>0)){
-        // One payment can be confirmed in separate instalments on different days.
-        const seen=new Set();
-        for(let offset=0;;offset+=1000){
-          const page=await deps.dbRequest("rabota_cash_transfer_events?select=id,order_id,amount,created_at&kind=eq.confirmed&order=created_at.desc,id.desc&limit=1000&offset="+offset,"GET");
-          if(!current())return;
-          if(!Array.isArray(page))throw Error("Не удалось загрузить подтверждённые передачи");
-          for(const row of page){
-            const collection=uniqueCollections.get(String(row.order_id));
-            // A receipt may have been posted since the collections request.
-            if(!collection?.last_confirmed_at||row.created_at>collection.last_confirmed_at||seen.has(row.id))continue;
-            seen.add(row.id);
-            deposits.push({id:row.id,amount:Number(row.amount),confirmed_at:row.created_at});
-          }
-          if(page.length<1000)break;
-        }
+      let operations;
+      try{
+        operations=currentRole==="owner"?(await (providedOperations||readOperations({fresh}))):[];
+      }catch(error){
+        if(current())throw error;
+        return;
       }
       if(!current())return;
-      const snapshot={
-        masterId,
-        operations,
-        collections:currentCollections,deposits
-      };
+      const snapshot={operations};
       deps.onSnapshot?.(snapshot);
       return snapshot;
     }
-    async function readCollections(isCurrent){
-      const collections=new Map();
-      for(let offset=0;offset<100000;offset+=1000){
-        const page=await deps.dbRequest("rabota_cash_collections?select=*&order=created_at.desc,order_id.desc&limit=1000&offset="+offset,"GET");
-        if(!isCurrent())return null;
-        if(!Array.isArray(page))throw Error("Не удалось загрузить распределения");
-        for(const row of page)collections.set(String(row.order_id),row);
-        if(page.length<1000)break;
-      }
-      return [...collections.values()];
-    }
     return {loadFinance,readOperations,resetOperations,readPayrollSnapshot:()=>readPayrollSnapshot(deps.dbRequest),
-      money,sumBy,roundMoney,collectionAmounts,financeSplit,payrollSplitV3,fullyPaidAmount,calculateAccruals,
-      calculateCompanyCash,TIMUR_FEE:FINANCE_TIMUR_FEE,RAUL_PERCENT:FINANCE_RAUL_PERCENT};
+      calculateRecordedCashFlow,money,sumBy,roundMoney,payrollSplitV3,fullyPaidAmount};
   }
-  if(root){root.__rdCreateFinanceModel=createFinanceModel;root.__rdCreateFinanceReader=createFinanceReader;root.__rdFinanceSplit=financeSplit;}
+  if(root){root.__rdCreateFinanceModel=createFinanceModel;root.__rdCreateFinanceReader=createFinanceReader;}
   if(typeof module!=="undefined"&&module.exports)
-    module.exports={createFinanceModel,createFinanceReader,money,sumBy,roundMoney,collectionAmounts,financeSplit,
-      payrollSplitV3,fullyPaidAmount,normalizePayrollSnapshot,readPayrollSnapshot,
-      calculateAccruals,calculateCompanyCash,TIMUR_FEE:FINANCE_TIMUR_FEE,
-      RAUL_PERCENT:FINANCE_RAUL_PERCENT};
+    module.exports={createFinanceModel,createFinanceReader,money,sumBy,roundMoney,payrollSplitV3,fullyPaidAmount,
+      normalizePayrollSnapshot,readPayrollSnapshot,calculateRecordedCashFlow};
 })(typeof window!=="undefined"?window:null);

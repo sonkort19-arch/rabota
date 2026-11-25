@@ -67,9 +67,16 @@ async function check(browser,role){
     assert.equal(await page.locator("#rdTopSearch").isVisible(),true);
     if(role==="owner"){
       await go(page,"finance");
-      await page.locator(".fp-tabs").waitFor();
+      await page.getByRole("heading",{name:"Учётная касса"}).waitFor();
+      const create=page.locator("#financePanel .mw-owner-create");
+      await create.click();
+      await page.getByRole("button",{name:/Создать приход/}).waitFor();
+      await page.getByRole("button",{name:/Создать расход/}).waitFor();
+      assert.equal(await page.getByRole("button",{name:/Сдать наличные|Подтвердить передачу/}).count(),0);
+      await create.click();
       await go(page,"reports");
       await page.locator("#rdReports .rd-salary-entry").waitFor();
+      await page.locator("#rdReports").getByRole("button",{name:/^Прибыль по заказам/}).waitFor();
     }else{
       assert.equal(await page.locator('[data-page="finance"], [data-page="reports"], [data-page="ai"]').count(),0);
       await page.evaluate(()=>window.__rdNavigate("finance"));

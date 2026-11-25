@@ -12,7 +12,7 @@
       typeof deps.openMasterOrderDialog!=="function"||
       !deps.doc||!deps.ordersNode)throw new TypeError("Нет зависимостей интерфейса мастера");
     const DateImpl=deps.DateImpl||Date; // deterministic tests; production uses native Date
-    const {make,parseDate,formatDate,getOrders,collectionForOrder,
+    const {make,parseDate,formatDate,getOrders,
       getCurrentRole,getCurrentTab,doc,ordersNode,
       openMasterOrderDialog,STATUSES}=deps;
 
@@ -38,14 +38,6 @@ function masterDayLabel(day) {
     }
     function masterWorkingOrders() {
       return getOrders().filter(o=>o.status!=="Выполнен"&&o.status!=="Отменён");
-    }
-    function masterSettlementOrders() {
-      return getOrders().filter(o=>{
-        if(o.status!=="Выполнен")return false;
-        const collection=collectionForOrder(o.id);
-        return !o.paid||Boolean(collection&&!collection.confirmed_at);
-      }).sort((a,b)=>String(b.date||"").localeCompare(String(a.date||""))||
-        String(b.time||"").localeCompare(String(a.time||"")));
     }
     function masterScheduleSort(a,b,today,minutes=-1) {
       // Ближайшие предстоящие выезды первыми; прошедшие и закрытые — ниже.
@@ -152,15 +144,8 @@ function makeMasterScheduleRow(order,isNext=false) {
         "Стоимость не указана":Number(order.price).toLocaleString("ru-RU")+" ₽";
       const price=make("span","master-schedule-price",priceText);
       toggle.append(main,time,chevron,workNode,meta,price);
-      if(state==="Выполнен"){
-        const collection=collectionForOrder(order.id);
-        const partiallyPending=collection&&Number(collection.submitted_amount)>Number(collection.confirmed_amount);
-        const note=!order.paid?"Оплата ещё не отмечена":
-          collection&&!collection.confirmed_at?
-            (collection.submitted_at?"Передача ожидает подтверждения":
-              partiallyPending?"Часть денег ждёт подтверждения":"Нужно завершить расчёт"):"";
-        if(note)toggle.append(make("span","master-money-note",note));
-      }
+      if(state==="Выполнен"&&!order.paid)
+        toggle.append(make("span","master-money-note","Оплата ещё не отмечена"));
       toggle.addEventListener("click",()=>openMasterOrderDialog(order));
       article.append(toggle);
       return article;
@@ -233,7 +218,7 @@ function makeMasterScheduleRow(order,isNext=false) {
 
     function resetReviewOpen(){completedOpenDate=null;completedDayDate=null;}
     return {masterDayLabel,masterClock,masterTimeMinutes,masterWorkingOrders,
-      masterSettlementOrders,masterScheduleSort,masterOrderCount,
+      masterScheduleSort,masterOrderCount,
       renderMasterOverview,masterOrdersToReview,makeMasterScheduleRow,renderMasterSchedule,renderMasterCompletedDay,resetReviewOpen};
   }
   if(root)root.__rdCreateMasterUI=createMasterUI;

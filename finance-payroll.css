@@ -5,18 +5,6 @@ html {
   scrollbar-gutter: stable;
 }
 /* Работа / Финансы: зарплата по сотрудникам. Только owner finance UI */
-body.rd :is(#financePanel,#rdSalaryReport,.fp-master-payroll) .fp-tabs{
- display:flex;align-items:stretch;gap:4px;margin:5px 0 18px;padding:5px;
- background:#f1f4fa;border:1px solid #e6ebf5;border-radius:14px
-}
-body.rd :is(#financePanel,#rdSalaryReport,.fp-master-payroll) .fp-tab{
- min-height:45px;flex:1;border:0;border-radius:10px;background:transparent;
- color:#61708c;font-size:13px;font-weight:750;cursor:pointer
-}
-body.rd :is(#financePanel,#rdSalaryReport,.fp-master-payroll) .fp-tab.active{
- color:#3158d2;background:#fff;box-shadow:0 2px 8px rgba(40,65,115,.11)
-}
-body.rd :is(#financePanel,#rdSalaryReport,.fp-master-payroll) .fp-panel{min-width:0}
 body.rd :is(.fp-data-status,.mw-finance-status,.pr-finance-status){
  display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px 14px;
  padding:9px 12px;margin:0 0 10px;background:#f5f7fb;border:1px solid #e3eaf5;
@@ -26,29 +14,6 @@ body.rd :is(.fp-data-status,.mw-finance-status,.pr-finance-status)[hidden]{displ
 body.rd .fp-status-text{margin:0}
 body.rd :is(.fp-retry,.mw-finance-retry,.pr-retry){min-height:44px;margin:0}
 body.rd :is(#financePanel,#rdSalaryReport,.fp-master-payroll) .fp-screen{display:flex;flex-direction:column;gap:18px;min-width:0}
-body.rd :is(#financePanel,#rdSalaryReport,.fp-master-payroll) .fp-metrics{
- display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px
-}
-body.rd :is(#financePanel,#rdSalaryReport,.fp-master-payroll) .fp-metric{
- min-width:0;padding:20px 20px 18px;border-radius:16px;border:1px solid #e3e9f4;
- background:#fff;display:flex;flex-direction:column;gap:9px;
- box-shadow:0 3px 17px rgba(23,45,89,.035)
-}
-body.rd :is(#financePanel,#rdSalaryReport,.fp-master-payroll) .fp-metric.fp-blue{background:#f4f7ff;border-color:#dbe5fe}
-body.rd :is(#financePanel,#rdSalaryReport,.fp-master-payroll) .fp-metric.fp-green{background:#f3fbf8;border-color:#def3e8}
-body.rd :is(#financePanel,#rdSalaryReport,.fp-master-payroll) .fp-metric.fp-purple{background:#faf7ff;border-color:#ebe3fb}
-body.rd :is(#financePanel,#rdSalaryReport,.fp-master-payroll) .fp-metric.fp-orange{background:#fff8ef;border-color:#f9ead8}
-body.rd :is(#financePanel,#rdSalaryReport,.fp-master-payroll) .fp-metric small{font-size:12px;color:#65738d;font-weight:650}
-body.rd :is(#financePanel,#rdSalaryReport,.fp-master-payroll) .fp-metric strong{
- font-size:27px;letter-spacing:-.7px;line-height:1.15;font-weight:840;color:#1e2c46;overflow-wrap:anywhere
-}
-body.rd :is(#financePanel,#rdSalaryReport,.fp-master-payroll) .fp-metric.fp-blue strong{color:#315ce2}
-body.rd :is(#financePanel,#rdSalaryReport,.fp-master-payroll) .fp-metric.fp-orange strong{color:#bd5a17}
-body.rd :is(#financePanel,#rdSalaryReport,.fp-master-payroll) .fp-metric span{color:#8793a9;font-size:11px;line-height:1.4}
-body.rd :is(#financePanel,#rdSalaryReport,.fp-master-payroll) .fp-section,body.rd :is(#financePanel,#rdSalaryReport,.fp-master-payroll) .fp-person-detail{
- border:1px solid #e5ebf4;background:#fff;border-radius:17px;padding:18px 20px;
- box-shadow:0 4px 18px rgba(29,48,92,.04);min-width:0
-}
 body.rd :is(#financePanel,#rdSalaryReport,.fp-master-payroll) .fp-title-row{
  display:flex;align-items:center;justify-content:space-between;gap:12px;margin:0 0 15px
 }
@@ -57,42 +22,6 @@ body.rd :is(#financePanel,#rdSalaryReport,.fp-master-payroll) .fp-title-row h2,b
 }
 body.rd :is(#financePanel,#rdSalaryReport,.fp-master-payroll) .fp-title-row h3{font-size:16px;margin:0;color:#25334d}
 body.rd :is(#financePanel,#rdSalaryReport,.fp-master-payroll) .fp-title-row small{font-size:11px;color:#8792a8}
-body.rd :is(#financePanel,#rdSalaryReport,.fp-master-payroll) .fp-people{border:1px solid #e7ecf5;border-radius:13px;overflow:hidden}
-body.rd :is(#financePanel,#rdSalaryReport,.fp-master-payroll) .fp-people-head,body.rd :is(#financePanel,#rdSalaryReport,.fp-master-payroll) .fp-person-row{
- display:grid;grid-template-columns:minmax(150px,1.55fr) minmax(85px,1fr) minmax(85px,1fr)
- minmax(95px,1fr) minmax(90px,.85fr);
- column-gap:10px;align-items:center;padding:13px 15px
-}
-body.rd :is(#financePanel,#rdSalaryReport,.fp-master-payroll) .fp-people-head{
- background:#f6f8fc;color:#7b879f;font-size:11px;font-weight:750
-}
-body.rd :is(#financePanel,#rdSalaryReport,.fp-master-payroll) .fp-person-row{border-top:1px solid #ebeff6;min-height:75px}
-body.rd :is(#financePanel,#rdSalaryReport,.fp-master-payroll) .fp-person-row:hover{background:#fbfcff}
-body.rd :is(#financePanel,#rdSalaryReport,.fp-master-payroll) .fp-person-button{
- display:flex;align-items:center;gap:10px;text-align:left;padding:0;background:none;
- border:none;min-width:0;cursor:pointer
-}
-body.rd :is(#financePanel,#rdSalaryReport,.fp-master-payroll) .fp-person-button:hover .fp-name strong{color:#2e57d8}
-body.rd :is(#financePanel,#rdSalaryReport,.fp-master-payroll) .fp-avatar{
- display:grid;place-items:center;border-radius:50%;width:37px;height:37px;
- flex:0 0 37px;background:#e8eeff;color:#3b5bd2;font-weight:800
-}
-body.rd :is(#financePanel,#rdSalaryReport,.fp-master-payroll) .fp-name{min-width:0;display:flex;flex-direction:column;gap:4px}
-body.rd :is(#financePanel,#rdSalaryReport,.fp-master-payroll) .fp-name strong{font-size:14px;color:#1a2b49}
-body.rd :is(#financePanel,#rdSalaryReport,.fp-master-payroll) .fp-name small{font-size:11px;color:#8996ab}
-body.rd :is(#financePanel,#rdSalaryReport,.fp-master-payroll) .fp-person-row>span,
-body.rd :is(#financePanel,#rdSalaryReport,.fp-master-payroll) .fp-person-row>.fp-due{font-size:13px;color:#2b3a56;font-weight:650}
-body.rd :is(#financePanel,#rdSalaryReport,.fp-master-payroll) .fp-person-row>.fp-due{color:#ae5316;font-size:14px;font-weight:800}
-body.rd :is(#financePanel,#rdSalaryReport,.fp-master-payroll) .fp-pay{
- min-height:37px;padding:8px 12px;border:1px solid #cbdafe;
- border-radius:9px;background:#ecf2ff;color:#3157c9;font-weight:750;font-size:12px;
- cursor:pointer
-}
-body.rd :is(#financePanel,#rdSalaryReport,.fp-master-payroll) .fp-pay:hover{background:#dfebff}
-body.rd :is(#financePanel,#rdSalaryReport,.fp-master-payroll) .fp-detail-head{
- display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:17px
-}
-body.rd :is(#financePanel,#rdSalaryReport,.fp-master-payroll) .fp-detail-head h2{flex:1}
 body.rd :is(#financePanel,#rdSalaryReport,.fp-master-payroll) .fp-link{
  padding:9px 12px;border:0;border-radius:10px;background:#f0f4fd;color:#3658bc;
  font-size:12px;font-weight:750;cursor:pointer
@@ -107,12 +36,6 @@ body.rd :is(#financePanel,#rdSalaryReport,.fp-master-payroll) .fp-period{
  min-height:36px;padding:5px 10px;max-width:190px;border:1px solid #dce4f1;
  border-radius:9px;background:#fff;color:#33445f;font-size:12px
 }
-body.rd :is(#financePanel,#rdSalaryReport,.fp-master-payroll) .fp-total{
- display:flex;justify-content:space-between;align-items:center;gap:12px;
- background:#f7f9fd;border:1px solid #e8edf7;border-radius:9px;
- padding:12px 15px;color:#68758b;font-size:12px
-}
-body.rd :is(#financePanel,#rdSalaryReport,.fp-master-payroll) .fp-total strong{font-size:14px;color:#26364f}
 body.rd :is(#financePanel,#rdSalaryReport,.fp-master-payroll) .fp-ledger{margin-top:10px}
 body.rd :is(#financePanel,#rdSalaryReport,.fp-master-payroll) .fp-ledger-row{
  display:grid;grid-template-columns:115px minmax(0,1fr) 130px;
@@ -129,12 +52,8 @@ body.rd :is(#financePanel,#rdSalaryReport,.fp-master-payroll) .fp-negative{color
 body.rd :is(#financePanel,#rdSalaryReport,.fp-master-payroll) .fp-hint{
  color:#79869e;font-size:12px;line-height:1.5;margin:12px 0 0
 }
-body.rd :is(#financePanel,#rdSalaryReport,.fp-master-payroll) .fp-original{margin-top:18px}
 body.rd :is(#financePanel,#rdSalaryReport,.fp-master-payroll) .fp-original[hidden],body.rd #financePanel #financeHistory[hidden],
 body.rd #financePanel #financeEntry[hidden]{display:none!important}
-body.rd :is(#financePanel,#rdSalaryReport,.fp-master-payroll) .fp-original .finance-title{font-size:16px}
-body.rd :is(#financePanel,#rdSalaryReport,.fp-master-payroll) .fp-original .finance-hero{padding:15px}
-body.rd :is(#financePanel,#rdSalaryReport,.fp-master-payroll) .fp-original .finance-hero-value{font-size:23px}
 body.rd .fp-backdrop{
  position:fixed;inset:0;z-index:1000;background:#101b3499;
  display:grid;place-items:center;padding:14px;backdrop-filter:blur(3px)
@@ -163,28 +82,6 @@ body.rd .fp-secondary{background:#f1f4fa;border:1px solid #e4e8f1;color:#4b5a78}
 body.rd .fp-primary{color:#fff;background:#3563e8;border:1px solid #3563e8}
 body.rd .fp-primary:disabled{opacity:.45;cursor:not-allowed}
 @media(max-width:1050px){
- body.rd :is(#financePanel,#rdSalaryReport,.fp-master-payroll) .fp-people-head,body.rd :is(#financePanel,#rdSalaryReport,.fp-master-payroll) .fp-person-row{
- grid-template-columns:minmax(140px,1.6fr) minmax(75px,1fr) minmax(85px,1fr) minmax(80px,.85fr);
- }
- body.rd :is(#financePanel,#rdSalaryReport,.fp-master-payroll) .fp-people-head>span:nth-child(3),body.rd :is(#financePanel,#rdSalaryReport,.fp-master-payroll) .fp-col-paid{display:none}
-}
-@media(max-width:1050px){
- body.rd :is(#financePanel,#rdSalaryReport,.fp-master-payroll) .fp-tabs{margin:2px 0 13px;gap:2px}
- body.rd :is(#financePanel,#rdSalaryReport,.fp-master-payroll) .fp-tab{font-size:11px;min-height:43px;padding:5px 3px}
- body.rd :is(#financePanel,#rdSalaryReport,.fp-master-payroll) .fp-metrics{gap:8px}
- body.rd :is(#financePanel,#rdSalaryReport,.fp-master-payroll) .fp-metric{padding:13px 10px;gap:7px;border-radius:13px}
- body.rd :is(#financePanel,#rdSalaryReport,.fp-master-payroll) .fp-metric small{font-size:10px;line-height:1.35}
- body.rd :is(#financePanel,#rdSalaryReport,.fp-master-payroll) .fp-metric strong{font-size:19px}
- body.rd :is(#financePanel,#rdSalaryReport,.fp-master-payroll) .fp-metric span{font-size:10px}
- body.rd :is(#financePanel,#rdSalaryReport,.fp-master-payroll) .fp-section,body.rd :is(#financePanel,#rdSalaryReport,.fp-master-payroll) .fp-person-detail{padding:13px;border-radius:14px}
- body.rd :is(#financePanel,#rdSalaryReport,.fp-master-payroll) .fp-people-head{display:none}
- body.rd :is(#financePanel,#rdSalaryReport,.fp-master-payroll) .fp-person-row{
- display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px;padding:13px
- }
- body.rd :is(#financePanel,#rdSalaryReport,.fp-master-payroll) .fp-person-button{grid-column:1}
- body.rd :is(#financePanel,#rdSalaryReport,.fp-master-payroll) .fp-person-row>.fp-due{grid-column:2;grid-row:1;text-align:right}
- body.rd :is(#financePanel,#rdSalaryReport,.fp-master-payroll) .fp-col-accrued,body.rd :is(#financePanel,#rdSalaryReport,.fp-master-payroll) .fp-col-paid{display:none}
- body.rd :is(#financePanel,#rdSalaryReport,.fp-master-payroll) .fp-person-row>.fp-pay{grid-column:1/-1;width:100%;min-height:39px}
  body.rd :is(#financePanel,#rdSalaryReport,.fp-master-payroll) .fp-title-row h2{font-size:17px}
  body.rd :is(#financePanel,#rdSalaryReport,.fp-master-payroll) .fp-ledger-row{grid-template-columns:75px minmax(0,1fr) 100px;gap:7px}
  body.rd :is(#financePanel,#rdSalaryReport,.fp-master-payroll) .fp-ledger-row>strong{font-size:12px}
@@ -192,35 +89,16 @@ body.rd .fp-primary:disabled{opacity:.45;cursor:not-allowed}
  body.rd .fp-modal{padding:17px}
 }
 @media(max-width:410px){
- body.rd :is(#financePanel,#rdSalaryReport,.fp-master-payroll) .fp-metrics{grid-template-columns:1fr}
- body.rd :is(#financePanel,#rdSalaryReport,.fp-master-payroll) .fp-metric{padding:13px 15px}
- body.rd :is(#financePanel,#rdSalaryReport,.fp-master-payroll) .fp-metric strong{font-size:24px}
- body.rd :is(#financePanel,#rdSalaryReport,.fp-master-payroll) .fp-metric span{font-size:11px}
  body.rd :is(#financePanel,#rdSalaryReport,.fp-master-payroll) .fp-ledger-row{grid-template-columns:70px minmax(0,1fr);gap:5px}
  body.rd :is(#financePanel,#rdSalaryReport,.fp-master-payroll) .fp-ledger-row>strong{grid-column:2;text-align:left}
 }
 @media(prefers-reduced-motion:reduce){body.rd .fp-modal,body.rd .fp-backdrop{animation:none}}
 
 /* Preview safety: show that the original finance mutation buttons are disabled. */
-body.rd :is(#financePanel,#rdSalaryReport,.fp-master-payroll) .fp-original button:disabled,
-body.rd #financePanel #financeHistory button:disabled,
-body.rd #financePanel #financeSaveBtn:disabled{
- opacity:.52;cursor:not-allowed;filter:grayscale(.2);
-}
 
 
 /* Salary detail: HelloClient-like balance first, then transactions.
    Global payroll totals stay on the staff list; don't duplicate them here. */
-body.rd :is(#financePanel,#rdSalaryReport,.fp-master-payroll) .fp-person-detail{
-  padding:18px 20px 22px;
-}
-body.rd :is(#financePanel,#rdSalaryReport,.fp-master-payroll) .fp-person-heading{
-  display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;
-  gap:10px;margin:0 0 15px;
-}
-body.rd :is(#financePanel,#rdSalaryReport,.fp-master-payroll) .fp-person-role{
-  font-size:12px;color:#8693aa;font-weight:650;
-}
 body.rd :is(#financePanel,#rdSalaryReport,.fp-master-payroll) .fp-balance-hero{
   display:flex;align-items:center;justify-content:space-between;gap:24px;
   min-width:0;padding:26px 27px;
@@ -278,11 +156,7 @@ body.rd :is(#financePanel,#rdSalaryReport,.fp-master-payroll) .fp-person-summary
   font-size:19px;line-height:1.2;color:#283954;font-weight:780;
   font-variant-numeric:tabular-nums;overflow-wrap:anywhere;
 }
-body.rd :is(#financePanel,#rdSalaryReport,.fp-master-payroll) .fp-person-detail .fp-subtabs{
-  margin:22px 0 17px;
-}
 @media(max-width:1050px){
-  body.rd :is(#financePanel,#rdSalaryReport,.fp-master-payroll) .fp-person-detail{padding:12px}
   body.rd :is(#financePanel,#rdSalaryReport,.fp-master-payroll) .fp-balance-hero{
     gap:15px;padding:18px;border-radius:14px;
   }
@@ -403,47 +277,15 @@ body.rd :is(#rdSalaryReport,.fp-master-payroll) .fp-report-head .fp-link{min-hei
 /* Owner / Reports / Salary: compact CRM light design.
    Scoped to the relocated payroll panel. The real payout dialog is unchanged. */
 body.rd :is(#rdSalaryReport,.fp-master-payroll) .fp-screen{gap:9px}
-body.rd :is(#rdSalaryReport,.fp-master-payroll) .fp-metrics{gap:7px}
-body.rd :is(#rdSalaryReport,.fp-master-payroll) .fp-metric{
-  gap:4px;padding:11px 12px;border-radius:12px;box-shadow:none;
-}
-body.rd :is(#rdSalaryReport,.fp-master-payroll) .fp-metric strong{
-  font-size:clamp(17px,2.5vw,22px);line-height:1.12;
-}
-body.rd :is(#rdSalaryReport,.fp-master-payroll) .fp-metric span{font-size:10px;line-height:1.25}
 body.rd :is(#rdSalaryReport,.fp-master-payroll) .fp-title-row{margin-bottom:8px}
-body.rd :is(#rdSalaryReport,.fp-master-payroll) .fp-section,
-body.rd :is(#rdSalaryReport,.fp-master-payroll) .fp-person-detail{padding:11px;border-radius:12px;box-shadow:none}
-body.rd :is(#rdSalaryReport,.fp-master-payroll) .fp-person-row{min-height:62px;padding:9px 10px}
-body.rd :is(#rdSalaryReport,.fp-master-payroll) .fp-pay{min-height:32px;padding:5px 10px}
-body.rd :is(#rdSalaryReport,.fp-master-payroll) .fp-people{border-radius:9px}
 body.rd :is(#rdSalaryReport,.fp-master-payroll) .fp-hint{font-size:11px;margin-top:7px}
-body.rd :is(#rdSalaryReport,.fp-master-payroll) .fp-subtabs,
-body.rd :is(#rdSalaryReport,.fp-master-payroll) .fp-person-detail .fp-subtabs{margin:10px 0;gap:3px;padding:3px}
 body.rd :is(#rdSalaryReport,.fp-master-payroll) .fp-subtab{padding:8px 12px}
-body.rd :is(#rdSalaryReport,.fp-master-payroll) .fp-total{padding:8px 10px}
 body.rd :is(#rdSalaryReport,.fp-master-payroll) .fp-ledger-row{padding:8px 2px}
 body.rd :is(#rdSalaryReport,.fp-master-payroll) .fp-balance-hero{padding:14px 15px;gap:9px}
 body.rd :is(#rdSalaryReport,.fp-master-payroll) .fp-balance-value{font-size:clamp(25px,3vw,31px)}
 body.rd :is(#rdSalaryReport,.fp-master-payroll) .fp-person-summary{gap:7px;margin-top:8px}
 body.rd :is(#rdSalaryReport,.fp-master-payroll) .fp-person-summary-item{padding:10px 11px;gap:4px}
 @media(max-width:510px){
-  body.rd :is(#rdSalaryReport,.fp-master-payroll) .fp-metrics{
-    display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px;
-  }
-  body.rd :is(#rdSalaryReport,.fp-master-payroll) .fp-metric:first-child{grid-column:1/-1}
-  body.rd :is(#rdSalaryReport,.fp-master-payroll) .fp-metric{padding:10px}
-  body.rd :is(#rdSalaryReport,.fp-master-payroll) .fp-metric strong{font-size:19px;letter-spacing:-.35px}
-  body.rd :is(#rdSalaryReport,.fp-master-payroll) .fp-metric:first-child strong{font-size:24px}
-  body.rd :is(#rdSalaryReport,.fp-master-payroll) .fp-metric span{display:none}
-  body.rd :is(#rdSalaryReport,.fp-master-payroll) .fp-person-row{padding:8px 9px;gap:5px;min-height:58px}
-  body.rd :is(#rdSalaryReport,.fp-master-payroll) .fp-avatar{width:30px;height:30px;flex-basis:30px;font-size:12px}
-  body.rd :is(#rdSalaryReport,.fp-master-payroll) .fp-person-button{gap:7px}
-  body.rd :is(#rdSalaryReport,.fp-master-payroll) .fp-name strong{font-size:13px}
-  body.rd :is(#rdSalaryReport,.fp-master-payroll) .fp-person-row>.fp-due{font-size:13px}
-  body.rd :is(#rdSalaryReport,.fp-master-payroll) .fp-person-row>.fp-pay{
-    grid-column:2;grid-row:2;justify-self:end;width:auto;min-height:30px;
-  }
   body.rd :is(#rdSalaryReport,.fp-master-payroll) .fp-balance-hero{gap:10px}
   body.rd :is(#rdSalaryReport,.fp-master-payroll) .fp-balance-value{font-size:26px}
   body.rd :is(#rdSalaryReport,.fp-master-payroll) .fp-balance-payout{min-height:38px}

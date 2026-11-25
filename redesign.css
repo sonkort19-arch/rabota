@@ -94,7 +94,7 @@ body.rd .panel .day{background:#1d293b;border-color:#33425b;color:#dce7f9}
 body.rd .panel .day.active{background:#415ad7;color:white}
 body.rd .panel .day.active .weekday{color:#e6ebff}
 body.rd .panel .day.has-orders:not(.active){background:#263652;border-color:#45679c}
-body.rd .panel .weekday,body.rd .muted,body.rd .count,body.rd .control-label,body.rd .finance-hero-label,body.rd .finance-hero-sub,body.rd .finance-tip,body.rd .finance-line-label,body.rd .finance-activity-sub,body.rd .master-schedule-address,body.rd .cash-share-hint,body.rd .team-empty,body.rd .info{color:#9eafc7}
+body.rd .panel .weekday,body.rd .muted,body.rd .count,body.rd .control-label,body.rd .finance-hero-label,body.rd .finance-hero-sub,body.rd .finance-tip,body.rd .finance-line-label,body.rd .finance-activity-sub,body.rd .master-schedule-address,body.rd .team-empty,body.rd .info{color:#9eafc7}
 body.rd .panel h2,body.rd .finance-title,body.rd .client,body.rd .finance-hero-value,body.rd .master-day-heading h3,body.rd .master-schedule-name{color:#f1f5fc}
 body.rd .order-card{padding:19px;border-radius:15px}
 body.rd .date-pill{background:#213959;color:#93bcff}
@@ -119,7 +119,7 @@ body.rd .sheet label,body.rd .finance-entry label{color:#c2cce1}
 body.rd .finance-hero-primary{background:#202b47;border-color:#475a86}
 body.rd .finance-line{border-color:#303a4d}
 body.rd .finance-activity-top{color:#e6eefa}
-body.rd .master-mode .master-cost,body.rd .cash-share,body.rd .push-panel{background:#202d43;border-color:#384a64;color:#eaf0ff}
+body.rd .master-mode .master-cost,body.rd .push-panel{background:#202d43;border-color:#384a64;color:#eaf0ff}
 body.rd .master-schedule-toggle:active,body.rd .master-schedule-card.is-expanded .master-schedule-toggle{background:#24344b}
 body.rd .master-schedule-card.is-expanded .master-schedule-toggle{border-color:#36455b}
 body.rd .master-schedule-details>.order-card{background:transparent}

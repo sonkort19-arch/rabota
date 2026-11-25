@@ -4,12 +4,6 @@
 "use strict";
 (function(root){
   const TIME_ZONE="Europe/Moscow";
-  const RAUL_PERCENT=0.5;
-  const TIMUR_PER_ORDER=1500;
-  // Identical salary and company-share split to Finance. Never keep another
-  // independently implemented calculation in a report.
-  const sharedSplit=root?.__rdFinanceSplit ||
-    (typeof require==="function"?require("./finance-model.js").financeSplit:null);
   const orderReference=root?.__rdOrderReference ||
     (typeof require==="function"?require("./order-model.js").orderReference:null);
   const PAGE_SIZE=100;
@@ -40,44 +34,33 @@
       options.holdsByOrder.get(orderId):options.payroll.holds?.find(item=>item.orderId===orderId)):null;
     const projection=versioned?(options.payrollByOrder?
       options.payrollByOrder.get(orderId):options.payroll.orders.find(item=>item.orderId===orderId)):null;
+    const receipt=options.receiptsByOrder?.get(orderId)??options.payroll?.accounting?.receipts?.find(item=>item.orderId===orderId);
     const paymentIsMissing=paid&&(order.paymentAmount==null||order.paymentAmount==="");
-    const confirmedPayment=projection?.actualPaid??(hold?.cashOnHold?hold.paymentAmount:null);
-    const paymentVerified=paymentIsMissing&&confirmedPayment!=null;
-    const paymentAmountMissing=paymentIsMissing&&!paymentVerified;
-    const paymentUnverified=Boolean(hold&&paymentAmountMissing);
-    const amount=paymentIsMissing?(confirmedPayment??(paymentUnverified?null:price)):Number(order.paymentAmount);
-    const received=!refund&&paid&&(validPrice||paymentVerified)&&Number.isFinite(amount)&&amount>=0?round(amount):0;
-    const paymentMismatch=paid&&validPrice&&!paymentAmountMissing&&
-      Number.isFinite(amount)&&Math.abs(amount-price)>=.01;
-    const completed=order.status==="Выполнен";
-    const earned=completed&&paid&&!refund;
-    // In the CRM, always supply Raul's authenticated master user_id.
-    // Legacy unit-test callers without masterId may still use display names.
-    const scoped=Object.prototype.hasOwnProperty.call(options,"masterId");
-    const raul=scoped
-      ?Boolean(options.masterId)&&order.assignedUserId===options.masterId
-      :txt(order.master).trim().toLocaleLowerCase("ru-RU")==="рауль";
-    const split=!versioned&&earned&&raul&&validPrice&&typeof sharedSplit==="function"?sharedSplit(price):null;
-    const calculated=!hold?.payrollOnHold&&Boolean(projection||split);
-    const salary=calculated?(projection?round(projection.actualPaid-projection.companyShare):round(split.raul+split.timur)):null;
-    const profit=calculated?(projection?projection.companyShare:split.company):null;
+    const received=!refund&&receipt?receipt.amount:0;
+    const paymentVerified=Boolean(paymentIsMissing&&receipt);
+    const paymentAmountMissing=paymentIsMissing&&!receipt;
+    const paymentMismatch=paid&&validPrice&&!paymentIsMissing&&Number.isFinite(Number(order.paymentAmount))&&
+      Math.abs(Number(order.paymentAmount)-price)>=.01;
+    const earned=order.status==="Выполнен"&&paid&&!refund;
+    const masterId=options.payroll?.masterId||options.masterId;
+    const raul=Boolean(masterId)&&(receipt?.masterId??order.assignedUserId)===masterId;
+    const calculated=!refund&&!hold?.payrollOnHold&&Boolean(receipt&&(projection||!raul));
+    const salary=calculated?(projection?round(projection.actualPaid-projection.companyShare):0):null;
+    const profit=calculated?projection?.companyShare??receipt.amount:null;
     const holdReference=!order.referenceCode?orderReference?.code(hold?.orderNumber):null;
     return Object.assign({},order,holdReference?{orderNumber:hold.orderNumber,referenceCode:holdReference}:null,{
       reportPrice:validPrice?price:null,
       reportReceived:received,reportEarned:earned||Boolean(projection),reportCalculated:calculated,
       reportSalary:salary,reportProfit:profit,
-      reportCalculationAmount:projection?.actualPaid??split?.gross??null,
+      reportCalculationAmount:projection?.actualPaid??receipt?.amount??null,
       reportRuleVersion:projection?.ruleVersion??null,
       reportRefundedAmount:refund?.amount??null,
       reportPaymentMissing:!refund&&paymentAmountMissing,reportPaymentMismatch:!refund&&paymentMismatch,
-      reportPaymentVerified:!refund&&paymentVerified,reportPaymentUnverified:!refund&&paymentUnverified,
+      reportPaymentVerified:!refund&&paymentVerified,reportPaymentUnverified:!refund&&paid&&!receipt,
       reportPayrollOnHold:Boolean(hold?.payrollOnHold),reportCashOnHold:Boolean(hold?.cashOnHold),
       reportHoldReason:hold?.reason??"",
-      reportReason:!earned||calculated||hold?.payrollOnHold?"":versioned?
-        "В расчёте зарплаты нет подтверждённого начисления по этому заказу":
-        !validPrice?"Не указана цена":!raul?
-        "Нет расчёта: заказ назначен другому мастеру или мастер не найден":
-        "Не загружены правила финансовых начислений"
+      reportReason:earned&&!calculated&&!hold?.payrollOnHold?
+        "Нет подтверждённого финансового расчёта по заказу":""
     });
   }
   function summary(rows){
@@ -119,6 +102,7 @@
     const payrollByOrder=options.payroll?.state==="active"?
       new Map(options.payroll.orders.map(item=>[item.orderId,item])):null;
     const rowOptions=payrollByOrder?{...options,payrollByOrder,
+      receiptsByOrder:new Map((options.payroll.accounting?.receipts??[]).map(item=>[item.orderId,item])),
       refundsByOrder:new Map((options.payroll.refunds??[]).map(item=>[item.orderId,item])),
       holdsByOrder:new Map((options.payroll.holds??[]).map(item=>[item.orderId,item]))}:options;
     return orders.map(order=>reportRow(order,rowOptions)).filter(row=>{
@@ -144,7 +128,7 @@
   function holdDetails(row){
     return [
       row.reportPayrollOnHold?"Начисление на сверке":"",
-      row.reportCashOnHold?"Наличные у мастера на сверке":"",
+      row.reportCashOnHold?"Архив сверки":"",
       row.reportHoldReason
     ].filter(Boolean);
   }
@@ -295,9 +279,8 @@
       }
       const orders=getOrders(),masterId=getRaulMasterId?.(),today=moscowDay(new Date()),payroll=getPayroll?.();
       const versioned=payroll?.state==="active";
-      const explanationText=versioned?
-        "Для новых начислений зарплата Рауля составляет 50% полной подтверждённой оплаты плюс 1 500 ₽. Доля компании равна оплате за вычетом начисленной зарплаты, до затрат на материалы, дорогу и налоги. Выплаченная зарплата уже учтена в начислении. Исторические расчёты сохранены.":
-        "Доля компании = стоимость выполненного и оплаченного заказа − 50% Раулю − 1 500 ₽ Тимуру, до затрат на материалы, дорогу и налоги. Если в старом заказе нет суммы оплаты, расчёт поступлений основан на отметке «Оплачено».";
+      const explanationText=
+        "Для новых начислений зарплата Рауля составляет 50% полной подтверждённой оплаты плюс 1 500 ₽. Доля компании равна оплате за вычетом начисленной зарплаты, до затрат на материалы, дорогу и налоги. Выплаченная зарплата уже учтена в начислении. Исторические расчёты сохранены.";
       if(explanation.textContent!==explanationText)explanation.textContent=explanationText;
       const key=JSON.stringify([state,finance?.revision,masterId,today,versioned]);
       if(renderKey===key&&(finance?.revision!=null||renderedOrders===orders))return;
@@ -367,7 +350,7 @@
         if(row.reportPaymentVerified)parts.push("Сумма оплаты подтверждена сверкой");
         if(row.reportPaymentMissing)parts.push(row.reportPaymentUnverified?
           "Сумма оплаты пока не подтверждена":
-          "Сумма фактической оплаты не записана; показана стоимость заказа по отметке «Оплачено»");
+          "Сумма оплаты ещё не подтверждена");
         if(row.reportPaymentMismatch)parts.push("Внимание: сумма оплаты отличается от стоимости заказа");
         if(row.reportReason)parts.push(row.reportReason);
         parts.push(...holdDetails(row));
@@ -389,6 +372,6 @@
   }
   if(root)root.__rdCreateProfitReport=mount;
   if(typeof module!=="undefined"&&module.exports)module.exports={
-    reportRow,summary,filterRows,bounds,moscowDay,csvFor,RAUL_PERCENT,TIMUR_PER_ORDER
+    reportRow,summary,filterRows,bounds,moscowDay,csvFor
   };
 })(typeof window!=="undefined"?window:null);

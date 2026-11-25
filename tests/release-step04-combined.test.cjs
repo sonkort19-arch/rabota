@@ -22,17 +22,20 @@ test("the combined branch includes the eight architecture modules",()=>{
 });
 test("Raul's salary screen remains read-only in the modular frontend",()=>{
  assert.doesNotThrow(()=>new Function(money));
- assert.match(money,/Моя зарплата/);
- assert.match(money,/Баланс к выплате/);
- assert.match(money,/Выплату проводит владелец/);
  assert.doesNotMatch(money,/openMasterPayout|Оформить выплату/);
- assert.match(money,/Начисления/);
- assert.match(money,/Выплаты/);
+ assert.match(money,/__rdPayrollReport\.mount\(container,\{master:true,/);
+ assert.match(finance,/v3Payroll\(m,!master,v3State,redraw\)/);
+ assert.match(finance,/if\(owner&&m\.employeeId\)\{[\s\S]*?fp-balance-payout/);
+ assert.match(finance,/Моя зарплата/);
+ assert.match(finance,/Осталось получить/);
+ assert.match(finance,/Начисления/);
+ assert.match(finance,/Выплаты/);
 });
 test("the owner payout UI is present and still calls the server RPC",()=>{
  assert.match(finance,/fp-balance-payout/);
  assert.match(finance,/Подтвердить выплату/);
- assert.match(html,/rpc\/rabota_salary_payout_v2/);
+ assert.match(html,/dbRequest\("rpc\/rabota_payroll_payout_v3","POST",\{[\s\S]*?p_request_id:requestId/);
+ assert.doesNotMatch(html,/rpc\/rabota_salary_payout_v2/);
 });
 test("financial guard enforces RPC transitions, not client role labels",()=>{
  assert.match(guard,/CREATE OR REPLACE TRIGGER rabota_paid_order_guard_trigger/);

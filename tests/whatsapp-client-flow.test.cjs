@@ -28,8 +28,10 @@ test("Completion draft gated on real completed order in refreshed data",()=>{
   assert.match(block,/previousOrder\.status!=="Выполнен"/);
 });
 test("Master and manager completion paths use same gated draft",()=>{
-  const payment=between("async function openPaymentForOrder(order) {","function collectionForOrder");
-  assert.match(payment,/if\(complete\)openCompletedClientDraft\(order\)/);
+  const payment=between("async function openPaymentForOrder(order) {","function makeCard(order) {");
+  const save=payment.indexOf("await orderModel.recordFullPayment");
+  assert.ok(save>=0&&save<payment.indexOf("openCompletedClientDraft(order)"));
+  assert.match(payment,/if\(generation!==accessGeneration\)return false;\s*if\(complete\)openCompletedClientDraft\(order\)/);
   const cards=between("function makeCard(order) {","let formPaymentChoice=null;");
   assert.match(cards,/if\(action==="complete"\)openCompletedClientDraft\(order\)/);
   assert.match(cards,/if\(state!=="Выполнен" && next\.status==="Выполнен"\)/);

@@ -3,13 +3,25 @@
  * Optional: CHROMIUM_PATH=/path/to/chromium. No live API requests are allowed.
  */
 const {chromium,devices}=require('playwright');
-const {mockLegacyPayrollSnapshot}=require("./fixtures/legacy-payroll.cjs");
 const fs=require('node:fs'),path=require('node:path');
 const assert=require('node:assert/strict');
 const root=path.resolve(__dirname,'..');
 const today=new Intl.DateTimeFormat("sv-SE",{timeZone:"Europe/Moscow",year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date());
 const long='ОченьДлинноеИмяКлиентаБезПробелов'.repeat(4);
 const orders=Array.from({length:9},(_,i)=>({id:'order-'+i,name:i? 'Тестовый клиент '+i:long,phone:'79990000001',address:long,radiator_type:'Биметаллические',radiators:12,floor_loops:3,master:'Рауль',assigned_user_id:'master',appointment_date:today,appointment_time:(10+i%8)+':00:00',status:i%3?'Записан':'Выполнен',paid:i%3===0,price:12000,details:long,created_at:today+'T10:00:00Z',completed_at:today+'T12:00:00Z'}));
+const paidOrders=orders.filter(order=>order.paid);
+const paidAt=today+'T12:00:00Z';
+function payrollSnapshot(role){
+ const snapshot={version:3,accounting_version:1,activated_at:paidAt};
+ if(role==='manager')return {...snapshot,state:'not_applicable'};
+ return {...snapshot,state:'active',master_id:'master',earned:22500,paid:0,due:22500,payouts:[],refunds:[],holds:[],
+  orders:paidOrders.map(order=>({order_id:order.id,paid_amount:12000,earned_amount:7500,
+   company_share:4500,earned_at:paidAt,rule_version:3})),
+  accounting_receipts:paidOrders.map(order=>({order_id:order.id,master_id:'master',
+   amount:12000,payment_method:'cash',paid_at:paidAt,occurred_at:paidAt})),
+  ...(role==='owner'?{accounting_payouts:[]}:{}),
+ };
+}
 const members=[{user_id:'owner',role:'owner',active:true,email:'owner@test.invalid'},{user_id:'master',role:'master',active:true,master_name:'Рауль',email:long+'@test.invalid'},{user_id:'pending',role:'master',active:false,email:long+'@test.invalid'}];
 async function setup(browser,device,role='owner'){
  const context=await browser.newContext({...device,serviceWorkers:"block"});const writes=[],errors=[];
@@ -27,12 +39,12 @@ async function setup(browser,device,role='owner'){
   if(u.pathname==='/auth/v1/user')value={id:role,email:role+'@test.invalid'};
   if(u.pathname.endsWith('/rabota_members'))value=u.searchParams.has('user_id')?[{user_id:role,role,active:true,master_name:role==='master'?'Рауль':null}]:u.searchParams.get('role')==='eq.master'?[members[1]]:members;
   if(u.pathname.endsWith('/rabota_orders'))value=orders;
+  if(u.pathname.endsWith('/rpc/rabota_payroll_snapshot_v3'))value=payrollSnapshot(role);
   if(u.pathname.endsWith('/rabota_finance_operations'))value=[{id:'op',kind:'expense',amount:123,created_at:today+'T10:00:00Z',note:long}];
   if(u.pathname.endsWith('/rabota_ai_chats'))value=[{id:'chat',title:long,updated_at:today}];
   if(u.pathname.endsWith('/rabota_ai_messages'))value=[{id:'m',role:'assistant',content:long,created_at:today}];
   return route.fulfill({contentType:'application/json',body:JSON.stringify(value)});
  });
- await mockLegacyPayrollSnapshot(context);
  const page=await context.newPage();page.on('pageerror',e=>errors.push(e.message));
  return {context,page,writes,errors};
 }
@@ -58,7 +70,7 @@ async function scan(page,label){
   await page.setViewportSize({width,height:800});
   for(const section of ['home','orders','calendar','clients','finance','reports','settings','leads']){
    await page.locator('.rd-shell [data-page="'+(section==='calendar'?'orders':section)+'"]').evaluate(e=>e.click());
-   if(section==='finance')await page.locator('.fp-tabs').waitFor();
+   if(section==='finance')await page.locator('.mw-money-stats').waitFor();
    results.push(await scan(page,section));
    if(section==='clients'){
     await page.locator('.rd-client button').first().click();results.push(await scan(page,'client-history'));
@@ -109,14 +121,15 @@ async function scan(page,label){
     await page.locator('#orderOverlay .close').click();
    }
    if(section==='finance'){
-    for(const tab of ['cash','operations','payments']){
-     await page.locator('[data-finance-tab="'+tab+'"]').click();
-     results.push(await scan(page,'finance-'+tab));
-    }
+    await page.locator('.mw-owner-create').click();
+    results.push(await scan(page,'finance-menu'));
+    await page.getByRole('button',{name:/создать расход/i}).click();
+    results.push(await scan(page,'finance-expense-dialog'));
+    await page.locator('.mw-modal').getByRole('button',{name:'Отмена'}).click();
    }
    if(section==='reports'){
     await page.locator('#rdReports .rd-salary-entry').click();
-    await page.locator('.fp-person-button').first().click();results.push(await scan(page,'salary-detail'));
+    await page.locator('.fp-balance-value').waitFor();results.push(await scan(page,'salary-detail'));
     await page.locator('.fp-subtab').nth(1).click();results.push(await scan(page,'salary-payments'));
     await page.locator('.fp-balance-payout').click();results.push(await scan(page,'payout-dialog'));
     await page.locator('.fp-close').click();
@@ -159,7 +172,7 @@ async function scan(page,label){
     await p.locator('.master-schedule-toggle').first().click();results.push(await scan(p,profile+' master schedule'));
     await p.locator('.master-order-sheet .mw-order-modal-close').click();
     await p.locator('#mwMasterNav [data-mw-page="payments"]').click();
-    await p.locator('#mwMasterPayments').waitFor();
+    await p.locator('#mwMasterPayments .mw-payment-breakdown').waitFor();
     results.push(await scan(p,profile+' master finance'));
    }else{
     await p.locator('#rdMobileMoreBtn').click();results.push(await scan(p,profile+' '+role+' menu'));

@@ -3,52 +3,34 @@ const test=require("node:test");
 const assert=require("node:assert/strict");
 const fs=require("node:fs");
 const path=require("node:path");
-const {createFinanceModel,createFinanceReader,financeSplit,payrollSplitV3,fullyPaidAmount,
-  readPayrollSnapshot,calculateAccruals,calculateCompanyCash,
-  sumBy,roundMoney,TIMUR_FEE,RAUL_PERCENT}=require("../finance-model.js");
+const {createFinanceModel,createFinanceReader,payrollSplitV3,fullyPaidAmount,
+  readPayrollSnapshot,normalizePayrollSnapshot,calculateRecordedCashFlow,
+  money,sumBy,roundMoney}=require("../finance-model.js");
 
-const r=(id,price,{paid=true,status="Выполнен",receivedBy="company"}={})=>({
-  id,assignedUserId:"raul",price,paid,status,paymentReceivedBy:receivedBy
-});
-const payout=(kind,amount,{voided=false,orderId=null}={})=>({
-  id:kind+String(amount),kind,amount,master_user_id:"raul",
-  voided_at:voided?"2026-11-13T15:00:00Z":null,order_id:orderId
-});
-function setup({role="owner",masterName="Рауль",userId="raul",request,afterSnapshot}={}){
-  let generation=0;const calls=[],snapshots=[];
-  const defaultRequest=async path=>{
-    if(path.startsWith("rabota_members"))return [{user_id:"raul",role:"master",active:true,master_name:"Рауль"}];
-    return [];
-  };
+function setup({role="owner",userId="current-user",request=async()=>[],afterSnapshot}={}){
+  let generation=0;
+  const calls=[],snapshots=[];
   const model=createFinanceModel({
     dbRequest:async(path,method,payload)=>{
       calls.push([path,method,payload]);
-      return (request||defaultRequest)(path,method,payload);
+      return request(path,method,payload);
     },
-    getRole:()=>role,getMasterName:()=>masterName,getUserId:()=>userId,
+    getRole:()=>role,getUserId:()=>userId,
     nextGeneration:()=>++generation,isCurrentGeneration:value=>value===generation,
     onSnapshot:s=>{snapshots.push(s);afterSnapshot?.(s);}
   });
   return {model,calls,snapshots,invalidate:()=>++generation};
 }
 
-test("unchanged payroll split and Russian currency",()=>{
-  const x=financeSplit(10000);
-  assert.deepEqual(x,{gross:10000,raul:5000,timur:1500,company:3500});
-  assert.equal(TIMUR_FEE,1500);
-  assert.equal(RAUL_PERCENT,0.5);
-  assert.equal(roundMoney(10000.235),10000.24);
-  assert.equal(sumBy([],x=>x.amount),0);
-});
-test("a half-cent share follows PostgreSQL rounding instead of binary floating point",()=>{
-  assert.deepEqual(financeSplit(4096.11),{gross:4096.11,raul:2048.06,timur:1500,company:548.05});
-});
-test("new payroll accruals credit Raul rather than a separate Timur balance",()=>{
+test("canonical payroll pays Raul 50% plus 1500 rubles with PostgreSQL cent rounding",()=>{
   for(const [paid,raul,company] of [[10000,6500,3500],[16000,9500,6500],[20000,11500,8500],[4096.11,3548.06,548.05]]){
-    assert.deepEqual(payrollSplitV3(paid),{gross:paid,raul,timur:0,company});
+    assert.deepEqual(payrollSplitV3(paid),{gross:paid,raul,company});
   }
   assert.equal(payrollSplitV3(null),null);
   assert.equal(payrollSplitV3(0),null);
+  assert.equal(roundMoney(10000.235),10000.24);
+  assert.equal(sumBy([],x=>x.amount),0);
+  assert.match(money(2000.50),/^2\s000,5 ₽$/);
 });
 test("unpaid, partial, missing or unfinished payments do not qualify as full",()=>{
   const order={status:"Выполнен",paid:true,price:10000,paymentAmount:10000};
@@ -111,144 +93,124 @@ test("payroll reconciliation preserves original payout amounts separately from t
   await assert.rejects(readPayrollSnapshot(async()=>({...active,holds:[{...hold,order_id:"order-active"}]})),/запись на сверке/);
   await assert.rejects(readPayrollSnapshot(async()=>({...active,payouts:[{...payout,held_amount:2001}]})),/выплаты на сверке/);
 });
-test("canonical cash movements use the recorded receipt and preserve historical collections without counting wages twice",()=>{
-  const orders=[
-    r("card",10000),r("held",8000,{receivedBy:"master"}),r("legacy",5000,{receivedBy:"master"})
-  ].map((row,i)=>({...row,paymentAmount:[9500,8000,5000][i]}));
-  const input={
-    orders,collections:[{order_id:"held",company_amount:8000,confirmed_amount:3000},
-      {order_id:"legacy",company_amount:1000,confirmed_amount:1000}],
-    payments:[payout("raul_payout",4000,{orderId:"legacy"}),payout("raul_payout",2000)],
-    raulDue:1800,timurDue:0
-  };
-  const actual=calculateCompanyCash({...input,useRecordedPayments:true});
-  assert.equal(actual.directReceipts,9500);
-  assert.equal(actual.confirmedDeposits,4000);
-  assert.equal(actual.allPayouts,2000);
-  assert.equal(actual.cashBalance,11500);
-  assert.equal(actual.freeBalance,9700);
-  const refunded=calculateCompanyCash({...input,useRecordedPayments:true,refunds:[{orderId:"card"}]});
-  assert.equal(refunded.directReceipts,0,"confirmed refund prevails over a concurrently read order row");
-  assert.equal(refunded.cashBalance,2000,"remove the receipt once rather than also subtract a refund");
-  assert.equal(calculateCompanyCash(input).directReceipts,10000,"legacy interpretation unchanged");
+const receipt=(orderId,amount,{masterId="raul",method="cash",paidAt=null,occurredAt="2026-11-25T11:00:00Z"}={})=>({
+  order_id:orderId,master_id:masterId,amount,payment_method:method,paid_at:paidAt,occurred_at:occurredAt
 });
-test("accruals only include Rauls completed paid orders",()=>{
-  const x=calculateAccruals({
-    orders:[r("1",10000),r("2",12000,{paid:false}),r("3",11000,{status:"Отменён"}),
-      {id:"4",assignedUserId:"other",price:8000,status:"Выполнен",paid:true}],
-    operations:[],collections:[],masterId:"raul"
-  });
-  assert.equal(x.eligible.length,1);
-  assert.equal(x.raulAccrued,5000);
-  assert.equal(x.timurAccrued,1500);
-  assert.equal(x.companyEarned,3500);
-  assert.equal(x.bookedPending.length,2);
+const activeAccounting={
+  version:3,state:"active",master_id:"raul",activated_at:"2026-11-24T20:00:00Z",
+  accounting_version:1,earned:9000,paid:2000,due:7000,
+  orders:[
+    {order_id:"current",paid_amount:10000,earned_amount:6500,company_share:3500,rule_version:3},
+    {order_id:"legacy",paid_amount:5000,earned_amount:2500,company_share:1500,rule_version:"legacy_verified"}
+  ],
+  payouts:[{id:"old-allocated",amount:1700},{id:"new-payout",amount:300}],
+  holds:[{order_id:"held",order_number:41,payroll_on_hold:true,cash_on_hold:true,reason:"Проверить архив",
+    earned_amount:5500,credited_amount:600,linked_recorded_amount:3000,payment_amount:8000}],
+  refunds:[{order_id:"refunded",amount:18000,refunded_at:"2026-11-25T20:00:00Z"}],
+  accounting_receipts:[receipt("current",10000),receipt("held",8000),receipt("legacy",5000,{method:null}),
+    receipt("other",12000,{masterId:"other-master",method:"card"}),receipt("refunded",18000,{method:"card"})],
+  accounting_payouts:[{id:"old-allocated",amount:1700},{id:"held-actual",order_id:"held",amount:600},
+    {id:"new-payout",amount:300,payment_method:"card"}]
+};
+
+test("accounting counts full receipts once regardless of receiver, holds or historical payment metadata",()=>{
+  const payroll=normalizePayrollSnapshot(activeAccounting);
+  assert.equal(payroll.accountingVersion,1);
+  const flow=calculateRecordedCashFlow({payroll,operations:[
+    {id:"real-expense",kind:"expense",amount:200},
+    {id:"real-expense",kind:"expense",amount:200},
+    {id:"voided-expense",kind:"expense",amount:900,voided_at:"2026-11-25T20:00:00Z"},
+    {id:"held-actual",kind:"timur_payout",amount:3000,order_id:"held"},
+    {id:"old-duplicate",kind:"raul_payout",amount:3500,order_id:"held"}
+  ],manualEntries:[
+    {id:"manual-income",kind:"income",amount:1000,to_account:"cash"},
+    {id:"manual-expense",kind:"expense",amount:300,from_account:"account"},
+    {id:"internal-transfer",kind:"transfer",amount:777,from_account:"cash",to_account:"account"}
+  ]});
+  assert.equal(flow.receiptTotal,53000);
+  assert.equal(flow.refundTotal,18000);
+  assert.equal(flow.netReceiptTotal,35000);
+  assert.deepEqual(flow.receiptByMethod,{cash:18000,card:30000,unknown:5000});
+  assert.deepEqual(flow.netReceiptByMethod,{cash:18000,card:12000,unknown:5000});
+  assert.equal(flow.refunds[0].method,"card");
+  assert.equal(flow.receipts.find(row=>row.orderId==="legacy").paidAt,null);
+  assert.equal(flow.receipts.find(row=>row.orderId==="legacy").occurredAt,"2026-11-25T11:00:00Z");
+  assert.equal(flow.payoutTotal,2600,"includes verified held payment and excludes a disputed duplicate");
+  assert.equal(flow.expenseTotal,200);
+  assert.deepEqual(flow.expenses.map(row=>[row.id,row.amount,row.voidedAt]),[
+    ["real-expense",200,null],["voided-expense",900,"2026-11-25T20:00:00Z"]
+  ]);
+  assert.deepEqual(flow.manualEntries.map(row=>row.kind),["income","expense","transfer"]);
+  assert.equal(flow.manualIncome,1000);
+  assert.equal(flow.manualExpense,300);
+  assert.equal(flow.recordedNet,32900);
+  assert.deepEqual(flow.orderShares,[
+    {orderId:"current",companyShare:3500,payrollCost:6500},
+    {orderId:"held",companyShare:null,payrollCost:null},
+    {orderId:"legacy",companyShare:1500,payrollCost:3500},
+    {orderId:"other",companyShare:12000,payrollCost:0}
+  ]);
+  assert.equal(flow.unverifiedMarginCount,1);
+  assert.equal(flow.companyShare,17000);
+  assert.equal(flow.companyProfit,16500,"payroll and transfers are not deducted again from profit");
 });
-test("manual payouts and voids calculate remaining balances exactly",()=>{
-  const x=calculateAccruals({
-    orders:[r("1",10000),r("2",14000)],
-    operations:[payout("raul_payout",3000),payout("raul_payout",5000,{voided:true}),
-      payout("timur_payout",1500)],
-    collections:[],masterId:"raul"
-  });
-  assert.equal(x.raulAccrued,12000);
-  assert.equal(x.raulPaid,3000);
-  assert.equal(x.raulDue,9000);
-  assert.equal(x.timurAccrued,3000);
-  assert.equal(x.timurPaid,1500);
-  assert.equal(x.timurDue,1500);
+
+test("only a validated owner accounting snapshot can produce accounting totals",()=>{
+  const legacy={...activeAccounting};
+  for(const key of ["accounting_version","accounting_receipts","accounting_payouts"])delete legacy[key];
+  assert.equal(calculateRecordedCashFlow({payroll:normalizePayrollSnapshot(legacy)}),null);
+  const own={...activeAccounting,accounting_receipts:activeAccounting.accounting_receipts.filter(row=>row.master_id==="raul")};
+  delete own.accounting_payouts;
+  const master=normalizePayrollSnapshot(own);
+  assert.equal(master.accounting.payouts,null);
+  assert.equal(master.accounting.receipts.length,4);
+  assert.equal(calculateRecordedCashFlow({payroll:master}),null);
+  const other=normalizePayrollSnapshot({version:3,state:"not_applicable",accounting_version:1,
+    accounting_receipts:[receipt("order-other",4000,{masterId:"other-master"})]});
+  assert.equal(other.accounting.receipts[0].masterId,"other-master");
+  assert.equal(other.accounting.payouts,null);
+  assert.deepEqual(normalizePayrollSnapshot({version:3,state:"not_applicable",accounting_version:1}),
+    {version:3,state:"not_applicable",accountingVersion:1});
 });
-test("unconfirmed collection distinguishes master-held and awaiting owner",()=>{
-  const x=calculateAccruals({
-    orders:[r("1",10000),r("2",10000)],
-    operations:[],masterId:"raul",collections:[
-      {order_id:"1",master_user_id:"raul",company_amount:3500},
-      {order_id:"2",master_user_id:"raul",company_amount:3500,submitted_at:"now"},
-      {order_id:"3",master_user_id:"raul",company_amount:1000,confirmed_at:"now"}
-    ]
-  });
-  assert.equal(x.masterHeld,3500);
-  assert.equal(x.waitingOwner,3500);
+
+test("reject incomplete, duplicate or inconsistent accounting facts",()=>{
+  const [first]=activeAccounting.accounting_receipts;
+  assert.throws(()=>normalizePayrollSnapshot({...activeAccounting,accounting_version:2}),/Неизвестная версия/);
+  assert.throws(()=>normalizePayrollSnapshot({...activeAccounting,accounting_version:undefined}),/без версии/);
+  assert.throws(()=>normalizePayrollSnapshot({...activeAccounting,accounting_receipts:null}),/неполный журнал/);
+  assert.throws(()=>normalizePayrollSnapshot({...activeAccounting,accounting_receipts:[first,first]}),/запись поступления/);
+  assert.throws(()=>normalizePayrollSnapshot({...activeAccounting,accounting_receipts:[{order_id:"incomplete",amount:1000}]}),/запись поступления/);
+  assert.throws(()=>normalizePayrollSnapshot({...activeAccounting,
+    accounting_receipts:activeAccounting.accounting_receipts.filter(row=>row.order_id!=="refunded")}),/возврат без соответствующего поступления/);
+  assert.throws(()=>normalizePayrollSnapshot({...activeAccounting,
+    accounting_receipts:activeAccounting.accounting_receipts.map(row=>row.order_id==="legacy"?{...row,amount:4000}:row)}),
+    /начисление без соответствующего поступления/);
+  assert.throws(()=>normalizePayrollSnapshot({...activeAccounting,
+    accounting_payouts:[activeAccounting.accounting_payouts[0],activeAccounting.accounting_payouts[0]]}),/запись учтённой выплаты/);
 });
-test("company cash excludes unconfirmed master custody and automatic payouts",()=>{
-  const cash=calculateCompanyCash({
-    orders:[r("1",10000),r("2",16000,{receivedBy:"master"}),r("3",9000,{receivedBy:"master"})],
-    collections:[
-      {order_id:"2",company_amount:6500,confirmed_at:"2026-11-13"},
-      {order_id:"3",company_amount:3000}
-    ],
-    payments:[payout("raul_payout",2000,{orderId:"2"}),payout("timur_payout",1500),
-      payout("expense",500)],raulDue:3000,timurDue:500
-  });
-  assert.equal(cash.directReceipts,10000);
-  assert.equal(cash.confirmedDeposits,6500);
-  assert.equal(cash.allPayouts,1500);
-  assert.equal(cash.expenses,500);
-  assert.equal(cash.cashBalance,14500);
-  assert.equal(cash.freeBalance,11000);
-});
-test("legacy paid order without metadata stays in direct receipts",()=>{
-  const x=calculateCompanyCash({
-    orders:[{id:"legacy",status:"Выполнен",paid:true,price:10000}],
-    collections:[],payments:[],raulDue:0,timurDue:0
-  });
-  assert.equal(x.directReceipts,10000);
-  assert.equal(x.cashBalance,10000);
-});
-test("partial handoffs separate outstanding, pending and confirmed cash from payroll",()=>{
-  const collection={order_id:"1",master_user_id:"raul",company_amount:3500,
-    submitted_amount:"1500.75",confirmed_amount:"1000.50"};
-  const values=calculateAccruals({orders:[r("1",10000)],operations:[],
-    collections:[collection],masterId:"raul"});
-  assert.equal(values.masterHeld,1999.25);
-  assert.equal(values.waitingOwner,500.25);
-  assert.equal(values.raulAccrued,5000);
-  const cash=calculateCompanyCash({orders:[r("1",10000)],collections:[collection],
-    payments:[],raulDue:0,timurDue:0});
-  assert.equal(cash.confirmedDeposits,1000.50);
-  assert.equal(cash.cashBalance,1000.50);
-  assert.deepEqual(cash.awaiting,[collection]);
-});
-test("cash history preserves dates of confirmed instalments and counts each legacy receipt once",async()=>{
-  const first="2026-11-20T11:00:00Z",second="2026-11-21T11:00:00Z";
-  const legacy={order_id:"old",company_amount:3500,confirmed_at:first};
-  const managed={order_id:"new",company_amount:2000,submitted_amount:2000,
-    confirmed_amount:2000,confirmed_at:second,last_confirmed_at:second};
-  const event={id:"entry-a",order_id:"new",amount:800,created_at:first};
-  const {model,snapshots}=setup({request:async path=>{
-    if(path.startsWith("rabota_cash_collections"))return [legacy,legacy,managed];
-    if(path.startsWith("rabota_cash_transfer_events"))return [
-      {id:"entry-b",order_id:"new",amount:1200,created_at:second},event,event];
-    return [];
-  }});
-  await model.loadFinance();
-  assert.deepEqual(snapshots[0].deposits.map(x=>[x.amount,x.confirmed_at]),
-    [[3500,first],[1200,second],[800,first]]);
-});
-test("owner finance reads active Raul and deduplicates operations and collections",async()=>{
+
+test("owner finance reads one operations endpoint and deduplicates records",async()=>{
   const {model,snapshots,calls}=setup({request:async path=>{
-    if(path.startsWith("rabota_members"))return [
-      {user_id:"inactive",role:"master",active:false,master_name:"Рауль"},
-      {user_id:"raul",role:"master",active:true,master_name:"Рауль"}];
-    if(path.startsWith("rabota_finance_operations"))return [
-      {id:"a",amount:100},{id:"a",amount:200},{id:"b",amount:300}];
-    if(path.startsWith("rabota_cash_collections"))return [
-      {order_id:"1",company_amount:100},{order_id:"1",company_amount:200}];
-    throw Error("unexpected "+path);
+    assert.match(path,/^rabota_finance_operations\?/);
+    return [{id:"a",amount:100},{id:"a",amount:200},{id:"b",amount:300}];
   }});
   await model.loadFinance();
   assert.equal(snapshots.length,1);
-  assert.equal(snapshots[0].masterId,"raul");
   assert.deepEqual(snapshots[0].operations.map(x=>x.amount),[200,300]);
-  assert.equal(snapshots[0].collections[0].company_amount,200);
-  assert.equal(calls.length,3);
+  assert.equal(calls.length,1);
 });
-test("master finance never requests a members list",async()=>{
-  const {model,snapshots,calls}=setup({role:"master",request:async()=>[]});
+test("master finance does not query owner ledger or the members list",async()=>{
+  const privateSnapshot={version:3,state:"not_applicable",accounting_version:1,accounting_receipts:[]};
+  const {model,snapshots,calls}=setup({role:"master",request:async endpoint=>{
+    assert.equal(endpoint,"rpc/rabota_payroll_snapshot_v3");
+    return privateSnapshot;
+  }});
   await model.loadFinance();
-  assert.equal(snapshots[0].masterId,"raul");
-  assert.equal(calls.length,2);
-  assert.ok(calls.every(([path])=>!path.startsWith("rabota_members")));
+  assert.deepEqual(snapshots,[{operations:[]}]);
+  assert.equal(calls.length,0);
+  const payroll=await model.readPayrollSnapshot();
+  assert.equal(payroll.accounting.payouts,null);
+  assert.equal(calls.length,1);
 });
 test("unauthorized role makes no finance request",async()=>{
   const {model,calls,snapshots}=setup({role:"manager"});
@@ -257,7 +219,6 @@ test("unauthorized role makes no finance request",async()=>{
 });
 test("server request failure never publishes partial finance state",async()=>{
   const {model,snapshots}=setup({request:async path=>{
-    if(path.startsWith("rabota_members"))return [{user_id:"raul",active:true,master_name:"Рауль"}];
     throw Error("Network error");
   }});
   await assert.rejects(model.loadFinance(),/Network error/);
@@ -265,7 +226,6 @@ test("server request failure never publishes partial finance state",async()=>{
 });
 test("invalid finance response fails closed",async()=>{
   const {model,snapshots}=setup({request:async path=>{
-    if(path.startsWith("rabota_members"))return [{user_id:"raul",active:true,master_name:"Рауль"}];
     if(path.startsWith("rabota_finance_operations"))return null;
     return [];
   }});
@@ -276,7 +236,7 @@ test("older in-flight refresh cannot overwrite newer snapshot",async()=>{
   let unblock;
   const hold=new Promise(resolve=>{unblock=resolve;});
   let operationsRead=0;
-  const {model,snapshots}=setup({role:"master",request:async path=>{
+  const {model,snapshots}=setup({request:async path=>{
     if(path.startsWith("rabota_finance_operations")){
       operationsRead++;
       if(operationsRead===1){await hold;return [{id:"stale"}];}
@@ -295,7 +255,7 @@ test("older in-flight refresh cannot overwrite newer snapshot",async()=>{
 test("logout invalidates in-flight responses",async()=>{
   let unblock;
   const hold=new Promise(resolve=>{unblock=resolve;});
-  const {model,snapshots,invalidate}=setup({role:"master",request:async path=>{
+  const {model,snapshots,invalidate}=setup({request:async path=>{
     if(path.startsWith("rabota_finance_operations")){await hold;return [];}
     return [];
   }});
@@ -306,7 +266,7 @@ test("logout invalidates in-flight responses",async()=>{
 test("finance operations fetch over 1000 rows safely",async()=>{
   const rows=Array.from({length:1001},(_,i)=>({id:"op"+i,amount:1}));
   const offsets=[];
-  const {model,snapshots}=setup({role:"master",request:async path=>{
+  const {model,snapshots}=setup({request:async path=>{
     if(path.startsWith("rabota_finance_operations")){
       const offset=Number(/offset=(\d+)/.exec(path)[1]);
       offsets.push(offset);
@@ -444,15 +404,14 @@ test("resetting financial readers discards a previous account response",async()=
   await previous;
   assert.equal(reader.state().value.owner,"current");
 });
-test("index retains existing RPC payment paths behind the shared finance model",()=>{
+test("index uses authoritative finance operations and versioned payment writes",()=>{
   const html=fs.readFileSync(path.join(__dirname,"..","index.html"),"utf8");
   assert.match(html,/src="\/finance-model\.js\?v=[A-Za-z0-9_-]+"/);
-  assert.match(html,/financeModel\.calculateAccruals/);
-  assert.match(html,/financeModel\.calculateCompanyCash/);
+  assert.match(html,/financeModel\.calculateRecordedCashFlow/);
+  assert.match(html,/financeModel\.readPayrollSnapshot/);
   assert.match(html,/financeModel\.loadFinance\(\{fresh,operations,isCurrent\}\)/);
-  for(const rpc of ["rabota_record_order_payment","rabota_salary_payout_v2",
-    "rabota_cash_distribute","rabota_cash_confirm","rabota_finance_void"])
-    assert.ok(html.includes("rpc/"+rpc),"Missing RPC: "+rpc);
+  assert.ok(html.includes("rpc/rabota_payroll_payout_v3"));
+  assert.doesNotMatch(html,/rpc\/rabota_cash_(?:distribute|submit|confirm)/);
   const inline=html.split("<script>\n").at(-1).split("</script>")[0];
   assert.doesNotThrow(()=>new Function(inline));
 });

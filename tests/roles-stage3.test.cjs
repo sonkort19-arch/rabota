@@ -47,16 +47,19 @@ test("migration changes no existing order/finance rows and touches no other apps
 test("master salary UI remains readable but cannot trigger self-payout",()=>{
  assert.doesNotThrow(()=>new Function(master));
  assert.doesNotMatch(master,/openMasterPayout|mw-salary-payout|mw-wallet-action|Оформить выплату/);
- assert.match(master,/Выплату проводит владелец/);
- assert.match(master,/Моя зарплата/);
- assert.match(master,/Баланс к выплате/);
- assert.match(master,/Начисления/);
- assert.match(master,/Выплаты/);
+ assert.match(master,/__rdPayrollReport\.mount\(container,\{master:true,/);
+ assert.match(owner,/v3Payroll\(m,!master,v3State,redraw\)/);
+ assert.match(owner,/if\(owner&&m\.employeeId\)\{[\s\S]*?fp-balance-payout/);
+ assert.match(owner,/Моя зарплата/);
+ assert.match(owner,/Осталось получить/);
+ assert.match(owner,/Начисления/);
+ assert.match(owner,/Выплаты/);
 });
-test("owner payroll form and server RPC remain connected",()=>{
+test("owner payroll form sends the current payout intent to the server",()=>{
  assert.match(owner,/Подтвердить выплату/);
  assert.match(owner,/fp-balance-payout/);
- assert.match(home,/rpc\/rabota_salary_payout_v2/);
+ assert.match(home,/dbRequest\("rpc\/rabota_payroll_payout_v3","POST",\{[\s\S]*?p_master_user_id:employeeId[\s\S]*?p_request_id:requestId/);
+ assert.doesNotMatch(home,/rpc\/rabota_salary_payout_v2/);
  assert.doesNotThrow(()=>new Function(owner));
 });
 test("synthetic PostgreSQL tests cover all roles and replay/overpayment",()=>{

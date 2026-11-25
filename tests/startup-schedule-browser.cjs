@@ -5,7 +5,6 @@ const assert = require("node:assert/strict");
 const path = require("node:path");
 const fs = require("node:fs");
 const { chromium } = require("playwright");
-const {mockLegacyPayrollSnapshot}=require("./fixtures/legacy-payroll.cjs");
 const root = path.resolve(__dirname, "..");
 
 function gate() {
@@ -29,8 +28,18 @@ async function session(browser, {role = "master", active = true, delayModule = f
     assigned_user_id: master.user_id, master: master.master_name, price: 10000,
     appointment_date: day, appointment_time: "12:00:00", created_at: day + "T05:00:00Z",
   };
-  const collection = {order_id: "fixture-paid", master_user_id: master.user_id,
-    company_amount: 3700, submitted_amount: null, confirmed_amount: null};
+  const paidAt = day + "T06:00:00Z";
+  const paid = {...order,id:"fixture-paid",name:"Тестовая оплата",price:10000,status:"Выполнен",
+    paid:true,payment_amount:10000,payment_method:"cash",paid_at:paidAt,completed_at:paidAt};
+  const payroll = {
+    version:3,accounting_version:1,state:"active",master_id:master.user_id,activated_at:paidAt,
+    earned:6500,paid:0,due:6500,payouts:[],refunds:[],holds:[],
+    orders:[{order_id:paid.id,paid_amount:10000,earned_amount:6500,company_share:3500,
+      earned_at:paidAt,rule_version:3}],
+    accounting_receipts:[{order_id:paid.id,master_id:master.user_id,amount:10000,
+      payment_method:"cash",paid_at:paidAt,occurred_at:paidAt}]
+  };
+  if(role==="owner")payroll.accounting_payouts=[];
   const finance = gate(), notices = gate(), module = gate(), moduleRequested = gate();
   const requests = [], writes = [], errors = [];
   page.on("pageerror", error => errors.push(error.message));
@@ -66,14 +75,20 @@ async function session(browser, {role = "master", active = true, delayModule = f
     let data = [];
     if (endpoint === "user") data = {id: member.user_id};
     if (endpoint === "rabota_members") data = url.searchParams.has("user_id") ? [member] : [master];
-    if (endpoint === "rabota_orders") data = [order];
-    if (endpoint === "rabota_finance_operations" && await finance.promise === "error")
-      return route.fulfill({status: 503, json: {message: "Временная ошибка чтения"}});
-    if (endpoint === "rabota_cash_collections") data = [collection];
+    if (endpoint === "rabota_orders") data = [order, paid];
+    if (endpoint === "rabota_finance_operations" && role === "owner") data = [
+      {id:"fixture-expense",kind:"expense",amount:100,payment_method:"card",created_at:paidAt,note:"Материалы"},
+      {id:"fixture-void",kind:"expense",amount:600,payment_method:"cash",created_at:paidAt,
+        voided_at:day+"T07:00:00Z",note:"Отменённая запись"}
+    ];
+    if (endpoint === "rabota_payroll_snapshot_v3") {
+      if(await finance.promise==="error")
+        return route.fulfill({status:503,json:{message:"Временная ошибка чтения"}});
+      data=payroll;
+    }
     if (endpoint === "rabota_order_notifications") await notices.promise;
     return route.fulfill({json: data});
   });
-  await mockLegacyPayrollSnapshot(context);
   await page.goto("https://crm.test/" + (view ? "?view=" + view : ""), {waitUntil: "commit"});
   async function close() {
     finance.release(); notices.release(); module.release();
@@ -92,20 +107,34 @@ async function masterStartup(browser, failFinance) {
     await s.page.locator('#mwMasterNav [data-mw-page="payments"]').click();
     const payments = s.page.locator("#mwMasterPayments");
     assert.match(await payments.innerText(), /загруз|загруж|получаем|обновляем/i);
-    const balance = payments.locator(".mw-handoff-amount");
-    if (await balance.count()) assert.doesNotMatch(await balance.innerText(), /\d/);
-    assert.equal(await payments.locator(".mw-handoff-action:enabled").count(), 0);
+    const receipt = payments.locator('[data-order-id="fixture-paid"][data-payment-type="receipt"]');
+    assert.equal(await receipt.count(), 0);
+
+    const reports = s.page.locator("#mwMasterReports");
+    await s.page.locator('#mwMasterNav [data-mw-page="reports"]').click();
+    await reports.getByRole("button",{name:/зарплата/i}).click();
+    const salary = reports.locator(".fp-master-payroll");
+    await salary.getByText(/загружаем данные зарплаты/i).waitFor();
+    await s.page.locator('#mwMasterNav [data-mw-page="payments"]').click();
 
     s.finance.release(failFinance ? "error" : "ok");
     if (failFinance) {
       const alert = payments.getByRole("alert");
       await alert.first().waitFor();
       assert.match(await alert.first().innerText(), /ошибк|не удал|недоступ/i);
-      assert.equal(await payments.locator(".mw-handoff-action:enabled").count(), 0);
+      assert.equal(await receipt.count(), 0);
     } else {
-      await payments.getByText(/3\s?700\s*₽/).first().waitFor();
-      await payments.locator(".mw-handoff-action:enabled").waitFor();
+      await receipt.waitFor();
+      assert.match(await receipt.innerText(), /10\s?000\s*₽/);
     }
+    assert.equal(await payments.getByRole("button",{name:/передач/i}).count(),0);
+    await s.page.locator('#mwMasterNav [data-mw-page="reports"]').click();
+    if(failFinance)await salary.getByRole("alert").waitFor();
+    else {
+      await salary.locator(".fp-balance-value").waitFor();
+      assert.match(await salary.locator(".fp-balance-value").innerText(),/6\s?500(?:,00)?\s*₽/);
+    }
+    assert.equal(await salary.locator(".fp-v3-actions").count(),0);
     s.notices.release();
     await s.page.locator('#mwMasterNav [data-mw-page="orders"]').click();
     assert.equal(await s.page.locator('#owViewSwitch [data-ow-mode="calendar"]').getAttribute("aria-selected"), "true");
@@ -119,11 +148,13 @@ async function ownerFinance(browser) {
     const panel = s.page.locator("#financePanel");
     await panel.waitFor();
     await panel.getByText(/загруз|загруж|получаем/i).first().waitFor();
-    assert.equal(await panel.locator("button:visible").filter({hasText: /Подтвердить получение/}).count(), 0);
     assert.equal(await s.page.locator("#mwMasterNav:visible").count(), 0);
     s.finance.release(); s.notices.release();
-    await panel.locator('[data-finance-tab="cash"]').click();
-    await panel.getByText(/3\s?700\s*₽/).first().waitFor();
+    await panel.locator('[data-order-id="fixture-paid"][data-kind="receipt"]').waitFor();
+    const voided = panel.locator('[data-kind="expense"][data-status="voided"]');
+    assert.match(await voided.innerText(), /Отменён/);
+    const expenseTotal = panel.locator(".mw-money-stat").filter({hasText:"Расходы"});
+    assert.match(await expenseTotal.innerText(), /100,00\s*₽/);
   } finally { await s.close(); }
 }
 
@@ -141,7 +172,7 @@ async function lateModule(browser) {
     }
     s.module.release();
     await s.page.locator('#mwMasterNav [data-mw-page="payments"]').click();
-    await s.page.locator("#mwMasterPayments").getByText(/3\s?700\s*₽/).first().waitFor();
+    await s.page.locator('#mwMasterPayments [data-order-id="fixture-paid"][data-payment-type="receipt"]').waitFor();
     assert.equal(await s.page.locator("#mwMasterNav").count(), 1);
     assert.equal(await s.page.locator('#mwMasterNav [data-mw-page="payments"]').count(), 1);
   } finally { await s.close(); }

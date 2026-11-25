@@ -40,10 +40,6 @@ const records=[
  {id:"confirmed",date:"2026-11-09",time:"10:00",status:"Выполнен",paid:true,name:"Закрыт"},
  {id:"cancelled",date:today,time:"16:00",status:"Отменён",paid:false,name:"Отменён"}
 ];
-const collections={
- cash:{confirmed_at:null,submitted_at:"2026-11-11T16:00:00Z"},
- confirmed:{confirmed_at:"2026-11-11T17:00:00Z",submitted_at:"2026-11-11T16:00:00Z"}
-};
 const fixedDate=class extends Date{
  constructor(...a){super(...(a.length?a:["2026-11-12T13:36:00.000Z"]))}
 };
@@ -56,7 +52,7 @@ function fixture(role="master",tab="calendar"){
     const [year,month,day]=date.split("-").map(Number);
     return new Date(year,month-1,day,12);
   },formatDate:d=>d==="2026-11-12"?"12 ноя":d,
-  getOrders:()=>records,collectionForOrder:id=>collections[id]||null,
+  getOrders:()=>records,
   getCurrentRole:()=>role,getCurrentTab:()=>tab,
   doc:document,ordersNode:element("section"),STATUSES:["Записан","В работе","Выполнен","Отменён"],
   openMasterOrderDialog:()=>{},DateImpl:fixedDate
@@ -78,10 +74,6 @@ test("work queue excludes completed and cancelled orders; today comes first",()=
  assert.equal(f.masterOrderCount(2),"2 заказа");
  assert.equal(f.masterOrderCount(11),"11 заказов");
 });
-test("unfinished financial settlements stay in a separate queue",()=>{
- const f=fixture();
- assert.deepEqual(f.masterSettlementOrders().map(x=>x.id),["cash","unpaid"]);
-});
 test("overview highlights next appointment and status needing review",()=>{
  const f=fixture();
  f.renderMasterOverview(f.masterWorkingOrders());
@@ -101,15 +93,12 @@ test("overview stays hidden outside master active schedule",()=>{
 });
 test("master presentation and role-scoped finance remain wired",()=>{
  assert.match(html,/id="masterTodaySummary"/);
- assert.match(html,/id="masterPendingSettlements"/);
- assert.match(html,/id="masterSettlementRows"/);
- assert.match(html,/masterPendingSettlements[\s\S]*?masterSettlementRows/);
+ assert.doesNotMatch(html,/masterPendingSettlements|masterSettlementRows|renderMasterSettlements\(/);
  assert.match(html,/masterWorkingOrders\(\)/);
- assert.match(html,/renderMasterSettlements\(\)/);
- assert.match(html,/isOwner\?financeOperations:financeOperations\.filter\(o=>o\.master_user_id===financeMasterId&&o\.kind==="raul_payout"\)/);
- assert.match(html,/if\(isOwner\)\{[\s\S]*?financeModel\.calculateCompanyCash\([\s\S]*?financeMetric\("Деньги в кассе по учёту",cashBalance/);
- assert.match(html,/id="masterFinanceBack"/);
- assert.match(html,/financeMetric\("Осталось выплатить"/);
+ assert.match(html,/masterPayments\(\)\{\s*if\(currentRole!=="master"\)throw Error/);
+ assert.match(html,/receipts\s*:\s*receipts\.map\(describe\)/);
+ assert.match(html,/ownerSnapshot\(\)\{\s*if\(currentRole!=="owner"\)throw Error/);
+ assert.match(html,/financeModel\.calculateRecordedCashFlow\(/);
  assert.match(html,/href="\/master-dashboard\.css\?v=[^"]+"/);
  assert.match(css,/#appScreen\.master-mode \.master-schedule-toggle/);
  assert.match(css,/grid-template-columns:70px minmax\(0,1fr\) 18px/);
@@ -148,7 +137,7 @@ test("changed order data restores focus to the same master's order row",()=>{
  assert.match(reload,/markFinanceStale\(\);\s*await loadOrderData\(background\)/);
  assert.match(reload,/await loadOrderData\(background\)[\s\S]*?await refreshFinance\(\)/);
  const financeStart=main.indexOf("    const financeReader=");
- const financeEnd=main.indexOf("    function financeVisible()",financeStart);
+ const financeEnd=main.indexOf("    function updateFinanceViews(",financeStart);
  assert.ok(financeStart>=0&&financeEnd>financeStart,"independent finance refresh function exists");
  assert.match(main.slice(financeStart,financeEnd),/state\.refreshError\)reportSync\(state\.refreshError,"finance"\)/);
 });

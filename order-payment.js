@@ -3,7 +3,7 @@
 (()=>{
   let active=false,cancelActive=null;
   const fmt=value=>Number(value).toLocaleString("ru-RU",{maximumFractionDigits:2})+" ₽";
-  function promptPayment(order,{complete=true,canUnpaid=true,receiver="company",fullPaymentOnly=false,canPay=true}={}){
+  function promptPayment(order,{complete=true,canUnpaid=true,canPay=true}={}){
     if(active)return Promise.resolve(null);
     active=true;
     return new Promise(resolve=>{
@@ -16,20 +16,15 @@
         ' <button class="rd-pay-close" type="button" aria-label="Закрыть окно оплаты">×</button></header>'+
         ' <form id="rdPayForm">'+
         '  <div class="rd-pay-sum-card">'+
-        '   <div class="rd-pay-sum-top"><span id="rdPaySumLabel">К получению</span>'+
-        '    <button class="rd-pay-change" type="button" aria-controls="rdPayAmount" aria-expanded="false">Изменить</button></div>'+
-        '   <div class="rd-pay-sum-view" aria-live="polite"><strong id="rdPaySumValue"></strong></div>'+
-        '   <div class="rd-pay-sum-edit" hidden><label class="rd-pay-sr-only" for="rdPayAmount">Сумма оплаты в рублях</label>'+
-        '    <input id="rdPayAmount" type="number" inputmode="decimal" min="0.01" max="10000000" step="0.01" required>'+
-        '    <span aria-hidden="true">₽</span><button class="rd-pay-edit-done" type="button">Готово</button></div>'+
+        '   <div class="rd-pay-sum-top"><span>Полная стоимость заказа</span></div>'+
+        '   <div class="rd-pay-sum-view"><strong id="rdPaySumValue"></strong></div>'+
         '  </div>'+
-        '  <p class="rd-pay-adjust" id="rdPayAdjust" hidden>Новая сумма станет стоимостью заказа.</p>'+
+        '  <p class="rd-pay-adjust" id="rdPayAdjust"></p>'+
         '  <fieldset><legend>Способ оплаты</legend>'+
         '   <div class="rd-pay-methods">'+
         '    <label class="rd-pay-method"><input type="radio" name="rdPayMethod" value="cash" checked><span>Наличные</span></label>'+
         '    <label class="rd-pay-method"><input type="radio" name="rdPayMethod" value="card"><span>Карта / перевод</span></label>'+
         '   </div></fieldset>'+
-        '  <p class="rd-pay-receiver" id="rdPayReceiver"></p>'+
         '  <div class="rd-pay-footer"><div class="rd-pay-error" role="alert" aria-live="polite"></div>'+
         '   <button class="rd-pay-confirm" type="submit">Подтвердить оплату</button>'+
         '   <button class="rd-pay-unpaid" type="button">Завершить без оплаты</button>'+
@@ -38,33 +33,18 @@
       document.body.append(overlay);
       const $=selector=>overlay.querySelector(selector);
       const dialog=$(".rd-pay-dialog");
-      const input=$("#rdPayAmount");
-      const total=Number(order.price);
-      const originalAmount=fullPaymentOnly?window.__rdPayableOrderAmount(order.price):
-        Number.isFinite(total)&&total>0?total:null;
+      const amount=window.__rdPayableOrderAmount(order.price);
       const error=$(".rd-pay-error");
-      const change=$(".rd-pay-change");
-      const view=$(".rd-pay-sum-view");
-      const editor=$(".rd-pay-sum-edit");
       const confirm=$(".rd-pay-confirm");
-      const adjust=$("#rdPayAdjust");
       $("#rdPayTitle").textContent=complete?"Завершение заказа":"Получение оплаты";
       $("#rdPayClient").textContent=order.name||"Клиент";
-      input.value=originalAmount===null?"":String(originalAmount);
-      if(fullPaymentOnly){
-        $("#rdPaySumLabel").textContent="Полная стоимость заказа";
-        adjust.textContent=!canPay
-          ?"Не удалось проверить режим оплаты. Можно сохранить заказ без оплаты."
-          :originalAmount===null
-          ?"Укажите стоимость заказа перед приёмом оплаты."
-          :"Подтвердите получение всей суммы. Если стоимость изменилась, сначала сохраните новую цену заказа.";
-        adjust.hidden=false;
-        change.hidden=true;
-        input.disabled=true;
-      }
-      $("#rdPayReceiver").textContent=receiver==="master"?
-        "Деньги получает мастер. Передача доли компании учитывается отдельно.":
-        "Оплата отмечается как поступившая компании.";
+      $("#rdPaySumValue").textContent=amount===null?"Сумма не указана":fmt(amount);
+      $("#rdPayAdjust").textContent=!canPay
+        ?"Не удалось обновить данные платежей. Можно сохранить заказ без оплаты."
+        :amount===null?"Укажите стоимость заказа перед приёмом оплаты."
+        :"Подтвердите получение всей суммы. Чтобы изменить стоимость, сначала сохраните новую цену заказа.";
+      confirm.textContent=amount===null?"Укажите сумму":"Получено "+fmt(amount);
+      confirm.disabled=!canPay||amount===null;
       if(!complete||!canUnpaid)$(".rd-pay-unpaid").hidden=true;
 
       // iOS visual viewport shrinks when the numeric keyboard opens.
@@ -78,42 +58,6 @@
       viewport?.addEventListener("resize",syncViewport);
       viewport?.addEventListener("scroll",syncViewport);
       syncViewport();
-
-      const currentValue=()=>{
-        if(fullPaymentOnly)return originalAmount;
-        if(!input.value.trim())return null;
-        const amount=Number(input.value);
-        return Number.isFinite(amount)&&amount>0&&amount<=10000000&&
-          Math.round(amount*100)/100===amount?amount:null;
-      };
-      const updateSum=()=>{
-        const amount=currentValue();
-        $("#rdPaySumValue").textContent=amount===null?"Сумма не указана":fmt(amount);
-        confirm.textContent=amount===null?"Укажите сумму":"Получено "+fmt(amount);
-        confirm.disabled=!canPay||amount===null;
-        if(!fullPaymentOnly)adjust.hidden=amount===null||originalAmount===null||amount===originalAmount;
-        return amount;
-      };
-      const setEditing=editing=>{
-        view.hidden=editing;
-        editor.hidden=!editing;
-        change.setAttribute("aria-expanded",String(editing));
-        change.textContent=editing?"Редактирование":"Изменить";
-        if(editing){
-          input.focus({preventScroll:true});
-        }else{
-          input.blur();
-          updateSum();
-          change.focus({preventScroll:true});
-        }
-      };
-      input.addEventListener("input",()=>{error.textContent="";updateSum();});
-      change.addEventListener("click",()=>{if(editor.hidden)setEditing(true);else setEditing(false);});
-      $(".rd-pay-edit-done").addEventListener("click",()=>{
-        if(currentValue()===null){error.textContent="Введите сумму больше нуля.";input.focus();return;}
-        setEditing(false);
-      });
-      updateSum();
 
       let settled=false;
       const finish=value=>{
@@ -143,18 +87,12 @@
       $(".rd-pay-unpaid").addEventListener("click",()=>finish({kind:"unpaid"}));
       $("#rdPayForm").addEventListener("submit",event=>{
         event.preventDefault();
-        if(!canPay)return;
-        const amount=currentValue();
-        if(amount===null){
-          error.textContent="Проверьте сумму оплаты.";
-          if(editor.hidden)setEditing(true);else input.focus();
-          return;
-        }
+        if(!canPay||amount===null)return;
         const method=$('input[name="rdPayMethod"]:checked')?.value;
         if(method!=="cash"&&method!=="card"){error.textContent="Выберите способ оплаты.";return;}
         finish({kind:"paid",amount,method});
       });
-      // Focus the dialog itself, not the numeric input: do not summon the iPhone keyboard.
+      // Keep the mobile keyboard closed when the dialog opens.
       dialog.focus({preventScroll:true});
     });
   }

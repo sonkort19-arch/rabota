@@ -1,5 +1,5 @@
 /* Личный ИИ-чат. OpenAI ключ хранится только в Vercel Environment Variables. */
-const {calculateAccruals,calculateCompanyCash,readPayrollSnapshot,roundMoney}=require("../finance-model.js");
+const {calculateRecordedCashFlow,readPayrollSnapshot,roundMoney}=require("../finance-model.js");
 const SUPABASE_URL = process.env.SUPABASE_URL || "https://yedzfmibceboncrytbqz.supabase.co";
 const SUPABASE_PUBLISHABLE_KEY = process.env.SUPABASE_PUBLISHABLE_KEY || "sb_publishable_tSqbw3aeAgxYuzHhQurCuw_yDze4ZNn";
 
@@ -88,52 +88,32 @@ function shortOrder(row) {
  };
 }
 async function businessSnapshot(tokenHeaders, question) {
- const [orderRows,operations,collectionRows,members,payroll]=await Promise.all([
-  readRows("rabota_orders","id,name,phone,appointment_date,appointment_time,master,assigned_user_id,status,paid,price,payment_amount,payment_received_by,created_at,completed_at",tokenHeaders,"created_at.desc,id.asc"),
-  readRows("rabota_finance_operations","id,kind,amount,master_user_id,order_id,voided_at",tokenHeaders,"created_at.desc,id.asc"),
-  readRows("rabota_cash_collections","*",tokenHeaders,"created_at.desc,order_id.asc"),
-  readRows("rabota_members","user_id,role,active,master_name",tokenHeaders,"created_at.asc,user_id.asc"),
+ const [orderRows,payroll]=await Promise.all([
+  readRows("rabota_orders","id,name,phone,appointment_date,appointment_time,master,status,paid,price,created_at,completed_at",tokenHeaders,"created_at.desc,id.asc"),
   readPayroll(tokenHeaders)
  ]);
- if(payroll?.state==="not_applicable")throw Error("Не удалось прочитать расчёт зарплаты для текущей роли.");
+ if(payroll?.state==="not_applicable"||payroll?.accountingVersion===1&&!Array.isArray(payroll.accounting?.payouts))
+   throw Error("Не удалось прочитать учётную кассу для текущей роли.");
+ let accounting=null;
+ if(payroll?.state==="active"&&payroll.accountingVersion===1){
+   const [operations,manualEntries]=await Promise.all([
+     readRows("rabota_finance_operations","id,kind,amount,voided_at,payment_method,created_at",
+       tokenHeaders,"created_at.desc,id.asc"),
+     readRows("rabota_cashbook_entries","id,kind,amount,from_account,to_account,created_at",
+       tokenHeaders,"created_at.desc,id.asc")
+   ]);
+   accounting=calculateRecordedCashFlow({payroll,operations,manualEntries});
+ }
  const refundedOrders=new Set((payroll?.refunds??[]).map(row=>row.orderId));
  const orders=orderRows.map(row=>({...row,createdDay:moscowDate(row.created_at),
   status:refundedOrders.has(row.id)?"Отменён":row.status,
-  assignedUserId:row.assigned_user_id||null,paymentReceivedBy:row.payment_received_by||"",
-  paymentAmount:row.payment_amount??null,
   price:row.price==null?null:Number(row.price)}));
- const collections=[...new Map(collectionRows.map(row=>[String(row.order_id),row])).values()];
+ const markedPaidOrders=orders.filter(order=>order.paid&&order.status!=="Отменён");
  const today=moscowDate(Date.now());
  const thisWeek=monday(today),lastWeek=shiftDate(thisWeek,-7);
  const thisMonth=today.slice(0,7),lastMonth=shiftDate(thisMonth+"-01",-1).slice(0,7);
  const monthEnd=month=>shiftDate(shiftDate(month+"-01",32).slice(0,7)+"-01",-1);
  const currentWeekEnd=shiftDate(thisWeek,6);
- const raul=members.find(m=>m.active&&m.role==="master"&&String(m.master_name||"").trim().toLocaleLowerCase("ru-RU")==="рауль");
- const distinctOperations=[...new Map(operations.map(row=>[String(row.id),row])).values()];
- const legacy=calculateAccruals({
-   orders,operations:distinctOperations,collections,masterId:raul?.user_id
- });
- const versioned=payroll?.state==="active";
- const payrollAccounting=versioned?{
-  payroll_rule_version:payroll.version,
-  new_order_payroll_rule:"Начисление Раулю за выполненный и полностью оплаченный заказ: 50% полной фактической оплаты плюс 1 500 ₽. Отдельное новое начисление Тимуру отсутствует.",
-  raul_financial_orders:payroll.orders.length,
-  raul_accrued:payroll.earned,raul_paid:payroll.paid,raul_due:payroll.due,
-  payroll_orders_under_review:payroll.holds.filter(row=>row.payrollOnHold).length,
-  cash_orders_under_review:payroll.holds.filter(row=>row.cashOnHold).length,
-  company_share_before_expenses:sum(payroll.orders,row=>row.companyShare),
-  confirmed_refunds:sum(payroll.refunds,row=>row.amount)
- }:{
-  raul_financial_orders:legacy.eligible.length,raul_accrued:raul?legacy.raulAccrued:null,
-  raul_paid:raul?legacy.raulPaid:null,raul_due:raul?legacy.raulDue:null,
-  timur_accrued:raul?legacy.timurAccrued:null,timur_paid:raul?legacy.timurPaid:null,
-  timur_due:raul?legacy.timurDue:null
- };
- const {receivedOrders,directReceipts,confirmedDeposits,allPayouts,expenses,cashIn,cashBalance,
-   notCompletedPaid,freeBalance}=calculateCompanyCash({
-   orders,collections,payments:legacy.payments,
-   raulDue:versioned?payroll.due:legacy.raulDue,timurDue:versioned?0:legacy.timurDue,useRecordedPayments:versioned
- });
  const monthly=[];
  for(let i=0;i<18;i++){
    const d=new Date(thisMonth+"-01T12:00:00Z");
@@ -179,11 +159,11 @@ async function businessSnapshot(tokenHeaders, question) {
     appointments:"Заказы по дате записи (appointment_date), не дата создания и не дата получения оплаты. Отменённые исключены из сравнений.",
     newly_created:"Заказы по created_at, время Москвы. Отменённые исключены из сравнений.",
     unique_clients:"Уникальные номера телефона, а при отсутствии телефона — нормализованные имена; оценка, не гарантированное число реальных людей.",
-    money:"Суммы в рублях. Показатели оплаченных заказов по датам визита или создания отражают отметку paid и стоимость заказа. Для кассы используй отдельные данные о поступлениях. Подтверждённый возврат исключает исходный заказ из поступлений и начислений.",
-    accounting:"Касса — расчётный показатель приложения с нулевым начальным остатком. Прямые поступления, подтверждённые передачи и фактические выплаты относятся к движению денег. Доля компании по заказам рассчитана уже за вычетом начисленной зарплаты до расходов. Не вычитай из неё выплаченную зарплату повторно. Если есть заказы на сверке, поясни, что подтверждённый остаток зарплаты исключает эти заказы, а остаток наличных по ним уточняется."
+    money:"Суммы в рублях. Показатели оплаченных заказов по датам визита или создания показывают отметки и стоимость заказов. Поступления учётной кассы учитывают полную подтверждённую оплату выполненного заказа один раз. Возврат отражается отдельной записью и уменьшает чистые поступления.",
+    accounting:"Учтённые операции показывают поступления и расходы по журналу. Сумм фактического наличия денег в кассе и банковского баланса в снимке нет. Прибыль рассчитывается из подтверждённой доли компании за вычетом расходов. Выплаченную зарплату повторно из прибыли не вычитай. Если orders_without_verified_company_share больше нуля, называй результат учтённой прибылью и указывай количество заказов, доля которых ещё не подтверждена. Если accounting_rub отсутствует, подтверждённые учётные итоги недоступны."
   },
   all_time:{orders:orders.length,unique_clients:new Set(orders.map(clientKey)).size,status_counts:statusCounts,
-    marked_paid_orders:receivedOrders.length,marked_paid_rub:sum(receivedOrders,o=>o.price)},
+    marked_paid_orders:markedPaidOrders.length,marked_paid_rub:sum(markedPaidOrders,o=>o.price)},
   calendar_periods:{
     current_week_appointments:periodStats(orders,"appointment",thisWeek,currentWeekEnd),
     last_week_appointments:periodStats(orders,"appointment",lastWeek,shiftDate(lastWeek,6)),
@@ -195,15 +175,19 @@ async function businessSnapshot(tokenHeaders, question) {
     last_month_created:periodStats(orders,"created",lastMonth+"-01",monthEnd(lastMonth))
   },
   weekly_history:weeks,monthly_history:monthly,
-  accounting_rub:{
-    direct_receipts:roundMoney(directReceipts),confirmed_company_deposits:confirmedDeposits,
-    unconfirmed_company_deposits:roundMoney(sum(collections,c=>c.company_amount)-confirmedDeposits),
-    recorded_cash_in:cashIn,payouts_recorded:allPayouts,expenses_recorded:expenses,
-    recorded_cash_balance:cashBalance,...payrollAccounting,
-    advances_on_incomplete_orders:notCompletedPaid,free_cash_balance:versioned||raul?freeBalance:null,
-    collections_count:collections.length,
-    finance_operations_count:distinctOperations.length
-  },
+  accounting_rub:accounting?{
+    completed_paid_order_receipts:accounting.receiptTotal,
+    confirmed_refunds:accounting.refundTotal,net_order_receipts:accounting.netReceiptTotal,
+    net_order_receipts_by_method:accounting.netReceiptByMethod,
+    payroll_payouts_recorded:accounting.payoutTotal,expenses_recorded:accounting.expenseTotal,
+    manual_income_recorded:accounting.manualIncome,manual_expense_recorded:accounting.manualExpense,
+    net_recorded_movements:accounting.recordedNet,
+    company_share_before_expenses:accounting.companyShare,company_profit_after_expenses:accounting.companyProfit,
+    orders_without_verified_company_share:accounting.unverifiedMarginCount,
+    payroll_rule_version:payroll.version,raul_financial_orders:payroll.orders.length,
+    raul_accrued:payroll.earned,raul_paid:payroll.paid,raul_due:payroll.due,
+    payroll_orders_under_review:payroll.holds.filter(row=>row.payrollOnHold).length
+  }:null,
   by_master:byMaster,scheduled_nearby:needsNames?booked.slice(0,100).map(shortOrder):[],
   order_examples:needsNames?detail:[],
   notes:["order_examples ограничен 210 заказами, агрегаты рассчитаны по всем доступным заказам.",
@@ -342,7 +326,7 @@ module.exports = async function handler(req, res) {
     if (!content) return res.status(502).json({ error: "OpenAI не вернул текст ответа. Попробуйте ещё раз." });
     return res.status(200).json({ reply: content });
   } catch (error) {
-    if (error.message && /Не удалось прочитать|Ошибка формата данных|История .* превышает лимит|Неизвестный формат расчётов зарплаты|Сервер вернул .* (?:зарплат|начисление|выплат|расчёт|возврат)/.test(error.message)) {
+    if (error.message && /Не удалось прочитать|Ошибка формата данных|История .* превышает лимит|Неизвестный формат расчётов зарплаты|Неизвестная версия учёта поступлений|Сервер вернул |Некорректная запись (?:расхода|учётной кассы)/.test(error.message)) {
       return res.status(502).json({error:"Не удалось получить актуальные данные «Работы»: "+error.message});
     }
     if (error.name === "TimeoutError" || error.name === "AbortError") {

@@ -13,14 +13,13 @@ const base={
  price:"12000",status:"Записан",paid:false,details:"Условие",
  created_at:"2026-11-13T09:00:00Z",assigned_user_id:"master1"
 };
-function setup({orders=[],operations=[],collections=[],onRequest=async()=>[{id:"saved"}]}={}){
+function setup({orders=[],operations=[],onRequest=async()=>[{id:"saved"}]}={}){
  const calls=[];let reloads=0;
  const model=createOrdersModel({
    statuses:STATUSES,
    getCurrentUserId:()=>"owner1",
    getOrders:()=>orders,
    getFinanceOperations:()=>operations,
-   getFinanceCollections:()=>collections,
    dbRequest:async(...args)=>{calls.push(args);return onRequest(...args);},
    reloadOrders:async()=>{reloads++;}
  });
@@ -130,13 +129,14 @@ test("tight booking warning uses strict 200-minute window",()=>{
  const {model}=setup({orders});
  assert.deepEqual(model.findTightBookings("2026-11-15","12:00","Рауль",null).map(x=>x.id),["1","2"]);
 });
-test("finance flags include paid marker and ledger references",()=>{
+test("finance history survives a missing paid flag and a voided ledger entry",()=>{
  const order={id:"1",paid:false,price:10000};
- const {model}=setup({operations:[{order_id:"1"}],collections:[{order_id:"2"}]});
+ const {model}=setup({operations:[{order_id:"1",voided_at:"2026-11-16T12:00:00Z"}]});
  assert.equal(model.orderHasFinancialHistory(order),true);
- assert.equal(model.orderHasFinancialHistory({id:"2",paid:false}),true);
  assert.equal(model.orderHasFinancialHistory({id:"3",paid:false}),false);
- assert.equal(model.orderHasFinancialHistory({id:"3",paid:true}),true);
+ for(const record of [{paid:true},{paymentMethod:"cash"},{paymentAmount:12000},
+  {paymentReceivedBy:"master"},{paidAt:"2026-11-16T12:00:00Z"},{paidBy:"owner1"}])
+  assert.equal(model.orderHasFinancialHistory({id:"3",paid:false,...record}),true,Object.keys(record)[0]);
 });
 test("editing an existing order sends PATCH then refreshes",async()=>{
  const original={...base,createdAt:base.created_at,date:"2026-11-15",time:"12:00"};

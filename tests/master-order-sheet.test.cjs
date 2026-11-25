@@ -30,7 +30,8 @@ function originalCard(order){
   card.append(actions);
   if(order.status==="Записан")card.append(make("button","primary master-action","Принять заказ"));
   else if(order.status==="В работе")card.append(make("button","primary master-action","Заказ выполнен"));
-  else if(order.status==="Выполнен")card.append(make("div","cash-share","Финансовые действия"));
+  else if(order.status==="Выполнен"&&!order.paid)
+    card.append(make("button","primary master-action","Принять оплату"));
   return card;
 }
 const factory=new Function("make","makeCard","phoneForDisplay","window","currentRole",
@@ -49,13 +50,16 @@ test("reference design keeps exactly one customer title, price and action set",(
     assert.ok(body.includes(item),item);
   assert.deepEqual(buttons,["Позвонить","WhatsApp","Маршрут","Принять заказ"]);
 });
-test("existing status, payment, financial details and notes remain accessible",()=>{
+test("the sheet keeps completion, unpaid payment, price and notes accessible",()=>{
   const active=factory.buildMasterSheetParts({status:"В работе",price:24000,details:"Позвонить перед выездом"});
   assert.ok(textValues(active.footer).includes("Заказ выполнен"));
   assert.ok(active.details.querySelector(".master-sheet-note"));
+  const unpaid=factory.buildMasterSheetParts({status:"Выполнен",price:24000,paid:false});
+  assert.equal(unpaid.footer.querySelector(".master-action").textContent,"Принять оплату");
   const paid=factory.buildMasterSheetParts({status:"Выполнен",price:24000,paid:true});
-  assert.ok(paid.details.querySelector(".cash-share"));
+  assert.ok(textValues(paid.details).includes("24 000 ₽"));
   assert.equal(paid.footer.querySelector(".master-action"),null);
+  assert.equal(paid.details.querySelector(".cash-share"),null);
 });
 test("Russian quantity labels handle one, two, and five",()=>{
   for(const [n,w] of [[1,"радиатор"],[2,"радиатора"],[5,"радиаторов"],[11,"радиаторов"],[21,"радиатор"]])

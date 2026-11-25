@@ -89,7 +89,7 @@ body.rd .panel .weekday,body.rd .muted,body.rd .count,
 body.rd .control-label,body.rd .finance-hero-label,
 body.rd .finance-hero-sub,body.rd .finance-tip,
 body.rd .finance-line-label,body.rd .finance-activity-sub,
-body.rd .master-schedule-address,body.rd .cash-share-hint,
+body.rd .master-schedule-address,
 body.rd .team-empty,body.rd .info{color:#676b73}
 body.rd .panel h2,body.rd .finance-title,body.rd .client,
 body.rd .finance-hero-value,body.rd .master-day-heading h3,
@@ -122,7 +122,7 @@ body.rd .finance-hero-primary .finance-hero-value{color:#202123}
 body.rd .finance-line{border-color:#ededee}
 body.rd .finance-activity-top{color:#242424}
 body.rd .master-mode .master-cost,
-body.rd .cash-share,body.rd .push-panel{
+body.rd .push-panel{
  background:#f7f9fc;border-color:#dfe6f0;color:#273955;
 }
 body.rd .master-mode .master-cost .cost-label{color:#66758a}

@@ -7,7 +7,6 @@ const assert = require("node:assert/strict");
 const { existsSync, readFileSync } = require("node:fs");
 const path = require("node:path");
 const { chromium, webkit, devices } = require("playwright");
-const {mockLegacyPayrollSnapshot}=require("./fixtures/legacy-payroll.cjs");
 
 const root = path.resolve(__dirname, "..");
 const browserName = process.env.TEST_BROWSER || "chromium";
@@ -22,7 +21,7 @@ const expense = { id: "fixture-expense", kind: "expense", amount: 1200, note: "[
 const task = { id: "fixture-task", owner_id: "fixture-owner", kind: "day", title: "Тестовая задача",
   start_on: today, end_on: today, sort_order: 0, completed: false };
 const roles = ["owner", "manager", "master"];
-const trace = endpoint => ["user", "membership", "orders", "expenses", "operations", "growth"].includes(endpoint);
+const trace = endpoint => ["user", "membership", "orders", "expenses", "operations", "payroll", "growth"].includes(endpoint);
 const sectionRoots = {
   home: "#rdHome", orders: "#ordersArea", expenses: "#exMain", growth: "#gwMain",
   leads: "#rdLeads", clients: "#rdClients", settings: "#rdSettings", reports: "#rdReports",
@@ -34,7 +33,7 @@ const sectionsByRole = {
   manager: ["leads", "clients", "settings", "home", "orders"],
   master: ["payments", "reports", "settings", "orders"],
 };
-const slowReads = { owner: ["operations", "growth"], manager: ["rabota_leads"], master: ["operations"] };
+const slowReads = { owner: ["operations", "growth"], manager: ["rabota_leads"], master: ["payroll"] };
 
 function deferred() {
   let release;
@@ -93,7 +92,7 @@ async function fixture(browser, source, width, role) {
     assert.equal(request.headers().authorization, "Bearer fixture-access");
     const endpoint = url.pathname.split("/").pop();
     const bucket = ({
-      rabota_orders: "orders", rabota_growth_plan: "growth",
+      rabota_orders: "orders", rabota_growth_plan: "growth", rabota_payroll_snapshot_v3: "payroll",
       rabota_finance_operations: url.searchParams.has("kind") ? "expenses" : "operations",
       rabota_members: url.searchParams.has("user_id") ? "membership" : "staff",
     })[endpoint] || endpoint;
@@ -125,10 +124,16 @@ async function fixture(browser, source, width, role) {
       if (bucket === "orders") json = orders;
       if (bucket === "growth") json = role === "owner" ? state.tasks : [];
       if (["expenses", "operations"].includes(bucket)) json = role === "owner" ? state.expenses : [];
+      if (bucket === "payroll") {
+        json = {version: 3, accounting_version: 1, activated_at: stamp,
+          state: role === "manager" ? "not_applicable" : "active"};
+        if (role !== "manager") Object.assign(json, {master_id: fixtureMaster.user_id,
+          earned: 0, paid: 0, due: 0, orders: [], payouts: [], accounting_receipts: []});
+        if (role === "owner") json.accounting_payouts = [];
+      }
     }
     return route.fulfill({ json });
   });
-  await mockLegacyPayrollSnapshot(context);
   async function newPage() {
     const tab = await context.newPage();
     tab.setDefaultTimeout(8000);
@@ -410,7 +415,8 @@ async function roleLayout(browser, width, role) {
     assert.equal(requests.filter(name => name === "membership").length, 1);
     if (role !== "owner") {
       assert.equal(await page.locator("#exMain:visible, #gwMain:visible").count(), 0);
-      assert.ok(!requests.includes("growth") && !requests.includes("expenses"), JSON.stringify(requests));
+      assert.ok(!requests.includes("growth") && !requests.includes("expenses") && !requests.includes("operations"),
+        JSON.stringify(requests));
       assert.equal(await page.locator('#rdMobileNav [data-page="expenses"], #rdMobileMoreSheet [data-page="growth"]').count(), 0);
     }
     for (const read of slowReads[role]) {

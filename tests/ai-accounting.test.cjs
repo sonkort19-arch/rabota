@@ -7,20 +7,42 @@ const orders=[
  {id:"direct",name:"Тестовый клиент",phone:"79000000001",address:"Закрытый адрес",price:10000,
   status:"Выполнен",paid:true,master:"Рауль",assigned_user_id:"raul",payment_received_by:"company"},
  {id:"held",price:10000,status:"Выполнен",paid:true,master:"Рауль",assigned_user_id:"raul",payment_received_by:"master"},
- {id:"confirmed",price:12000,status:"Выполнен",paid:true,master:"Рауль",assigned_user_id:"raul",payment_received_by:"master"},
+ {id:"confirmed",price:12000,status:"Выполнен",paid:true,master:"Другой мастер",assigned_user_id:"other",payment_received_by:"master"},
  {id:"advance",price:4000,status:"Записан",paid:true,payment_received_by:"company",master:"__proto__"},
  {id:"cancelled",price:33000,status:"Отменён",paid:true,payment_received_by:"company"}
 ];
 const operations=[
  {id:"expense",kind:"expense",amount:"600"},
  {id:"payout",kind:"raul_payout",master_user_id:"raul",amount:"2000"},
- {id:"order-payout",kind:"timur_payout",master_user_id:"raul",order_id:"direct",amount:"1500"},
+ {id:"duplicate-order-payout",kind:"timur_payout",master_user_id:"raul",order_id:"held",amount:"1500"},
  {id:"voided",kind:"expense",amount:"999",voided_at:"2026-10-01T10:00:00Z"}
 ];
-const receipt={order_id:"confirmed",company_amount:4500,confirmed_amount:2000,submitted_amount:3200};
-const master={user_id:"raul",role:"master",active:true,master_name:"Рауль"};
+const manualEntries=[
+ {id:"extra-income",kind:"income",amount:"500",to_account:"cash"},
+ {id:"extra-expense",kind:"expense",amount:"200",from_account:"account"},
+ {id:"internal",kind:"transfer",amount:"700",from_account:"cash",to_account:"account"}
+];
+const accountingReceipts=[
+ {order_id:"direct",master_id:"raul",amount:10000,payment_method:"cash"},
+ {order_id:"held",master_id:"raul",amount:10000,payment_method:null},
+ {order_id:"confirmed",master_id:"other",amount:12000,payment_method:"card"}
+];
+const payrollWithAccounting={
+ version:3,state:"active",master_id:"raul",activated_at:"2026-11-24T20:00:00Z",accounting_version:1,
+ earned:6500,paid:2000,due:4500,
+ orders:[{order_id:"direct",paid_amount:10000,earned_amount:6500,company_share:3500,rule_version:3}],
+ payouts:[{id:"private-payout",amount:2000,note:"Внутренняя пометка",kind:"raul_payout"}],
+ holds:[{order_id:"held",order_number:112,payroll_on_hold:true,cash_on_hold:true,
+   reason:"Приватные сведения сверки",earned_amount:6500,credited_amount:1000,
+   linked_recorded_amount:2500,payment_amount:10000}],
+ accounting_receipts:accountingReceipts,
+ accounting_payouts:[
+  {id:"private-payout",amount:2000,note:"Внутренняя пометка",payment_method:"cash"},
+  {id:"private-held-payment",amount:1000,order_id:"held",note:"Вторая внутренняя пометка"}
+ ]
+};
 
-function fixture(t,{authorized=true,payroll=null,payrollError=null,orderData=orders}={}){
+function fixture(t,{authorized=true,payroll=payrollWithAccounting,payrollError=null,orderData=orders}={}){
  const oldKey=process.env.OPENAI_API_KEY;
  process.env.OPENAI_API_KEY="isolated-fixture";
  t.after(()=>{
@@ -40,10 +62,9 @@ function fixture(t,{authorized=true,payroll=null,payrollError=null,orderData=ord
   const authMembership=table==="rabota_members"&&url.searchParams.has("role");
   if(table==="user")return Response.json({id:"fixture-owner"});
   if(authMembership)return Response.json(authorized?[{user_id:"fixture-owner"}]:[]);
-  if(table==="rabota_members")return Response.json([master]);
   if(table==="rabota_orders")return Response.json(orderData);
   if(table==="rabota_finance_operations")return Response.json([...operations,operations[0]]);
-  if(table==="rabota_cash_collections")return Response.json([receipt,receipt]);
+  if(table==="rabota_cashbook_entries")return Response.json(manualEntries);
   if(table==="rabota_payroll_snapshot_v3"){
    if(payrollError)return Response.json({code:payrollError.code},{status:payrollError.status});
    if(payroll)return Response.json(payroll);
@@ -64,85 +85,93 @@ function fixture(t,{authorized=true,payroll=null,payrollError=null,orderData=ord
  return {calls,response,run};
 }
 
-test("AI accounting reuses canonical cash and payroll numbers without double counting",async t=>{
+function aiContext(fixture){
+ const openai=fixture.calls.find(call=>call.url.hostname==="api.openai.com");
+ assert.ok(openai);
+ const request=JSON.parse(openai.options.body);
+ const prompt=request.input[0].content;
+ return {request,prompt,summary:JSON.parse(prompt.slice(prompt.indexOf("{")))};
+}
+
+test("AI uses full confirmed receipts and separates cash movements from company profit",async t=>{
  const f=fixture(t);
  await f.run();
  assert.equal(f.response.code,200);
  assert.equal(f.response.headers["Cache-Control"],"no-store");
- const openai=f.calls.find(call=>call.url.hostname==="api.openai.com");
- const request=JSON.parse(openai.options.body);
- const prompt=request.input[0].content;
- const summary=JSON.parse(prompt.slice(prompt.indexOf("{")));
- assert.equal(summary.accounting_rub.direct_receipts,14000,"master-held cash has no company receipt");
- assert.equal(summary.accounting_rub.confirmed_company_deposits,2000);
- assert.equal(summary.accounting_rub.unconfirmed_company_deposits,2500);
- assert.equal(summary.accounting_rub.recorded_cash_in,16000);
- assert.equal(summary.accounting_rub.payouts_recorded,2000,"order-linked payout is not a separate cash movement");
- assert.equal(summary.accounting_rub.expenses_recorded,600);
- assert.equal(summary.accounting_rub.recorded_cash_balance,13400);
- assert.equal(summary.accounting_rub.raul_accrued,16000);
- assert.equal(summary.accounting_rub.raul_due,14000);
- assert.equal(summary.accounting_rub.timur_due,3000);
- assert.equal(summary.accounting_rub.advances_on_incomplete_orders,4000);
- assert.equal(summary.accounting_rub.free_cash_balance,-7600);
- assert.deepEqual(summary.order_examples,[]);
- assert.doesNotMatch(prompt,/79000000001|Закрытый адрес|Тестовый клиент/);
- assert.equal(summary.by_master.__proto__.orders,1);
- assert.equal(Object.prototype.orders,undefined);
- assert.equal(request.store,false);
-});
-
-test("AI presents v3 verified salary and company share separately from recorded cash outflows",async t=>{
- const payroll={version:3,state:"active",master_id:"raul",activated_at:"2026-11-24T20:00:00Z",
-  earned:6500,paid:2000,due:4500,
-  orders:[{order_id:"direct",paid_amount:10000,earned_amount:6500,company_share:3500,rule_version:3}],
-  payouts:[{id:"private-payout",amount:2000,note:"Внутренняя пометка",kind:"raul_payout"}],
-  holds:[{order_id:"held",order_number:112,payroll_on_hold:true,cash_on_hold:true,
-    reason:"Приватные сведения сверки",earned_amount:6500,credited_amount:0,
-    linked_recorded_amount:0,payment_amount:10000}]};
- const orderData=orders.map(row=>row.id==="advance"?{...row,payment_amount:3900}:row);
- const f=fixture(t,{payroll,orderData});
- await f.run();
- assert.equal(f.response.code,200);
- const openai=f.calls.find(call=>call.url.hostname==="api.openai.com");
- const prompt=JSON.parse(openai.options.body).input[0].content;
- const {accounting_rub:accounting}=JSON.parse(prompt.slice(prompt.indexOf("{")));
+ const {request,prompt,summary}=aiContext(f);
+ const accounting=summary.accounting_rub;
  assert.equal(accounting.payroll_rule_version,3);
  assert.equal(accounting.raul_accrued,6500);
  assert.equal(accounting.raul_paid,2000);
  assert.equal(accounting.raul_due,4500);
  assert.equal(accounting.payroll_orders_under_review,1);
- assert.equal(accounting.cash_orders_under_review,1);
- assert.equal(accounting.company_share_before_expenses,3500);
- assert.equal(accounting.direct_receipts,13900);
- assert.equal(accounting.advances_on_incomplete_orders,3900);
- assert.equal(accounting.recorded_cash_balance,13300);
- assert.equal(accounting.payouts_recorded,2000);
+ assert.equal(accounting.orders_without_verified_company_share,1);
+ assert.equal(accounting.completed_paid_order_receipts,32000);
+ assert.equal(accounting.net_order_receipts,32000);
+ assert.deepEqual(accounting.net_order_receipts_by_method,{cash:10000,card:12000,unknown:10000});
+ assert.equal(accounting.payroll_payouts_recorded,3000,"includes a verified held payout and excludes the disputed duplicate");
+ assert.equal(accounting.expenses_recorded,600);
+ assert.equal(accounting.manual_income_recorded,500);
+ assert.equal(accounting.manual_expense_recorded,200);
+ assert.equal(accounting.net_recorded_movements,28700);
+ assert.equal(accounting.company_share_before_expenses,15500);
+ assert.equal(accounting.company_profit_after_expenses,14700);
+ assert.equal(accounting.recorded_cash_balance,undefined);
  assert.equal(accounting.timur_due,undefined);
- assert.doesNotMatch(prompt,/private-payout|Внутренняя пометка|Приватные сведения сверки/);
+ assert.equal(summary.all_time.marked_paid_rub,36000,"an advance remains operational information only");
+ assert.match(summary.definitions.accounting,/учтённой прибылью/);
+ assert.deepEqual(summary.order_examples,[]);
+ assert.doesNotMatch(prompt,/79000000001|Закрытый адрес|Тестовый клиент|private-payout|private-held-payment|Внутренняя пометка|Приватные сведения сверки/);
+ assert.equal(summary.by_master.__proto__.orders,1);
+ assert.equal(Object.prototype.orders,undefined);
+ assert.equal(request.store,false);
+ assert.ok(!f.calls.some(call=>["rabota_cash_collections","rabota_cash_transfer_events"].includes(call.table)));
+ assert.equal(f.calls.filter(call=>call.table==="rabota_members").length,1);
 });
 
-test("AI counts a verified refund once even when the order request still has the original status",async t=>{
- const payroll={version:3,state:"active",master_id:"raul",activated_at:"2026-11-24T20:00:00Z",
-  earned:0,paid:0,due:0,orders:[],payouts:[],
+test("AI records a verified refund once even while the raw order has the original status",async t=>{
+ const payroll={...payrollWithAccounting,earned:0,paid:0,due:0,orders:[],payouts:[],holds:[],
+  accounting_receipts:[accountingReceipts[0],accountingReceipts[2]],accounting_payouts:[],
   refunds:[{order_id:"direct",amount:10000,refunded_at:"2026-11-25T20:00:00Z"}]};
  const f=fixture(t,{payroll});
  await f.run();
  assert.equal(f.response.code,200);
- const openai=f.calls.find(call=>call.url.hostname==="api.openai.com");
- const prompt=JSON.parse(openai.options.body).input[0].content;
- const {accounting_rub:accounting}=JSON.parse(prompt.slice(prompt.indexOf("{")));
+ const {summary}=aiContext(f);
+ const accounting=summary.accounting_rub;
+ assert.equal(accounting.completed_paid_order_receipts,22000);
  assert.equal(accounting.confirmed_refunds,10000);
- assert.equal(accounting.direct_receipts,4000);
- assert.equal(accounting.recorded_cash_balance,3400);
- assert.equal(accounting.company_share_before_expenses,0);
+ assert.equal(accounting.net_order_receipts,12000);
+ assert.deepEqual(accounting.net_order_receipts_by_method,{cash:0,card:12000,unknown:0});
+ assert.equal(accounting.net_recorded_movements,11700);
+ assert.equal(accounting.company_share_before_expenses,12000);
+ assert.equal(accounting.company_profit_after_expenses,11200);
+ assert.equal(summary.all_time.marked_paid_rub,26000);
 });
 
-test("v3 payroll authorization and malformed data never fall back to the previous salary",async t=>{
+test("before accounting activation the AI still sees orders with no invented ledger",async t=>{
+ const oldSnapshot={...payrollWithAccounting};
+ for(const key of ["accounting_version","accounting_receipts","accounting_payouts"])delete oldSnapshot[key];
+ for(const [name,payroll] of [["missing RPC",null],["inactive",{version:3,state:"inactive"}],["older payroll",oldSnapshot]]){
+  await t.test(name,async subtest=>{
+   const f=fixture(subtest,{payroll});
+   await f.run();
+   assert.equal(f.response.code,200);
+   const {summary}=aiContext(f);
+   assert.equal(summary.accounting_rub,null);
+   assert.equal(summary.all_time.orders,5);
+   assert.ok(!f.calls.some(call=>["rabota_cash_collections","rabota_cash_transfer_events",
+    "rabota_finance_operations","rabota_cashbook_entries"].includes(call.table)));
+  });
+ }
+});
+
+test("payroll authorization and malformed data fail closed before any provider call",async t=>{
  for(const options of [
   {payrollError:{code:"42501",status:403}},
   {payroll:{version:3,state:"active",orders:[]}},
-  {payroll:{version:3,state:"not_applicable"}}
+  {payroll:{version:3,state:"not_applicable"}},
+  {payroll:{...payrollWithAccounting,accounting_payouts:null}},
+  {payroll:{...payrollWithAccounting,accounting_receipts:[accountingReceipts[0],accountingReceipts[0]]}}
  ])await t.test(JSON.stringify(options),async subtest=>{
   const f=fixture(subtest,options);
   await f.run();
@@ -151,7 +180,7 @@ test("v3 payroll authorization and malformed data never fall back to the previou
  });
 });
 
-test("only a verified owner reaches the accounting tables or provider",async t=>{
+test("only a verified owner reaches the accounting data or provider",async t=>{
  const f=fixture(t,{authorized:false});
  await f.run();
  assert.equal(f.response.code,403);

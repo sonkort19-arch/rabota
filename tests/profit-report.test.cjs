@@ -7,8 +7,15 @@ function order(fields={}){
     completedAt:"2026-11-13T15:00:00Z",date:"2026-11-13",name:"Клиент",
     master:"Рауль",status:"Выполнен",price:10000,paid:true,paymentAmount:10000,...fields};
 }
+const receipt=(orderId,amount,masterId="raul")=>({orderId,amount,masterId});
+const payrollFor=(receipts,orders=[],extra={})=>({
+  state:"active",masterId:"raul",orders,accounting:{version:1,receipts},...extra
+});
+const defaultPayroll=payrollFor([receipt("a",10000)],[
+  {orderId:"a",earned:6500,actualPaid:10000,companyShare:3500}
+]);
 test("paid and completed Raul order uses current payout rules",()=>{
-  const row=reportRow(order());
+  const row=reportRow(order(),{payroll:defaultPayroll});
   assert.equal(row.reportReceived,10000);
   assert.equal(row.reportSalary,6500);
   assert.equal(row.reportProfit,3500);
@@ -22,10 +29,10 @@ test("pending or unpaid order is never presented as earned profit",()=>{
   }
 });
 test("v3 report reads the verified per-order allocation, not legacy or cash payout totals",()=>{
-  const payroll={version:3,state:"active",paid:19500,orders:[
+  const payroll=payrollFor([receipt("new",16000),receipt("historical",10000)],[
     {orderId:"new",earned:9500,actualPaid:16000,companyShare:6500,ruleVersion:3},
     {orderId:"historical",earned:5000,actualPaid:10000,companyShare:3500,ruleVersion:1}
-  ]};
+  ],{paid:19500});
   const rows=filterRows([
     order({id:"new",price:16000,paymentAmount:16000}),order({id:"historical"}),
     order({id:"partial",price:10000,paymentAmount:5000}),order({id:"unknown",paymentAmount:null})
@@ -55,7 +62,7 @@ test("confirmed refund clears profit and net received while preserving the order
   assert.match(csvFor([row]),/Подтверждён возврат/);
 });
 test("payroll holds leave customer receipts visible and exclude earnings and margin",()=>{
-  const payroll={version:3,state:"active",orders:[
+  const payroll={...payrollFor([receipt("cash-only",16000),receipt("review",10000)]),orders:[
     {orderId:"cash-only",earned:9500,actualPaid:16000,companyShare:6500}
   ],holds:[
     {orderId:"cash-only",payrollOnHold:false,cashOnHold:true,paymentAmount:16000,
@@ -98,7 +105,7 @@ test("payroll holds leave customer receipts visible and exclude earnings and mar
   assert.equal(filterRows(records,{payroll,search:"№00313"})[0]?.id,"review");
 });
 test("verified order payment supersedes a missing raw amount in v3",()=>{
-  const payroll={version:3,state:"active",orders:[
+  const payroll={...payrollFor([receipt("a",10000)]),orders:[
     {orderId:"a",earned:6500,actualPaid:10000,companyShare:3500}
   ]};
   const row=reportRow(order({price:null,paymentAmount:null}),{payroll});
@@ -108,21 +115,25 @@ test("verified order payment supersedes a missing raw amount in v3",()=>{
   assert.equal(row.reportProfit,3500);
   assert.match(csvFor([row]),/Сумма подтверждена сверкой/);
 });
-test("other master and invalid price cannot generate profit; payment mismatch is flagged",()=>{
+test("other masters require a verified receipt; partial payments never enter profit",()=>{
   assert.equal(reportRow(order({master:"Алекс"})).reportProfit,null);
   const partial=reportRow(order({paymentAmount:5000}));
-  assert.equal(partial.reportProfit,3500);
+  assert.equal(partial.reportProfit,null);
   assert.equal(partial.reportPaymentMismatch,true);
-  assert.equal(partial.reportReceived,5000);
+  assert.equal(partial.reportReceived,0);
   assert.equal(reportRow(order({price:null})).reportProfit,null);
 });
 test("summary includes all payments, but only calculable company shares",()=>{
-  const rows=[order(),order({id:"b",master:"Алекс",price:5000,paymentAmount:5000}),
-    order({id:"c",status:"Записан",paid:false,price:2000,paymentAmount:null})].map(reportRow);
-  assert.deepEqual(summary(rows),{count:3,price:17000,received:15000,salary:6500,profit:3500,uncalculated:1,missingPayments:0,mismatchedPayments:0});
+  const payroll=payrollFor([receipt("a",10000),receipt("b",5000,"alex")],defaultPayroll.orders);
+  const rows=filterRows([order(),order({id:"b",master:"Алекс",price:5000,paymentAmount:5000}),
+    order({id:"c",status:"Записан",paid:false,price:2000,paymentAmount:null})],{payroll});
+  assert.deepEqual(summary(rows),{count:3,price:17000,received:15000,salary:6500,profit:8500,uncalculated:0,missingPayments:0,mismatchedPayments:0});
 });
 test("totals respect every filtered order, not only the first 100 rendered",()=>{
-  const orders=Array.from({length:132},(_,i)=>reportRow(order({id:String(i),price:10000,paymentAmount:10000})));
+  const records=Array.from({length:132},(_,i)=>order({id:String(i),price:10000,paymentAmount:10000}));
+  const payroll=payrollFor(records.map(row=>receipt(row.id,10000)),
+    records.map(row=>({...defaultPayroll.orders[0],orderId:row.id})));
+  const orders=filterRows(records,{payroll});
   assert.deepEqual(summary(orders),{
     count:132,price:1320000,received:1320000,
     salary:858000,profit:462000,uncalculated:0,missingPayments:0,mismatchedPayments:0
@@ -145,7 +156,7 @@ test("status and custom period filters work without altering records",()=>{
   assert.equal(filterRows(rows,{period:"custom",from:"2026-10-01",to:"2026-10-31",basis:"created"}).length,1);
 });
 test("CSV escapes spreadsheet formulas and preserves the order breakdown",()=>{
-  const csv=csvFor([reportRow(order({name:"=cmd()"}))]);
+  const csv=csvFor([reportRow(order({name:"=cmd()"}),{payroll:defaultPayroll})]);
   assert.match(csv,/'=cmd\(\)/);
   assert.match(csv,/3500/);
   assert.match(csv,/№00012/);
@@ -165,28 +176,23 @@ test("Raul report adapter is assigned-user scoped and guarded by role",()=>{
   assert.doesNotMatch(code,/dbRequest\(|rpc\//,"Read-only reporting cannot write to the database");
 });
 
-test("owner and Raul share the authoritative finance split and assigned master ID",()=>{
-  const {financeSplit}=require("../finance-model.js");
-  for(const price of [0,10000,16000,16500.50,24000]){
-    const testOrder=order({assignedUserId:"raul-uuid",price,paymentAmount:price,master:"Неверная подпись"});
-    const actual=reportRow(testOrder,{masterId:"raul-uuid"});
-    const split=financeSplit(price);
-    assert.equal(actual.reportSalary,split.raul+split.timur);
-    assert.equal(actual.reportProfit,split.company);
-    assert.equal(actual.reportSalary+actual.reportProfit,split.gross);
-    assert.equal(reportRow(testOrder,{masterId:"other-uuid"}).reportProfit,null);
-    assert.equal(reportRow(testOrder,{masterId:null}).reportProfit,null);
-  }
+test("unassigned orders and Raul use canonical receipts and server allocations",()=>{
+  const other=order({id:"other",assignedUserId:null,master:"Любая подпись"});
+  const raul=order({assignedUserId:"raul",master:"Неверная подпись"});
+  const payroll=payrollFor([...defaultPayroll.accounting.receipts,receipt("other",10000,null)],defaultPayroll.orders);
+  assert.equal(reportRow(other,{payroll}).reportProfit,10000);
+  assert.equal(reportRow(raul,{payroll}).reportProfit,3500);
+  assert.equal(reportRow(raul,{payroll:{...payroll,orders:[]}}).reportProfit,null);
 });
 test("missing amount remains visible as an uncertainty, without writing a fabricated payment",()=>{
   const record=order({paymentAmount:null,paidAt:null,paymentMethod:""});
   const row=reportRow(record,{masterId:"raul-uuid"});
-  assert.equal(row.reportReceived,10000);
+  assert.equal(row.reportReceived,0);
   assert.equal(row.reportPaymentMissing,true);
   assert.equal(row.reportSalary,null,"Without assigned Raul ID do not invent salary");
   const totals=summary([row]);
   assert.equal(totals.missingPayments,1);
-  assert.equal(totals.received,10000);
+  assert.equal(totals.received,0);
   assert.equal(record.paymentAmount,null);
   const csv=csvFor([row]);
   assert.match(csv,/Сумма платежа не указана/);
