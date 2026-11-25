@@ -3,7 +3,8 @@ const test=require("node:test");
 const assert=require("node:assert/strict");
 const fs=require("node:fs");
 const path=require("node:path");
-const {createSharedServices,normalizePhone,phoneForDisplay,friendlyError,sameAuthSession}=require("../app-services.js");
+const {webcrypto}=require("node:crypto");
+const {createSharedServices,createWriteIntents,normalizePhone,phoneForDisplay,friendlyError,sameAuthSession}=require("../app-services.js");
 
 function fixture({initialToken="old-token",refreshTo=null,status=200,data=[{id:"x"}],jsonThrows=false}={}){
   let session={access_token:initialToken,refresh_token:"refresh",expires_at:5000};
@@ -152,7 +153,7 @@ test("main screen delegates requests and errors but owns session lifecycle",()=>
   const callers={
     "index.html":["rabota_master_action","rabota_payroll_payout_v3","rabota_cashbook_record_v1"],
     "order-model.js":["rabota_record_order_payment","rabota_payroll_refund_v3"],
-    "expenses.js":["rabota_finance_record","rabota_finance_void"]
+    "expenses.js":["rabota_record_expense_v1","rabota_finance_void"]
   };
   for(const [file,rpcs] of Object.entries(callers)){
     const source=fs.readFileSync(path.join(__dirname,"..",file),"utf8");
@@ -161,4 +162,27 @@ test("main screen delegates requests and errors but owns session lifecycle",()=>
   }
   const inline=html.split("<script>\n").at(-1).split("</script>")[0];
   assert.doesNotThrow(()=>new Function(inline));
+});
+
+test("an unresolved write reuses its UUID across reload without storing business data", async()=>{
+  const stored=new Map();
+  const storage={
+    getItem:key=>stored.get(key),setItem:(key,value)=>stored.set(key,value),removeItem:key=>stored.delete(key)
+  };
+  const options={crypto:webcrypto,getStorage:()=>storage};
+  const first=createWriteIntents("expense",options);
+  const payload={amount:125.5,note:"Fixture expense note"};
+  const original=await first.get("fixture-owner",payload);
+  const reloaded=createWriteIntents("expense",options);
+  const retry=await reloaded.get("fixture-owner",payload);
+  assert.equal(retry.requestId,original.requestId);
+  assert.equal(retry.reused,true);
+  assert.equal(JSON.stringify([...stored]).includes(payload.note),false);
+  await assert.rejects(
+    reloaded.get("fixture-owner",{...payload,amount:125},{expectedKey:original.key}),
+    /Проверьте предыдущую операцию/
+  );
+  assert.notEqual((await reloaded.get("another-owner",payload)).requestId,original.requestId);
+  await reloaded.finish(retry);
+  assert.notEqual((await first.get("fixture-owner",payload)).requestId,original.requestId);
 });

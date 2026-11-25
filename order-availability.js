@@ -64,8 +64,7 @@
   function availability(date,master){
     const all=bookingsFor(date,master);
     if(!all)return null;
-    const others=all.filter(order=>!isOwn(order));
-    return {all,others,count:all.length,canBook:true};
+    return {all,count:all.length};
   }
   function setExpanded(expanded){
     calendarBody.hidden=!expanded;
@@ -183,11 +182,8 @@
   }
   // Compact occupancy note inside the *single* time-selection group.
   // Finish times remain estimated from scope and travel; do not imply certainty.
-  function renderBusySummary(stats,master){
+  function renderBusySummary(blocks,date){
     const helper=window.__rdBookingTimeline;
-    if(!helper||!stats||!stats.others.length)return null;
-    const blocks=helper.forDay(stats.others,dayInput.value,master,null,
-      window.__rdCalendarLoad?.travelMinutes);
     if(!blocks.length)return null;
     const summary=el("div","oa-busy-summary");
     summary.setAttribute("aria-label","Занятость мастера. Время окончания примерное.");
@@ -196,7 +192,8 @@
       const entry=el("span","oa-busy-entry");
       const time=block.end===null?
         "с "+helper.format(block.start)+" · конец уточняется":
-        "≈ "+helper.format(block.start)+"–"+helper.format(block.end);
+        "≈ "+(block.date===date?"":dateText(block.date)+", ")+
+        helper.format(block.start)+"–"+helper.format(block.end);
       entry.append(el("span","oa-busy-person",block.name+" ·"),
         el("span","oa-busy-time",time));
       summary.append(entry);
@@ -219,14 +216,20 @@
       return;
     }
     if(!stats)return;
+    const raulQuick=document.getElementById("orderOverlay")?.classList.contains("master-quick");
+    const timeline=window.__rdBookingTimeline;
+    const blocks=raulQuick&&timeline?timeline.forDay(orders,date,master,editingId,
+      window.__rdCalendarLoad?.travelMinutes):[];
     if(stats.count>0){
       message.classList.add("oa-message-partial");
       message.textContent="На день уже назначено "+stats.count+" заказ(ов). Дополнительная запись допускается, но проверьте время работы и дорогу.";
+    }else if(blocks.length){
+      message.classList.add("oa-message-partial");
+      message.textContent="Работа с предыдущей даты может закончиться в этот день.";
     }else{
       message.classList.add("oa-message-free");
       message.textContent="Записей пока нет. Выберите удобное время.";
     }
-    const raulQuick=document.getElementById("orderOverlay")?.classList.contains("master-quick");
     if(stats.all.length&&!raulQuick){
       existing.append(el("div","oa-subtitle","Занято:"));
       for(const order of stats.all){
@@ -239,7 +242,7 @@
     }
     slots.append(el("div","oa-subtitle",raulQuick?"Время":"Выберите время"));
     if(raulQuick){
-      const summary=renderBusySummary(stats,master);
+      const summary=renderBusySummary(blocks,date);
       if(summary)slots.append(summary);
     }
     let available=0;
@@ -248,8 +251,7 @@
     const times=raulQuick?["10:00","12:30","15:00","18:00"]:suggestedTimes;
     for(const time of times){
       const state=timeState(time,date,master);
-      const estimatedBusy=raulQuick?window.__rdBookingTimeline?.findAt(
-        stats.others,time,date,master,null,window.__rdCalendarLoad?.travelMinutes):null;
+      const estimatedBusy=raulQuick?timeline?.findInDay(blocks,time):null;
       const displayState=estimatedBusy?"busy":state;
       const label=estimatedBusy?(raulQuick?"Занято":"≈ Занят"):
         displayState==="busy"?"Занято":displayState==="tight"?(raulQuick?"Рядом":"Рядом с заказом"):

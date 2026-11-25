@@ -150,15 +150,15 @@ function makeMasterScheduleRow(order,isNext=false) {
       article.append(toggle);
       return article;
     }
-    function renderMasterSchedule(rows,{compactEmpty=false}={}) {
-      const grouped=new Map(),today=masterClock().date;
+    function renderMasterSchedule(rows,{compactEmpty=false,allRows=rows,dayCounts=null}={}) {
+      const grouped=new Map(),{date:today,minutes}=masterClock();
       rows.forEach(order=>{
         const date=order.date||"";
         if(!grouped.has(date)) grouped.set(date,[]);
         grouped.get(date).push(order);
       });
-      const next=rows.filter(o=>o.status==="Записан"&&
-        (o.date>today||(o.date===today&&masterTimeMinutes(o.time)>=masterClock().minutes)))
+      const next=allRows.filter(o=>o.status==="Записан"&&
+        (o.date>today||(o.date===today&&masterTimeMinutes(o.time)>=minutes)))
         .sort((a,b)=>masterScheduleSort(a,b,today))[0];
       grouped.forEach((items,date)=>{
         if(getCurrentTab()!=="calendar"){
@@ -166,7 +166,7 @@ function makeMasterScheduleRow(order,isNext=false) {
           const label=getCurrentTab()==="history"?masterDayLabel(date):
             date===today?"Сегодня · "+formatDate(date):masterDayLabel(date);
           heading.append(make("h3","",label));
-          heading.append(make("span","muted",masterOrderCount(items.length)));
+          heading.append(make("span","muted",masterOrderCount(dayCounts?.get(date)??items.length)));
           ordersNode.append(heading);
         }
         items.forEach(order=>ordersNode.append(makeMasterScheduleRow(order,String(order.id)===String(next?.id))));

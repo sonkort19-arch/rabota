@@ -4,7 +4,7 @@
 const assert = require("node:assert/strict");
 const path = require("node:path");
 const fs = require("node:fs");
-const { chromium } = require("playwright");
+const { chromium, webkit } = require("playwright");
 const root = path.resolve(__dirname, "..");
 
 function gate() {
@@ -13,7 +13,7 @@ function gate() {
   return {promise, release};
 }
 
-async function session(browser, {role = "master", active = true, delayModule = false, view = "", abortFirstAccess = false} = {}) {
+async function session(browser, {role = "master", active = true, delayModule = false, view = "", abortFirstAccess = false, hangFirstOrders = false, holdLogout = false} = {}) {
   const context = await browser.newContext({
     viewport: {width: 390, height: 844}, isMobile: true, hasTouch: true,
     timezoneId: "Europe/Moscow", serviceWorkers: "block",
@@ -41,6 +41,7 @@ async function session(browser, {role = "master", active = true, delayModule = f
   };
   if(role==="owner")payroll.accounting_payouts=[];
   const finance = gate(), notices = gate(), module = gate(), moduleRequested = gate();
+  const ordersGate=gate(),logoutGate=gate(),logoutRequested=gate();
   const requests = [], writes = [], errors = [];
   page.on("pageerror", error => errors.push(error.message));
   await context.addInitScript(() => {
@@ -71,11 +72,22 @@ async function session(browser, {role = "master", active = true, delayModule = f
       abortFirstAccess = false;
       return route.abort("internetdisconnected");
     }
+    if(endpoint==="logout"&&holdLogout){
+      assert.equal(request.method(),"POST");
+      assert.equal(request.headers().authorization,"Bearer fixture");
+      assert.equal(url.searchParams.get("scope"),"local");
+      logoutRequested.release();
+      await logoutGate.promise;
+      return route.fulfill({json:{}});
+    }
     if (request.method() !== "GET") { writes.push(endpoint); return route.abort(); }
     let data = [];
     if (endpoint === "user") data = {id: member.user_id};
     if (endpoint === "rabota_members") data = url.searchParams.has("user_id") ? [member] : [master];
-    if (endpoint === "rabota_orders") data = [order, paid];
+    if (endpoint === "rabota_orders") {
+      if(hangFirstOrders){hangFirstOrders=false;await ordersGate.promise;}
+      data = [order, paid];
+    }
     if (endpoint === "rabota_finance_operations" && role === "owner") data = [
       {id:"fixture-expense",kind:"expense",amount:100,payment_method:"card",created_at:paidAt,note:"Материалы"},
       {id:"fixture-void",kind:"expense",amount:600,payment_method:"cash",created_at:paidAt,
@@ -91,12 +103,12 @@ async function session(browser, {role = "master", active = true, delayModule = f
   });
   await page.goto("https://crm.test/" + (view ? "?view=" + view : ""), {waitUntil: "commit"});
   async function close() {
-    finance.release(); notices.release(); module.release();
+    finance.release(); notices.release(); module.release(); ordersGate.release(); logoutGate.release();
     await context.close();
     assert.deepEqual(writes, []);
     assert.deepEqual(errors, []);
   }
-  return {page, context, finance, notices, module, moduleRequested, requests, close};
+  return {page, context, finance, notices, module, moduleRequested, requests, logoutRequested, logoutGate, close};
 }
 
 async function masterStartup(browser, failFinance) {
@@ -213,9 +225,44 @@ async function reconnectAndSignOutAcrossTabs(browser) {
   }finally {await s.close();}
 }
 
+async function logoutHidesBothTabsBeforeServerResponse(browser) {
+  const fixture=await session(browser,{role:"manager",holdLogout:true});
+  try{
+    const second=await fixture.context.newPage();
+    await second.goto("https://crm.test/");
+    await Promise.all([fixture.page.locator("#appScreen").waitFor(),second.locator("#appScreen").waitFor()]);
+    await fixture.page.locator("#rdProfileTrigger").click();
+    await fixture.page.locator("#logoutBtn").click();
+    await fixture.logoutRequested.promise;
+    for(const tab of [fixture.page,second]){
+      await tab.locator("#loginScreen").waitFor({timeout:1800});
+      assert.equal(await tab.locator("#appScreen").isVisible(),false);
+      assert.equal(await tab.evaluate(()=>localStorage.getItem("rabota-auth-session-v1")),null);
+    }
+    fixture.logoutGate.release();
+  }finally{await fixture.close();}
+}
+
+async function slowMasterScheduleHasBoundedRetry(browser){
+  const fixture=await session(browser,{hangFirstOrders:true});
+  try{
+    const status=fixture.page.locator("#startupScheduleStatus");
+    await status.filter({hasText:"Загружаем расписание"}).waitFor();
+    assert.equal(await fixture.page.locator("#appScreen").isVisible(),false);
+    const retry=fixture.page.locator("#retryStartupSchedule");
+    await retry.waitFor({timeout:8500});
+    assert.match(await status.innerText(),/Расписание пока не загрузилось/);
+    await retry.click();
+    await fixture.page.locator("#orders .master-schedule-card").filter({hasText:"Тестовый выезд"}).waitFor();
+    assert.equal(await retry.isVisible(),false);
+    assert.equal(fixture.requests.filter(endpoint=>endpoint==="rabota_orders").length,2);
+  }finally{await fixture.close();}
+}
+
 (async () => {
-  const browser = await chromium.launch({executablePath: process.env.CHROMIUM_PATH,
-    args: ["--no-sandbox"]});
+  const type=process.env.TEST_BROWSER==="webkit"?webkit:chromium;
+  const browser = await type.launch({executablePath: process.env.TEST_BROWSER_PATH||process.env.CHROMIUM_PATH,
+    args:type===chromium?["--no-sandbox"]:[]});
   try {
     await masterStartup(browser, false);
     await masterStartup(browser, true);
@@ -223,6 +270,8 @@ async function reconnectAndSignOutAcrossTabs(browser) {
     await lateModule(browser);
     await accessBoundaries(browser);
     await reconnectAndSignOutAcrossTabs(browser);
+    await logoutHidesBothTabsBeforeServerResponse(browser);
+    await slowMasterScheduleHasBoundedRetry(browser);
     console.log("Passed mobile startup, pending finance, delayed module and access checks");
   } finally { await browser.close(); }
 })().catch(error => { console.error(error); process.exitCode = 1; });

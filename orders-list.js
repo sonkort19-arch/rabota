@@ -4,6 +4,7 @@
   const originalDecorate=window.__rdDecorateOrder;
   const originalRefresh=window.__rdRefresh;
   if(typeof originalDecorate!=="function")return;
+  const dateFormatter=new Intl.DateTimeFormat("ru-RU",{timeZone:"UTC",day:"numeric",month:"short",year:"numeric"});
 
   // Keep the list static: a single dialog displays the selected live order.
   let activeId=null,activeDialog=null,returnFocus=null;
@@ -16,13 +17,15 @@
   }
   function closeDialog({focus=true}={}){
     if(!activeDialog)return;
-    const dialog=activeDialog;
+    const dialog=activeDialog,id=activeId;
     activeDialog=null;activeId=null;
     dialog.remove();
     document.removeEventListener("keydown",onDialogKey,true);
     if(focus){
-      const row=returnFocus;
-      if(row?.isConnected&&!row.closest("[hidden]"))row.focus({preventScroll:true});
+      const originalAvailable=returnFocus?.isConnected&&!returnFocus.closest("[hidden]");
+      const trigger=originalAvailable?returnFocus:orderCard(id)?.querySelector(".rd-list-toggle");
+      if(!originalAvailable)trigger?.scrollIntoView({block:"nearest"});
+      trigger?.focus({preventScroll:true});
     }
     returnFocus=null;
   }
@@ -45,12 +48,18 @@
     else if(!event.shiftKey&&document.activeElement===last){event.preventDefault();first.focus();}
   }
   function moveDialog(delta){
-    const rows=visibleCards();
-    const current=rows.findIndex(n=>n.dataset.rdOrderId===activeId);
-    const next=rows[current+delta];
+    const workspace=window.__rdOrdersWorkspace;
+    const next=dialogPosition().at(delta);
     if(!next)return;
-    activeId=next.dataset.rdOrderId;
+    activeId=String(next);
+    workspace?.revealOrder(activeId);
     paintDialog(true);
+  }
+  function dialogPosition(){
+    const position=window.__rdOrdersWorkspace?.listPosition(activeId);
+    if(position)return {...position,at:delta=>delta<0?position.previous:position.next};
+    const rows=visibleCards(),index=rows.findIndex(row=>row.dataset.rdOrderId===activeId);
+    return {index,total:rows.length,at:delta=>rows[index+delta]?.dataset.rdOrderId};
   }
   function labeledRow(label,value,variant){
     if(value===null||value===undefined||value==="")return null;
@@ -141,13 +150,13 @@
     }
     const footer=activeDialog.querySelector(".rd-order-footer");
     footer.replaceChildren();
-    const rows=visibleCards(),index=rows.findIndex(n=>n.dataset.rdOrderId===activeId);
+    const {index,total}=dialogPosition();
     const prev=activeDialog.querySelector(".rd-order-prev");
     const next=activeDialog.querySelector(".rd-order-next");
     const position=activeDialog.querySelector(".rd-order-position");
     prev.disabled=index<=0;
-    next.disabled=index<0||index===rows.length-1;
-    position.textContent=(index+1)+"/"+rows.length;
+    next.disabled=index<0||index===total-1;
+    position.textContent=(index+1)+"/"+total;
     // Existing status control handlers remain active inside the collapsed editor.
     const select=payload?.controls?.querySelector("select.compact-select");
     let ctaLabel=null,newStatus=null,existingButton=null;
@@ -258,7 +267,7 @@
     if(!/^\d{4}-\d{2}-\d{2}$/.test(String(value||"")))return String(value||"Без даты");
     const date=new Date(value+"T12:00:00Z");
     if(!Number.isFinite(date.getTime()))return String(value);
-    return new Intl.DateTimeFormat("ru-RU",{timeZone:"UTC",day:"numeric",month:"short",year:"numeric"}).format(date);
+    return dateFormatter.format(date);
   }
   const colorByStatus={
     "Записан":"s-booked","В работе":"s-progress",
@@ -310,12 +319,18 @@
   window.__rdOpenOrderDetail=(orderId)=>{
     if(window.__rdCurrentPage!=="orders"||currentRole==="master")return false;
     const id=String(orderId||"");
-    const row=orderCard(id);
+    let row=orderCard(id);
+    if(!row){
+      closeDialog({focus:false});
+      window.__rdOrdersWorkspace?.revealOrder(id);
+      row=orderCard(id);
+    }
     if(!row)return false;
     const trigger=row.querySelector(".rd-list-toggle");
     openDialog(id,trigger);
     return true;
   };
+  window.__rdActiveOrderDetail=()=>activeId;
   window.__rdCloseOrderDetail=()=>closeDialog({focus:false});
   window.__rdRefresh=(...args)=>{
     if(typeof originalRefresh==="function")originalRefresh(...args);

@@ -431,6 +431,11 @@
     if(!out.children.length)out.append(node("small","la-muted","В ближайшие три дня подходящих вариантов не найдено. Откройте календарь."));
     wrap.append(out);return wrap;
   }
+  function convertToOrder(lead){
+    const agreed=lead.priceAgreed===true&&lead.material!=="Чугунные"&&
+      text(lead.radiators)!==""&&text(lead.loops)!=="";
+    window.__rdLeadOpenOrder?.({...lead,price:agreed?calc(lead.radiators,lead.loops):null});
+  }
   function editor(){
     const wrap=node("section","la-box la-editor");
     if(!usesScreenHeader()){
@@ -496,7 +501,7 @@
     if(openId&&draft.status==="ready"){
       wrap.append(btn("Перевести в заказ","la-neutral la-wide",()=>{
         if(!draft.name||!phoneKey(draft.phone)){notice="Сначала укажите имя и номер телефона.";render();return}
-        window.__rdLeadOpenOrder?.({...draft,price:calc(draft.radiators,draft.loops)});
+        convertToOrder(draft);
       }));
       wrap.append(node("p","la-muted","Откроется форма заказа. Запись создаётся только после сохранения подтверждённого заказа."));
     }
@@ -527,9 +532,7 @@
     }
     actions.append(btn("Открыть","la-neutral",()=>selectLead(lead.id)));
     if(overdue)actions.append(btn("Связались","la-chip",()=>contacted(lead)));
-    if(lead.status==="ready")actions.append(btn("В заказ","la-chip",()=>{
-      window.__rdLeadOpenOrder?.({...lead,price:calc(lead.radiators,lead.loops)});
-    }));
+    if(lead.status==="ready")actions.append(btn("В заказ","la-chip",()=>convertToOrder(lead)));
     card.append(actions);return card;
   }
   function filterVisible(){

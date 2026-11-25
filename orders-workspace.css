@@ -138,6 +138,12 @@ body.rd #appScreen.rd-unified-orders #ordersArea>.list-head .rd-orders-list-acti
 
 /* Both roles retain their original actionable DOM, styled to one geometry. */
 body.rd #appScreen.rd-unified-orders #orders{display:flex;flex-direction:column;gap:9px;margin:0;min-width:0}
+body.rd #appScreen.rd-unified-orders .ow-list-pages{
+  display:flex;align-items:center;justify-content:center;gap:12px;padding:5px 0;
+  color:var(--ow-muted);font-size:13px;font-variant-numeric:tabular-nums;
+}
+body.rd #appScreen.rd-unified-orders .ow-list-pages button{min-height:44px;margin:0;padding:8px 12px}
+body.rd #appScreen.rd-unified-orders .ow-list-pages button:disabled{opacity:.45}
 body.rd #appScreen.rd-unified-orders #orders :is(.master-schedule-card,.rd-list-row){
   box-sizing:border-box;width:100%;min-width:0;margin:0!important;padding:0!important;
   border:1px solid #d9e3f5;border-radius:15px;background:#fff;

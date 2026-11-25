@@ -13,6 +13,7 @@ const browserName = process.env.TEST_BROWSER || "chromium";
 const widths = [320, 375, 390, 430];
 const delayMs = 75;
 const origin = "https://crm.test";
+const expenseRecordRpc = "rabota_record_expense_v1";
 const today = new Intl.DateTimeFormat("sv-SE", { timeZone: "Europe/Moscow" }).format(new Date());
 const stamp = today + "T08:00:00Z";
 const safeAreaInsets = { top: 47, right: 29, bottom: 34, left: 21 };
@@ -57,7 +58,10 @@ async function fixture(browser, source, width, role, {safeArea = null, standalon
     ...(touch ? devices["iPhone 13"] : {}), viewport: { width, height }, screen: { width, height },
     timezoneId: "Europe/Moscow", reducedMotion: "reduce", serviceWorkers: "block",
   });
-  const state = { expenses: [{ ...expense }], tasks: [{ ...task }], fail: new Set(), loseResponse: new Set(), gates: new Map() };
+  const state = { expenses: [{ ...expense }], tasks: [{ ...task }], fail: new Set(),
+    loseResponse: new Set(), invalidReceipt: new Set(), gates: new Map(),
+    staleGrowthRead: null, failGrowthRead: false };
+  const expenseReceipts = new Map();
   const orders = Array.from({ length: 18 }, (_, i) => ({
     id: "fixture-order-" + i, name: "Тестовый заказ " + i, assigned_user_id: fixtureMaster.user_id,
     master: fixtureMaster.master_name, status: "Записан", price: 1000, appointment_date: today,
@@ -126,16 +130,37 @@ async function fixture(browser, source, width, role, {safeArea = null, standalon
       rabota_members: url.searchParams.has("user_id") ? "membership" : "staff",
     })[endpoint] || endpoint;
     requests.push(bucket);
+    if (bucket === "growth" && request.method() === "GET" && state.staleGrowthRead) {
+      const { started, finish } = state.staleGrowthRead;
+      const captured = state.tasks.map(task => ({ ...task }));
+      state.staleGrowthRead = null;
+      started.release();
+      await finish.promise;
+      return route.fulfill({ json: captured });
+    }
     await new Promise(resolve => setTimeout(resolve, delayMs));
     await state.gates.get(bucket)?.promise;
+    if (bucket === "growth" && request.method() === "GET" && state.failGrowthRead) {
+      state.failGrowthRead = false;
+      return route.abort("internetdisconnected");
+    }
     if (state.fail.delete(bucket)) return route.abort("internetdisconnected");
     let json = [];
     if (request.method() !== "GET") {
       assert.equal(role, "owner", "fixture owner-only mutation");
       const payload = request.postDataJSON();
       writes.push({ endpoint, method: request.method(), payload });
-      if (endpoint === "rabota_finance_record") {
-        state.expenses.push({ ...expense, id: "fixture-new-expense-" + writes.length, amount: payload.p_amount, note: payload.p_note });
+      if (endpoint === expenseRecordRpc) {
+        assert.match(payload.p_request_id, /^[\da-f]{8}(?:-[\da-f]{4}){3}-[\da-f]{12}$/i);
+        const previous = expenseReceipts.get(payload.p_request_id);
+        if (previous) {
+          assert.deepEqual(payload, previous.payload);
+          json = previous.id;
+        } else {
+          json = "a0000001-0000-4000-8000-" + String(expenseReceipts.size + 1).padStart(12, "0");
+          expenseReceipts.set(payload.p_request_id, { id: json, payload });
+          state.expenses.push({ ...expense, id: json, amount: payload.p_amount, note: payload.p_note });
+        }
       } else if (endpoint === "rabota_finance_void") {
         const item = state.expenses.find(row => row.id === payload.p_operation_id);
         item.voided_at = stamp;
@@ -146,6 +171,7 @@ async function fixture(browser, source, width, role, {safeArea = null, standalon
         json = [item];
       } else assert.fail("Unexpected write to " + endpoint);
       if (state.loseResponse.delete(endpoint)) return route.abort("connectionreset");
+      if (state.invalidReceipt.delete(endpoint)) return route.fulfill({ json: true });
     } else {
       if (endpoint === "user") json = { id: member.user_id, email: member.user_id + "@test.invalid" };
       if (bucket === "membership") json = url.searchParams.has("role") && role !== "owner" ? [] : [member];
@@ -851,7 +877,7 @@ async function dataFlow(browser) {
     await editor.locator("#exDetail").fill("Тестовая запись");
     await editor.locator("#exOrder").fill("12345");
     const savingExpense = deferred();
-    state.gates.set("rabota_finance_record", savingExpense);
+    state.gates.set(expenseRecordRpc, savingExpense);
     state.fail.add("operations");
     await save.click();
     assert.equal(await save.isDisabled(), true);
@@ -864,9 +890,9 @@ async function dataFlow(browser) {
     await page.locator("#exStatus").getByText(/сохранён/i).waitFor();
     await page.locator("#exRetry").waitFor();
     await page.locator("#exList").getByText("Тестовый расход").waitFor();
-    assert.deepEqual(writes.at(-1).payload, {
-      p_kind:"expense", p_amount:99.5, p_master_user_id:null, p_note:"[Расходники] Тестовая запись · Заказ №12345",
-    });
+    const {p_request_id:createdExpenseId,...createdExpensePayload}=writes.at(-1).payload;
+    assert.ok(createdExpenseId);
+    assert.deepEqual(createdExpensePayload, {p_amount:99.5,p_note:"[Расходники] Тестовая запись · Заказ №12345"});
     await page.locator("#exRetry").click();
     const savedExpense = page.locator("#exList .ex-item").filter({ hasText: "Тестовая запись" });
     await savedExpense.waitFor();
@@ -904,35 +930,91 @@ async function dataFlow(browser) {
     assert.equal(documents.length, 1, "browser history remains within the SPA");
     assert.equal(requests.filter(value => value === "user").length, 1);
     assert.equal(requests.filter(value => value === "membership").length, 1);
-    assert.deepEqual(writes.map(value => value.endpoint), ["rabota_growth_plan", "rabota_finance_record", "rabota_finance_void"]);
+    assert.deepEqual(writes.map(value => value.endpoint), ["rabota_growth_plan", expenseRecordRpc, "rabota_finance_void"]);
 
     await go(page, "expenses");
-    state.loseResponse.add("rabota_finance_record");
+    state.loseResponse.add(expenseRecordRpc);
     editor = await openExpenseDialog(page);
     await editor.locator("#exAmount").fill("42,75");
     await editor.locator("#exDetail").fill("Сбой доставки ответа");
     await editor.locator("#exSave").click();
     await editor.locator("#exMessage").getByText(/Не удалось подтвердить запись/).waitFor();
-    const attempts = writes.filter(value => value.endpoint === "rabota_finance_record").length;
-    await editor.locator("#exSave").click();
-    await editor.locator("#exMessage").getByText(/Проверьте историю перед повтором/i).waitFor();
-    assert.equal(writes.filter(value => value.endpoint === "rabota_finance_record").length, attempts);
-    await editor.locator("#exReview").click();
+    const pendingId = writes.at(-1).payload.p_request_id;
+    await editor.locator("#exClose").click();
     await editor.waitFor({state:"hidden"});
-    await page.locator("#exList").getByText("Сбой доставки ответа").waitFor();
+    const committed = page.locator("#exList .ex-item").filter({hasText:"Сбой доставки ответа"});
+    await committed.waitFor();
     editor = await openExpenseDialog(page);
     assert.equal(await editor.locator("#exAmount").inputValue(), "42,75");
     assert.equal(await editor.locator("#exDetail").inputValue(), "Сбой доставки ответа");
-    const confirmation = page.waitForEvent("dialog");
-    const click = editor.locator("#exSave").click();
-    const dialog = await confirmation;
-    assert.match(dialog.message(), /Проверьте историю/);
-    await dialog.dismiss();
-    await click;
-    assert.equal(writes.filter(value => value.endpoint === "rabota_finance_record").length, attempts,
-      "a committed expense with a dropped reply is never replayed automatically");
-    assert.equal(await page.locator("#exList .ex-item").filter({hasText:"Сбой доставки ответа"}).count(), 1);
+    state.invalidReceipt.add(expenseRecordRpc);
+    await editor.locator("#exSave").click();
+    await editor.locator("#exMessage").getByText(/Не удалось подтвердить запись/).waitFor();
+    assert.equal(writes.at(-1).payload.p_request_id, pendingId);
+    assert.equal(await page.locator("#exStatus").textContent(), "", "a boolean response does not acknowledge the expense");
+    assert.equal(await committed.count(), 1);
+
+    await page.reload();
+    await page.locator("#exMain").waitFor();
+    async function submitIdenticalExpense(){
+      const dialog = await openExpenseDialog(page);
+      await dialog.locator("#exAmount").fill("42.75");
+      await dialog.locator("#exDetail").fill("Сбой  доставки ответа");
+      await dialog.locator("#exSave").click();
+      await dialog.waitFor({state:"hidden"});
+      await page.locator("#exStatus").getByText(/сохранён/i).waitFor();
+    }
+    await submitIdenticalExpense();
+    assert.equal(writes.at(-1).payload.p_request_id, pendingId, "retry uses the durable ID after a page reload");
+    assert.equal(await committed.count(), 1, "the lost response and replay leave one ledger row");
+    await submitIdenticalExpense();
+    assert.notEqual(writes.at(-1).payload.p_request_id, pendingId, "a later identical expense is a new intent");
+    await committed.nth(1).waitFor();
+    assert.equal(await committed.count(), 2);
   } finally { await s.close(); }
+}
+
+async function growthRecovery(browser) {
+  const s = await fixture(browser, root, 390, "owner");
+  const { page, state, writes, documents } = s;
+  const stale = { started: deferred(), finish: deferred() };
+  const currentTask = page.getByRole("checkbox", {name:task.title,exact:true});
+  const status = page.locator("#gwNotice");
+  try {
+    await page.goto(origin + "/?view=growth");
+    await currentTask.waitFor();
+    assert.equal(await currentTask.isChecked(), false);
+
+    // The old GET captures an incomplete task before the successful PATCH.
+    await go(page, "orders");
+    state.staleGrowthRead = stale;
+    await go(page, "growth");
+    await stale.started.promise;
+    state.loseResponse.add("rabota_growth_plan");
+    await currentTask.click();
+    await status.getByText("Отметка сохранена.", {exact:true}).waitFor();
+    assert.equal(await currentTask.isChecked(), true);
+    assert.equal(await currentTask.isEnabled(), true);
+    stale.finish.release();
+    await page.waitForLoadState("networkidle");
+    assert.equal(await currentTask.isChecked(), true, "a pre-write GET cannot undo a reconciled checkbox");
+
+    // The second write also commits, but its reply and the immediate reading are lost.
+    state.loseResponse.add("rabota_growth_plan");
+    state.failGrowthRead = true;
+    await currentTask.click();
+    await page.locator("#gwRetry").waitFor();
+    assert.equal(await currentTask.evaluate(input => input.indeterminate && input.disabled), true);
+    assert.equal(state.tasks[0].completed, false);
+    await page.locator("#gwRetry").click();
+    await status.getByText("Отметка сохранена.", {exact:true}).waitFor();
+    assert.equal(await currentTask.evaluate(input => !input.indeterminate && !input.disabled && !input.checked), true);
+    assert.equal(writes.length, 2, "retry only reconciles the existing writes");
+    assert.equal(documents.length, 1, "reconciliation stays in the same app document");
+  } finally {
+    stale.finish.release();
+    await s.close();
+  }
 }
 
 async function legacyLinks(browser) {
@@ -978,7 +1060,97 @@ function summarize(results) {
   return out;
 }
 
-module.exports = { fixture, go, assertHeaderLayout };
+async function assertFocus(locator, message) {
+  assert.equal(await locator.evaluate(node => node === document.activeElement), true, message);
+}
+
+async function assertModalKeyboard(page, dialog, background, save, close) {
+  assert.equal(await dialog.getAttribute("aria-modal"), "true");
+  await background.evaluate(node => node.focus());
+  assert.equal(await background.evaluate(node => node === document.activeElement), false);
+  assert.equal(await background.evaluate(node => Boolean(node.closest("[inert]"))), true);
+
+  await save.focus();
+  await page.keyboard.press("Tab");
+  await assertFocus(close, "Tab from Save must return to Close");
+  await page.keyboard.press("Shift+Tab");
+  await assertFocus(save, "Shift+Tab from Close must return to Save");
+  for (const key of ["Tab", "Shift+Tab"]) {
+    for (let i = 0; i < 18; i++) {
+      await page.keyboard.press(key);
+      assert.equal(await dialog.evaluate(node => node.contains(document.activeElement)), true,
+        key + " must keep focus in the dialog");
+    }
+  }
+}
+
+async function cashbookFocus(browser) {
+  const f = await fixture(browser, root, 390, "owner");
+  try {
+    const { page } = f;
+    await page.goto(origin + "/?view=finance");
+    const create = page.locator(".mw-owner-create");
+    const expenses = page.locator('#rdMobileNav [data-page="expenses"]');
+    await create.click();
+    await page.getByRole("button", { name: "− Создать расход", exact: true }).click();
+    const dialog = page.getByRole("dialog", { name: "Создать расход" });
+    await dialog.waitFor();
+    await assertModalKeyboard(page, dialog, expenses,
+      dialog.getByRole("button", { name: "Сохранить", exact: true }),
+      dialog.getByRole("button", { name: "Закрыть окно", exact: true }));
+    await page.keyboard.press("Escape");
+    await dialog.waitFor({ state: "hidden" });
+    await assertFocus(create, "Escape restores the cashbook Create opener");
+    await expenses.focus();
+    await page.keyboard.press("Enter");
+    await page.locator("#exMain").waitFor();
+    assert.deepEqual(f.writes, [], "Keyboard navigation and cancellation must not record an expense");
+  } finally { await f.close(); }
+}
+
+async function orderFocus(browser, role, width) {
+  const f = await fixture(browser, root, width, role);
+  try {
+    const { page } = f;
+    await page.goto(origin + "/?view=orders");
+    if (role !== "master") await go(page, "orders");
+    const create = page.locator("#newOrderBtn");
+    const background = page.locator(role === "master"
+      ? '#mwMasterNav [data-mw-page="reports"]'
+      : '#rdMobileNav [data-page="orders"]');
+    await create.click();
+    const dialog = page.getByRole("dialog", { name: "Новый заказ" });
+    await dialog.waitFor();
+    await assertModalKeyboard(page, dialog, background,
+      dialog.getByRole("button", { name: "Сохранить заказ", exact: true }),
+      dialog.getByRole("button", { name: "Закрыть", exact: true }));
+
+    if (role === "owner") {
+      await dialog.locator("#orderAdvanced summary").click();
+      await dialog.locator("#price").fill("1200");
+      await dialog.locator("#orderStatus").selectOption("Выполнен");
+      const payment = page.getByRole("dialog", { name: "Завершение заказа" });
+      await payment.waitFor();
+      await page.keyboard.press("Escape");
+      await payment.waitFor({ state: "hidden" });
+      assert.equal(await dialog.isVisible(), true, "Escape only dismisses the top payment dialog");
+    }
+
+    await page.keyboard.press("Escape");
+    await dialog.waitFor({ state: "hidden" });
+    await assertFocus(create, "Escape restores the new order opener");
+    assert.equal(await background.evaluate(node => Boolean(node.closest("[inert]"))), false);
+    assert.deepEqual(f.writes, [], "Keyboard navigation and cancellation must not create an order");
+  } finally { await f.close(); }
+}
+
+async function modalFocus(browser) {
+  await cashbookFocus(browser);
+  for (const [role, width] of [["owner", 390], ["manager", 375], ["master", 320]])
+    await orderFocus(browser, role, width);
+}
+
+module.exports = { fixture, go, assertHeaderLayout, modalFocus };
 if (require.main === module) (async () => {
   const browser = await (browserName === "webkit" ? webkit : chromium).launch({
     executablePath: process.env.TEST_BROWSER_PATH || undefined,
@@ -1009,6 +1181,9 @@ if (require.main === module) (async () => {
     await desktopScrollLayout(browser);
     console.log("PASS", browserName, "safe areas, standalone portrait and landscape, the shared header, expenses and scrolling");
     await dataFlow(browser);
+    await growthRecovery(browser);
+    await modalFocus(browser);
+    console.log("PASS", browserName, "cashbook and order dialog keyboard focus");
     await legacyLinks(browser);
     console.log("PASS", browserName, "progressive rendering, connection retry, writes, freshness, history and legacy links");
   } finally { await browser.close(); }

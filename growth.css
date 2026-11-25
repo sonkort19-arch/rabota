@@ -17,6 +17,7 @@
 .gw-check{appearance:none;-webkit-appearance:none;flex:none;width:25px;height:25px;border:2px solid #b9c1d1;border-radius:7px;background:var(--ui-surface);margin:1px 0 0;position:relative}
 .gw-check:checked{background:#33a875;border-color:#33a875}
 .gw-check:checked:after{content:"";position:absolute;left:7px;top:2px;width:6px;height:12px;border:solid #fff;border-width:0 2px 2px 0;transform:rotate(45deg)}
+.gw-check:indeterminate:after{content:"";position:absolute;left:5px;right:5px;top:9px;height:2px;background:#7a6652}
 .gw-check:disabled{opacity:.45}
 .gw-task-label{min-width:0;flex:1}
 .gw-task-label strong{display:block;line-height:1.38;font-size:14px;font-weight:640;overflow-wrap:anywhere}

@@ -22,19 +22,25 @@
     if(basis==="appointment")return txt(order.date).slice(0,10);
     return order.createdAt?moscowDay(order.createdAt):"";
   }
+  function reportRefunds(payroll){
+    return payroll?.accounting?.refunds??(payroll?.state==="active"?payroll.refunds:undefined)??[];
+  }
   function reportRow(order,options={}){
     const price=order.price==null||order.price===""?null:Number(order.price);
     const validPrice=price!=null&&Number.isFinite(price)&&price>=0;
     const paid=Boolean(order.paid);
     const versioned=options.payroll?.state==="active";
     const orderId=String(order.id);
-    const refund=versioned?(options.refundsByOrder?
-      options.refundsByOrder.get(orderId):options.payroll.refunds?.find(item=>item.orderId===orderId)):null;
+    const refund=options.refundsByOrder
+      ?options.refundsByOrder.get(orderId)
+      :reportRefunds(options.payroll).find(item=>item.orderId===orderId);
     const hold=versioned?(options.holdsByOrder?
       options.holdsByOrder.get(orderId):options.payroll.holds?.find(item=>item.orderId===orderId)):null;
     const projection=versioned?(options.payrollByOrder?
       options.payrollByOrder.get(orderId):options.payroll.orders.find(item=>item.orderId===orderId)):null;
-    const receipt=options.receiptsByOrder?.get(orderId)??options.payroll?.accounting?.receipts?.find(item=>item.orderId===orderId);
+    const receipt=options.receiptsByOrder
+      ?options.receiptsByOrder.get(orderId)
+      :options.payroll?.accounting?.receipts?.find(item=>item.orderId===orderId);
     const paymentIsMissing=paid&&(order.paymentAmount==null||order.paymentAmount==="");
     const received=!refund&&receipt?receipt.amount:0;
     const paymentVerified=Boolean(paymentIsMissing&&receipt);
@@ -49,8 +55,9 @@
     const profit=calculated?projection?.companyShare??receipt.amount:null;
     const holdReference=!order.referenceCode?orderReference?.code(hold?.orderNumber):null;
     return Object.assign({},order,holdReference?{orderNumber:hold.orderNumber,referenceCode:holdReference}:null,{
+      status:refund?"Отменён":order.status,
       reportPrice:validPrice?price:null,
-      reportReceived:received,reportEarned:earned||Boolean(projection),reportCalculated:calculated,
+      reportReceived:received,reportEarned:!refund&&(earned||Boolean(projection)),reportCalculated:calculated,
       reportSalary:salary,reportProfit:profit,
       reportCalculationAmount:projection?.actualPaid??receipt?.amount??null,
       reportRuleVersion:projection?.ruleVersion??null,
@@ -101,9 +108,9 @@
     const [from,to]=bounds(options.period||"all",today,options.from,options.to);
     const payrollByOrder=options.payroll?.state==="active"?
       new Map(options.payroll.orders.map(item=>[item.orderId,item])):null;
-    const rowOptions=payrollByOrder?{...options,payrollByOrder,
+    const rowOptions=options.payroll?{...options,payrollByOrder,
       receiptsByOrder:new Map((options.payroll.accounting?.receipts??[]).map(item=>[item.orderId,item])),
-      refundsByOrder:new Map((options.payroll.refunds??[]).map(item=>[item.orderId,item])),
+      refundsByOrder:new Map(reportRefunds(options.payroll).map(item=>[item.orderId,item])),
       holdsByOrder:new Map((options.payroll.holds??[]).map(item=>[item.orderId,item]))}:options;
     return orders.map(order=>reportRow(order,rowOptions)).filter(row=>{
       const day=getDate(row,options.basis||"closed");
@@ -121,6 +128,7 @@
     }).sort((a,b)=>txt(b.createdAt||b.date).localeCompare(txt(a.createdAt||a.date)));
   }
   function quoteCsv(value){
+    if(Number.isFinite(value))return String(value);
     let s=txt(value);
     if(/^[\s]*[=+\-@]/.test(s))s="'"+s;
     return '"'+s.replace(/"/g,'""')+'"';

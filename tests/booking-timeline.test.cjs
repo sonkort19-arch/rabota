@@ -40,3 +40,26 @@ test("start and end format handles midnight safely",()=>{
   assert.equal(format(1500),"01:00 (+1 дн.)");
   assert.equal(estimate(order({time:"23:00"}),city).end,1490);
 });
+test("a late active order remains busy on the following date until the estimated finish",()=>{
+  const rows=[order({date:"2026-12-01",time:"23:00",radiators:10})];
+  const next="2026-12-02";
+  const overlap=findAt(rows,"00:30",next,"Рауль",null,city);
+  assert.equal(overlap.date,"2026-12-01");
+  assert.equal(format(overlap.start),"23:00");
+  assert.equal(format(overlap.end),"02:50 (+1 дн.)");
+  assert.equal(findAt(rows,"00:00",next,"Рауль",null,city)?.id,"a");
+  assert.equal(findAt(rows,"02:49",next,"Рауль",null,city)?.id,"a");
+  assert.equal(findAt(rows,"02:50",next,"Рауль",null,city),null);
+  assert.deepEqual(forDay(rows,"2026-12-03","Рауль",null,city),[]);
+  assert.equal(findAt(rows,"00:30",next,"Рауль","a",city),null);
+  for(const status of ["Выполнен","Отменён"])
+    assert.equal(findAt([{...rows[0],status}],"00:30",next,"Рауль",null,city),null);
+});
+test("availability compares Moscow appointment dates across month and year boundaries",()=>{
+  const rows=[order({date:"2026-12-31",time:"23:00",radiators:10}),
+    order({date:"2027-01-01",id:"next",time:"03:30"})];
+  assert.deepEqual(forDay(rows,"2027-01-01","Рауль",null,city).map(block=>block.id),["a","next"]);
+  assert.equal(findAt(rows,"00:30","2027-01-01","Рауль",null,city)?.id,"a");
+  assert.deepEqual(forDay([order({date:"2026-12-31",time:"23:10",radiators:1})],
+    "2027-01-01","Рауль",null,city),[],"an estimate ending at midnight does not occupy the next day");
+});

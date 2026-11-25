@@ -37,6 +37,7 @@ function order(id, name, date, time, status = "Записан", extra = {}) {
     radiator_type: "Алюминиевые", radiators: 4, floor_loops: 1,
     price: 11000, paid: status === "Выполнен", client_source: "recommendation",
     order_number: 10100 + id, created_at: "2026-11-20T08:00:00Z",
+    updated_at: "2026-11-20T08:00:00.123456+00:00",
     completed_at: status === "Выполнен" ? date + "T08:00:00Z" : null,
     ...extra,
   };
@@ -109,8 +110,20 @@ async function session(browser, role, width, writeFixture = null) {
       if (writeFixture && url.pathname === "/rest/v1/rabota_orders" && request.method() === "POST") {
         assert.equal(writeFixture.saved, undefined, "the form sent a duplicate write");
         const fields = request.postDataJSON();
-        writeFixture.saved = { ...order(12, fields.name, fields.appointment_date, fields.appointment_time), ...fields };
+        assert.match(fields.id,/^[0-9a-f-]{36}$/i,"the browser supplies a stable creation ID");
+        writeFixture.saved = { ...order(12, fields.name, fields.appointment_date, fields.appointment_time), ...fields,
+          created_by:member.user_id };
+        if(writeFixture.loseCreateResponse)return route.abort("connectionreset");
         return route.fulfill({ json: [writeFixture.saved] });
+      }
+      if(writeFixture?.edited&&url.pathname==="/rest/v1/rabota_orders"&&request.method()==="PATCH"){
+        assert.equal(url.searchParams.get("id"),"eq."+writeFixture.edited.id);
+        const seen=url.searchParams.get("updated_at");
+        const changes=request.postDataJSON();
+        writeFixture.edits.push({seen,changes});
+        if(seen!=="eq."+writeFixture.edited.updated_at)return route.fulfill({json:[]});
+        Object.assign(writeFixture.edited,changes,{updated_at:"2026-12-02T08:00:00."+String(writeFixture.edits.length).padStart(6,"0")+"+00:00"});
+        return route.fulfill({json:[writeFixture.edited]});
       }
       return route.abort();
     }
@@ -123,19 +136,24 @@ async function session(browser, role, width, writeFixture = null) {
       }
       return route.fulfill({ path: filename });
     }
+    if(writeFixture?.loseCreateResponse&&url.origin==="https://wa.me"&&url.pathname==="/79990000087")
+      return route.fulfill({status:204}); // Intercept the normal WhatsApp draft navigation locally.
     const endpoint = url.pathname.split("/").pop();
     if (url.pathname === "/auth/v1/user")
       return route.fulfill({ json: { id: member.user_id, email: member.email } });
     if (url.pathname.startsWith("/rest/v1/")) {
       if (endpoint === "rabota_payroll_snapshot_v3" && writeFixture?.payrollV3) {
-        const saved=writeFixture.saved,paid=saved?.paid&&saved.status==="Выполнен";
-        const orders=paid?[{order_id:saved.id,paid_amount:saved.payment_amount,earned_amount:11500,
+        const saved=writeFixture.saved;
+        const accrual=saved?.paid&&saved.status==="Выполнен"&&saved.assigned_user_id==="fixture-raul";
+        const orders=accrual?[{order_id:saved.id,paid_amount:saved.payment_amount,earned_amount:11500,
           company_share:8500,earned_at:saved.paid_at,rule_version:3}]:[];
-        const earned=paid?11500:0;
+        const earned=accrual?11500:0;
         const receipts=saved?.paid?[{order_id:saved.id,amount:saved.payment_amount,
-          master_id:"fixture-raul",payment_method:saved.payment_method,paid_at:saved.paid_at,occurred_at:saved.paid_at}]:[];
+          master_id:saved.assigned_user_id??null,payment_method:saved.payment_method,paid_at:saved.paid_at,occurred_at:saved.paid_at}]:[];
+        const refunds=writeFixture.refund?[writeFixture.refund]:[];
         return route.fulfill({json:{version:3,state:"active",master_id:"fixture-raul",activated_at:"2026-11-24T09:00:00Z",
-          earned,paid:0,due:earned,orders,payouts:[],accounting_version:1,accounting_receipts:receipts,accounting_payouts:[],refunds:writeFixture.refund?[writeFixture.refund]:[]}});
+          earned,paid:0,due:earned,orders,payouts:[],accounting_version:1,accounting_receipts:receipts,accounting_payouts:[],
+          accounting_refunds:refunds,refunds:saved?.assigned_user_id==="fixture-raul"?refunds:[]}});
       }
       if (endpoint === "rabota_members") {
         let members = MEMBERS;
@@ -151,7 +169,11 @@ async function session(browser, role, width, writeFixture = null) {
       if (endpoint === "rabota_orders") {
         if(writeFixture?.saved && writeFixture.offline)
           return route.fulfill({ status: 503, json: { message: "Test network unavailable" } });
-        return route.fulfill({ json: writeFixture?.saved ? [writeFixture.saved, ...ORDERS] : ORDERS });
+        const fixtureRows=writeFixture?.rows||ORDERS;
+        let rows=writeFixture?.saved?[writeFixture.saved,...fixtureRows]:fixtureRows;
+        if(writeFixture?.edited)rows=rows.map(row=>row.id===writeFixture.edited.id?writeFixture.edited:row);
+        if(url.searchParams.has("id"))rows=rows.filter(row=>url.searchParams.get("id")==="eq."+row.id);
+        return route.fulfill({ json:rows });
       }
       if (["rabota_finance_operations", "rabota_cash_collections", "rabota_cash_deposits", "rabota_cashbook_entries",
         "rabota_order_notifications", "rabota_push_subscriptions", "rabota_leads",
@@ -477,6 +499,111 @@ async function checkSavedOrderAfterReconnect(browser) {
   }
 }
 
+async function checkStaleOrderEdit(browser) {
+  const original=ORDERS[4];
+  const fixture={edited:{...original},edits:[]};
+  const s=await session(browser,"manager",390,fixture);
+  try {
+    const {page}=s;
+    async function edit() {
+      await cards(page).filter({hasText:original.name}).locator("button").first().click();
+      await page.locator(".rd-order-dialog .action.edit").click();
+    }
+    async function remote(fields,updated_at) {
+      fixture.edited={...fixture.edited,...fields,updated_at};
+      await page.evaluate(()=>window.dispatchEvent(new Event("online")));
+      await page.waitForFunction(({id,version})=>getOrders().find(row=>row.id===id)?.updatedAt===version,
+        {id:original.id,version:updated_at});
+    }
+    const save=page.locator('#orderForm button[type="submit"]');
+    await chooseDay(page,TOMORROW);
+    await edit();
+    await page.locator("#price").fill("17000");
+    const otherVersion="2026-12-01T08:00:00.456789+00:00";
+    await remote({phone:"+79995554433"},otherVersion);
+    await save.click();
+    await page.locator("#orderOverlay").waitFor({state:"hidden"});
+    assert.deepEqual(fixture.edits,[{seen:"eq."+original.updated_at,changes:{price:17000}},
+      {seen:"eq."+otherVersion,changes:{price:17000}}],"only the amount goes in either CAS");
+    assert.equal(fixture.edited.phone,"+79995554433");
+    assert.equal(fixture.edited.price,17000);
+
+    await edit();
+    await page.locator("#clientAddress").fill("Адрес из моего черновика");
+    const overlapVersion="2026-12-02T09:00:00.000001+00:00";
+    await remote({address:"Адрес с другого устройства"},overlapVersion);
+    await save.click();
+    await page.locator("#formStatus").filter({hasText:"изменился на другом устройстве"}).waitFor();
+    assert.equal(await page.locator("#clientAddress").inputValue(),"Адрес из моего черновика");
+    assert.equal(fixture.edited.address,"Адрес с другого устройства");
+    assert.equal(fixture.edits.length,3,"no retry while user reviews the conflict");
+    await page.locator("#orderConflict summary").click();
+    assert.match(await page.locator("#orderConflict ul").innerText(),/Адрес с другого устройства/);
+    await page.getByRole("button",{name:"Сохранить мой вариант",exact:true}).click();
+    await page.locator("#orderOverlay").waitFor({state:"hidden"});
+    assert.deepEqual(fixture.edits.at(-1),{seen:"eq."+overlapVersion,changes:{address:"Адрес из моего черновика"}});
+    assert.equal(fixture.edited.address,"Адрес из моего черновика");
+    assert.equal(fixture.edited.price,17000);
+  }finally{await s.close();}
+}
+
+async function checkLostCreateResponse(browser,status) {
+  const fixture={offline:true,loseCreateResponse:true};
+  const s=await session(browser,"manager",390,fixture);
+  try {
+    const {page,writes}=s;
+    const name="Тест потерянного подтверждения";
+    async function submit(name) {
+      await page.locator("#clientName").fill(name);
+      await page.locator("#clientPhone").fill("+79990000087");
+      await page.locator("#clientSource").selectOption("unknown");
+      await page.locator("#master").fill("Рауль");
+      await page.locator("#orderTime").fill("13:00");
+      if(status==="Отменён"){
+        const advanced=page.locator("#orderAdvanced");
+        if(await advanced.getAttribute("open")===null)await advanced.locator("summary").click();
+        await page.locator("#orderStatus").selectOption(status);
+      }
+      await page.locator('#orderForm button[type="submit"]').click();
+    }
+    await chooseDay(page,EMPTY_DAY);
+    await page.locator("#newOrderBtn").click();
+    await submit(name);
+    await page.locator("#formStatus").filter({hasText:"Сохранение заказа не подтверждено"}).waitFor();
+    const {id}=fixture.saved;
+    await submit("Изменённый черновик");
+    await page.locator("#formStatus").filter({hasText:"Проверьте предыдущую операцию"}).waitFor();
+    fixture.offline=false;
+    await page.reload();
+    await page.locator("#owViewSwitch").waitFor();
+    await chooseDay(page,EMPTY_DAY);
+    if(status==="Отменён")await page.locator(".ow-cancelled-toggle").click();
+    await namesInclude(page,[name]);
+    await page.locator("#newOrderBtn").click();
+    await submit(name);
+    await page.locator("#orderOverlay").waitFor({state:"hidden"});
+    assert.equal(fixture.saved.id,id);
+    assert.equal(fixture.saved.status,status);
+    assert.deepEqual(writes,["POST /rest/v1/rabota_orders"],"reopening recovers a committed order without a second POST");
+  }finally{await s.close();}
+}
+
+async function checkOrderDraftHistory(browser) {
+  const s=await session(browser,"owner",390);
+  try {
+    const {page,writes}=s;
+    await page.locator('#rdMobileNav [data-page="expenses"]').click();
+    await page.locator("#exMain").waitFor();
+    await page.locator('#rdMobileNav [data-page="orders"]').click();
+    await page.locator("#newOrderBtn").click();
+    await page.locator("#clientName").fill("Черновик до кнопки Назад");
+    await page.goBack();
+    await page.locator("#exMain").waitFor();
+    assert.equal(await page.locator("#orderOverlay").isVisible(),false);
+    assert.deepEqual(writes,[]);
+  }finally{await s.close();}
+}
+
 async function checkDialogsCloseOnExpiredSession(browser, role) {
   const s = await session(browser, role, 390, { expireAuth: true });
   try {
@@ -547,6 +674,138 @@ async function checkActivatedPaymentAndRefund(browser) {
   }finally{await s.close();}
 }
 
+async function checkNonPayrollRefunds(browser){
+  const cases=[
+    {id:20,name:"Возврат заказа другого мастера",master:"Другой мастер",masterId:"fixture-other",amount:3456.78},
+    {id:21,name:"Возврат заказа без мастера",master:"",masterId:null,amount:6000}
+  ];
+  for(const {id,name,master,masterId,amount} of cases){
+    const paidAt=FIXED_TIME.toISOString();
+    const saved=order(id,name,EMPTY_DAY,"12:00:00","Выполнен",{
+      master,assigned_user_id:masterId,price:amount,payment_amount:amount,
+      payment_method:"card",payment_received_by:"company",paid_at:paidAt,paid_by:"fixture-owner"
+    });
+    const fixture={payrollV3:true,saved};
+    const s=await session(browser,"owner",390,fixture);
+    try{
+      const {page,writes}=s;
+      await page.waitForFunction(()=>Array.isArray(window.__rdPayrollSnapshot?.()?.accounting?.refunds));
+      await chooseDay(page,EMPTY_DAY);
+      await cards(page).filter({hasText:name}).locator("button").first().click();
+      const details=page.locator(".rd-order-dialog");
+      const refund=details.getByRole("button",{name:"Учесть полный возврат",exact:true});
+      page.once("dialog",dialog=>dialog.accept("Согласованный полный возврат"));
+      await refund.click();
+      await page.waitForFunction(orderId=>getOrders().some(order=>order.id===orderId&&order.status==="Отменён"),saved.id);
+      await page.waitForFunction(orderId=>window.__rdPayrollSnapshot?.()?.accounting?.refunds?.some(row=>row.orderId===orderId),saved.id);
+      const accounting=await page.evaluate(()=>{
+        const value=window.__rdPayrollSnapshot();
+        return {earnings:value.earned,payrollRefunds:value.refunds.length,receipts:value.accounting.receipts,refunds:value.accounting.refunds};
+      });
+      assert.equal(accounting.earnings,0);
+      assert.equal(accounting.payrollRefunds,0);
+      assert.deepEqual(accounting.receipts.map(row=>[row.orderId,row.amount]),[[saved.id,amount]]);
+      assert.deepEqual(accounting.refunds.map(row=>[row.orderId,row.amount]),[[saved.id,amount]]);
+      assert.deepEqual(writes,["POST /rest/v1/rpc/rabota_payroll_refund_v3"]);
+      assert.equal(saved.paid,true);
+      assert.equal(saved.payment_amount,amount);
+    }finally{await s.close();}
+  }
+}
+
+async function checkMidnightBooking(browser){
+  const late=order(78,"Вечерний выезд",TODAY,"23:00:00","Записан",
+    {radiators:10,floor_loops:0,paid:false});
+  const s=await session(browser,"master",390,{rows:[ORDERS[0],late]});
+  try{
+    const {page,writes}=s;
+    await chooseDay(page,TOMORROW);
+    await page.locator("#newOrderBtn").click();
+    assert.equal(await page.locator("#orderDate").inputValue(),TOMORROW);
+    const timeline=page.locator(".oa-busy-summary");
+    assert.match(await timeline.innerText(),/Вечерний выезд.*1 декабря.*23:00–02:50/s);
+    await page.locator("#clientName").fill("После полуночи");
+    await page.locator("#clientPhone").fill("+79990000087");
+    await page.locator("#clientSource").selectOption("unknown");
+    await page.locator("#orderTime").fill("00:30");
+    await page.locator('#orderForm button[type="submit"]').click();
+    await page.locator("#formStatus").filter({hasText:"По расчёту мастер занят"}).waitFor();
+    assert.match(await page.locator("#formStatus").innerText(),/1 дек.*23:00–02:50.*Вечерний выезд/);
+    assert.equal(await page.locator("#orderOverlay").isVisible(),true);
+    assert.deepEqual(writes,[],"an estimated overlap prevents the quick form write");
+  }finally{await s.close();}
+}
+
+function archiveRows(count){
+  return [ORDERS[0],...Array.from({length:count-1},(_,index)=>{
+    const archivedAt=new Date(TODAY+"T00:00:00Z");
+    archivedAt.setUTCDate(archivedAt.getUTCDate()-index-1);
+    const status=index%41===0?"В работе":"Записан";
+    return order(200+index,"Архивный клиент "+String(index+1).padStart(4,"0"),
+      archivedAt.toISOString().slice(0,10),"13:00:00",status);
+  })];
+}
+
+async function checkLargeOrderList(browser,kind){
+  for(const role of ["owner","master"]){
+    for(const count of [30,800]){
+      const rows=archiveRows(count);
+      const s=await session(browser,role,390,{rows});
+      try{
+        const {page,writes}=s;
+        const pager=page.getByRole("navigation",{name:"Страницы заказов"});
+        const sample=await page.evaluate(()=>{
+          const start=performance.now();
+          document.querySelector('#owViewSwitch [data-ow-mode="all"]').click();
+          const list=document.getElementById("orders");
+          return {ms:Math.round(performance.now()-start),nodes:list.querySelectorAll("*").length,
+            cards:list.querySelectorAll(".master-schedule-card,.rd-list-row").length};
+        });
+        console.log("LIST",kind,role,count,JSON.stringify(sample));
+        assert.equal(sample.cards,Math.min(count,40));
+        assert.ok(sample.nodes<1600,"the list DOM stays within a single-page node budget");
+        assert.match(await page.locator("#orderCount").innerText(),new RegExp("^"+count+" "));
+        if(count===30){
+          assert.equal(await pager.count(),0,"normal lists need no pagination");
+          assert.match(await cards(page).last().innerText(),/Архивный клиент 0029/);
+          continue;
+        }
+        assert.match(await pager.innerText(),/1 из 20/);
+        const firstPage=await cards(page).evaluateAll(nodes=>nodes.map(row=>row.dataset.rdOrderId||row.dataset.orderId));
+        if(role==="owner"){
+          await cards(page).last().locator("button.rd-list-toggle").click();
+          const dialog=page.locator(".rd-order-dialog");
+          assert.equal(await dialog.locator(".rd-order-position").innerText(),"40/800");
+          await dialog.getByRole("button",{name:"Следующий заказ"}).click();
+          assert.equal(await dialog.locator(".rd-order-position").innerText(),"41/800");
+          await dialog.getByRole("button",{name:"Закрыть заказ"}).click();
+          assert.equal(await cards(page).first().locator("button").evaluate(node=>node===document.activeElement),true);
+        }else await pager.getByRole("button",{name:"Далее"}).click();
+        assert.match(await pager.innerText(),/2 из 20/);
+        const secondPage=await cards(page).evaluateAll(nodes=>nodes.map(row=>row.dataset.rdOrderId||row.dataset.orderId));
+        assert.equal(secondPage.length,40);
+        assert.ok(secondPage.every(id=>!firstPage.includes(id)),"pages do not repeat orders");
+        await chooseMode(page,"calendar");
+        assert.equal(await cards(page).count(),1,"the focused calendar day still shows its appointments");
+        await chooseMode(page,"all");
+        assert.match(await pager.innerText(),/2 из 20/);
+        await page.locator("#owSearchToggle").click();
+        await page.locator("#owSearchInput").fill(rows.at(-1).name);
+        assert.equal(await cards(page).count(),1,"search includes records beyond the current page");
+        assert.match(await cards(page).innerText(),/Архивный клиент 0799/);
+        await page.locator("#owSearchClose").click();
+        assert.match(await pager.innerText(),/2 из 20/);
+        await page.locator("#owFilterToggle").click();
+        await page.locator("#owFilterStatus").selectOption("В работе");
+        await page.locator("#owFilterApply").click();
+        assert.equal(await cards(page).count(),20,"filter includes matching records from every page");
+        assert.equal(await pager.count(),0);
+        assert.deepEqual(writes,[]);
+      }finally{await s.close();}
+    }
+  }
+}
+
 (async () => {
   const kind = process.env.TEST_BROWSER || "chromium";
   const browser = await (kind === "webkit" ? webkit : chromium).launch({
@@ -573,8 +832,20 @@ async function checkActivatedPaymentAndRefund(browser) {
     }
     await checkSavedOrderAfterReconnect(browser);
     console.log("PASS", kind, "confirmed save, failed refresh and reconnect");
+    await checkStaleOrderEdit(browser);
+    console.log("PASS",kind,"disjoint order edits merge and the overlapping field requires a choice");
+    for(const status of ["Записан","Отменён"])await checkLostCreateResponse(browser,status);
+    console.log("PASS",kind,"lost active and cancelled create responses recover without a duplicate");
+    await checkOrderDraftHistory(browser);
+    console.log("PASS",kind,"browser Back closes the open order draft without writing");
     await checkActivatedPaymentAndRefund(browser);
     console.log("PASS",kind,"active payroll full payment and audited refund");
+    await checkNonPayrollRefunds(browser);
+    console.log("PASS",kind,"verified full refunds for other masters and unassigned orders");
+    await checkMidnightBooking(browser);
+    console.log("PASS",kind,"Raul quick order detects a booking crossing midnight");
+    await checkLargeOrderList(browser,kind);
+    console.log("PASS",kind,"bounded order rendering at 30 and 800 rows");
     for (const role of roles) {
       await checkDialogsCloseOnExpiredSession(browser, role);
       console.log("PASS", kind, role, "private dialogs close on expired session");

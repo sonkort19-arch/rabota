@@ -605,7 +605,11 @@ function navigate(key,updateHistory=true){
   sectionScroll.set(activePage,verticalScrollPosition());
   if(activePage==="expenses")ownerModules.get("expenses")?.close();
  }
- if(activePage==="orders"&&key!=="orders")storeOrderFilters(currentTab);
+ if(activePage==="orders"&&key!=="orders"){
+  window.__rdClosePaymentPrompt?.();
+  window.__rdCloseOrderFormForNavigation?.();
+  storeOrderFilters(currentTab);
+ }
  const orderSearch=$("rdOrderSearch");
  if(orderSearch)orderSearch.hidden=key!=="orders"||Boolean(window.__rdOrdersWorkspace);
  if(key!=="orders")rdSearchTerm="";

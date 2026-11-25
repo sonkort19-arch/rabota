@@ -205,6 +205,26 @@ test("search includes records beyond the first 100 visible results",async()=>{
   assert.match(f.root.textContent,/Дальний результат/);
   assert.match(f.root.textContent,/Найдено: 1/);
 });
+test("both conversion actions pass only an agreed full lead price",async()=>{
+  for(const [material,radiators,loops,price_agreed,expected] of [
+    ["Чугунные",8,0,false,null],
+    ["Чугунные",8,0,true,null],
+    ["Биметаллические",8,0,false,null],
+    ["Биметаллические",8,null,true,null],
+    ["Биметаллические",8,0,true,16000]
+  ]){
+    const f=setup({initialRows:[{...row("ready","Тестовый лид"),status:"ready",material,radiators,loops,price_agreed}]});
+    const emitted=[];
+    f.window.__rdLeadOpenOrder=lead=>emitted.push(lead);
+    await f.window.__rdLeadsRender();
+    await f.button("В заказ").click();
+    await f.button("Открыть").click();
+    await f.button("Перевести в заказ").click();
+    assert.deepEqual(emitted.map(lead=>lead.price),[expected,expected]);
+    assert.deepEqual(emitted.map(lead=>lead.loops),Array(2).fill(loops??""));
+    assert.equal(f.calls.filter(call=>call.method!=="GET").length,0);
+  }
+});
 test("failed background read retains the list and retries without another render when unchanged",async()=>{
   const f=setup({initialRows:[row("one","Сохранённый список")]});
   await f.window.__rdLeadsRender();

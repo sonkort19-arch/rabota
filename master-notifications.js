@@ -276,6 +276,12 @@
   window.__rdRefreshMasterNotices=loadUnread;
   window.__rdClosePushPopover=()=>pop(false);
   window.__rdDisableMasterPush=disablePush;
+  window.__rdRemovePushOnLogout=async(erase,isCurrent)=>{
+    const subscription=await getSubscription();
+    if(!subscription||!isCurrent())return;
+    await erase(subscription.endpoint);
+    if(isCurrent())await subscription.unsubscribe();
+  };
   window.__rdResetMasterNotices=reset;
   window.__rdInitMasterPush=()=>{
     const account=masterId();

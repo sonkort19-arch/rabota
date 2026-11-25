@@ -25,26 +25,27 @@
     return {gross:payment,raul:raulCents/100,company:(cents-raulCents)/100};
   }
   function normalizeAccounting(snapshot){
+    const hasRefunds=Object.hasOwn(snapshot,"accounting_refunds");
     if(snapshot.accounting_version==null){
-      if(snapshot.accounting_receipts!=null||snapshot.accounting_payouts!=null)
+      if(snapshot.accounting_receipts!=null||snapshot.accounting_payouts!=null||hasRefunds)
         throw Error("Сервер вернул учётные операции без версии расчёта.");
       return {};
     }
     if(snapshot.accounting_version!==1)
       throw Error("Неизвестная версия учёта поступлений.");
     const receiptsRaw=snapshot.accounting_receipts,payoutsRaw=snapshot.accounting_payouts;
-    if(receiptsRaw==null&&payoutsRaw==null)return {accountingVersion:1};
+    if(receiptsRaw==null&&payoutsRaw==null&&!hasRefunds)return {accountingVersion:1};
     if(!Array.isArray(receiptsRaw)||(payoutsRaw!=null&&!Array.isArray(payoutsRaw)))
       throw Error("Сервер вернул неполный журнал учёта.");
-    const orderIds=new Set();
+    const receiptAmounts=new Map();
     const receipts=receiptsRaw.map(row=>{
       const {order_id:orderId,master_id:masterId,payment_method:method,paid_at:paidAt,occurred_at:occurredAt}=row??{};
       const amount=monetaryValue(row?.amount);
-      if(typeof orderId!=="string"||!orderId||orderIds.has(orderId)||amount===null||amount<=0||
+      if(typeof orderId!=="string"||!orderId||receiptAmounts.has(orderId)||amount===null||amount<=0||
          !Object.hasOwn(row??{},"master_id")||
          (masterId!=null&&(typeof masterId!=="string"||!masterId)))
         throw Error("Сервер вернул неверную запись поступления.");
-      orderIds.add(orderId);
+      receiptAmounts.set(orderId,amount);
       return {orderId,masterId:masterId??null,amount,method:method??null,paidAt:paidAt??null,occurredAt:occurredAt??null};
     });
     const payoutIds=new Set();
@@ -56,7 +57,24 @@
       payoutIds.add(id);
       return {id,orderId:orderId??null,amount,method:method??null,occurredAt:occurredAt??null,note:note??""};
     })??null;
-    return {accountingVersion:1,accounting:{version:1,receipts,payouts}};
+    const accounting={version:1,receipts,payouts};
+    if(hasRefunds){
+      if(!Array.isArray(snapshot.accounting_refunds))
+        throw Error("Сервер вернул неверный список учтённых возвратов.");
+      const orderIds=new Set();
+      accounting.refunds=snapshot.accounting_refunds.map(row=>{
+        const {order_id:orderId,refunded_at:occurredAt}=row??{};
+        const amount=monetaryValue(row?.amount);
+        if(typeof orderId!=="string"||!orderId||orderIds.has(orderId)||amount===null||amount<=0||
+           typeof occurredAt!=="string"||!Number.isFinite(Date.parse(occurredAt)))
+          throw Error("Сервер вернул неверную запись учтённого возврата.");
+        if(receiptAmounts.get(orderId)!==amount)
+          throw Error("Сервер вернул возврат без соответствующего поступления.");
+        orderIds.add(orderId);
+        return {orderId,amount,occurredAt};
+      });
+    }
+    return {accountingVersion:1,accounting};
   }
   function normalizePayrollSnapshot(snapshot){
     const {version,state,master_id:masterId,activated_at:activatedAt}=snapshot??{};
@@ -162,8 +180,10 @@
     const receiptByOrder=new Map(receipts.map(row=>[row.orderId,row]));
     const payrollByOrder=new Map(payroll.orders.map(row=>[row.orderId,row]));
     const heldOrders=new Set(payroll.holds.filter(row=>row.payrollOnHold).map(row=>row.orderId));
-    const refundedOrders=new Set(payroll.refunds.map(row=>row.orderId));
-    const refunds=payroll.refunds.map(refund=>({...refund,method:receiptByOrder.get(refund.orderId).method}));
+    const refunds=(account.refunds??payroll.refunds).map(refund=>({
+      ...refund,method:receiptByOrder.get(refund.orderId).method
+    }));
+    const refundedOrders=new Set(refunds.map(row=>row.orderId));
     const receiptByMethod={cash:0,card:0,unknown:0},refundByMethod={cash:0,card:0,unknown:0};
     const method=row=>row.method==="cash"||row.method==="card"?row.method:"unknown";
     for(const row of receipts)receiptByMethod[method(row)]=roundMoney(receiptByMethod[method(row)]+row.amount);

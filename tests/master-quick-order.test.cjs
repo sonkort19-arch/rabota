@@ -77,11 +77,11 @@ test("step events update only authorized inputs and emit native input/change",()
 
 test("saving, conflicts, confirmation, finance guard and role restrictions remain original",()=>{
   assert.match(html,/const raulCreating=raulCanCreateOrder\(\)/);
-  assert.match(html,/if\(orderSaving\)return/);
+  assert.match(html,/if\(orderSaving\|\|!draft\|\|overlay\.hidden\)return/);
   assert.match(html,/if\(status!=="Отменён"&&hasConflict/);
   assert.match(html,/const busy=findTightBookings/);
   assert.match(html,/if\(!confirm\("Внимание:/);
-  assert.match(html,/await persistOrder\(order,payment\?\{refresh:false\}:undefined\)/);
+  assert.match(html,/await persistOrder\(order,\{refresh:!payment,attempt:draft,beforeWrite,base:original,resolution\}\)/);
   assert.match(html,/price:controls\.price\.value===""\?null:Number\(controls\.price\.value\)/);
   assert.match(html,/advanced\.open=Boolean\(existing\)/);
   assert.match(html,/controls\.master\.readOnly=raulCreating/);
@@ -115,11 +115,11 @@ test("compact Raul form has dense 16px text inputs and accessible touch targets"
 test("one unified time row replaces double red-green timeline",()=>{
   assert.doesNotMatch(html,/id="oaBusyTimeline"/);
   assert.match(html,/id="oaSlotSuggestions" class="oa-slots"/);
-  assert.match(html,/src="\/booking-timeline\.js\?v=20261117-v1"/);
+  assert.match(html,/src="\/booking-timeline\.js\?v=20261125-midnight"/);
   assert.match(html,/src="\/order-availability\.js\?v=[^"]+"/);
   assert.match(html,/master-quick-order\.css\?v=20261118-inline-busy-v1/);
-  assert.match(availability,/function renderBusySummary\(stats,master\)/);
-  assert.match(availability,/const summary=renderBusySummary\(stats,master\)/);
+  assert.match(availability,/function renderBusySummary\(blocks,date\)/);
+  assert.match(availability,/const summary=renderBusySummary\(blocks,date\)/);
   assert.match(availability,/slots\.append\(summary\)/);
   assert.doesNotMatch(availability,/oa-timeline-track|oa-timeline-block|renderBusyTimeline/);
   assert.match(css,/\.oa-busy-summary\{/);

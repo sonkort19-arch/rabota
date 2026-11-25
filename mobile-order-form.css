@@ -223,6 +223,29 @@
 }
 #orderForm .order-submit-bar .error:empty { display: none; }
 #orderForm .order-submit-bar .error.is-saving { color: #5060ad; }
+#orderConflict {
+  max-height: min(28dvh, 180px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 0 2px;
+  color: #253956;
+  overflow-wrap: anywhere;
+}
+#orderConflict summary {
+  min-height: 44px;
+  padding: 11px 0;
+  color: #3158b6;
+  font-weight: 650;
+  cursor: pointer;
+}
+#orderConflict ul { margin: 0 0 8px; padding-inline-start: 22px; }
+#orderConflict .order-conflict-actions {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 140px), 1fr));
+  gap: 6px;
+  margin-bottom: 4px;
+}
+#orderConflict .order-conflict-actions button { min-height: 44px; }
 
 @media (max-width: 699px) {
   #orderOverlay .sheet {

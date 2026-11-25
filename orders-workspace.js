@@ -9,10 +9,11 @@
     if(text!==undefined)value.textContent=String(text);
     return value;
   };
-  const initialState={mode:"calendar",searchOpen:false,query:"",status:"",master:"",date:"",quick:"",searchReturn:null};
+  const LIST_PAGE_SIZE=40;
+  const initialState={mode:"calendar",searchOpen:false,query:"",status:"",master:"",date:"",quick:"",searchReturn:null,listPage:0};
   const state={...initialState};
   const cancelledOpen=new Set();
-  let mounted=false,sourceCache=null,nextOrder=null;
+  let mounted=false,sourceCache=null,nextOrder=null,listRows=null,listDayCounts=null;
   const icon=kind=>{
     const svg=document.createElementNS("http://www.w3.org/2000/svg","svg");
     svg.setAttribute("viewBox","0 0 24 24");svg.setAttribute("aria-hidden","true");
@@ -39,7 +40,7 @@
   function beforeRender(){
     if(!isActive())return;
     if(currentTab==="history"){
-      currentTab="all";state.status="Выполнен";
+      currentTab="all";state.status="Выполнен";state.listPage=0;
     }
     if(!state.searchOpen)state.mode=currentTab==="calendar"?"calendar":"all";
   }
@@ -67,6 +68,54 @@
       return haystack.includes(query)||Boolean(phoneQuery&&String(order.phone||"").replace(/\D/g,"").includes(phoneQuery));
     });
   }
+  function pageList(rows,activeOrderId){
+    listRows=currentTab==="all"?rows:null;
+    listDayCounts=null;
+    if(!listRows)return rows;
+    const activeIndex=activeOrderId?rows.findIndex(order=>String(order.id)===activeOrderId):-1;
+    const lastPage=Math.max(0,Math.ceil(rows.length/LIST_PAGE_SIZE)-1);
+    state.listPage=activeIndex>=0?Math.floor(activeIndex/LIST_PAGE_SIZE):Math.min(state.listPage,lastPage);
+    if(!lastPage)return rows;
+    listDayCounts=new Map();
+    for(const order of rows){
+      const date=order.date||"";
+      listDayCounts.set(date,(listDayCounts.get(date)||0)+1);
+    }
+    const start=state.listPage*LIST_PAGE_SIZE;
+    return rows.slice(start,start+LIST_PAGE_SIZE);
+  }
+  function listPosition(id){
+    if(!isActive()||currentTab!=="all"||!listRows)return null;
+    const index=listRows.findIndex(order=>String(order.id)===String(id));
+    if(index<0)return null;
+    return {index,total:listRows.length,previous:listRows[index-1]?.id,next:listRows[index+1]?.id};
+  }
+  function revealOrder(id){
+    const position=listPosition(id);
+    if(!position)return;
+    const page=Math.floor(position.index/LIST_PAGE_SIZE);
+    if(page!==state.listPage){state.listPage=page;render();}
+  }
+  function renderListPages(){
+    if(currentTab!=="all"||!listRows||listRows.length<=LIST_PAGE_SIZE)return;
+    const pages=Math.ceil(listRows.length/LIST_PAGE_SIZE);
+    const change=delta=>{
+      state.listPage+=delta;
+      render();
+      const title=$("listTitle");
+      title.tabIndex=-1;
+      title.focus({preventScroll:true});
+      title.scrollIntoView({block:"start"});
+    };
+    const nav=node("nav","ow-list-pages");nav.setAttribute("aria-label","Страницы заказов");
+    const prev=node("button","secondary","Назад"),next=node("button","secondary","Далее");
+    const current=node("span","ow-list-page",(state.listPage+1)+" из "+pages);
+    current.setAttribute("aria-label","Страница "+current.textContent);
+    prev.type=next.type="button";
+    prev.disabled=state.listPage===0;next.disabled=state.listPage===pages-1;
+    prev.addEventListener("click",()=>change(-1));next.addEventListener("click",()=>change(1));
+    nav.append(prev,current,next);$("orders").append(nav);
+  }
   function navigateMode(mode){
     if(currentRole==="master"&&window.__rdMasterNavigate){
       window.__rdMasterNavigate(mode==="calendar"?"day":"orders",false);
@@ -84,8 +133,8 @@
   function openSearch(){
     if(state.searchOpen)return;
     closeFilters();
-    state.searchReturn={mode:state.mode,date:selectedDate,status:state.status,master:state.master,listDate:state.date,quick:state.quick};
-    state.searchOpen=true;state.query="";state.status="";state.master="";state.date="";state.quick="";
+    state.searchReturn={mode:state.mode,date:selectedDate,status:state.status,master:state.master,listDate:state.date,quick:state.quick,listPage:state.listPage};
+    state.searchOpen=true;state.query="";state.status="";state.master="";state.date="";state.quick="";state.listPage=0;
     navigateMode("all");
     $("owSearchInput")?.focus({preventScroll:true});
   }
@@ -96,7 +145,7 @@
     if(previous){
       state.mode=previous.mode;selectedDate=previous.date;
       if(currentRole==="master")masterFollowsToday=selectedDate===masterClock().date;
-      state.status=previous.status;state.master=previous.master;state.date=previous.listDate;state.quick=previous.quick;
+      state.status=previous.status;state.master=previous.master;state.date=previous.listDate;state.quick=previous.quick;state.listPage=previous.listPage;
     }
     if($("owSearchInput"))$("owSearchInput").value="";
     if(redraw){navigateMode(state.mode);$("owSearchToggle")?.focus({preventScroll:true});}
@@ -123,7 +172,7 @@
     closeFilters();
     Object.assign(state,initialState);
     cancelledOpen.clear();
-    sourceCache=null;nextOrder=null;
+    sourceCache=null;nextOrder=null;listRows=null;listDayCounts=null;
     if($("owSearchInput"))$("owSearchInput").value="";
     if($("owSearch"))$("owSearch").hidden=true;
   }
@@ -160,7 +209,7 @@
     const input=node("input");input.id="owSearchInput";input.type="search";
     input.setAttribute("aria-label","Поиск по всем заказам");
     input.placeholder="Имя, телефон, адрес, №";input.autocomplete="off";
-    input.addEventListener("input",()=>{state.query=input.value;render();});
+    input.addEventListener("input",()=>{state.query=input.value;state.listPage=0;render();});
     search.append(input,button("owSearchClose","Закрыть поиск","close",()=>restoreSearch()));
     const searchToggle=button("owSearchToggle","Найти заказ","search",openSearch);
     searchToggle.setAttribute("aria-controls","owSearch");searchToggle.setAttribute("aria-expanded","false");
@@ -185,7 +234,7 @@
     tools.append(toolbar,panel,summary);area.insertBefore(tools,calendar);
     form.addEventListener("submit",event=>{
       event.preventDefault();state.status=status.input.value;state.master=currentRole==="master"?"":master.input.value;
-      state.date=currentTab==="calendar"||state.searchOpen?"":date.input.value;state.quick="";closeFilters(true);render();
+      state.date=currentTab==="calendar"||state.searchOpen?"":date.input.value;state.quick="";state.listPage=0;closeFilters(true);render();
     });
     tools.addEventListener("keydown",event=>{
       if(event.key!=="Escape"||panel.hidden&&!state.searchOpen)return;
@@ -217,11 +266,14 @@
   }
   function refreshNext(){
     const root=$("masterTodaySummary");
+    if(currentTab!=="calendar"||state.searchOpen){
+      nextOrder=null;root.hidden=true;root.replaceChildren();delete root.dataset.owNext;return;
+    }
     const now=masterClock();
     nextOrder=calendarOrders(getOrders()).filter(order=>order.status==="Записан"&&
       (order.date>now.date||(order.date===now.date&&masterTimeMinutes(order.time)>=now.minutes)))
       .sort((a,b)=>String(a.date||"").localeCompare(String(b.date||""))||String(a.time||"").localeCompare(String(b.time||"")))[0]||null;
-    root.hidden=currentTab!=="calendar"||state.searchOpen||!nextOrder;
+    root.hidden=!nextOrder;
     if(root.hidden){root.replaceChildren();delete root.dataset.owNext;return;}
     const when=(nextOrder.date===now.date?"Сегодня":formatDate(nextOrder.date))+" · "+(nextOrder.time||"Без времени")+" · "+(nextOrder.name||"Клиент");
     const signature=JSON.stringify([nextOrder.id,when]);
@@ -274,7 +326,7 @@
     if(filters.length){
       summary.append(node("span","",filters.join(" · ")));
       const clear=node("button","","Сбросить");clear.type="button";
-      clear.addEventListener("click",()=>{state.status="";state.master="";state.date="";state.quick="";render();});summary.append(clear);
+      clear.addEventListener("click",()=>{state.status="";state.master="";state.date="";state.quick="";state.listPage=0;render();});summary.append(clear);
     }
     $("owFilterToggle").classList.toggle("has-filters",filters.length>0);
     $("owFilterToggle").setAttribute("aria-label","Фильтры заказов"+(filters.length?", активно: "+filters.length:""));
@@ -293,7 +345,7 @@
   function show({filter="",orderId=null,date=""}={}){
     if(!["owner","manager","master"].includes(currentRole))return false;
     if(state.searchOpen)restoreSearch(false);
-    state.query="";state.status="";state.master="";state.date="";state.quick="";
+    state.query="";state.status="";state.master="";state.date="";state.quick="";state.listPage=0;
     state.mode=date&&!orderId?"calendar":"all";
     if(date&&!orderId){selectedDate=date;if(currentRole==="master")masterFollowsToday=date===masterClock().date;}
     if(filter==="progress")state.status="В работе";
@@ -310,6 +362,7 @@
     return Boolean(window.__rdOpenOrderDetail?.(String(orderId)));
   }
   window.__rdOrdersWorkspace={isActive,currentMode,beforeRender,filterOrders,calendarOrders,
+    pageList,listPosition,revealOrder,renderListPages,dayCounts:()=>listDayCounts,
     selectMode,show,refresh,refreshOverview:refreshNext,renderCancelled,closeFilters,resetForAccount,status:()=>state.status};
   const previousRefresh=window.__rdRefresh;
   window.__rdRefresh=(...args)=>{const value=previousRefresh?.(...args);refresh();return value;};

@@ -165,6 +165,11 @@
       position:relative;isolation:isolate;display:grid;place-items:center;
       width:min(100%,420px);min-height:280px;
     }
+    .rd-startup-schedule{
+      position:absolute;inset:70% 0 auto;text-align:center;
+      color:#425577;font-size:14px;line-height:1.45;
+    }
+    .rd-startup-schedule p{margin:0 0 8px}
     .rd-startup-content::before{
       content:"";pointer-events:none;position:absolute;z-index:-1;
       left:50%;top:50%;width:min(320px,82vw);height:min(320px,82vw);
@@ -231,7 +236,7 @@
   <link rel="stylesheet" href="/polished-v2.css?v=20261113-clean-v3">
   <link rel="stylesheet" href="/calendar-v3.css">
   <link rel="stylesheet" href="/orders-polish.css">
-  <link rel="stylesheet" href="/mobile-order-form.css?v=20261113-master-quick-v1">
+  <link rel="stylesheet" href="/mobile-order-form.css?v=20261125-order-save">
   <link rel="stylesheet" href="/order-availability.css?v=20261117-completed-v1">
   <link rel="stylesheet" href="/quick-slots.css">
   <link rel="stylesheet" href="/order-payment.css?v=20261125-accounting">
@@ -367,9 +372,9 @@
   <!-- Reports inherit the final light CRM palette, including on dark-mode iPhones. -->
   <link rel="stylesheet" href="/profit-report.css?v=20261125-fixed-header">
   <link rel="stylesheet" href="/contextual-search.css?v=20261125-shell">
-  <link rel="stylesheet" href="/expenses.css?v=20261125-compact-expenses">
-  <link rel="stylesheet" href="/growth.css?v=20261125-fullscreen">
-  <link rel="stylesheet" href="/orders-workspace.css?v=20261125-shell">
+  <link rel="stylesheet" href="/expenses.css?v=20261125-write-integrity">
+  <link rel="stylesheet" href="/growth.css?v=20261125-reconcile">
+  <link rel="stylesheet" href="/orders-workspace.css?v=20261125-order-pages">
   <link rel="stylesheet" href="/app-shell.css?v=20261125-fixed-header">
 </head>
 <body>
@@ -407,6 +412,10 @@
         <path d="M25 163C81 157 180 133 207 98C231 66 197 45 158 44" fill="none" stroke="#e4ecfe" stroke-width="9" stroke-linecap="round"/>
         <path class="rd-startup-flow" d="M25 163C81 157 180 133 207 98C231 66 197 45 158 44" pathLength="320" fill="none" stroke="url(#rd-startup-blue-flow)" stroke-width="6" stroke-linecap="round"/>
       </svg>
+      <div class="rd-startup-schedule" id="startupSchedule" hidden>
+        <p id="startupScheduleStatus" role="status"></p>
+        <button class="secondary" id="retryStartupSchedule" type="button" hidden>Повторить загрузку расписания</button>
+      </div>
     </div>
   </section>
 
@@ -509,9 +518,10 @@
         <button id="exNext" type="button" aria-label="Следующий месяц">›</button>
       </nav>
       <section class="ex-summary" aria-label="Итог расходов">
-        <div class="ex-summary-top">Расходы за месяц</div>
+        <div class="ex-summary-top">Расходы CRM за месяц</div>
         <strong id="exMonthlyTotal" class="ex-large-number">—</strong>
         <div class="ex-summary-bottom"><span id="exCount">—</span><span id="exAllTotal">Всего: —</span></div>
+        <p class="ex-scope">Расходы учётной кассы — в «Платежах».</p>
       </section>
       <div class="ex-status" id="exStatus" role="status" aria-live="polite"></div>
       <section class="ex-history">
@@ -622,12 +632,11 @@
       </fieldset>
       <p class="ex-tip">Зарплату и уже учтённые расходы сюда не добавляйте.</p>
       <div class="ex-message" id="exMessage" role="status" aria-live="polite"></div>
-      <button class="secondary ex-review" type="button" id="exReview" hidden>Проверить историю</button>
       <button class="ex-save primary" type="submit" id="exSave">Сохранить расход</button>
     </form>
   </dialog>
   <div class="overlay" id="orderOverlay" hidden>
-    <section class="sheet" role="dialog" aria-modal="true" aria-labelledby="formTitle">
+    <section class="sheet" role="dialog" aria-modal="true" aria-labelledby="formTitle" tabindex="-1">
       <div class="sheet-head">
         <h2 id="formTitle">Новый заказ</h2>
         <button type="button" class="close" id="closeOrderBtn" aria-label="Закрыть">×</button>
@@ -775,6 +784,7 @@
           <button class="primary save" type="submit">Сохранить заказ</button>
           <button class="order-delete-btn" id="deleteOrderBtn" type="button" hidden>Удалить заказ</button>
           <div class="error" id="formStatus" role="status" aria-live="polite"></div>
+          <div id="orderConflict" hidden></div>
         </div>
       </form>
     </section>
@@ -782,13 +792,13 @@
 
   <script src="/order-notes.js?v=20261111-notes1"></script>
   <script src="/order-sync.js?v=20261124-stable-reads"></script>
-  <script src="/order-model.js?v=20261125-accounting"></script>
+  <script src="/order-model.js?v=20261125-write-integrity"></script>
   <script src="/calendar-load.js?v=20261117-completed-v1"></script>
    <script src="/calendar-model.js?v=20261124-unified-v1"></script>
-  <script src="/finance-model.js?v=20261125-accounting"></script>
-  <script src="/master-ui.js?v=20261125-accounting"></script>
-  <script src="/lead-ai-bridge.js?v=20261124-stability"></script>
-  <script src="/app-services.js?v=20261124-stability"></script>
+  <script src="/finance-model.js?v=20261125-write-integrity"></script>
+  <script src="/master-ui.js?v=20261125-order-pages"></script>
+  <script src="/lead-ai-bridge.js?v=20261125-agreed-price"></script>
+  <script src="/app-services.js?v=20261125-write-intents"></script>
   <script>
 
     "use strict";
@@ -824,7 +834,8 @@
     let orderListDateFilter = "";
     let orderHistoryDateFilter = "";
     let editingId = null;
-    let previousFocus = null;
+    let orderFormDraft = null;
+    let releaseOrderFocus = null;
     let orderSaving = false;
     let selectedDate = localDate(new Date());
     let masterFollowsToday = true;
@@ -921,10 +932,11 @@
         delete document.body.dataset.rdRole;
         window.__rdCloseHeaderMenus?.();
       }
-      // Order dialogs live outside appScreen and must also leave the account view.
+      // Dialogs outside appScreen must also leave the account view.
       if(which!=="appScreen"){
         window.__rdClosePaymentPrompt?.();
         window.__rdResetPayrollUi?.();
+        window.__rdCloseCashbookDialog?.();
         if(!overlay.hidden)closeForm(true);
         closeMasterOrderDialog();
         window.__rdCloseOrderDetail?.();
@@ -940,6 +952,7 @@
     }
     function resetAccountData() {
       accessGeneration++;
+      orderFormDraft=null;
       if(orderSaving){
         orderSaving=false;
         const saveBtn=form.querySelector('button[type="submit"]');
@@ -970,8 +983,9 @@
       financeLoadGeneration++; // invalidate finance responses still in flight
     }
     function clearSession() {
-      session=null;resetAccountData();
-      localStorage.removeItem(AUTH_KEY);
+      session=null;
+      try{localStorage.removeItem(AUTH_KEY);}
+      finally{resetAccountData();}
     }
     // Existing session state and refresh policy are authoritative in this file.
     // SharedServices handles only network request/response semantics.
@@ -1016,8 +1030,8 @@
       }
       await refreshPromise;
     }
-    async function dbRequest(path,method,payload){
-      return sharedServices.dbRequest(path,method,payload);
+    async function dbRequest(path,method,payload,options){
+      return sharedServices.dbRequest(path,method,payload,options);
     }
     window.addEventListener("storage",event=>{
       if(event.storageArea!==localStorage||(event.key!==AUTH_KEY&&event.key!==null))return;
@@ -1027,9 +1041,14 @@
         return;
       }
       if(!session&&!stored)return;
-      showScreen("startupScreen");
       session=stored;
       resetAccountData();
+      if(!stored){
+        resumeSessionButton.hidden=true;
+        showScreen("loginScreen");
+        return;
+      }
+      showScreen("startupScreen");
       window.location.reload();
     });
     // Adapter: user-facing code keeps its existing function names. The
@@ -1040,6 +1059,7 @@
       reloadOrders:()=>reloadOrders(),
       getOrders:()=>getOrders(),
       getCurrentUserId:()=>currentUser?.id||null,
+      getScope:()=>accessGeneration,
       getFinanceOperations:()=>financeOperations
     });
     function readOrder(row) {return orderModel.readOrder(row);}
@@ -1064,7 +1084,7 @@
             :"Не удалось обновить заявки. Расписание может быть устаревшим."):
         "";
     }
-    function loadOrderData(background=false) {
+    function loadOrderData(background=false,{signal}={}) {
       const sync=window.__rdOrderSync;
       return sync.runRead(background,async isCurrent=>{
         // Read compact headers during polling. Explicit reads reconcile all orders.
@@ -1078,10 +1098,10 @@
           return;
         }
         const items=await sync.readFull((offset,limit)=>
-          dbRequest("rabota_orders?select=*&order=created_at.desc,id.desc&limit="+limit+"&offset="+offset,"GET"),
+          dbRequest("rabota_orders?select=*&order=created_at.desc,id.desc&limit="+limit+"&offset="+offset,"GET",undefined,{signal}),
           isCurrent
         );
-        if(!isCurrent())return;
+        if(!isCurrent()||signal?.aborted)return;
         const incoming=items.map(readOrder);
         sync.rememberFull(items);
         const changed=!ordersLoaded || JSON.stringify(incoming)!==JSON.stringify(cloudOrders);
@@ -1152,7 +1172,7 @@
     async function persistOrder(order,options) {
       const generation=accessGeneration;
       const result=await orderModel.persistOrder(order,options);
-      if(generation===accessGeneration&&result.refreshError)reportSync(result.refreshError,"saved-order");
+      if(generation===accessGeneration&&result?.refreshError)reportSync(result.refreshError,"saved-order");
       return result;
     }
     function hasConflict(date,time,master,excludeId) {
@@ -1194,11 +1214,16 @@
     }
     function refundAmount(order){
       const payroll=payrollLookup?.snapshot;
-      if(currentRole!=="owner"||payroll?.state!=="active"||payroll.accounting?.version!==1||
-        !order.paid||order.status!=="Выполнен"||order.assignedUserId!==payroll.masterId||
-        payroll.holds.some(row=>row.orderId===String(order.id)))return null;
+      const accounting=payroll?.accounting;
+      const orderId=String(order.id);
+      if(currentRole!=="owner"||payroll?.state!=="active"||accounting?.version!==1||
+        !order.paid||order.status!=="Выполнен"||
+        (!Array.isArray(accounting.refunds)&&order.assignedUserId!==payroll.masterId)||
+        (accounting.refunds??payroll.refunds).some(row=>row.orderId===orderId)||
+        payroll.holds.some(row=>row.orderId===orderId))return null;
       const amount=window.__rdPayableOrderAmount(order.paymentAmount);
-      return amount===window.__rdPayableOrderAmount(order.price)?amount:null;
+      if(amount===null||amount!==window.__rdPayableOrderAmount(order.price))return null;
+      return accounting.receipts.some(row=>row.orderId===orderId&&row.amount===amount)?amount:null;
     }
     async function recordOrderRefund(order,button){
       const amount=refundAmount(order),generation=accessGeneration;
@@ -1255,7 +1280,7 @@
           await dbRequest("rpc/rabota_master_action","POST",{p_order_id:order.id,p_action:"complete"});
           await reloadOrders();
         }else{
-          await persistOrder({...order,status:"Выполнен",paid:false,completedAt:order.completedAt||new Date().toISOString()});
+          await persistOrder({...order,status:"Выполнен",paid:false,completedAt:order.completedAt||new Date().toISOString()},{base:order,statusOnly:true});
         }
       }
       if(generation!==accessGeneration)return false;
@@ -1351,7 +1376,12 @@
       if (currentRole !== "master"&&!locked) {
         const edit = make("button","action edit","Изменить");
         edit.type = "button";
-        edit.addEventListener("click",() => openForm(order.id));
+        edit.addEventListener("click",() => {
+          // The detail sheet removes its edit button when handing off to this form.
+          const opener=edit.isConnected?edit:Array.from(ordersNode.querySelectorAll("[data-rd-order-id]"))
+            .find(card=>card.dataset.rdOrderId===String(order.id));
+          openForm(order.id,opener);
+        });
         actions.append(edit);
       }
       if(refundAmount(order)!==null){
@@ -1416,7 +1446,7 @@
           }else{
             const next={...order,status:select.value,completedAt:select.value==="Выполнен"?
               (order.completedAt||new Date().toISOString()):null};
-            await persistOrder(next);
+            await persistOrder(next,{base:order,statusOnly:true});
             if(state!=="Выполнен" && next.status==="Выполнен")
               openCompletedClientDraft(order);
           }
@@ -1638,6 +1668,12 @@
     function render() {
       const workspace=window.__rdOrdersWorkspace;
       const unified=workspace?.isActive()||false;
+      if(document.getElementById("ordersArea").hidden){
+        window.__rdMasterOrdersRefresh?.();
+        refreshMasterOrderDialog();
+        window.__rdRefresh?.();
+        return;
+      }
       if(unified)workspace.beforeRender();
       renderCalendar();
       document.querySelectorAll("[data-tab]").forEach(btn => {
@@ -1696,17 +1732,19 @@
       const visibleDayCount=shown.length+completedForDay.length;
       const displayedCount=currentRole==="master"&&currentTab==="calendar"?visibleDayCount:shown.length;
       document.getElementById("orderCount").textContent=unified?masterOrderCount(displayedCount):displayedCount+" шт.";
+      const pageRows=unified?workspace.pageList(shown,masterOrderDialogId||window.__rdActiveOrderDetail?.()):shown;
       ordersNode.replaceChildren();
       renderMasterOverview(currentTab==="calendar"&&currentRole==="master"?
         masterWorkingOrders().filter(o=>o.assignedUserId===currentUser?.id):[]);
       if(currentRole==="master"){
-        renderMasterSchedule(shown,{compactEmpty:completedForDay.length>0});
+        renderMasterSchedule(pageRows,{compactEmpty:completedForDay.length>0,allRows:shown,dayCounts:workspace?.dayCounts()});
         if(currentTab==="calendar")masterUI.renderMasterCompletedDay(completedForDay,selectedDate);
       }
       else if(!shown.length) ordersNode.append(make("div","empty",currentTab==="history"?"Выполненных заказов нет":"Заказов нет"));
-      else shown.forEach(o=>ordersNode.append(makeCompactOwnerOrder(o)));
+      else pageRows.forEach(o=>ordersNode.append(makeCompactOwnerOrder(o)));
       if(cancelledForDay.length)workspace.renderCancelled(cancelledForDay,
         currentRole==="master"?makeMasterScheduleRow:makeCompactOwnerOrder);
+      if(unified)workspace.renderListPages();
       window.__rdMasterOrdersRefresh?.();
       refreshMasterOrderDialog();
       window.__rdRefresh?.();
@@ -1733,15 +1771,16 @@
       deleteOrderBtn.textContent=deleteOrderBtn.disabled
         ?"Есть оплата или финансы — удалить нельзя":"Удалить заказ";
     }
-    function openForm(id) {
+    function openForm(id,opener=document.activeElement) {
       const raulCreating=raulCanCreateOrder();
-      if(!canCreateOrder() || (currentRole==="master" && (id!==undefined || !raulCreating)))return;
+      if(orderSaving||!canCreateOrder() || (currentRole==="master" && (id!==undefined || !raulCreating)))return;
       const existing=id===undefined?null:getOrders().find(x=>String(x.id)===String(id));
+      if(id!==undefined&&!existing){alert("Заказ не найден. Обновите список.");return;}
       if(existing&&paidOrderLocked(existing)){
         alert("Записанная оплата защищена. Изменение цены, отмена и возврат требуют отдельной сверки.");
         return;
       }
-      previousFocus=document.activeElement;form.reset();delete form.dataset.leadPreview;delete form.dataset.leadId;formStatus.textContent="";formStatus.classList.remove("is-saving");
+      form.reset();delete form.dataset.leadPreview;delete form.dataset.leadId;formStatus.textContent="";formStatus.classList.remove("is-saving");
       formPaymentChoice=null;
       const advanced=document.getElementById("orderAdvanced");advanced.open=false;
       // Raul's create form is compact; keep all inputs and backend validation intact.
@@ -1749,6 +1788,7 @@
       advanced.querySelector("summary").firstChild.nodeValue=
         raulCreating?"Ещё ":"Дополнительные параметры ";
       editingId=id===undefined?null:String(id);
+      orderFormDraft={original:existing};
       updateMasters();
       controls.source.required=!existing;
       advanced.open=Boolean(existing);
@@ -1794,15 +1834,19 @@
       window.__rdOrderAvailability?.open(getOrders(),editingId);
       document.getElementById("orderFormScroll").scrollTop=0;
       // На iPhone автоматический фокус открывал клавиатуру и сдвигал форму.
-      if(!window.matchMedia || !window.matchMedia("(pointer: coarse)").matches)controls.name.focus();
+      const dialog=overlay.querySelector('[role="dialog"]');
+      const initial=window.matchMedia?.("(pointer: coarse)").matches?dialog:controls.name;
+      releaseOrderFocus??=window.__rdFocusModal(overlay,dialog,()=>closeForm(),{opener,initial});
     }
-    function closeForm(force) {
+    function closeForm(force,restoreFocus=true) {
       // Запретить закрытие до завершения сохранения: результат запроса ещё неизвестен.
       if(orderSaving && force!==true)return;
       overlay.hidden=true;overlay.classList.remove("master-quick");window.__rdOrderAvailability?.close();form.reset();delete form.dataset.leadPreview;delete form.dataset.leadId;editingId=null;
-      if(previousFocus&&typeof previousFocus.focus==="function")previousFocus.focus();
-      previousFocus=null;formPaymentChoice=null;formStatus.textContent="";
+      orderFormDraft=null;
+      releaseOrderFocus?.(restoreFocus);releaseOrderFocus=null;
+      formPaymentChoice=null;formStatus.textContent="";
     }
+    window.__rdCloseOrderFormForNavigation=()=>{if(!overlay.hidden)closeForm(true,false);};
     deleteOrderBtn.addEventListener("click",async()=>{
       if(currentRole!=="owner"||editingId===null||orderSaving||deleteOrderBtn.disabled||deleteOrderBtn.hidden)return;
       const id=editingId;
@@ -1844,10 +1888,9 @@
         }
       }
     });
-    document.getElementById("newOrderBtn").addEventListener("click",()=>openForm());
-    document.getElementById("closeOrderBtn").addEventListener("click",closeForm);
+    document.getElementById("newOrderBtn").addEventListener("click",event=>openForm(undefined,event.currentTarget));
+    document.getElementById("closeOrderBtn").addEventListener("click",()=>closeForm());
     overlay.addEventListener("click",e=>{if(e.target===overlay)closeForm();});
-    document.addEventListener("keydown",e=>{if(e.key==="Escape"&&!overlay.hidden)closeForm();});
     calendarModule.bindNavigation();
     document.querySelectorAll("[data-tab]").forEach(btn=>btn.addEventListener("click",()=>{
       const nextTab=btn.dataset.tab;
@@ -1870,15 +1913,54 @@
       if(!orderSaving){formStatus.textContent="";formStatus.classList.remove("is-saving");}
     });
 
+    const orderConflict=document.getElementById("orderConflict");
+    function clearOrderConflict(){orderConflict.hidden=true;orderConflict.replaceChildren();}
+    form.addEventListener("reset",clearOrderConflict);
+    function showOrderConflict(error,draft){
+      if(error.code!=="ORDER_EDIT_CONFLICT"||!error.fields?.length)return;
+      const labels={name:"Имя",phone:"Телефон",address:"Адрес",client_source:"Источник",radiator_type:"Тип радиаторов",
+        radiators:"Радиаторы",floor_loops:"Тёплый пол",price:"Цена",details:"Комментарий",master:"Мастер",
+        assigned_user_id:"Назначенный мастер",appointment_date:"Дата",appointment_time:"Время",status:"Статус",
+        completed_at:"Дата выполнения",paid:"Оплата",payment_amount:"Сумма оплаты",payment_method:"Способ оплаты",
+        payment_received_by:"Получатель оплаты",paid_at:"Дата оплаты",paid_by:"Кто принял оплату",lead_id:"Связанный лид"};
+      const details=make("details","order-conflict-details");
+      details.append(make("summary","","Посмотреть текущие значения"));
+      const list=make("ul");
+      for(const field of error.fields){
+        const raw=field==="assigned_user_id"?error.current.master:error.current[field];
+        const value=field==="price"&&raw!=null?money(raw):typeof raw==="boolean"?(raw?"Да":"Нет"):String(raw??"—");
+        list.append(make("li","",(labels[field]||"Поле")+" — "+value));
+      }
+      details.append(list);
+      if(error.canResolve){
+        const choices=make("div","order-conflict-actions");
+        for(const [label,keepCurrent] of [["Оставить текущие значения",true],["Сохранить мой вариант",false]]){
+          const choice=make("button","secondary",label);choice.type="button";
+          choice.addEventListener("click",()=>{
+            if(orderSaving||draft!==orderFormDraft)return;
+            draft.resolution={version:error.version,fields:error.fields,keepCurrent};
+            form.requestSubmit();
+            delete draft.resolution;
+          });
+          choices.append(choice);
+        }
+        details.append(choices);
+      }
+      orderConflict.replaceChildren(details);orderConflict.hidden=false;
+    }
+
     controls.status.addEventListener("change",async()=>{
       if(controls.status.value!=="Выполнен"){formPaymentChoice=null;return;}
       if(currentRole==="master")return;
-      const old=editingId===null?null:getOrders().find(o=>String(o.id)===String(editingId));
+      const draft=orderFormDraft;
+      if(!draft||orderSaving)return;
+      const old=draft.original;
       if(old?.status==="Выполнен")return; // A completed unpaid order uses "Принять оплату".
       if(typeof window.__rdPaymentPrompt!=="function")return;
       const choice=await promptOrderPayment({
         name:controls.name.value.trim()||"Клиент",price:controls.price.value
       },{complete:true});
+      if(draft!==orderFormDraft||orderSaving)return;
       if(!choice){controls.status.value=old?.status||"Записан";return;}
       formPaymentChoice=choice;
       controls.paid.checked=choice.kind==="paid";
@@ -1887,7 +1969,10 @@
     });
     form.addEventListener("submit",async event => {
       event.preventDefault();
-      if(orderSaving)return;
+      const draft=orderFormDraft,generation=accessGeneration;
+      if(orderSaving||!draft||overlay.hidden)return;
+      const resolution=draft.resolution;
+      clearOrderConflict();
       formStatus.textContent="";
       const raulCreating=raulCanCreateOrder();
       if(!canCreateOrder() || (currentRole==="master" && (!raulCreating || editingId!==null))){
@@ -1900,8 +1985,9 @@
       }
       const name=controls.name.value.trim(),phone=controls.phone.value.trim();
       const date=controls.date.value,time=controls.time.value,status=controls.status.value;
-      const original=editingId===null?null:getOrders().find(o=>String(o.id)===editingId);
-      if(original&&paidOrderLocked(original)){
+      const original=draft.original;
+      const current=original&&getOrders().find(o=>String(o.id)===editingId);
+      if(current&&paidOrderLocked(current)){
         formStatus.textContent="Записанная оплата защищена от изменения или отмены.";
         return;
       }
@@ -1910,10 +1996,11 @@
         if(typeof window.__rdPaymentPrompt!=="function"){
           formStatus.textContent="Окно оплаты не загружено. Обновите страницу.";return;
         }
-        formPaymentChoice=await promptOrderPayment({
+        const choice=await promptOrderPayment({
           name:name||"Клиент",price:controls.price.value
         },{complete:original?.status!=="Выполнен"});
-        if(!formPaymentChoice)return;
+        if(!choice||draft!==orderFormDraft||generation!==accessGeneration||orderSaving)return;
+        formPaymentChoice=choice;
         controls.paid.checked=formPaymentChoice.kind==="paid";
         if(formPaymentChoice.kind==="paid")controls.price.value=formPaymentChoice.amount;
       }
@@ -1929,37 +2016,36 @@
         controls.phone.focus();return;
       }
       const assignedMaster=raulCreating?currentMasterName.trim():controls.master.value.trim();
-      if(raulCreating&&status!=="Отменён"){
-        // Quick booking cannot silently submit inside a displayed estimated busy
-        // interval. Manual time input uses the same rule as the suggestion tiles.
-        const overlap=window.__rdBookingTimeline?.findAt(
-          getOrders(),time,date,assignedMaster,editingId,
-          window.__rdCalendarLoad?.travelMinutes);
-        if(overlap){
-          formStatus.textContent="По расчёту мастер занят примерно "+window.__rdBookingTimeline.format(overlap.start)+
-            "–"+window.__rdBookingTimeline.format(overlap.end)+" у клиента "+overlap.name+
-            ". Выберите другое время или уточните окончание промывки.";
-          controls.time.focus();return;
+      const beforeWrite=excludeId=>{
+        if(raulCreating&&status!=="Отменён"){
+          // Manual time input and the suggested times use the same estimate.
+          const overlap=window.__rdBookingTimeline?.findAt(
+            getOrders(),time,date,assignedMaster,excludeId,
+            window.__rdCalendarLoad?.travelMinutes);
+          if(overlap){
+            formStatus.textContent="По расчёту мастер занят примерно "+(overlap.date===date?"":formatDate(overlap.date)+", ")+
+              window.__rdBookingTimeline.format(overlap.start)+
+              "–"+window.__rdBookingTimeline.format(overlap.end)+" у клиента "+overlap.name+
+              ". Выберите другое время или уточните окончание промывки.";
+            controls.time.focus();return false;
+          }
         }
-      }
-      if(status!=="Отменён"&&hasConflict(date,time,assignedMaster,editingId)) {
-        formStatus.textContent="У этого мастера уже есть заказ на выбранное время.";controls.time.focus();return;
-      }
-      if(status!=="Отменён") {
-        const busy=findTightBookings(date,time,controls.master.value,editingId);
-        if(busy.length) {
-          const neighbor=busy.map(o=>String(o.time||"")+" — "+(o.name||"Без имени")).join("; ");
-          if(!confirm("Внимание: у "+controls.master.value.trim()+" уже есть близкая запись: "+neighbor+
-            ".\n\nСредняя работа 3 часа + дорога по городу 20 минут.\n"+
-            "Если новая работа начнётся вовремя и без пересечения, нажми ОК. Иначе выбери другое время."))return;
+        if(status!=="Отменён"&&hasConflict(date,time,assignedMaster,excludeId)) {
+          formStatus.textContent="У этого мастера уже есть заказ на выбранное время.";controls.time.focus();return false;
         }
-      }
-      if(status!=="Отменён" && controls.master.value.trim() &&
-        !getOrders().some(o=>String(o.master||"").trim().toLowerCase()===controls.master.value.trim().toLowerCase())) {
-        if(!confirm("Исполнитель «"+controls.master.value.trim()+"» ещё не встречается в заказах. Проверь его имя и доступ к приложению: иначе он может не увидеть заявку. Продолжить?"))return;
-      }
-      const existing=editingId===null?null:getOrders().find(o=>String(o.id)===editingId);
-      if(editingId!==null&&!existing){formStatus.textContent="Заказ не найден.";return;}
+        if(status!=="Отменён") {
+          const busy=findTightBookings(date,time,assignedMaster,excludeId);
+          if(busy.length) {
+            const neighbor=busy.map(o=>String(o.time||"")+" — "+(o.name||"Без имени")).join("; ");
+            if(!confirm("Внимание: у "+assignedMaster+" уже есть близкая запись: "+neighbor+
+              ".\n\nСредняя работа 3 часа + дорога по городу 20 минут.\n"+
+              "Если новая работа начнётся вовремя и без пересечения, нажми ОК. Иначе выбери другое время."))return false;
+          }
+          if(assignedMaster&&!getOrders().some(o=>String(o.master||"").trim().toLowerCase()===assignedMaster.toLowerCase())&&
+            !confirm("Исполнитель «"+assignedMaster+"» ещё не встречается в заказах. Проверь его имя и доступ к приложению: иначе он может не увидеть заявку. Продолжить?"))return false;
+        }
+        return true;
+      };
       let combinedDetails;
       try{
         const before=window.__rdOrderNotes.parse(original?.details);
@@ -1977,15 +2063,15 @@
         return;
       }
       const order={
-        id:existing?existing.id:null,createdAt:existing?existing.createdAt:now,
-        legacyId:existing?existing.legacyId:null,
-        leadId:existing?existing.leadId:(status!=="Отменён"?form.dataset.leadId||null:null),
+        id:original?original.id:null,updatedAt:original?.updatedAt,createdAt:original?original.createdAt:now,
+        legacyId:original?original.legacyId:null,
+        leadId:original?original.leadId:(status!=="Отменён"?form.dataset.leadId||null:null),
         name,phone,address:controls.address.value.trim(),clientSource:controls.source.value,
         radiatorType:controls.type.value,radiators:controls.radiators.value,
-        floorLoops:controls.loops.value,master:raulCreating?currentMasterName.trim():controls.master.value.trim(),
+        floorLoops:controls.loops.value,master:assignedMaster,
         date,time,price:controls.price.value===""?null:Number(controls.price.value),
         paid:false,status:raulCreating?"Записан":status,details:combinedDetails,
-        completedAt:raulCreating?null:(status==="Выполнен"?(existing&&existing.completedAt||now):null)
+        completedAt:raulCreating?null:(status==="Выполнен"?(original?.completedAt||now):null)
       };
       const saveBtn=form.querySelector('button[type="submit"]');
       orderSaving=true;
@@ -1993,10 +2079,12 @@
       saveBtn.textContent="Сохраняем…";
       formStatus.classList.add("is-saving");
       formStatus.textContent="Сохранение заказа…";
-      const generation=accessGeneration;
       try {
-        const result=await persistOrder(order,payment?{refresh:false}:undefined);
-        if(generation!==accessGeneration)return;
+        const result=await persistOrder(order,{refresh:!payment,attempt:draft,beforeWrite,base:original,resolution});
+        if(generation!==accessGeneration||!result){
+          if(generation===accessGeneration&&formStatus.textContent==="Сохранение заказа…")formStatus.textContent="";
+          return;
+        }
         let paymentError=null;
         if(payment){
           try{await orderModel.recordFullPayment({...order,id:result.orderId},payment,"company");}
@@ -2008,15 +2096,19 @@
           else if(result.refreshError)reportSync(result.refreshError,"saved-payment");
         }
         if(order.leadId)void window.__rdLeadsRefresh?.().catch(error=>console.warn("Lead refresh",error));
+        if(draft!==orderFormDraft)return;
         selectedDate=date;
         currentTab=raulCreating?"all":status==="Выполнен"?"history":status==="Отменён"?"all":"calendar";
         closeForm(true);render();
         if(result.refreshError||paymentError)return;
-        if(!existing && order.status==="Записан")openClientDraft(order,"booking");
-        else if(existing && existing.status!=="Выполнен" && order.status==="Выполнен")
-          openCompletedClientDraft(existing);
+        if(!original && order.status==="Записан")openClientDraft(order,"booking");
+        else if(original && original.status!=="Выполнен" && order.status==="Выполнен")
+          openCompletedClientDraft(original);
       }catch(error){
-        if(generation===accessGeneration)formStatus.textContent=friendlyError(error);
+        if(generation===accessGeneration&&draft===orderFormDraft){
+          formStatus.textContent=friendlyError(error);
+          showOrderConflict(error,draft);
+        }
       }finally{
         if(generation===accessGeneration){
           orderSaving=false;saveBtn.disabled=false;saveBtn.textContent="Сохранить заказ";
@@ -2313,7 +2405,6 @@
 
     // The compact bell UI lives in master-notifications.js; preserve master reload/logout hooks.
     function refreshRabotaNotifications(){return window.__rdRefreshMasterNotices?.();}
-    async function removePushOnLogout(){await window.__rdDisableMasterPush?.();}
 
     // Separate bridge for lead previews, the existing order form, and owner AI navigation.
     const leadAIBridge=window.__rdCreateLeadAIBridge({
@@ -2371,6 +2462,13 @@
     const loginMessage=document.getElementById("authMessage");
     const resumeSessionButton=document.getElementById("resumeSession");
     const accessMessage=document.getElementById("accessMessage");
+    const startupSchedule=document.getElementById("startupSchedule");
+    const retryStartupSchedule=document.getElementById("retryStartupSchedule");
+    function showStartupSchedule(message="",retry=false){
+      startupSchedule.hidden=!message;
+      document.getElementById("startupScheduleStatus").textContent=message;
+      retryStartupSchedule.hidden=!retry;
+    }
     async function checkAccess() {
       resetAccountData();
       const generation=accessGeneration;
@@ -2417,7 +2515,17 @@
       document.getElementById("financePanel").hidden=true;
       const initialView=new URLSearchParams(window.location.search).get("view");
       const openModuleFirst=currentRole==="owner"&&["expenses","growth"].includes(initialView);
-      const startupOrders=loadOrderData();
+      const masterStarting=currentRole==="master";
+      if(masterStarting){
+        showScreen("startupScreen");
+        showStartupSchedule();
+      }
+      const waitingNotice=masterStarting?setTimeout(()=>{
+        if(generation===accessGeneration)showStartupSchedule("Загружаем расписание…");
+      },400):null;
+      const startupOrders=masterStarting?sharedServices.withRequestDeadline(
+        signal=>loadOrderData(false,{signal}),6000,"Расписание пока не загрузилось. Повторите попытку."
+      ):loadOrderData();
       if(openModuleFirst){
         financeStartupOrders=startupOrders;
         showScreen("appScreen");
@@ -2427,12 +2535,19 @@
       let ordersError;
       try{await startupOrders;}
       catch(error){
+        if(generation!==accessGeneration)return;
+        if(masterStarting&&error.code==="REQUEST_TIMEOUT"){
+          showStartupSchedule(error.message,true);
+          return;
+        }
         if(!openModuleFirst)throw error;
         ordersError=error;
       }finally{
+        if(waitingNotice!==null)clearTimeout(waitingNotice);
         if(financeStartupOrders===startupOrders)financeStartupOrders=null;
       }
       if(generation!==accessGeneration)return;
+      showStartupSchedule();
       reportSync(ordersError);
       if(!openModuleFirst){
         showScreen("appScreen");
@@ -2534,8 +2649,10 @@
         const payroll=acceptedPayroll();
         const orders=financeOrders.filter(o=>o.assignedUserId===currentUser?.id);
         const byId=new Map(orders.map(o=>[String(o.id),o]));
-        const receipts=payroll?.accounting?.receipts??[];
+        const receipts=(payroll?.accounting?.receipts??[]).filter(row=>row.masterId===currentUser?.id);
         const methodByOrder=new Map(receipts.map(row=>[row.orderId,row.method]));
+        const refunds=(payroll?.accounting?.refunds??payroll?.refunds??[])
+          .filter(row=>methodByOrder.has(row.orderId));
         const describe=row=>{
           const order=byId.get(row.orderId);
           return {...row,name:order?.name,reference:order?.referenceCode};
@@ -2543,7 +2660,7 @@
         return {
           ...financeStatus(),
           receipts:receipts.map(describe),
-          refunds:(payroll?.refunds??[]).map(row=>describe({...row,method:methodByOrder.get(row.orderId)??null})),
+          refunds:refunds.map(row=>describe({...row,method:methodByOrder.get(row.orderId)??null})),
           orders:orders.map(o=>({
             id:o.id,reference:o.referenceCode,name:o.name,date:o.date,time:o.time,status:o.status,paid:o.paid
           }))
@@ -2580,6 +2697,11 @@
           p_kind:kind,p_amount:amount,p_from_account:from,p_to_account:to,
           p_note:note,p_request_id:requestId
         });
+        if(typeof receipt!=="string"||!/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(receipt)){
+          const error=Error("Не удалось получить подтверждение операции кассы.");
+          error.code="UNCONFIRMED_CASHBOOK_WRITE";
+          throw error;
+        }
         if(generation===accessGeneration){
           cashbookReader.invalidate();
           void refreshCashbook();
@@ -2611,6 +2733,7 @@
       }
     }
     resumeSessionButton.addEventListener("click",initialize);
+    retryStartupSchedule.addEventListener("click",initialize);
     document.getElementById("loginForm").addEventListener("submit",async event=>{
       event.preventDefault();loginMessage.textContent="";
       const btn=document.getElementById("loginSubmit");btn.disabled=true;
@@ -2643,25 +2766,38 @@
       try {await ensureSession();await checkAccess();}
       catch(error){accessMessage.textContent=friendlyError(error);}
     });
-    let signingOut=false;
-    async function logout() {
-      if(signingOut)return;
-      signingOut=true;
+    function logout() {
       const previous=session;
-      showScreen("startupScreen");
-      try{
-        try{await removePushOnLogout();}catch(err){console.warn("Push unsubscribe",err);}
-        const stored=storedSession();
-        if(sharedServices.sameAuthSession(previous,session)&&(!stored||sharedServices.sameAuthSession(previous,stored))){
-          try {await authRequest("logout","POST",{},true);} catch(error){}
-        }
-        const latest=storedSession();
-        if(!latest||sharedServices.sameAuthSession(previous,latest)){
-          clearSession();showScreen("loginScreen");
-        }
-        // Rebuild the navigation for the next account's role.
+      const stored=storedSession();
+      if(stored&&!sharedServices.sameAuthSession(previous,stored)){
+        session=stored;
+        resetAccountData();
+        showScreen("startupScreen");
         window.location.reload();
-      }finally{signingOut=false;}
+        return;
+      }
+      const cleanupPush=currentRole==="master";
+      clearSession();
+      resumeSessionButton.hidden=true;
+      showScreen("loginScreen");
+      if(!previous?.access_token)return;
+      const logoutGeneration=accessGeneration;
+      const stillSignedOut=()=>accessGeneration===logoutGeneration&&!session&&!storedSession();
+      void (async()=>{
+        if(cleanupPush){
+          try{
+            await sharedServices.withRequestDeadline(signal=>window.__rdRemovePushOnLogout?.(
+              endpoint=>sharedServices.removePushSubscription(previous,endpoint,signal),
+              ()=>!signal.aborted&&stillSignedOut()
+            ),2000,"Не удалось вовремя отключить уведомления.");
+          }catch(error){console.warn("Push unsubscribe",error);}
+        }
+        try{
+          await sharedServices.withRequestDeadline(signal=>sharedServices.authRequest(
+            "logout?scope=local","POST",{},true,{session:previous,signal}
+          ),4000,"Сервер не подтвердил завершение сеанса.");
+        }catch(error){console.warn("Session logout",error);}
+      })();
     }
     document.getElementById("aiChatLink").addEventListener("click",event=>leadAIBridge.prepareChatLink(event));
     // The original logout routine remains the single sign-out path.
@@ -2738,23 +2874,23 @@
 
   </script>
   <script src="/order-payment.js?v=20261125-accounting"></script>
-  <script src="/booking-timeline.js?v=20261117-v1"></script>
-  <script src="/order-availability.js?v=20261124-indexed-bookings"></script>
+  <script src="/booking-timeline.js?v=20261125-midnight"></script>
+  <script src="/order-availability.js?v=20261125-midnight"></script>
   <script src="/master-quick-order.js?v=20261117-mock-v1"></script>
   <script src="/quick-slots.js?v=20261125-shell"></script>
   <script src="/whatsapp-order.js?v=20261111-master-notes"></script>
   <script src="/whatsapp-client.js?v=20261118-safety-fix-v1"></script>
-  <script src="/whatsapp-settings.js?v=20261125-fixed-header"></script>
-  <script src="/profit-report.js?v=20261125-fixed-header"></script>
-  <script src="/expenses.js?v=20261125-compact-expenses"></script>
-  <script src="/growth.js?v=20261124-integrated-modules"></script>
-  <script src="/redesign.js?v=20261125-fixed-header"></script>
-  <script src="/master-notifications.js?v=20261125-fixed-header"></script>
-  <script src="/orders-list.js?v=20261125-shell"></script>
-  <script src="/owner-parity.js?v=20261124-unified-v1"></script>
+  <script src="/whatsapp-settings.js?v=20261125-template-reset"></script>
+  <script src="/profit-report.js?v=20261125-write-integrity"></script>
+  <script src="/expenses.js?v=20261125-write-integrity"></script>
+  <script src="/growth.js?v=20261125-reconcile"></script>
+  <script src="/redesign.js?v=20261125-module-history"></script>
+  <script src="/master-notifications.js?v=20261125-session-exit"></script>
+  <script src="/orders-list.js?v=20261125-order-pages"></script>
+  <script src="/owner-parity.js?v=20261125-order-pages"></script>
   <script src="/finance-payroll.js?v=20261125-fixed-header"></script>
-  <script src="/money-workspace.js?v=20261125-fixed-header"></script>
-  <script src="/lead-assistant.js?v=20261125-fixed-header"></script>
-  <script src="/orders-workspace.js?v=20261125-fixed-header"></script>
+  <script src="/money-workspace.js?v=20261125-write-integrity"></script>
+  <script src="/lead-assistant.js?v=20261125-agreed-price"></script>
+  <script src="/orders-workspace.js?v=20261125-order-pages"></script>
 </body>
 </html>

@@ -15,7 +15,7 @@ assert(/<link rel="stylesheet" href="\/mobile-order-form\.css(?:\?[^"]*)?">/.tes
 assert.equal((html.match(/class="order-submit-bar"/g) || []).length, 1, "one order save bar");
 assert.equal((html.match(/id="formStatus"/g) || []).length, 1, "one status live region");
 assert(html.includes('form.addEventListener("invalid"'), "required field feedback");
-assert(script.includes('if(orderSaving)return;'), "no concurrent submissions");
+assert(/if\(orderSaving(?:\|\|[^)]*)?\)return;/.test(script), "no concurrent submissions");
 assert(script.includes('saveBtn.textContent="Сохраняем…"'), "immediate busy feedback");
 assert(script.includes('saveBtn.textContent="Сохранить заказ"'), "label reset after save");
 assert(script.includes('(pointer: coarse)'), "no automatic keyboard on touchscreen");

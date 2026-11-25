@@ -27,7 +27,7 @@ function fixture({role="owner",hostname="rabota.example.com",page="calendar"}={}
 }
 const lead={id:"12345678-1234-1234-1234-123456789abc",name:"Мария",
   phone:"+7 999",address:"Владикавказ",material:"Биметаллические",
-  radiators:5,loops:2,price:16000,notes:"Вызвать после 14"};
+  radiators:5,loops:2,price:16000,priceAgreed:true,notes:"Вызвать после 14"};
 
 test("owner gets lead context with only scheduling fields",()=>{
   const x=fixture();
@@ -54,6 +54,22 @@ test("manager is allowed to prefill, master is blocked",()=>{
   manager.bridge.openLeadOrder(lead);master.bridge.openLeadOrder(lead);
   assert.equal(manager.opens,1);assert.equal(master.opens,0);
   assert.equal(master.refreshes,0);
+});
+test("an unagreed estimate leaves the order price blank",()=>{
+  const x=fixture();
+  x.bridge.openLeadOrder({...lead,priceAgreed:false});
+  assert.equal(x.controls.price.value,"");
+  assert.equal(x.controls.radiators.value,5);
+  assert.equal(x.controls.loops.value,2);
+});
+test("cast-iron lead carries the stated counts and requests a master consultation",()=>{
+  const x=fixture();
+  x.bridge.openLeadOrder({...lead,material:"Чугунные",radiators:8,loops:0,price:16000,priceAgreed:false});
+  assert.equal(x.controls.type.value,"Чугунные");
+  assert.equal(x.controls.radiators.value,8);
+  assert.equal(x.controls.loops.value,0);
+  assert.equal(x.controls.price.value,"");
+  assert.match(x.formStatus.textContent,/консультации мастера/);
 });
 test("empty lead and absent lead do not create saved order",()=>{
   const x=fixture();x.bridge.openLeadOrder(null);

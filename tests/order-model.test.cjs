@@ -3,7 +3,9 @@ const test=require("node:test");
 const assert=require("node:assert/strict");
 const fs=require("node:fs");
 const path=require("node:path");
+const {webcrypto}=require("node:crypto");
 const {createOrdersModel,orderReference}=require("../order-model.js");
+const {createWriteIntents}=require("../app-services.js");
 
 const STATUSES=["Записан","В работе","Выполнен","Отменён"];
 const base={
@@ -11,15 +13,18 @@ const base={
  radiator_type:"Биметаллические",radiators:5,floor_loops:2,
  master:"Рауль",appointment_date:"2026-11-15",appointment_time:"12:00:00",
  price:"12000",status:"Записан",paid:false,details:"Условие",
- created_at:"2026-11-13T09:00:00Z",assigned_user_id:"master1"
+ created_at:"2026-11-13T09:00:00Z",assigned_user_id:"master1",
+ updated_at:"2026-11-13T09:00:00.123456+00:00"
 };
-function setup({orders=[],operations=[],onRequest=async()=>[{id:"saved"}]}={}){
+function setup({orders=[],operations=[],onRequest=async(path,method,data)=>
+  [{id:method==="PATCH"?"111":data.id,created_by:"owner1"}]}={}){
  const calls=[];let reloads=0;
  const model=createOrdersModel({
    statuses:STATUSES,
    getCurrentUserId:()=>"owner1",
    getOrders:()=>orders,
    getFinanceOperations:()=>operations,
+   writeIntents:createWriteIntents("test-order",{crypto:webcrypto}),
    dbRequest:async(...args)=>{calls.push(args);return onRequest(...args);},
    reloadOrders:async()=>{reloads++;}
  });
@@ -77,7 +82,7 @@ test("paid order serializes payment fields without dropping client data",()=>{
  assert.equal(record.payment_amount,13000);
  assert.equal(record.payment_received_by,"company");
  assert.equal(record.phone,base.phone);
- assert.equal(record.updated_at.length,24);
+ assert.equal(Object.hasOwn(record,"updated_at"),false,"database assigns the version");
 });
 test("unpaid order does not manufacture payment metadata",()=>{
  const {model}=setup();
@@ -144,7 +149,7 @@ test("editing an existing order sends PATCH then refreshes",async()=>{
  await model.persistOrder({...model.readOrder(base),id:"111"});
  assert.equal(calls.length,1);
  assert.equal(calls[0][1],"PATCH");
- assert.match(calls[0][0],/^rabota_orders\?id=eq\.111$/);
+ assert.equal(calls[0][0],"rabota_orders?id=eq.111&updated_at=eq."+encodeURIComponent(base.updated_at));
  assert.equal(reloads(),1);
 });
 test("creating a new order sends POST then refreshes",async()=>{
@@ -156,7 +161,7 @@ test("creating a new order sends POST then refreshes",async()=>{
 });
 test("database failure preserves old behavior: no success refresh",async()=>{
  const {model,reloads}=setup({onRequest:async()=>{throw Error("DB unavailable");}});
- await assert.rejects(model.persistOrder({...model.readOrder(base),id:null}),/DB unavailable/);
+ await assert.rejects(model.persistOrder({...model.readOrder(base),id:null}),/Сохранение заказа не подтверждено/);
  assert.equal(reloads(),0);
 });
 test("index references module before inline application and keeps adapters",()=>{

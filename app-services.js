@@ -1,5 +1,5 @@
 /* CRM «Работа» — общие сервисы, этап 9.
- * Supabase transport and pure display/error helpers only.
+ * Supabase transport, write retry keys and display/error helpers.
  * Session lifecycle, token refresh and business decisions live in the callers.
  */
 "use strict";
@@ -31,6 +31,107 @@
       return Boolean(previousIdentity&&previousIdentity===identity(newToken));
     }catch(error){return false;}
   }
+  function createWriteIntents(namespace,{
+    getStorage=()=>root?.localStorage,
+    crypto=root?.crypto,
+    locks=root?.navigator?.locks
+  }={}){
+    const pending=new Map();
+    const uuid=/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i;
+    const exclusive=(key,callback)=>locks?.request?locks.request(key,callback):callback();
+    async function get(actor,payload,{expectedKey}={}){
+      if(!actor||!crypto?.subtle||typeof crypto.randomUUID!=="function")
+        throw new Error("Не удалось создать номер операции.");
+      const bytes=new TextEncoder().encode(JSON.stringify([actor,payload]));
+      const digest=await crypto.subtle.digest("SHA-256",bytes);
+      const fingerprint=Array.from(new Uint8Array(digest),byte=>byte.toString(16).padStart(2,"0")).join("");
+      const key="rabota-write-intent-v1."+namespace+"."+fingerprint;
+      if(expectedKey&&expectedKey!==key)
+        throw new Error("Проверьте предыдущую операцию перед изменением реквизитов.");
+      return exclusive(key,()=>{
+        let requestId=pending.get(key);
+        let reused=Boolean(requestId);
+        try{
+          const storage=getStorage();
+          if(storage){
+            const stored=storage.getItem(key);
+            if(uuid.test(stored||"")){requestId=stored;reused=true;}
+            requestId??=crypto.randomUUID();
+            storage.setItem(key,requestId);
+            pending.delete(key);
+            return {key,requestId,reused};
+          }
+        }catch{}
+        requestId??=crypto.randomUUID();
+        pending.set(key,requestId);
+        return {key,requestId,reused};
+      });
+    }
+    function finish({key,requestId}){
+      const clear=()=>{
+        if(pending.get(key)===requestId)pending.delete(key);
+        try{
+          const storage=getStorage();
+          if(storage?.getItem(key)===requestId)storage.removeItem(key);
+        }catch{}
+      };
+      try{return Promise.resolve(exclusive(key,clear)).catch(clear);}
+      catch{clear();}
+    }
+    return {get,finish};
+  }
+  function focusModal(overlay,dialog,onCancel,{opener=dialog.ownerDocument.activeElement,initial=dialog}={}){
+    const doc=dialog.ownerDocument;
+    const backdrop=Array.from(doc.body.children).filter(node=>
+      node!==overlay&&!node.inert&&node.getClientRects().length);
+    for(const node of backdrop)node.inert=true;
+
+    function onKey(event){
+      if(event.key!=="Escape"&&event.key!=="Tab")return;
+      const focused=doc.activeElement;
+      // The order form can open a separate payment dialog above it.
+      if(!dialog.contains(focused)&&focused?.closest('[aria-modal="true"],dialog[open]'))return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      if(event.key==="Escape"){onCancel();return;}
+
+      const controls=Array.from(dialog.querySelectorAll("button,a[href],input,select,textarea,summary,[tabindex]"))
+        .filter(node=>node.tabIndex>=0&&!node.matches(":disabled")&&node.getClientRects().length&&
+          doc.defaultView.getComputedStyle(node).visibility==="visible");
+      const stops=controls.filter(node=>{
+        if(node.type!=="radio"||!node.name)return true;
+        const group=controls.filter(control=>control.type==="radio"&&control.name===node.name&&control.form===node.form);
+        return node===(group.find(radio=>radio.checked)||group[0]);
+      });
+      const index=stops.indexOf(focused);
+      const next=event.shiftKey?(index<=0?stops.length-1:index-1):(index+1)%stops.length;
+      (stops[next]||dialog).focus();
+    }
+
+    doc.addEventListener("keydown",onKey,true);
+    initial.focus({preventScroll:true});
+    return (restoreFocus=true)=>{
+      doc.removeEventListener("keydown",onKey,true);
+      for(const node of backdrop)node.inert=false;
+      if(restoreFocus&&opener?.isConnected&&opener.getClientRects().length)
+        opener.focus({preventScroll:true});
+    };
+  }
+  async function withRequestDeadline(work, milliseconds, message){
+    const controller=new AbortController();
+    let timer;
+    try{
+      const deadline=new Promise((_,reject)=>{
+        timer=setTimeout(()=>{
+          const error=new Error(message);
+          error.code="REQUEST_TIMEOUT";
+          reject(error);
+          controller.abort();
+        },milliseconds);
+      });
+      return await Promise.race([deadline,work(controller.signal)]);
+    }finally{clearTimeout(timer);}
+  }
   function createSharedServices(deps){
     if(!deps||typeof deps.url!=="string"||!deps.url.startsWith("https://")||
       typeof deps.key!=="string"||
@@ -45,13 +146,13 @@
     const ensureSession=deps.ensureSession;
     const getScope=deps.getScope||(()=>null);
 
-    async function authRequest(path,method,payload,authenticated){
-      const session=getSession();
+    async function authRequest(path,method,payload,authenticated,{session=getSession(),signal}={}){
       const headers={apikey:SUPABASE_KEY,"Content-Type":"application/json"};
       if(authenticated&&session&&session.access_token)
         headers.Authorization="Bearer "+session.access_token;
       const response=await requestFetch(SUPABASE_URL+"/auth/v1/"+path,{
-        method:method||"GET",headers,body:payload?JSON.stringify(payload):undefined
+        method:method||"GET",headers,body:payload?JSON.stringify(payload):undefined,
+        ...(signal?{signal}:{})
       });
       const value=await response.json().catch(()=>({}));
       if(!response.ok){
@@ -61,7 +162,7 @@
       }
       return value;
     }
-    async function dbRequest(path,method,payload){
+    async function dbRequest(path,method,payload,{signal}={}){
       const scope=getScope();
       await ensureSession();
       const session=getSession();
@@ -71,7 +172,8 @@
       if(payload!==undefined)headers["Content-Type"]="application/json";
       if(method!=="GET")headers.Prefer="return=representation";
       const response=await requestFetch(SUPABASE_URL+"/rest/v1/"+path,{
-        method,headers,body:payload===undefined?undefined:JSON.stringify(payload)
+        method,headers,body:payload===undefined?undefined:JSON.stringify(payload),
+        ...(signal?{signal}:{})
       });
       const value=await response.json().catch(()=>null);
       if(scope!==getScope())throw new Error("Сеанс изменился. Повторите действие.");
@@ -83,9 +185,19 @@
       }
       return value;
     }
-    return {authRequest,dbRequest,phoneForDisplay,normalizePhone,friendlyError,sameAuthSession};
+    async function removePushSubscription(session,endpoint,signal){
+      const response=await requestFetch(SUPABASE_URL+"/rest/v1/rabota_push_subscriptions?endpoint=eq."+encodeURIComponent(endpoint),{
+        method:"DELETE",signal,headers:{apikey:SUPABASE_KEY,Authorization:"Bearer "+session.access_token}
+      });
+      if(!response.ok)throw new Error("Не удалось отключить подписку на уведомления.");
+    }
+    return {authRequest,dbRequest,removePushSubscription,withRequestDeadline,phoneForDisplay,normalizePhone,friendlyError,sameAuthSession};
   }
-  if(root)root.__rdCreateSharedServices=createSharedServices;
+  if(root){
+    root.__rdCreateSharedServices=createSharedServices;
+    root.__rdCreateWriteIntents=createWriteIntents;
+    root.__rdFocusModal=focusModal;
+  }
   if(typeof module!=="undefined"&&module.exports)
-    module.exports={createSharedServices,phoneForDisplay,normalizePhone,friendlyError,sameAuthSession};
+    module.exports={createSharedServices,createWriteIntents,withRequestDeadline,phoneForDisplay,normalizePhone,friendlyError,sameAuthSession};
 })(typeof window!=="undefined"?window:null);

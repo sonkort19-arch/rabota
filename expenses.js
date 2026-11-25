@@ -8,8 +8,9 @@ window.__rdCreateExpenses = function createExpenses({root, dbRequest, loadExpens
   const editor=id=>dialog.querySelector("#"+id);
   const form=editor("exForm");
   const viewport=window.visualViewport;
-  let ownerId=null, rows=null, read=null, busy=false, generation=0, reviewIntent=null;
-  const unconfirmed=new Map();
+  const writeIntents=window.__rdCreateWriteIntents("expense");
+  const receiptId=/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i;
+  let ownerId=null,rows=null,read=null,busy=false,generation=0,writeUncertain=false;
   const currencyFormat=new Intl.NumberFormat("ru-RU",{maximumFractionDigits:2});
   const countRules=new Intl.PluralRules("ru-RU");
   const countLabels={one:"запись",few:"записи",many:"записей"};
@@ -38,10 +39,9 @@ window.__rdCreateExpenses = function createExpenses({root, dbRequest, loadExpens
     status.textContent=text;
     status.classList.toggle("is-success",success);
   }
-  function setEditorStatus(text,intent=null){
-    reviewIntent=intent;
+  function setEditorStatus(text,uncertain=false){
+    writeUncertain=uncertain;
     editor("exMessage").textContent=text;
-    editor("exReview").hidden=intent===null;
   }
   function syncDialogViewport(){
     if(!viewport)return;
@@ -66,12 +66,11 @@ window.__rdCreateExpenses = function createExpenses({root, dbRequest, loadExpens
     }
   }
   function close(){
-    if(dialog.open)closeEditor(busy||reviewIntent!==null);
+    if(dialog.open)closeEditor(busy||writeUncertain);
   }
   function setSaving(saving){
     editor("exFields").disabled=saving;
     editor("exClose").disabled=saving;
-    editor("exReview").disabled=saving;
     const save=editor("exSave");
     save.disabled=saving;
     save.textContent=saving?"Сохраняем…":"Сохранить расход";
@@ -149,7 +148,6 @@ window.__rdCreateExpenses = function createExpenses({root, dbRequest, loadExpens
     const pending=(ledger||loadExpenses()).then(operations=>{
       if(read!==pending)return;
       useOperations(operations);
-      for(const expense of unconfirmed.values())expense.historyLoaded=true;
       setLoadStatus("");
     }).catch(error=>{
       if(read!==pending)return;
@@ -208,30 +206,28 @@ window.__rdCreateExpenses = function createExpenses({root, dbRequest, loadExpens
     if(order&&!/^\d{1,8}$/.test(order)){setEditorStatus("Номер заказа должен содержать только цифры.");return}
     const note="["+category+"]"+(detail?" "+detail:"")+(order?" · Заказ №"+order:"");
     if(note.length>240){setEditorStatus("Сократите описание расхода.");return}
-    const intent=JSON.stringify([amount,note]);
-    const previous=unconfirmed.get(intent);
-    if(previous){
-      if(!previous.historyLoaded||!previous.reviewed){
-        setEditorStatus("Проверьте историю перед повтором.",intent);
-        return;
-      }
-      if(!confirm("Проверьте историю. Подтвердите, что предыдущая запись не появилась и расход нужно сохранить."))return;
-    }
     const account=generation;
+    const payload={p_amount:amount,p_note:note};
     busy=true;
     setSaving(true);
     setEditorStatus("");
+    let submitted=false,missingReceipt=false;
     try{
-      await dbRequest("rpc/rabota_finance_record","POST",{
-        p_kind:"expense",p_amount:amount,p_master_user_id:null,p_note:note
-      });
+      const intent=await writeIntents.get(ownerId,payload);
+      if(account!==generation)return;
+      submitted=true;
+      const receipt=await dbRequest("rpc/rabota_record_expense_v1","POST",{...payload,p_request_id:intent.requestId});
+      if(typeof receipt!=="string"||!receiptId.test(receipt)){
+        missingReceipt=true;
+        throw Error("Не удалось получить подтверждение расхода.");
+      }
+      try{await writeIntents.finish(intent)}catch(error){console.warn("Не удалось очистить номер подтверждённого расхода.",error);}
     }catch(error){
       if(account===generation){
-        if(uncertainWrite(error)){
-          unconfirmed.set(intent,{historyLoaded:false,reviewed:false});
+        if(submitted&&(missingReceipt||uncertainWrite(error))){
           selectedMonth=null;
           draw();
-          setEditorStatus("Не удалось подтвердить запись. Проверьте историю перед повтором.",intent);
+          setEditorStatus("Не удалось подтвердить запись. Повторите сохранение с теми же данными.",true);
           void refreshAfterWrite();
         }else setEditorStatus(error?.message||"Не удалось сохранить расход.");
       }
@@ -243,7 +239,6 @@ window.__rdCreateExpenses = function createExpenses({root, dbRequest, loadExpens
       }
     }
     if(account!==generation)return;
-    unconfirmed.delete(intent);
     selectedMonth=null;
     draw();
     closeEditor();
@@ -257,7 +252,6 @@ window.__rdCreateExpenses = function createExpenses({root, dbRequest, loadExpens
     read=null;
     busy=false;
     selectedMonth=null;
-    unconfirmed.clear();
     closeEditor();
     setSaving(false);
     setStatus("");
@@ -285,16 +279,6 @@ window.__rdCreateExpenses = function createExpenses({root, dbRequest, loadExpens
   dialog.addEventListener("cancel",event=>{
     event.preventDefault();
     if(!busy)close();
-  });
-  editor("exReview").addEventListener("click",()=>{
-    const pending=unconfirmed.get(reviewIntent);
-    if(busy||!pending)return;
-    pending.reviewed=true;
-    closeEditor(true);
-    const heading=$("exHistoryTitle");
-    heading.focus({preventScroll:true});
-    heading.scrollIntoView({block:"nearest"});
-    if(!$("exRetry").hidden)void refresh();
   });
   form.addEventListener("submit",event=>void submit(event));
   $("exRetry").addEventListener("click",()=>void refresh());

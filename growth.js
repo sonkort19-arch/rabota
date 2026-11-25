@@ -79,36 +79,53 @@ window.__rdCreateGrowth = function createGrowth({root, dbRequest, scrollToTop = 
   async function toggleTask(item, checked, input) {
     if (!ownerId || pendingTasks.has(item.id)) return;
     const account = generation;
-    pendingTasks.set(item.id, checked);
+    const write = { checked, reconcile: false };
+    pendingTasks.set(item.id, write);
     input.disabled = true;
     notice("");
+    let invalidReceipt = false;
     try {
       const stamp = new Date().toISOString();
       const payload = { completed: checked, completed_at: checked ? stamp : null, updated_at: stamp };
       const updated = await dbRequest("rabota_growth_plan?id=eq." + encodeURIComponent(item.id) +
         "&owner_id=eq." + encodeURIComponent(ownerId), "PATCH", payload);
       if (account !== generation) return;
-      if (!Array.isArray(updated) || updated.length !== 1)
-        throw new Error("Не удалось сохранить отметку. Проверьте доступ и повторите попытку.");
+      if (!Array.isArray(updated) || updated.length !== 1 || typeof updated[0]?.completed !== "boolean") {
+        invalidReceipt = true;
+        throw new Error("Не удалось подтвердить отметку.");
+      }
       const completion = { completed: Boolean(updated[0].completed), completed_at: updated[0].completed_at };
       if (rows) rows = rows.map(row => row.id === item.id ? { ...row, ...completion } : row);
       // A read that started before the write may still return the previous mark.
       read?.completions.set(item.id, completion);
     } catch (error) {
-      if (account === generation) notice(error?.message || "Не удалось сохранить отметку.");
+      if (account !== generation) return;
+      const status = Number(error?.status);
+      if (!invalidReceipt && !(error instanceof TypeError) && error?.name !== "AbortError" && status !== 408 && !(status >= 500)) {
+        notice(error?.message || "Не удалось сохранить отметку.");
+        return;
+      }
+      write.reconcile = true;
+      notice("Проверяем состояние отметки после сбоя связи…");
+      render();
+      // A read that started before the write cannot confirm its outcome.
+      read = null;
+      await refresh();
     } finally {
-      if (account === generation) {
+      if (account === generation && !write.reconcile && pendingTasks.get(item.id) === write) {
         pendingTasks.delete(item.id);
         render();
       }
     }
   }
   function taskRow(item, info) {
-    const row = el("label", "gw-task" + (item.completed ? " is-complete" : ""));
+    const write = pendingTasks.get(item.id);
+    const row = el("label", "gw-task" + (item.completed && !write?.reconcile ? " is-complete" : ""));
     const input = el("input", "gw-check");
     input.type = "checkbox";
-    input.checked = pendingTasks.get(item.id) ?? Boolean(item.completed);
-    input.disabled = pendingTasks.has(item.id);
+    input.checked = write?.reconcile ? false : write?.checked ?? Boolean(item.completed);
+    input.indeterminate = Boolean(write?.reconcile);
+    input.disabled = Boolean(write);
     input.setAttribute("aria-label", item.title);
     input.addEventListener("change", () => void toggleTask(item, input.checked, input));
     const copy = el("span", "gw-task-label");
@@ -244,7 +261,10 @@ window.__rdCreateGrowth = function createGrowth({root, dbRequest, scrollToTop = 
     if (rows && renderedOn !== moscowToday()) render();
     if (read) return read.promise;
     setLoadStatus(rows ? "" : "Загружаем задачи…");
-    const pending = { completions: new Map() };
+    const pending = {
+      completions: new Map(),
+      checks: [...pendingTasks].filter(([, write]) => write.reconcile)
+    };
     pending.promise = dbRequest("rabota_growth_plan?select=id,owner_id,kind,title,details,start_on,end_on,parent_id,sort_order,target_rub,completed,completed_at" +
       "&order=start_on.asc,sort_order.asc,id.asc&limit=600", "GET").then(result => {
       if (read !== pending) return;
@@ -253,7 +273,15 @@ window.__rdCreateGrowth = function createGrowth({root, dbRequest, scrollToTop = 
         const completion = pending.completions.get(item.id);
         return completion ? { ...item, ...completion } : item;
       });
-      if (JSON.stringify(rows) !== JSON.stringify(next)) {
+      const checked = [];
+      for (const [id, write] of pending.checks) {
+        if (pendingTasks.get(id) !== write) continue;
+        pendingTasks.delete(id);
+        checked.push(next.find(item => item.id === id)?.completed === write.checked);
+      }
+      if (checked.length) notice(checked.every(Boolean) ? "Отметка сохранена." :
+        "Состояние задачи обновлено. При необходимости отметьте её снова.");
+      if (checked.length || JSON.stringify(rows) !== JSON.stringify(next)) {
         rows = next;
         render();
       }
@@ -262,8 +290,11 @@ window.__rdCreateGrowth = function createGrowth({root, dbRequest, scrollToTop = 
       if (read !== pending) return;
       if (error?.status === 401 || error?.status === 403 || error?.code === "42501") {
         rows = null;
+        pendingTasks.clear();
+        notice("");
         render();
       }
+      if (rows && pending.checks.length) notice("Отметка не подтверждена. Повторите загрузку для проверки.");
       const message = error instanceof TypeError ? "Проверьте подключение к интернету." : error?.message;
       setLoadStatus("Не удалось обновить план. " + (message || ""), true);
     }).finally(() => {

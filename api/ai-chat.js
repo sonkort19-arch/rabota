@@ -29,6 +29,7 @@ function amount(value) {
   return Number.isFinite(number) ? number : 0;
 }
 function sum(rows,fn){return roundMoney(rows.reduce((n,row)=>n+amount(fn(row)),0))}
+const isMarkedPaid=order=>order.paid&&order.status!=="Отменён";
 function clientKey(row){
   const digits=String(row.phone||"").replace(/\D/g,"");
   return digits.length>=10 ? "phone:"+digits.slice(-10) : "name:"+String(row.name||"").trim().toLocaleLowerCase("ru-RU");
@@ -104,11 +105,12 @@ async function businessSnapshot(tokenHeaders, question) {
    ]);
    accounting=calculateRecordedCashFlow({payroll,operations,manualEntries});
  }
- const refundedOrders=new Set((payroll?.refunds??[]).map(row=>row.orderId));
+ const refundRows=payroll?.accounting?.refunds??payroll?.refunds??[];
+ const refundedOrders=new Set(refundRows.map(row=>row.orderId));
  const orders=orderRows.map(row=>({...row,createdDay:moscowDate(row.created_at),
   status:refundedOrders.has(row.id)?"Отменён":row.status,
   price:row.price==null?null:Number(row.price)}));
- const markedPaidOrders=orders.filter(order=>order.paid&&order.status!=="Отменён");
+ const markedPaidOrders=orders.filter(isMarkedPaid);
  const today=moscowDate(Date.now());
  const thisWeek=monday(today),lastWeek=shiftDate(thisWeek,-7);
  const thisMonth=today.slice(0,7),lastMonth=shiftDate(thisMonth+"-01",-1).slice(0,7);
@@ -132,7 +134,9 @@ async function businessSnapshot(tokenHeaders, question) {
  for(const o of orders) {
   const name=String(o.master||"Не назначен").slice(0,100);
   if(!byMaster[name])byMaster[name]={orders:0,completed:0,paid_orders:0};
-  byMaster[name].orders++;if(o.status==="Выполнен")byMaster[name].completed++;if(o.paid)byMaster[name].paid_orders++;
+  byMaster[name].orders++;
+  if(o.status==="Выполнен")byMaster[name].completed++;
+  if(isMarkedPaid(o))byMaster[name].paid_orders++;
  }
  const nearbyFrom=shiftDate(today,-14),nearbyTo=shiftDate(today,45);
  const booked=orders.filter(o=>o.appointment_date&&o.appointment_date>=nearbyFrom&&

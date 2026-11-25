@@ -155,6 +155,59 @@ test("accounting counts full receipts once regardless of receiver, holds or hist
   assert.equal(flow.companyProfit,16500,"payroll and transfers are not deducted again from profit");
 });
 
+test("recorded cash flow deducts full accounting refunds once across all order assignments",()=>{
+  const refundedAt="2026-11-26T12:00:00Z";
+  const payroll=normalizePayrollSnapshot({...activeAccounting,
+    accounting_receipts:[...activeAccounting.accounting_receipts,receipt("unassigned",6000,{masterId:null})],
+    accounting_refunds:[activeAccounting.refunds[0],
+      {order_id:"other",amount:"12000.00",refunded_at:refundedAt},
+      {order_id:"unassigned",amount:6000,refunded_at:refundedAt}]
+  });
+  assert.deepEqual(payroll.refunds.map(row=>row.orderId),["refunded"],"Payroll refunds stay employee-scoped.");
+  assert.deepEqual(payroll.accounting.refunds.map(row=>row.orderId),["refunded","other","unassigned"]);
+  const flow=calculateRecordedCashFlow({payroll});
+  assert.equal(flow.receiptTotal,59000);
+  assert.equal(flow.refundTotal,36000);
+  assert.equal(flow.netReceiptTotal,23000);
+  assert.deepEqual(flow.netReceiptByMethod,{cash:18000,card:0,unknown:5000});
+  assert.equal(flow.recordedNet,20400);
+  assert.equal(flow.companyShare,5000);
+  assert.deepEqual(flow.refunds.map(row=>[row.orderId,row.method]),[
+    ["refunded","card"],["other","card"],["unassigned","cash"]
+  ]);
+});
+
+test("masters without payroll still receive their own verified refunds in the accounting journal",()=>{
+  const raw={version:3,state:"not_applicable",accounting_version:1,
+    accounting_receipts:[receipt("other",12000,{masterId:"other-master",method:"card"})],
+    accounting_refunds:[{order_id:"other",amount:12000,refunded_at:"2026-11-26T12:00:00Z"}]};
+  const payroll=normalizePayrollSnapshot(raw);
+  assert.equal(payroll.refunds,undefined);
+  assert.deepEqual(payroll.accounting.refunds,[
+    {orderId:"other",amount:12000,occurredAt:"2026-11-26T12:00:00Z"}
+  ]);
+  assert.equal(calculateRecordedCashFlow({payroll}),null);
+  const empty=normalizePayrollSnapshot({...raw,accounting_refunds:[]});
+  assert.deepEqual(empty.accounting.refunds,[]);
+  delete raw.accounting_refunds;
+  assert.equal(Object.hasOwn(normalizePayrollSnapshot(raw).accounting,"refunds"),false);
+});
+
+test("rejects unverifiable accounting refunds without falling back to payroll",()=>{
+  const refund={order_id:"other",amount:12000,refunded_at:"2026-11-26T12:00:00Z"};
+  for(const accounting_refunds of [null,{},[refund,refund],
+    [{...refund,refunded_at:"incorrect-date"}],[{...refund,amount:0}]]){
+    assert.throws(()=>normalizePayrollSnapshot({...activeAccounting,accounting_refunds}),/учтённ.+возврат/);
+  }
+  for(const invalid of [{...refund,order_id:"missing-receipt"},{...refund,amount:11999}]){
+    assert.throws(()=>normalizePayrollSnapshot({...activeAccounting,accounting_refunds:[invalid]}),
+      /возврат без соответствующего поступления/);
+  }
+  assert.throws(()=>normalizePayrollSnapshot({version:3,state:"not_applicable",accounting_refunds:[]}),/без версии/);
+  assert.throws(()=>normalizePayrollSnapshot({version:3,state:"not_applicable",accounting_version:1,
+    accounting_refunds:[]}),/неполный журнал/);
+});
+
 test("only a validated owner accounting snapshot can produce accounting totals",()=>{
   const legacy={...activeAccounting};
   for(const key of ["accounting_version","accounting_receipts","accounting_payouts"])delete legacy[key];

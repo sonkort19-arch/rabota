@@ -18,8 +18,8 @@ test("New order draft only opens after successful database save and not for edit
   assert.ok(block.indexOf("await persistOrder(order,")<block.indexOf('openClientDraft(order,"booking")'));
   assert.ok(block.indexOf("if(result.refreshError||paymentError)return;")>=0);
   assert.ok(block.indexOf("if(result.refreshError||paymentError)return;")<block.indexOf('openClientDraft(order,"booking")'));
-  assert.match(block,/if\(!existing && order\.status==="Записан"\)openClientDraft\(order,"booking"\)/);
-  assert.match(block,/else if\(existing && existing\.status!=="Выполнен" && order\.status==="Выполнен"\)/);
+  assert.match(block,/if\(!original && order\.status==="Записан"\)openClientDraft\(order,"booking"\)/);
+  assert.match(block,/else if\(original && original\.status!=="Выполнен" && order\.status==="Выполнен"\)/);
 });
 test("Completion draft gated on real completed order in refreshed data",()=>{
   const block=between("function openCompletedClientDraft(previousOrder) {","// One confirmation replaces");

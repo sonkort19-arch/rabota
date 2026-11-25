@@ -80,8 +80,8 @@ async function fixture(browser,{source=root,latency=0,role="owner",width=390,pay
   const member={owner,master,manager,"other-master":otherMaster}[role];
   const state={rows:rows.slice(),orders:role==="manager"?[...sales,managerOrder]:sales,
     holds:new Map(),fail:new Set(),denied:new Set(),
-    lostPayoutResponse:false,collections:[]};
-  const payoutReceipts=new Map();
+    lostPayoutResponse:false,lostCashbookResponse:false,invalidCashbookReceipt:false,collections:[]};
+  const payoutReceipts=new Map(),cashbookReceipts=new Map();
   const payroll={
     version:3,state:"active",master_id:master.user_id,activated_at:stamp,accounting_version:1,
     earned:salaryEarned,paid:priorPayout,due:amountDue,
@@ -124,12 +124,17 @@ async function fixture(browser,{source=root,latency=0,role="owner",width=390,pay
     if(state.fail.delete(resource))return route.fulfill({status:503,json:{message:"Тестовый сетевой сбой"}});
     if(resource===payrollSnapshotRpc&&payrollV3){
       assert.equal(request.method(),"GET");
+      const scoped=role==="owner"?officialReceipts:officialReceipts.filter(receipt=>receipt.master_id===member.user_id);
+      const accounting={accounting_receipts:scoped};
+      if(state.accountingRefunds){
+        const receiptIds=new Set(scoped.map(receipt=>receipt.order_id));
+        accounting.accounting_refunds=state.accountingRefunds.filter(refund=>receiptIds.has(refund.order_id));
+      }
       if(role==="owner")return route.fulfill({json:{...payroll,
-        accounting_receipts:officialReceipts,accounting_payouts:payroll.payouts}});
-      const scoped=officialReceipts.filter(receipt=>receipt.master_id===member.user_id);
-      if(role==="master")return route.fulfill({json:{...payroll,accounting_receipts:scoped}});
+        ...accounting,accounting_payouts:payroll.payouts}});
+      if(role==="master")return route.fulfill({json:{...payroll,...accounting}});
       return route.fulfill({json:{version:3,state:"not_applicable",activated_at:stamp,
-        accounting_version:1,...(role==="other-master"?{accounting_receipts:scoped}:{})}});
+        accounting_version:1,...(role==="other-master"?accounting:{})}});
     }
     if(request.method()!=="GET"){
       const data=request.postDataJSON();
@@ -168,11 +173,26 @@ async function fixture(browser,{source=root,latency=0,role="owner",width=390,pay
         return route.fulfill({json:result});
       }
       assert.equal(resource,"rabota_cashbook_record_v1");
-      state.rows=[...state.rows,{
-        id:"new-entry-"+writes.length,kind:data.p_kind,amount:data.p_amount,
-        from_account:data.p_from_account,to_account:data.p_to_account,created_at:stamp,note:data.p_note
-      }];
-      return route.fulfill({json:true});
+      assert.equal(role,"owner");
+      assert.match(data.p_request_id,/^[\da-f]{8}(?:-[\da-f]{4}){3}-[\da-f]{12}$/i);
+      let receipt=cashbookReceipts.get(data.p_request_id);
+      if(receipt)assert.deepEqual(data,receipt.data,"cashbook retries use the original payload");
+      else{
+        const id="b0000001-0000-4000-8000-"+String(cashbookReceipts.size+1).padStart(12,"0");
+        receipt={data,id};
+        cashbookReceipts.set(data.p_request_id,receipt);
+        state.rows=[...state.rows,{id,kind:data.p_kind,amount:data.p_amount,
+          from_account:data.p_from_account,to_account:data.p_to_account,created_at:stamp,note:data.p_note}];
+      }
+      if(state.lostCashbookResponse){
+        state.lostCashbookResponse=false;
+        return route.abort("connectionreset");
+      }
+      if(state.invalidCashbookReceipt){
+        state.invalidCashbookReceipt=false;
+        return route.fulfill({json:true});
+      }
+      return route.fulfill({json:receipt.id});
     }
     let json=[];
     if(resource==="user")json={id:member.user_id};
@@ -214,7 +234,7 @@ async function assertOwnerTotals(page,balance,expenses=500,payouts=priorPayout){
     ?.querySelector('strong')?.textContent.replace(/\s/g,'')===expected,formatMoney(balance));
   for(const [label,amount] of [
     ["Оплаты заказов",grossReceipts],["Возвраты клиентам",refundedAmount],
-    ["Расходы",expenses],["Выплаты зарплаты",payouts],["Остаток учётной кассы",balance]
+    ["Расходы CRM и кассы",expenses],["Выплаты зарплаты",payouts],["Остаток учётной кассы",balance]
   ]){
     const value=stats.locator(".mw-money-stat").filter({hasText:label}).locator("strong");
     assert.equal(cleanMoney(await value.innerText()),formatMoney(amount),label);
@@ -366,6 +386,59 @@ async function ownerCashbook(browser){
     assert.equal(writes.length,2);
     assert.equal(writes[1].data.p_kind,"expense");
     await assertOwnerTotals(page,startingBookBalance+175-25.5,525.5);
+    const history=page.locator(".mw-owner-history");
+    await history.locator(".mw-owner-row").filter({hasText:"Тестовый расход из кассы"})
+      .getByText("Расход кассы",{exact:true}).waitFor();
+    await history.locator(".mw-owner-row").filter({hasText:"Материалы"})
+      .getByText("Расход CRM",{exact:true}).waitFor();
+    await dock(page,"expenses").click();
+    const crmExpenses=page.locator("#exMain");
+    await crmExpenses.getByText("Расходы CRM за месяц",{exact:true}).waitFor();
+    await crmExpenses.getByText("Расходы учётной кассы — в «Платежах».",{exact:true}).waitFor();
+    await crmExpenses.getByText("Материалы",{exact:true}).waitFor();
+    assert.equal(cleanMoney(await page.locator("#exMonthlyTotal").innerText()),"500₽");
+    assert.equal(await crmExpenses.getByText("Тестовый расход из кассы",{exact:true}).count(),0);
+    await dock(page,"finance").click();
+
+    const lostNote="Сбой подтверждения расхода кассы";
+    const cashbookEntries=page.locator(".mw-owner-row").filter({hasText:lostNote});
+    async function openIdenticalCashbookExpense(){
+      await page.locator(".mw-owner-create").click();
+      await page.getByRole("button",{name:"− Создать расход",exact:true}).click();
+      const dialog=page.getByRole("dialog",{name:"Создать расход"});
+      await dialog.getByLabel("Сумма, ₽").fill("10,75");
+      await dialog.getByLabel("Комментарий").fill(lostNote);
+      return dialog;
+    }
+    state.lostCashbookResponse=true;
+    let retry=await openIdenticalCashbookExpense();
+    await retry.getByRole("button",{name:"Сохранить",exact:true}).click();
+    await retry.getByRole("alert").getByText(/Не удалось подтвердить запись/).waitFor();
+    const id=writes.at(-1).data.p_request_id;
+    assert.equal(await page.getByText("Операция сохранена.",{exact:true}).isVisible(),false);
+
+    state.invalidCashbookReceipt=true;
+    await retry.getByRole("button",{name:"Сохранить",exact:true}).click();
+    await retry.getByRole("alert").getByText(/Не удалось подтвердить запись/).waitFor();
+    assert.equal(writes.at(-1).data.p_request_id,id,"a malformed receipt retains the original intent");
+    await retry.getByRole("button",{name:"Отмена",exact:true}).click();
+    await cashbookEntries.waitFor();
+    await page.reload();
+    retry=await openIdenticalCashbookExpense();
+    await retry.getByRole("button",{name:"Сохранить",exact:true}).click();
+    await retry.waitFor({state:"hidden"});
+    await page.getByText("Операция сохранена.",{exact:true}).waitFor();
+    assert.equal(writes.at(-1).data.p_request_id,id,"the exact cashbook retry survives close and reload");
+    assert.equal(await cashbookEntries.count(),1);
+
+    retry=await openIdenticalCashbookExpense();
+    await retry.getByRole("button",{name:"Сохранить",exact:true}).click();
+    await retry.waitFor({state:"hidden"});
+    assert.notEqual(writes.at(-1).data.p_request_id,id,"a later equal cashbook expense has a fresh intent");
+    await cashbookEntries.nth(1).waitFor();
+    assert.equal(await cashbookEntries.count(),2);
+    await assertOwnerTotals(page,startingBookBalance+175-25.5-21.5,547);
+
     state.denied.add(bookName);
     await page.evaluate(()=>void window.__rdMoneyUi.cashbook({force:true}).catch(()=>{}));
     await page.getByText(/Не удалось загрузить кассу/).waitFor();
@@ -710,6 +783,17 @@ async function v3OtherMaster(browser){
     await row.waitFor();
     assert.equal(await payments.locator(".mw-payment-row").count(),1);
     signedAmount(await row.locator(".mw-payment-amount").innerText(),"+",masterCardPayment);
+    f.state.accountingRefunds=[
+      {order_id:refundedOrder.id,amount:refundedAmount,refunded_at:stamp},
+      {order_id:otherSale.id,amount:masterCardPayment,refunded_at:stamp}
+    ];
+    await f.page.evaluate(()=>void window.__rdMoneyUi.reloadPayroll());
+    const refund=paymentRow(payments,otherSale.id,"refund");
+    await refund.waitFor();
+    signedAmount(await refund.locator(".mw-payment-amount").innerText(),"−",masterCardPayment);
+    assert.equal(await payments.locator(".mw-payment-row").count(),2);
+    assert.equal(await paymentRow(payments,refundedOrder.id,"refund").count(),0);
+    assert.match(cleanMoney(await payments.locator("summary strong").innerText()),/^0(?:,00)?₽$/);
     await assertNoCustody(payments,f.calls);
     assert.deepEqual(f.writes,[]);
   }finally{await f.close();}

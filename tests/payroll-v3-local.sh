@@ -108,3 +108,69 @@ echo 'PASS: a future rule change preserves exact earlier earnings and applies on
 db -f tests/sql/accounting-cashbook-baseline.sql
 db -f sql/20261125001322_rabota_accounting_receipts.sql
 db -f tests/sql/accounting-receipts.sql
+
+# Competing writers use the same revision as a PostgREST conditional PATCH.
+db -f tests/sql/order-updated-at-baseline.sql
+db -f sql/20261125095215_rabota_order_updated_at_revision.sql
+db -f tests/sql/order-updated-at-revision.sql
+order='10000000-0000-4000-8000-000000000090'
+revision="$(db -c "SELECT updated_at FROM public.rabota_orders WHERE id='$order'")"
+PGAPPNAME=rabota_order_revision_first db -c "BEGIN; $as_owner
+ WITH saved AS (UPDATE public.rabota_orders SET details='First writer'
+ WHERE id='$order' AND updated_at='$revision'::timestamptz RETURNING id)
+ SELECT 'affected:'||count(*) FROM saved;
+ SELECT pg_sleep(3); COMMIT;" >"$cluster/order-first.log" 2>&1 &
+first_pid=$!
+wait_for "SELECT EXISTS(SELECT 1 FROM pg_stat_activity WHERE application_name='rabota_order_revision_first' AND wait_event='PgSleep')"
+PGAPPNAME=rabota_order_revision_second db -c "BEGIN; $as_owner
+ WITH saved AS (UPDATE public.rabota_orders SET details='Stale second writer'
+ WHERE id='$order' AND updated_at='$revision'::timestamptz RETURNING id)
+ SELECT 'affected:'||count(*) FROM saved; COMMIT;" >"$cluster/order-second.log" 2>&1 &
+second_pid=$!
+wait_for "SELECT EXISTS(SELECT 1 FROM pg_stat_activity WHERE application_name='rabota_order_revision_second' AND wait_event_type='Lock')"
+wait "$first_pid" || { cat "$cluster/order-first.log" >&2; exit 1; }
+wait "$second_pid" || { cat "$cluster/order-second.log" >&2; exit 1; }
+grep -qx 'affected:1' "$cluster/order-first.log"
+grep -qx 'affected:0' "$cluster/order-second.log"
+test "$(db -c "SELECT details='First writer' AND updated_at>'$revision'::timestamptz
+ FROM public.rabota_orders WHERE id='$order'")" = t
+echo 'PASS: concurrent updates with the same order revision affect one row and zero rows respectively'
+
+db -f sql/20261125095418_extend_verified_order_refunds.sql
+db -f tests/sql/verified-order-refunds.sql
+
+# A replay blocked on the winning transaction must return its committed ledger ID.
+db -f sql/20261125095606_rabota_financial_write_retries.sql
+db -f tests/sql/financial-write-retries.sql
+check_financial_replay() {
+  local label="$1" rpc="$2" audit="$3"
+  local first_session="rabota_${label}_retry_first" second_session="rabota_${label}_retry_second"
+  local first_log="$cluster/${label}-retry-first.log" second_log="$cluster/${label}-retry-second.log"
+  local first_pid second_pid first_id second_id
+  PGAPPNAME="$first_session" db -c "BEGIN; $as_owner
+   SELECT 'receipt:'||$rpc; SELECT pg_sleep(3); COMMIT;" >"$first_log" 2>&1 &
+  first_pid=$!
+  wait_for "SELECT EXISTS(SELECT 1 FROM pg_stat_activity WHERE application_name='$first_session' AND wait_event='PgSleep')"
+  PGAPPNAME="$second_session" db -c "BEGIN; $as_owner
+   SELECT 'receipt:'||$rpc; COMMIT;" >"$second_log" 2>&1 &
+  second_pid=$!
+  wait_for "SELECT EXISTS(SELECT 1 FROM pg_stat_activity WHERE application_name='$second_session' AND wait_event='transactionid')"
+  wait "$first_pid" || { cat "$first_log" >&2; return 1; }
+  wait "$second_pid" || { cat "$second_log" >&2; return 1; }
+  first_id="$(sed -n 's/^receipt://p' "$first_log")"
+  second_id="$(sed -n 's/^receipt://p' "$second_log")"
+  test -n "$first_id"
+  test "$first_id" = "$second_id"
+  test "$first_id" = "$(db -c "$audit")"
+}
+expense_request='20000000-0000-4000-8000-000000000103'
+check_financial_replay expense \
+  "public.rabota_record_expense_v1(28.34,'Fixture simultaneous expense','$expense_request')" \
+  "SELECT min(id::text) FROM public.rabota_finance_operations WHERE request_id='$expense_request'
+   HAVING count(*)=1 AND sum(amount)=28.34"
+cashbook_request='20000000-0000-4000-8000-000000000104'
+check_financial_replay cashbook \
+  "public.rabota_cashbook_record_v1('expense',28.34,'card',NULL,'Fixture simultaneous cashbook','$cashbook_request')" \
+  "SELECT min(id::text) FROM public.rabota_cashbook_entries WHERE request_id='$cashbook_request'
+   HAVING count(*)=1 AND sum(amount)=28.34"
+echo 'PASS: concurrent retries for an expense and a cashbook operation return one committed ledger entry each'

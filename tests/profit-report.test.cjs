@@ -61,6 +61,20 @@ test("confirmed refund clears profit and net received while preserving the order
   assert.equal(filterRows([item],{payroll,status:"unpaid"}).length,0);
   assert.match(csvFor([row]),/Подтверждён возврат/);
 });
+test("profit and CSV use the full recorded refunds for other and unassigned masters",()=>{
+  const other=order({id:"other",assignedUserId:"other-master",master:"Олег"});
+  const unassigned=order({id:"unassigned",assignedUserId:null,master:""});
+  const payroll=payrollFor([receipt(other.id,10000,"other-master"),receipt(unassigned.id,10000,null)]);
+  payroll.refunds=[];
+  payroll.accounting.refunds=[{orderId:other.id,amount:10000},{orderId:unassigned.id,amount:10000}];
+  const rows=filterRows([other,unassigned],{payroll,status:"Отменён"});
+  assert.equal(rows.length,2,"The confirmed refund prevails over the earlier order status.");
+  assert.equal(other.status,"Выполнен","The read-only report does not mutate orders.");
+  assert.ok(rows.every(row=>row.reportReceived===0&&row.reportProfit===null&&row.reportRefundedAmount===10000));
+  assert.equal(summary(rows).uncalculated,0);
+  assert.equal(filterRows([other,unassigned],{payroll,status:"paid"}).length,0);
+  assert.equal((csvFor(rows).match(/Подтверждён возврат/g)||[]).length,2);
+});
 test("payroll holds leave customer receipts visible and exclude earnings and margin",()=>{
   const payroll={...payrollFor([receipt("cash-only",16000),receipt("review",10000)]),orders:[
     {orderId:"cash-only",earned:9500,actualPaid:16000,companyShare:6500}
@@ -161,6 +175,16 @@ test("CSV escapes spreadsheet formulas and preserves the order breakdown",()=>{
   assert.match(csv,/Учтённая оплата/);
   assert.match(csv,/3500/);
   assert.match(csv,/№00012/);
+});
+test("CSV exports negative company share as a numeric field while escaping signed or formula-shaped text",()=>{
+  const payroll=payrollFor([receipt("a",1000)],[
+    {orderId:"a",earned:2000,actualPaid:1000,companyShare:-1000}
+  ]);
+  const entry=order({price:1000,paymentAmount:1000,name:"=2+2",master:"-1000"});
+  const csv=csvFor([reportRow(entry,{payroll})]);
+  const row=csv.split("\r\n")[1];
+  assert.match(row,/;"'=2\+2";"'-1000";/);
+  assert.match(row,/;1000;1000;2000;-1000;/);
 });
 
 test("Raul report adapter is assigned-user scoped and guarded by role",()=>{

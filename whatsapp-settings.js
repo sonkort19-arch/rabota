@@ -179,13 +179,15 @@
     restore.addEventListener("click",()=>{
       if(!root.confirm("Вернуть стандартные тексты? Сохранённые ссылки на отзывы останутся без изменений."))return;
       try{
-        // Never wipe the owner's painstakingly configured review URLs.
-        const current=values();
-        const original=wa().saveSettings({
-          ...current,booking:wa().DEFAULT_TEMPLATES.booking,review:wa().DEFAULT_TEMPLATES.review
+        const draft=values(),stored=wa().getSettings();
+        const standard=wa().saveSettings({
+          ...stored,booking:wa().DEFAULT_TEMPLATES.booking,review:wa().DEFAULT_TEMPLATES.review
         });
-        setValues(original);status.classList.remove("is-error");
-        status.textContent="Тексты восстановлены. Все ссылки на отзывы сохранены.";
+        setValues({...standard,reviewUrl:draft.reviewUrl,reviewUrls:draft.reviewUrls});
+        const changed=draft.reviewUrl!==standard.reviewUrl||
+          wa().REVIEW_SOURCE_KEYS.some(key=>draft.reviewUrls[key]!==standard.reviewUrls[key]);
+        status.classList.remove("is-error");
+        status.textContent="Стандартные тексты сохранены."+(changed?" Изменения ссылок сохраните отдельно.":"");
       }catch(error){status.classList.add("is-error");status.textContent=error.message;}
     });
     mounted.push(()=>{

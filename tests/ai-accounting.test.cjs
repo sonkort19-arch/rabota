@@ -119,6 +119,8 @@ test("AI uses full confirmed receipts and separates cash movements from company 
  assert.equal(accounting.recorded_cash_balance,undefined);
  assert.equal(accounting.timur_due,undefined);
  assert.equal(summary.all_time.marked_paid_rub,36000,"an advance remains operational information only");
+ assert.equal(Object.values(summary.by_master).reduce((total,master)=>total+master.paid_orders,0),
+  summary.all_time.marked_paid_orders,"Cancelled orders do not count as paid in either view.");
  assert.match(summary.definitions.accounting,/учтённой прибылью/);
  assert.deepEqual(summary.order_examples,[]);
  assert.doesNotMatch(prompt,/79000000001|Закрытый адрес|Тестовый клиент|private-payout|private-held-payment|Внутренняя пометка|Приватные сведения сверки/);
@@ -148,6 +150,44 @@ test("AI records a verified refund once even while the raw order has the origina
  assert.equal(summary.all_time.marked_paid_rub,26000);
 });
 
+test("AI counts a single fully refunded order as zero paid orders globally and for its assigned master",async t=>{
+ const payroll={...payrollWithAccounting,earned:0,paid:0,due:0,orders:[],payouts:[],holds:[],refunds:[],
+  accounting_receipts:[accountingReceipts[2]],accounting_payouts:[],
+  accounting_refunds:[{order_id:"confirmed",amount:12000,refunded_at:"2026-11-26T12:00:00Z"}]};
+ const f=fixture(t,{payroll,orderData:[orders[2]]});
+ await f.run();
+ assert.equal(f.response.code,200);
+ const {summary}=aiContext(f);
+ assert.equal(summary.all_time.marked_paid_orders,0);
+ assert.equal(summary.all_time.marked_paid_rub,0);
+ assert.equal(summary.by_master["Другой мастер"].paid_orders,0);
+ assert.equal(summary.accounting_rub.net_order_receipts,0);
+});
+
+test("AI applies customer refunds of other and unassigned masters to all accounting totals",async t=>{
+ const unassigned={id:"unassigned",price:8000,status:"Выполнен",paid:true};
+ const refundedAt="2026-11-26T12:00:00Z";
+ const payroll={...payrollWithAccounting,refunds:[],
+  accounting_receipts:[...accountingReceipts,{order_id:unassigned.id,master_id:null,amount:8000,payment_method:"cash"}],
+  accounting_refunds:[{order_id:"confirmed",amount:12000,refunded_at:refundedAt},
+    {order_id:unassigned.id,amount:8000,refunded_at:refundedAt}]};
+ const f=fixture(t,{payroll,orderData:[...orders,unassigned]});
+ await f.run();
+ assert.equal(f.response.code,200);
+ const {summary}=aiContext(f);
+ const accounting=summary.accounting_rub;
+ assert.equal(accounting.completed_paid_order_receipts,40000);
+ assert.equal(accounting.confirmed_refunds,20000);
+ assert.equal(accounting.net_order_receipts,20000);
+ assert.deepEqual(accounting.net_order_receipts_by_method,{cash:10000,card:0,unknown:10000});
+ assert.equal(accounting.net_recorded_movements,16700);
+ assert.equal(accounting.company_share_before_expenses,3500);
+ assert.equal(accounting.company_profit_after_expenses,2700);
+ assert.equal(summary.all_time.marked_paid_rub,24000);
+ assert.equal(summary.by_master["Другой мастер"].paid_orders,0);
+ assert.equal(accounting.raul_accrued,6500);
+});
+
 test("before accounting activation the AI still sees orders with no invented ledger",async t=>{
  const oldSnapshot={...payrollWithAccounting};
  for(const key of ["accounting_version","accounting_receipts","accounting_payouts"])delete oldSnapshot[key];
@@ -171,7 +211,10 @@ test("payroll authorization and malformed data fail closed before any provider c
   {payroll:{version:3,state:"active",orders:[]}},
   {payroll:{version:3,state:"not_applicable"}},
   {payroll:{...payrollWithAccounting,accounting_payouts:null}},
-  {payroll:{...payrollWithAccounting,accounting_receipts:[accountingReceipts[0],accountingReceipts[0]]}}
+  {payroll:{...payrollWithAccounting,accounting_receipts:[accountingReceipts[0],accountingReceipts[0]]}},
+  {payroll:{...payrollWithAccounting,accounting_refunds:[
+    {order_id:"confirmed",amount:11000,refunded_at:"2026-11-26T12:00:00Z"}
+  ]}}
  ])await t.test(JSON.stringify(options),async subtest=>{
   const f=fixture(subtest,options);
   await f.run();

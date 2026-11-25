@@ -35,15 +35,18 @@
       controls.type.value=MASTER_MATERIALS.includes(lead.material)?lead.material:"Другие";
       controls.radiators.value=lead.radiators??"";
       controls.loops.value=lead.loops??"";
-      controls.price.value=lead.price??"";
+      const needsMaster=lead.material==="Чугунные";
+      controls.price.value=!needsMaster&&lead.priceAgreed===true&&Number.isFinite(lead.price)&&lead.price>=0?lead.price:"";
       controls.details.value=safeText(lead.notes).slice(0,1000);
       // A proposed time is never a confirmed booking.
       controls.date.value="";
       controls.time.value="";
       refreshAvailability(getOrders());
+      if(needsMaster)formStatus.textContent="Чугунные радиаторы. Стоимость уточните после консультации мастера.";
       if(PREVIEW_HOST.test(hostname())){
         form.dataset.leadPreview="1";
-        formStatus.textContent="Черновик из лида. В Preview запись заказа отключена.";
+        formStatus.textContent=(needsMaster?formStatus.textContent+" ":"")+
+          "Черновик из лида. В Preview запись заказа отключена.";
       }
     }
     function preventPreviewSubmit(event){

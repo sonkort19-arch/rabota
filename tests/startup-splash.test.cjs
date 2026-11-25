@@ -7,6 +7,8 @@ const html = fs.readFileSync(path.join(__dirname, "..", "index.html"), "utf8");
 const start = html.indexOf('<section id="startupScreen"');
 const end = html.indexOf("</section>", start);
 const splash = start >= 0 && end > start ? html.slice(start, end + "</section>".length) : "";
+const scheduleControls=/<div class="rd-startup-schedule" id="startupSchedule" hidden>[\s\S]*?<\/div>/;
+const normalSplash=splash.replace(scheduleControls,"");
 
 test("startup screen contains the logo only, without captions or progress bar", () => {
   assert.ok(splash, "startupScreen must remain present");
@@ -14,9 +16,10 @@ test("startup screen contains the logo only, without captions or progress bar", 
   assert.ok(splash.includes('class="rd-startup-droplet"'));
   assert.ok(splash.includes('class="rd-startup-flow"'));
   for (const tag of ["<h1", "<h2", "<p>", "<p ", "<span", "<button", "<img"]) {
-    assert.ok(!splash.includes(tag), "unexpected text/control element: " + tag);
+    assert.ok(!normalSplash.includes(tag), "unexpected text/control element: " + tag);
   }
-  assert.equal(splash.replace(/<[^>]*>/g, "").trim(), "");
+  assert.equal(normalSplash.replace(/<[^>]*>/g, "").trim(), "");
+  assert.match(splash,scheduleControls);
 });
 
 test("splash remains accessible and supports reduced motion", () => {
@@ -45,7 +48,7 @@ test("premium splash softly animates halo, water, and droplet without adding vis
   assert.match(splash,/pathLength="320"/,"existing water-flow geometry retained");
   assert.match(css,/prefers-reduced-motion:reduce/);
   assert.match(css,/\.rd-startup-flow,\.rd-startup-content::before\{animation:none!important\}/);
-  assert.doesNotMatch(splash,/<img|<video|<script|<h1|<p[\s>]/);
+  assert.doesNotMatch(normalSplash,/<img|<video|<script|<h1|<p[\s>]/);
 });
 
 test("iOS Home Screen launch images are pixel-exact PNGs and linked in HTML",()=>{

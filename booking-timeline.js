@@ -3,6 +3,11 @@
  * The existing RPC/duplicate-start checks remain authoritative. */
 "use strict";
 (function(root){
+  const MINUTES_PER_DAY=24*60;
+  function dayNumber(date){
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(String(date||"")))return NaN;
+    return Date.parse(date+"T00:00:00Z")/86400000;
+  }
   function minute(value){
     const m=/^([01]\d|2[0-3]):([0-5]\d)(?::[0-5]\d)?$/.exec(String(value||""));
     return m?Number(m[1])*60+Number(m[2]):null;
@@ -14,7 +19,7 @@
   }
   function format(mins){
     if(!Number.isFinite(mins)||mins<0)return "—";
-    const days=Math.floor(mins/1440),within=mins%1440;
+    const days=Math.floor(mins/MINUTES_PER_DAY),within=mins%MINUTES_PER_DAY;
     const value=String(Math.floor(within/60)).padStart(2,"0")+":"+
       String(within%60).padStart(2,"0");
     return days?value+" (+"+days+" дн.)":value;
@@ -32,22 +37,31 @@
   }
   function forDay(orders,date,master,excludeId,travelFn){
     const masterKey=String(master||"").trim().toLocaleLowerCase("ru-RU");
-    if(!masterKey||!date)return [];
-    return (Array.isArray(orders)?orders:[])
-      .filter(order=>order&&order.date===date&&
-        String(order.master||"").trim().toLocaleLowerCase("ru-RU")===masterKey&&
-        (excludeId===null||excludeId===undefined||String(order.id)!==String(excludeId)))
-      .map(order=>estimate(order,travelFn))
-      .filter(Boolean)
-      .sort((a,b)=>a.start-b.start);
+    const selectedDay=dayNumber(date);
+    if(!masterKey||!Number.isFinite(selectedDay)||!Array.isArray(orders))return [];
+    const blocks=[];
+    for(const order of orders){
+      if(!order?.date||order.date>date||
+        String(order.master||"").trim().toLocaleLowerCase("ru-RU")!==masterKey||
+        (excludeId!=null&&String(order.id)===String(excludeId)))continue;
+      const dayOffset=(dayNumber(order.date)-selectedDay)*MINUTES_PER_DAY;
+      if(!Number.isFinite(dayOffset))continue;
+      const block=estimate(order,travelFn);
+      if(block&&(dayOffset===0||(block.end!==null&&block.end+dayOffset>0)))
+        blocks.push({...block,date:order.date,dayOffset});
+    }
+    return blocks.sort((a,b)=>a.dayOffset+a.start-b.dayOffset-b.start);
   }
-  function findAt(orders,time,date,master,excludeId,travelFn){
+  function findInDay(blocks,time){
     const selected=minute(time);
     if(selected===null)return null;
-    return forDay(orders,date,master,excludeId,travelFn).find(block=>
-      block.end!==null&&selected>=block.start&&selected<block.end)||null;
+    return blocks.find(block=>block.end!==null&&
+      selected>=block.start+block.dayOffset&&selected<block.end+block.dayOffset)||null;
   }
-  const api={minute,quantity,format,estimate,forDay,findAt};
+  function findAt(orders,time,date,master,excludeId,travelFn){
+    return findInDay(forDay(orders,date,master,excludeId,travelFn),time);
+  }
+  const api={minute,quantity,format,estimate,forDay,findInDay,findAt};
   if(root)root.__rdBookingTimeline=api;
   if(typeof module!=="undefined"&&module.exports)module.exports=api;
 })(typeof window!=="undefined"?window:null);

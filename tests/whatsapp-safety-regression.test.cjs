@@ -51,7 +51,10 @@ test("A matching Avito link still appears in the draft exactly once",()=>{
 });
 test("Restoring default texts never erases saved or unsaved review URL inputs",()=>{
   const config=fresh();
-  wa.saveSettings({...config,reviewUrls:{...config.reviewUrls,avito:"https://example.org/old"}});
+  const storedLink="https://example.org/old";
+  const customBooking="Ваша запись оформлена, {имя}.";
+  wa.saveSettings({...config,booking:customBooking,review:"Спасибо, {имя}!",
+    reviewUrls:{...config.reviewUrls,avito:storedLink}});
   const handlers=new Map();
   function element(tag){
     const e={tag,children:[],attributes:{},className:"",value:"",hidden:false,style:{},
@@ -95,14 +98,21 @@ test("Restoring default texts never erases saved or unsaved review URL inputs",(
       for(const ch of e.children)walk(ch);
     })(root);
     assert.equal(linkFields.length,1);
-    assert.equal(linkFields[0].value,"https://example.org/old");
-    linkFields[0].value="https://example.org/new"; // Unsaved edit.
+    assert.equal(linkFields[0].value,storedLink);
     const restore=findByClass(root,"wa-settings-restore");
     assert.ok(restore);
-    handlers.get(restore).click();
-    assert.equal(wa.getSettings().reviewUrls.avito,"https://example.org/new");
-    assert.equal(wa.getSettings().booking,wa.DEFAULT_TEMPLATES.booking);
-    assert.equal(wa.getSettings().review,wa.DEFAULT_TEMPLATES.review);
+    for(const draft of ["https://example.org/new","","незаконченная ссылка"]){
+      linkFields[0].value=draft;
+      handlers.get(restore).click();
+      const saved=wa.getSettings();
+      assert.equal(saved.reviewUrls.avito,storedLink);
+      assert.equal(saved.booking,wa.DEFAULT_TEMPLATES.booking);
+      assert.equal(saved.review,wa.DEFAULT_TEMPLATES.review);
+      assert.equal(linkFields[0].value,draft);
+    }
+    linkFields[0].value="";
+    handlers.get(findByClass(root,"wa-settings-save")).click();
+    assert.equal(wa.getSettings().reviewUrls.avito,"","only explicit save applies the cleared draft URL");
   }finally{
     globalThis.document=originalDocument;
     globalThis.window=originalWindow;
@@ -120,5 +130,5 @@ test("Order card offers explicit retry and original blank chat link remains",()=
   assert.match(card,/if\(state!==\"Отменён\"\)/);
   assert.match(card,/openClientDraft\(fresh,fresh\.status===\"Выполнен\"\?\"review\":\"booking\"\)/);
   assert.match(c,/whatsapp-client\.js\?v=20261118-safety-fix-v1/);
-  assert.match(c,/whatsapp-settings\.js\?v=20261125-fixed-header/);
+  assert.match(c,/whatsapp-settings\.js\?v=[\w-]+/);
 });

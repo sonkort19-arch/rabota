@@ -4,6 +4,7 @@
 (()=>{
   const $=id=>document.getElementById(id);
   const owner=()=>!!$("appScreen")?.matches(".rd-owner,.rd-manager");
+  const dayFormatter=new Intl.DateTimeFormat("ru-RU",{day:"numeric",month:"long",timeZone:"UTC"});
   const statuses=[
     ["","Все",'M4 7h16M4 12h16M4 17h16'],
     ["Записан","Записаны",'M7 3v4M17 3v4M3 10h18M8 15l2 2 4-4'],
@@ -73,12 +74,11 @@
       button.setAttribute("aria-pressed",String(active));
     }
   }
-  function formatDay(value){
+  function formatDay(value,today){
     if(!/^\d{4}-\d{2}-\d{2}$/.test(value))return "Без даты";
     const d=new Date(value+"T12:00:00Z");
     if(!Number.isFinite(+d))return "Без даты";
-    const day=new Intl.DateTimeFormat("ru-RU",{day:"numeric",month:"long",timeZone:"UTC"}).format(d);
-    const today=new Intl.DateTimeFormat("sv-SE",{timeZone:"Europe/Moscow",year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date());
+    const day=dayFormatter.format(d);
     return value===today?"Сегодня · "+day:day.charAt(0).toLocaleUpperCase("ru-RU")+day.slice(1);
   }
   function groupVisible(){
@@ -88,15 +88,19 @@
     if(window.__rdOrdersWorkspace?.isActive()&&currentTab==="calendar")return;
     const rows=[...root.querySelectorAll(":scope > .rd-list-row")]
       .filter(card=>!card.hidden);
-    const counts=new Map();
-    for(const row of rows)counts.set(row.dataset.date||"", (counts.get(row.dataset.date||"")||0)+1);
+    const dayCounts=window.__rdOrdersWorkspace?.dayCounts();
+    const counts=dayCounts||new Map();
+    if(!dayCounts){
+      for(const row of rows)counts.set(row.dataset.date||"", (counts.get(row.dataset.date||"")||0)+1);
+    }
+    const today=masterClock().date;
     const seen=new Set();
     for(const row of rows){
       const key=row.dataset.date||"";
       if(seen.has(key))continue;
       seen.add(key);
       const group=make("div","owner-day-heading");
-      const label=make("strong","owner-day-label",formatDay(key));
+      const label=make("strong","owner-day-label",formatDay(key,today));
       const count=make("small","owner-day-count",masterOrderCount(counts.get(key)));
       group.append(label,count);
       root.insertBefore(group,row);
