@@ -193,7 +193,7 @@ test("Master navigation identifies the current section and report back stays in 
 test("the accessible workspace follows the shared title, back, notifications and profile header",()=>{
  const header=html.match(/<header id="rdScreenHeader" hidden>[\s\S]*?<\/header>/)?.[0];
  assert.ok(header,"shared header is present");
- assert.match(header,/id="rdScreenBack"[^>]*aria-label="Назад" hidden[\s\S]*<h1 id="appTitle">Заказы<\/h1>/);
+ assert.match(header,/id="rdScreenBack"[^>]*aria-label="Назад" hidden[\s\S]*<h1 id="appTitle" tabindex="-1">Заказы<\/h1>/);
  assert.match(header,/id="pushBellBtn"[^>]*aria-controls="pushPopover"/);
  assert.match(header,/id="rdProfileTrigger"[^>]*aria-controls="rdProfileMenu"/);
  assert.match(html,/<main id="appScreen" aria-label="CRM «Работа»" hidden>/);
