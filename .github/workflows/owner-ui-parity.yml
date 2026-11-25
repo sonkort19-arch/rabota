@@ -50,7 +50,8 @@ jobs:
   owner-parity-browser:
     runs-on: ubuntu-24.04
     container:
-      image: mcr.microsoft.com/playwright:v1.56.1-noble
+      image: mcr.microsoft.com/playwright:v1.62.1-noble
+      options: --init --shm-size 1g
     timeout-minutes: 20
     steps:
       - name: Checkout candidate
@@ -69,7 +70,7 @@ jobs:
       - name: Shared session and finance model contracts
         run: node --test tests/app-services.test.cjs tests/finance-model.test.cjs
       - name: Install matching Playwright library
-        run: npm install --no-save --ignore-scripts playwright@1.56.1
+        run: npm install --no-save --ignore-scripts playwright@1.62.1
       - name: Owner order list, status icons and fixed navigation in Chromium
         env:
           TEST_BROWSER: chromium

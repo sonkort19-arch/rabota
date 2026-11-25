@@ -1,0 +1,63 @@
+name: Дефект CRM на тестовом стенде
+description: Воспроизводимый результат независимой проверки
+title: "[QA] "
+body:
+  - type: markdown
+    attributes:
+      value: Используйте искусственные данные и тестовые аккаунты. Репозиторий и этот отчёт видны всем.
+  - type: input
+    id: candidate
+    attributes:
+      label: Pull request и проверенный SHA
+      placeholder: "#123 · SHA из /qa-build.json"
+    validations:
+      required: true
+  - type: input
+    id: profile
+    attributes:
+      label: Роль, браузер и размер экрана
+      placeholder: Менеджер, Safari, iPhone 390 px
+    validations:
+      required: true
+  - type: dropdown
+    id: effect
+    attributes:
+      label: Влияние на работу
+      options:
+        - Критическое — нарушен доступ или целостность данных
+        - Блокирует сценарий
+        - Есть способ продолжить
+        - Визуальное
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Шаги воспроизведения
+      description: Укажите номер искусственного заказа, если он нужен.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Ожидаемый результат
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Фактический результат
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Скриншоты и детали
+      description: Добавьте материалы, содержащие только искусственные данные.
+  - type: checkboxes
+    id: privacy
+    attributes:
+      label: Данные в отчёте
+      options:
+        - label: В отчёте и вложениях только искусственные данные, пароли и токены отсутствуют.
+          required: true

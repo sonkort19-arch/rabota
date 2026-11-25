@@ -949,6 +949,12 @@ async function dataFlow(browser) {
       await dialog.locator("#exClose").click();
       await dialog.waitFor({state:"hidden"});
     }
+    async function reloadExpenses(){
+      // WebKit can leave the load event pending after a deliberately aborted write.
+      // Wait for the new document and its actual expense surface.
+      await page.reload({waitUntil:"commit"});
+      await page.locator("#exMain").waitFor({state:"visible"});
+    }
     state.loseResponse.add(expenseRecordRpc);
     const lostNote="Сбой доставки ответа";
     editor=await submitExpense(page,lostNote);
@@ -958,7 +964,7 @@ async function dataFlow(browser) {
     const committed=page.locator("#exList .ex-item").filter({hasText:lostNote});
     await committed.waitFor();
 
-    await page.reload();
+    await reloadExpenses();
     editor=await submitExpense(page,"Сбой  доставки ответа","40,00");
     await editor.locator("#exMessage").getByText("Предыдущий расход уже сохранён.").waitFor();
     const beforeAcknowledgement=writes.length;
@@ -989,7 +995,7 @@ async function dataFlow(browser) {
     assert.notEqual(writes.at(-1).payload.p_request_id,firstTabId,"an independent tab never inherits the first tab's pending ID");
     await secondTab.close();
 
-    await page.reload();
+    await reloadExpenses();
     editor=await submitExpense(page,twoTabsNote,"42.75");
     await editor.locator("#exMessage").getByText(/Предыдущий расход .* не подтверждён/).waitFor();
     state.invalidReceipt.add(expenseRecordRpc);

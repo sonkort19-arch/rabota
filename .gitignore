@@ -1,0 +1,5 @@
+/.vercel/
+/qa-build/
+/.env
+/.env.*
+__pycache__/
