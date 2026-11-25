@@ -137,7 +137,8 @@ async function owner(browser,width){
   assert.equal(await page.locator("#layout").isHidden(),true);
   assert.equal(await page.locator("#messageList").textContent(),"");
   assert.equal(writes.filter(write=>write.role==="assistant").length,1,"old response cannot write to a cleared session");
-  await otherPage.close();
+  // The fixture closes both tabs with their context. Closing just the second
+  // page here can wait indefinitely in WebKit after the intercepted response.
  }finally{await f.close();}
 }
 async function denied(browser,width,role){
