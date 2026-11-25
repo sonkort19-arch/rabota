@@ -50,10 +50,11 @@ test("Owner and master both expose settings, master nav has five items",()=>{
  const style=repoFile("whatsapp-settings.css");
  assert.match(master,/\["settings","Настройки","settings"\]/);
  assert.match(master,/mwMasterSettings/);
- assert.match(master,/window\.__rdWhatsAppSettings\?\.mount\(settings\)/);
+ assert.match(master,/window\.__rdWhatsAppSettings\?\.mount\(settings,\{embedded:typeof window\.__rdSetScreenHeader==="function"\}\)/);
  assert.match(owner,/settings:"Настройки"/);
  assert.match(owner,/id="rdSettings"|sectionView\("rdSettings"/);
+ assert.match(owner,/window\.__rdWhatsAppSettings\?\.mount\(settings,\{embedded:true\}\)/);
  assert.match(style,/repeat\(5,minmax\(0,1fr\)\)/);
- assert.match(index,/whatsapp-settings\.js\?v=20261125-compact-expenses/);
+ assert.match(index,/whatsapp-settings\.js\?v=20261125-fixed-header/);
  assert.match(index,/whatsapp-settings\.css\?v=20261124-wa-focus-v1/);
 });

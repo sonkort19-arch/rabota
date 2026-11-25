@@ -1,4 +1,4 @@
-/* Read-only, synthetic master-notification regression tests.
+/* Synthetic header notification regression tests.
    Run: node tests/master-notifications.js
    No live network, authentication, production clients or Supabase writes. */
 "use strict";
@@ -7,41 +7,44 @@ const path=require("node:path");
 const assert=require("node:assert/strict");
 const src=fs.readFileSync(path.join(__dirname,"..","master-notifications.js"),"utf8");
 const html=fs.readFileSync(path.join(__dirname,"..","index.html"),"utf8");
-const css=fs.readFileSync(path.join(__dirname,"..","master-notifications.css"),"utf8");
-const shellCss=fs.readFileSync(path.join(__dirname,"..","app-shell.css"),"utf8");
 assert.doesNotThrow(()=>new Function(src));
 assert(html.includes('id="pushUnreadCount"')&&html.includes('id="pushPopover"'));
 assert(html.includes('id="pushToggle" type="checkbox" role="switch"'));
 assert.match(html,/src="\/master-notifications\.js\?v=[\w-]+"/);
 const appStart=html.indexOf('<main id="appScreen"');
-const appEnd=html.indexOf('</main>',appStart);
+const header=html.indexOf('id="rdScreenHeader"');
+const actions=html.indexOf('id="rdHeaderActions"');
 const profile=html.indexOf('id="rdProfile"');
 const menu=html.indexOf('id="rdProfileMenu"');
 const panel=html.indexOf('id="masterPushPanel"');
-assert(appStart>=0&&appEnd>appStart&&profile>=0&&menu>profile&&panel>menu&&
-  (panel<appStart||profile>appEnd),"notifications live in the fixed profile outside the scrolling workspace");
-assert(panel<html.indexOf('id="logoutBtn"')&&html.indexOf('id="logoutBtn"')<html.indexOf('id="orderOverlay"'),
-  "profile holds the notification panel and sign-out");
+assert(header>=0&&actions>header&&panel>actions&&profile>panel&&menu>profile&&menu<appStart,
+  "fixed header has separate notifications and profile actions");
+assert(html.indexOf('id="logoutBtn"')>menu&&html.indexOf('id="logoutBtn"')<appStart,"profile holds sign-out");
 assert.equal((html.match(/id="masterPushPanel"/g)||[]).length,1);
 assert(html.indexOf('id="pushToggle"')>html.indexOf('id="pushPopover"'),"push toggle inside popup");
 assert(html.indexOf('id="pushToggle"')<html.indexOf('id="recentNotificationList"'),"switch precedes notification list");
 assert(!html.includes('class="push-widget"'),"large dashboard notification card removed");
-assert.match(shellCss,/#rdProfileMenu #pushBellBtn[\s\S]*?min-height:44px/,"notifications retain a touch target in the profile");
-assert.match(shellCss,/#rdProfileMenu #pushPopover\s*\{\s*position:static/,"notifications expand inside the profile menu");
-assert(css.includes('.push-setting-row'),"popup-only phone notifications setting");
-assert(css.includes("position: absolute;"));
+assert.match(html,/id="pushPopover"[^>]+role="dialog"/);
+assert.match(html,/id="pushRoleMessage"/);
+assert.match(html,/id="pushMasterContent"/);
 class Element{
   constructor(id=""){this.id=id;this.hidden=["pushPopover","pushUnreadCount","testPushBtn"].includes(id);this.checked=false;this.disabled=false;this.children=[];this.attrs={};this.events={};this.textContent="";this.classList={toggle(){}};}
   addEventListener(kind,fn){(this.events[kind]??=[]).push(fn);}
-  fire(kind){return Promise.all((this.events[kind]||[]).map(fn=>fn({target:this,key:kind})));}
+  fire(kind,detail=1){return Promise.all((this.events[kind]||[]).map(fn=>fn({target:this,key:kind,detail})));}
   append(...nodes){this.children.push(...nodes);}
   replaceChildren(...nodes){this.children=[...nodes];}
   setAttribute(name,value){this.attrs[name]=value;}
-  focus(){}
+  focus(){activeElement=this;}
   contains(){return true;}
 }
+let activeElement=null;
+function deferred(){
+  let resolve;
+  const promise=new Promise(done=>{resolve=done;});
+  return {promise,resolve};
+}
 async function run(){
-  const ids=["appScreen","masterPushPanel","pushBellBtn","pushPopover","pushToggle","pushUnreadCount","recentNotificationList","testPushBtn","pushToggleText","pushStatus","closePushPopover","masterStatusReviewList"];
+  const ids=["appScreen","masterPushPanel","pushBellBtn","pushPopover","pushToggle","pushUnreadCount","recentNotificationList","testPushBtn","pushToggleText","pushStatus","closePushPopover","masterStatusReviewList","pushMasterContent","pushRoleMessage"];
   const els=Object.fromEntries(ids.map(id=>[id,new Element(id)]));
   const documentEvents={};
   const doc={getElementById:id=>els[id],addEventListener:(kind,fn)=>{(documentEvents[kind]??=[]).push(fn);}};
@@ -64,9 +67,17 @@ async function run(){
   }};
   const navigator={userAgent:"iPhone",standalone:true,serviceWorker:{getRegistration:async()=>reg,register:async()=>reg,ready:Promise.resolve(reg)}};
   const window={isSecureContext:true,matchMedia:()=>({matches:true}),PushManager:function(){},Notification:function(){}};
-  let notificationReads=0;
+  let notificationReads=0,pauseNextRead=null;
   const dbRequest=async(request,method)=>{
-    if(request.includes("rabota_order_notifications")&&method==="GET"){notificationReads++;return messages;}
+    if(request.includes("rabota_order_notifications")&&method==="GET"){
+      notificationReads++;
+      const rows=messages;
+      if(pauseNextRead){
+        const pending=pauseNextRead;pauseNextRead=null;
+        await pending.promise;
+      }
+      return rows;
+    }
     if(request.includes("rabota_order_notifications")&&method==="PATCH"){
       const message=messages.find(m=>request.includes("id=eq."+m.id));
       if(!message)return [];
@@ -89,31 +100,45 @@ async function run(){
     session:{access_token:"synthetic"},fetch:async()=>({ok:true,json:async()=>({delivered:true})}),
     atob:base64=>Buffer.from(base64,"base64").toString("binary"),Uint8Array
   };
-  new Function(...Object.keys(vars),src)(...Object.values(vars));
+  const setAccess=new Function(...Object.keys(vars),src+"\nreturn (role,id)=>{currentRole=role;currentUser=id?{id}:null;};")(...Object.values(vars));
   window.__rdInitMasterPush();
   assert.equal(notificationReads,1,"Late script initialization and access hook share one initial fetch");
   await window.__rdRefreshMasterNotices();
-  assert.equal(els.pushUnreadCount.textContent,"5","3 new + 2 overdue");
+  assert.equal(els.pushUnreadCount.textContent,"3","Only actual unread assignments appear in the badge");
+  assert.equal(els.pushMasterContent.hidden,false);
+  assert.equal(els.pushRoleMessage.hidden,true);
   assert.equal(els.masterStatusReviewList.hidden,false);
   assert.equal(els.masterStatusReviewList.children.length,3);
+  await els.pushBellBtn.fire("click",0);
+  assert.equal(activeElement,els.closePushPopover,"Keyboard opening focuses the popup close button");
   await els.masterStatusReviewList.children[1].fire("click");
   assert.equal(openedOrder,"past-b");
-  assert.deepEqual(profileClosures,[true],"opening an overdue order closes the parent profile");
+  assert.equal(els.pushPopover.hidden,true,"Opening an overdue order closes the bell popup");
+  assert.deepEqual(profileClosures,[undefined],"Opening the bell closes the separate profile");
   reviews=reviews.slice(0,1);
   await window.__rdRefreshMasterNotices();
-  assert.equal(els.pushUnreadCount.textContent,"4");
+  assert.equal(els.pushUnreadCount.textContent,"3");
   assert.equal(els.masterStatusReviewList.children.length,2);
-  await els.pushBellBtn.fire("click");
+  const openingRead=deferred();pauseNextRead=openingRead;
+  const beforeOpen=notificationReads;
+  const opening=els.pushBellBtn.fire("click");
+  const inFlight=window.__rdRefreshMasterNotices();
+  assert.equal(notificationReads,beforeOpen+1,"An open and a background refresh share one in-flight read");
+  openingRead.resolve();await Promise.all([opening,inFlight]);
   assert.equal(els.pushPopover.hidden,false);
   assert.equal(els.pushBellBtn.attrs["aria-expanded"],"true");
   assert.equal(els.recentNotificationList.children.length,3);
   const markRead=els.recentNotificationList.children[0].children[2];
-  await markRead.fire("click");
+  const stale=deferred();pauseNextRead=stale;
+  const staleRead=window.__rdRefreshMasterNotices();
+  await Promise.all([markRead.fire("click"),markRead.fire("click")]);
+  stale.resolve();await staleRead;
   assert.equal(reads,1);
-  assert.equal(els.pushUnreadCount.textContent,"3","2 new + 1 overdue");
+  assert.equal(els.pushUnreadCount.textContent,"2","A pending read cannot restore an already read notification");
   for(const handler of documentEvents.keydown)handler({key:"Escape"});
   assert.equal(els.pushPopover.hidden,true);
   assert.equal(els.pushBellBtn.attrs["aria-expanded"],"false");
+  assert.equal(activeElement,els.pushBellBtn,"Escape restores focus to the header bell");
   // Allow the initial asynchronous subscription state lookup to finish.
   await Promise.resolve();await Promise.resolve();
   assert.equal(els.pushToggle.checked,true);
@@ -128,6 +153,25 @@ async function run(){
   assert.equal(subscriptionActive,true);
   assert.equal(serverActive,true);
   assert.equal(els.pushToggle.checked,true);
-  console.log("Master bell + push switch regression: PASS");
+  const oldAccount=deferred();pauseNextRead=oldAccount;
+  const previousRead=window.__rdRefreshMasterNotices();
+  const expectedReads=notificationReads;
+  for(const role of ["owner","manager"]){
+    setAccess(role,role+"1");window.__rdResetMasterNotices();window.__rdInitMasterPush();
+    await els.pushBellBtn.fire("click");
+    assert.equal(els.pushPopover.hidden,false,role+" can open notifications");
+    assert.equal(els.pushRoleMessage.hidden,false);
+    assert.equal(els.pushMasterContent.hidden,true);
+    assert.equal(els.pushUnreadCount.hidden,true);
+    assert.equal(els.pushUnreadCount.textContent,"");
+    await window.__rdDisableMasterPush();
+    await markRead.fire("click");
+    assert.equal(reads,1);assert.equal(deletes,1);
+    await els.closePushPopover.fire("click");
+  }
+  oldAccount.resolve();await previousRead;
+  assert.equal(notificationReads,expectedReads,"Other roles never call master notification endpoints");
+  assert.equal(els.pushUnreadCount.hidden,true,"A stale master response cannot restore old data");
+  console.log("Header bell, role scopes, unread races and push switch: PASS");
 }
 run().catch(e=>{console.error(e);process.exitCode=1;});

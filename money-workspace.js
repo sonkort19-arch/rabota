@@ -64,8 +64,8 @@
     payments.setAttribute("aria-label","Платежи мастера");
     const settings=el("section","mw-master-settings");settings.id="mwMasterSettings";settings.hidden=true;
     settings.setAttribute("aria-label","Настройки мастера");
-    window.__rdWhatsAppSettings?.mount(settings);
-    const toolbar=el("section","mw-master-filterbar rd-opening");toolbar.id="mwMasterFilterbar";
+    window.__rdWhatsAppSettings?.mount(settings,{embedded:typeof window.__rdSetScreenHeader==="function"});
+    const toolbar=el("section","mw-master-filterbar");toolbar.id="mwMasterFilterbar";
     toolbar.setAttribute("aria-label","Фильтры заказов");
     const search=el("input","mw-filter-search");search.type="search";
     search.placeholder="Поиск по заказам";search.autocomplete="off";
@@ -147,12 +147,14 @@
       settings=$("mwMasterSettings"),orders=$("ordersArea"),finance=$("financePanel");
     if(!reports||!payments||!orders||!finance)return;
     if(which!==page){
-      window.__rdCloseProfile?.();
+      window.__rdCloseHeaderMenus?.();
       if(restore)scrollPositions.set(page,window.__rdViewportScroll.position());
     }
     page=which;
     window.__rdMasterCurrentPage=page;
     window.__rdCurrentPage=which==="day"||which==="orders"?"orders":which;
+    if(which!=="reports")window.__rdSetScreenHeader?.(
+      {payments:"Платежи",settings:"Настройки"}[which]||"Заказы");
     reports.hidden=which!=="reports";payments.hidden=which!=="payments";
     if(settings)settings.hidden=which!=="settings";
     const filters=$("mwMasterFilterbar");
@@ -277,7 +279,7 @@
       amounts[validMethod(o.method)?o.method:"unknown"]+=o.type==="refund"?-cents:cents;
     }
     const total=(amounts.cash+amounts.card+amounts.unknown)/100;
-    const breakdown=el("details","mw-payment-breakdown rd-opening");
+    const breakdown=el("details","mw-payment-breakdown");
     breakdown.open=paymentBreakdownOpen;
     const summary=el("summary");
     summary.append(el("span","",rows.some(row=>row.type==="refund")?"Оплаты за вычетом возвратов":"Оплачено клиентами"),
@@ -318,7 +320,7 @@
     const reports=$("mwMasterReports");
     const focus=next==="menu"
       ?reports?.querySelector('[data-report="'+previous+'"]')
-      :reports?.querySelector(".pr-back,.fp-report-back");
+      :$("rdScreenBack")||reports?.querySelector(".pr-back,.fp-report-back");
     focus?.focus({preventScroll:true});
   }
   function closeMasterReport(){showMasterReport("menu");}
@@ -328,6 +330,10 @@
     if(!m||m.role!=="master")return;
     const isRaul=String(m.masterName||"").trim().toLocaleLowerCase("ru")==="рауль";
     if(step==="orderProfit"&&!isRaul)step="menu";
+    const embedded=typeof window.__rdSetScreenHeader==="function";
+    const title=step==="orderProfit"?"Прибыль по заказам":step==="detail"?"Зарплата":"Отчёты";
+    if(embedded)window.__rdSetScreenHeader(title,step==="menu"?null:closeMasterReport,
+      step==="menu"?"Назад":"Назад к отчётам");
     if(step==="orderProfit"&&masterProfitReport?.container?.isConnected){
       masterProfitReport.api.render();return;
     }
@@ -338,7 +344,7 @@
     masterPayrollReport=null;
     root.replaceChildren();
     if(step==="menu"){
-      const entry=btn("","mw-entry rd-opening",()=>showMasterReport("detail"));
+      const entry=btn("","mw-entry",()=>showMasterReport("detail"));
       entry.dataset.report="detail";
       entry.append(el("span","mw-entry-icon","▤"),box("mw-entry-copy",
         el("strong","","Зарплата"),el("small","","Баланс, начисления и выплаты")),el("span","mw-chevron","›"));
@@ -354,11 +360,14 @@
       return;
     }
     const unavailable=()=>{
-      const heading=el("header","pr-heading rd-opening");
-      const back=btn("Назад","pr-back",closeMasterReport);
-      back.setAttribute("aria-label","Назад к отчётам");
-      heading.append(back,el("h2","",step==="orderProfit"?"Прибыль по заказам":"Зарплата"));
-      root.append(heading,el("p","mw-error","Отчёт временно недоступен."));
+      if(!embedded){
+        const heading=el("header","pr-heading");
+        const back=btn("Назад","pr-back",closeMasterReport);
+        back.setAttribute("aria-label","Назад к отчётам");
+        heading.append(back,el("h2","",title));
+        root.append(heading);
+      }
+      root.append(el("p","mw-error","Отчёт временно недоступен."));
     };
     if(step==="orderProfit"){
       const maker=window.__rdCreateProfitReport;
@@ -372,7 +381,7 @@
         getFinanceStatus:()=>api()?.snapshot(),
         getPayroll:()=>window.__rdPayrollSnapshot?.(),
         onRetry:financeRetry,
-        startOpen:true,onBack:closeMasterReport
+        startOpen:true,embedded,onBack:closeMasterReport
       });
       masterProfitReport={container,api:report};
       return;
@@ -380,7 +389,7 @@
     if(window.__rdPayrollReport?.mount){
       const container=el("div","fp-master-payroll");
       root.append(container);
-      const report=window.__rdPayrollReport.mount(container,{master:true,
+      const report=window.__rdPayrollReport.mount(container,{master:true,embedded,
         onBack:closeMasterReport
       });
       masterPayrollReport={container,api:report};
@@ -426,7 +435,7 @@
         }));
       const status=readStatus(),receipt=el("p","mw-owner-receipt"),content=el("div","mw-owner-data");
       receipt.setAttribute("role","status");receipt.hidden=true;
-      panel.append(box("mw-owner-payments",box("mw-owner-actions rd-opening",create),menu,status,receipt,content));
+      panel.append(box("mw-owner-payments",box("mw-owner-actions",create),menu,status,receipt,content));
       ownerView={panel,menu,create,status,receipt,content,revision:null,book:null};
     }
     updateOwnerPayments();

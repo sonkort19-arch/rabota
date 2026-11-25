@@ -18,6 +18,8 @@ async function check(browser,role){
     await go(page,"home");
     const home = page.locator("#rdHome");
     await home.waitFor();
+    const header=page.locator("#rdScreenHeader");
+    assert.equal(await header.locator("#appTitle").innerText(),"Главная");
     assert.equal(await home.locator(".rd-home-metrics button").count(),3);
     assert.equal(await home.locator(".rd-home-actions .rd-svgicon").count(),3);
     assert.equal(await page.locator("#rdTopSearch").isVisible(),false);
@@ -57,12 +59,14 @@ async function check(browser,role){
     assert.equal(await clients.count(),1);
     await clients.getByRole("button",{name:"Вся история клиента"}).click();
     const history = page.locator("#rdClientHistory");
-    await history.getByRole("heading",{name:"Тестовый заказ 17"}).waitFor();
+    await history.waitFor();
+    assert.equal(await header.locator("#appTitle").innerText(),"Тестовый заказ 17");
     await history.getByRole("button",{name:"Открыть заявку"}).click();
     await page.locator("#orderOverlay").waitFor();
     assert.equal(await page.locator("#clientName").inputValue(),"Тестовый заказ 17");
     await page.locator("#closeOrderBtn").click();
-    await history.getByRole("button",{name:"Все клиенты"}).click();
+    await header.getByRole("button",{name:"Назад к клиентам"}).click();
+    assert.equal(await header.locator("#appTitle").innerText(),"Клиенты");
     assert.equal(await clients.count(),1,"returning keeps the client search");
     await go(page,"leads");
     const leadSearch=page.locator("#rdLeads #rdLeadSearch");
@@ -82,6 +86,7 @@ async function check(browser,role){
       await go(page,"finance");
       const finance=page.locator("#financePanel");
       await finance.waitFor();
+      assert.equal(await header.locator("#appTitle").innerText(),"Платежи");
       const create=finance.locator(".mw-owner-create");
       await create.click();
       await finance.getByRole("button",{name:/Создать приход/}).waitFor();

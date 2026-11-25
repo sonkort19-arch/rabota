@@ -8,12 +8,12 @@
   };
   let nextId=0;
   const mounted=[];
-  function mount(target){
+  function mount(target,{embedded=false}={}){
     if(!target||target.querySelector(".wa-settings-root"))return;
     if(!wa())return;
     const id=++nextId;
     const rootBox=create("div","wa-settings-root");
-    const entry=create("button","wa-settings-entry rd-opening");
+    const entry=create("button","wa-settings-entry");
     entry.type="button";entry.setAttribute("aria-expanded","false");
     const icon=create("span","wa-settings-symbol");icon.setAttribute("aria-hidden","true");
     // Inline vector icon: no external font, emoji fallback, or extra network request.
@@ -24,12 +24,15 @@
     const editor=create("section","wa-settings-editor");
     editor.id="wa-settings-editor-"+id;editor.hidden=true;
     entry.setAttribute("aria-controls",editor.id);
-    const back=create("button","wa-settings-back rd-opening","← Настройки");back.type="button";
-    const heading=create("h2","wa-settings-heading","WhatsApp · сообщения клиентам");
-    heading.tabIndex=-1;
-    editor.append(back,heading,
-      create("p","wa-settings-intro",
-        "Измени текст один раз. При создании и закрытии заказа он подставится в WhatsApp автоматически. Отправка остаётся ручной."));
+    let back,heading;
+    if(!embedded){
+      back=create("button","wa-settings-back","← Настройки");back.type="button";
+      heading=create("h2","wa-settings-heading","WhatsApp · сообщения клиентам");
+      heading.tabIndex=-1;
+      editor.append(back,heading);
+    }else editor.setAttribute("aria-label","Шаблоны сообщений WhatsApp");
+    editor.append(create("p","wa-settings-intro",
+      "Измени текст один раз. При создании и закрытии заказа он подставится в WhatsApp автоматически. Отправка остаётся ручной."));
     const tokenNames={имя:"Имя",дата:"Дата",время:"Время",мастер:"Мастер",адрес:"Адрес",ссылка:"Ссылка на отзыв"};
     const sample={name:"Александр",phone:"+7 900 000-00-00",date:"2026-11-20",time:"12:00",master:"Рауль",address:"Владикавказ"};
     const forms={},linkFields={};
@@ -132,23 +135,39 @@
         );
       }catch(_){forms.review.preview.textContent="Проверьте текст или ссылку.";}
     }
+    function syncHeader(){
+      if(!embedded||target.hidden||root.__rdCurrentPage!=="settings")return;
+      if(editor.hidden)root.__rdSetScreenHeader?.("Настройки");
+      else root.__rdSetScreenHeader?.("WhatsApp",closeEditor,"Назад к настройкам");
+    }
     function closeEditor(){
       const stored=wa().getSettings();
       if(JSON.stringify(values())!==JSON.stringify(stored)&&
           !root.confirm("Несохранённые изменения будут потеряны. Закрыть?"))return;
       editor.hidden=true;entry.hidden=false;entry.setAttribute("aria-expanded","false");
+      syncHeader();
+      if(embedded)root.__rdViewportScroll?.restore(0);
       entry.focus({preventScroll:true});
     }
     entry.addEventListener("click",(event)=>{
       setValues(wa().getSettings());status.textContent="";
       editor.hidden=false;entry.hidden=true;entry.setAttribute("aria-expanded","true");
       const keyboardActivation=!event||event.detail===0;
+      if(embedded){
+        syncHeader();
+        root.__rdViewportScroll?.restore(0);
+        const headerBack=document.getElementById("rdScreenBack");
+        headerBack?.setAttribute("data-keyboard-open",String(keyboardActivation));
+        const focusTarget=keyboardActivation?headerBack:document.getElementById("appTitle");
+        focusTarget?.focus({preventScroll:true});
+        return;
+      }
       // WebKit may not show :focus-visible after programmatic focus.
       back.setAttribute("data-keyboard-open",String(keyboardActivation));
       if(keyboardActivation)back.focus({preventScroll:true});
       else heading.focus({preventScroll:true});
     });
-    back.addEventListener("click",closeEditor);
+    back?.addEventListener("click",closeEditor);
     save.addEventListener("click",()=>{
       status.classList.remove("is-error");
       try{
@@ -169,11 +188,12 @@
         status.textContent="Тексты восстановлены. Все ссылки на отзывы сохранены.";
       }catch(error){status.classList.add("is-error");status.textContent=error.message;}
     });
-    mounted.push({root:rootBox,refresh:()=>{
+    mounted.push(()=>{
       if(editor.hidden)setValues(wa().getSettings());
-    }});
+      syncHeader();
+    });
   }
   root.__rdWhatsAppSettings={mount,refresh(){
-    for(const item of mounted)item.refresh();
+    for(const refresh of mounted)refresh();
   }};
 })(typeof window!=="undefined"?window:globalThis);

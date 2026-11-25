@@ -311,16 +311,20 @@
    return wrap;
  }
  window.__rdPayrollReport={
-   mount(root,{onBack,master=false}){
+   mount(root,{onBack,master=false,embedded=false}){
      const v3State={view:"accruals",month:"all"};
-     const back=button("Назад","fp-link fp-report-back",()=>onBack?.());
-     back.setAttribute("aria-label","Назад к отчётам");
-     const heading=el("header","fp-report-head rd-opening");
-     heading.append(back,el("h2","fp-report-title","Зарплата"));
      const status=el("p","fp-status-text"),content=el("div","");
      const retry=button("Повторить","secondary fp-retry",()=>void window.__rdMoneyUi?.reloadPayroll?.());
      const state=div("fp-data-status",status,retry);
-     root.replaceChildren(heading,state,content);
+     const children=[state,content];
+     if(!embedded){
+       const back=button("Назад","fp-link fp-report-back",()=>onBack?.());
+       back.setAttribute("aria-label","Назад к отчётам");
+       const heading=el("header","fp-report-head");
+       heading.append(back,el("h2","fp-report-title","Зарплата"));
+       children.unshift(heading);
+     }
+     root.replaceChildren(...children);
      let rendered=null;
      const redraw=()=>{
        const m=payroll();

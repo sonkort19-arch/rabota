@@ -163,26 +163,29 @@
     return el;
   }
   function mount(rootEl,{getOrders,getRaulMasterId=null,getFinanceStatus=null,getPayroll=null,
-    startOpen=false,onBack=null,onOpenChange=null,onRetry=null}){
+    startOpen=false,embedded=false,onBack=null,onOpenChange=null,onRetry=null}){
     if(!rootEl||typeof getOrders!=="function")throw Error("Отчёт не может загрузиться");
     rootEl.classList.add("pr-report-scope");
     const state={open:false,period:"month",basis:"closed",status:"",search:"",from:"",to:"",visible:PAGE_SIZE};
     const expanded=new Set();
     let renderKey=null,renderedOrders=null;
     const menu=node("div","pr-menu");
+    const detail=node("section","pr-detail");detail.hidden=true;
+    let back=null;
+    if(!embedded){
+      const heading=node("header","pr-heading");
+      back=button("Назад","pr-back",()=>onBack?onBack():setOpen(false));
+      back.setAttribute("aria-label","Назад к отчётам");
+      heading.append(back,node("h2","","Прибыль по заказам"));
+      detail.append(heading);
+    }
     const card=button("Прибыль по заказам","pr-report-link",()=>{
       setOpen(true);
-      back.focus({preventScroll:true});
+      back?.focus({preventScroll:true});
     });
     card.append(node("span","pr-report-arrow","›"));
     const desc=node("p","pr-description","Список заказов, оплата, зарплата мастерам и доля компании.");
     menu.append(card,desc);
-    const detail=node("section","pr-detail");detail.hidden=true;
-    const heading=node("header","pr-heading rd-opening");
-    const back=button("Назад","pr-back",()=>onBack?onBack():setOpen(false));
-    back.setAttribute("aria-label","Назад к отчётам");
-    heading.append(back,node("h2","","Прибыль по заказам"));
-    detail.append(heading);
     function setOpen(open){
       if(state.open===open)return;
       state.open=open;menu.hidden=open;detail.hidden=!open;
@@ -366,7 +369,7 @@
       }
     }
     if(startOpen)setOpen(true);
-    return {render};
+    return {render,isOpen:()=>state.open,close:()=>setOpen(false)};
   }
   if(root)root.__rdCreateProfitReport=mount;
   if(typeof module!=="undefined"&&module.exports)module.exports={

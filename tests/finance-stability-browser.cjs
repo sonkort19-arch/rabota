@@ -372,6 +372,16 @@ async function ownerCashbook(browser){
     assert.equal(await data.isVisible(),false,"An explicit access denial clears the old ledger");
   }finally{await f.close();}
 }
+async function assertReportHeading(page,title){
+  const header=page.locator("#rdScreenHeader");
+  const heading=header.getByRole("heading",{name:title,exact:true});
+  const back=header.getByRole("button",{name:"Назад к отчётам",exact:true});
+  assert.equal(await heading.count(),1,"The current report is named in the shared header");
+  assert.equal(await page.getByRole("heading",{name:title,exact:true}).count(),1);
+  assert.equal(await page.locator("#appScreen :is(.pr-heading,.fp-report-head)").count(),0);
+  assert.equal(await back.getAttribute("id"),"rdScreenBack");
+  assert.equal(await back.isVisible(),true);
+}
 async function latePaymentScripts(browser){
   const f=await fixture(browser,{payrollV3:true});
   const payroll=gate(),money=gate();
@@ -387,7 +397,8 @@ async function latePaymentScripts(browser){
     await salary.click();
     const fallback=f.page.locator("#rdSalaryReport");
     await fallback.getByText("Модуль зарплаты недоступен. Обновите страницу.",{exact:true}).waitFor();
-    await fallback.getByRole("button",{name:"Назад к отчётам"}).click();
+    await assertReportHeading(f.page,"Зарплата");
+    await f.page.locator("#rdScreenBack").click();
     assert.equal(await salary.evaluate(node=>node===document.activeElement),true);
     await dock(f.page,"finance").click();
     payroll.release();
@@ -407,15 +418,13 @@ async function ownerReports(browser){
     await profitEntry.click();
     const table=page.locator(".pr-table");
     await table.waitFor();
-    const back=page.getByRole("button",{name:"Назад к отчётам"});
-    assert.equal(await page.locator(".pr-detail .pr-heading h2").textContent(),"Прибыль по заказам");
-    assert.equal(await page.getByRole("heading",{name:"Прибыль по заказам",exact:true}).count(),1);
-    assert.equal(await back.isVisible(),true);
+    const back=page.locator("#rdScreenBack");
+    await assertReportHeading(page,"Прибыль по заказам");
     await page.locator(".pr-row-open").first().click();
     await dock(page,"finance").click();
     assert.equal(await back.isVisible(),false);
     await dock(page,"reports").click();
-    assert.equal(await page.locator(".pr-detail .pr-heading").isVisible(),true);
+    await assertReportHeading(page,"Прибыль по заказам");
     await page.evaluate(()=>{window.initialTotal=document.querySelector(".pr-total-row");});
     state.fail.add("rabota_finance_operations");
     await page.evaluate(()=>void window.__rdMoneyUi.refreshFinance());
@@ -433,8 +442,7 @@ async function ownerReports(browser){
     await salaryEntry.click();
     const salary=v3Report(page);
     await salary.waitFor();
-    assert.equal(await page.locator("#rdSalaryReport .fp-report-head h2").textContent(),"Зарплата");
-    assert.equal(await page.getByRole("heading",{name:"Зарплата",exact:true}).count(),1);
+    await assertReportHeading(page,"Зарплата");
     state.fail.add("rabota_finance_operations");
     await page.evaluate(()=>void window.__rdMoneyUi.refreshFinance());
     await page.getByText(/Показаны последние расчёты зарплаты/).waitFor();
@@ -619,10 +627,8 @@ async function v3Master(browser,width){
     await salaryEntry.click();
     const report=v3Report(page);
     await report.waitFor();
-    const back=page.getByRole("button",{name:"Назад к отчётам"});
-    assert.equal(await page.locator("#mwMasterReports .fp-report-head h2").textContent(),"Зарплата");
-    assert.equal(await page.getByRole("heading",{name:"Зарплата",exact:true}).count(),1);
-    assert.equal(await back.isVisible(),true);
+    const back=page.locator("#rdScreenBack");
+    await assertReportHeading(page,"Зарплата");
     await salaryValues(report,priorPayout,amountDue);
     await assertPhoneFit(report);
     await assertAccrual(report);
@@ -653,12 +659,12 @@ async function v3Master(browser,width){
     assert.equal(await report.locator(".fp-cutover-review").count(),0);
     await assertPhoneFit(payments);
     await nav.locator('[data-mw-page="reports"]').click();
-    assert.equal(await page.locator("#mwMasterReports .fp-report-head").isVisible(),true);
+    await assertReportHeading(page,"Зарплата");
     await back.click();
     assert.equal(await salaryEntry.isVisible(),true);
     assert.equal(await salaryEntry.evaluate(node=>node===document.activeElement),true);
     await page.locator("#mwMasterReports").getByRole("button",{name:/Прибыль по заказам/}).click();
-    assert.equal(await page.getByRole("heading",{name:"Прибыль по заказам",exact:true}).count(),1);
+    await assertReportHeading(page,"Прибыль по заказам");
     await back.click();
     assert.equal(await salaryEntry.isVisible(),true);
     assert.deepEqual(writes,[]);

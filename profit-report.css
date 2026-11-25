@@ -210,7 +210,7 @@ body.rd #rdReports .rd-report-section-items .pr-report-arrow{
 }
 
 
-/* The back button and title are part of the current report. */
+/* Standalone reports include their own title and Back button. */
 body.rd :is(#rdReports,#mwMasterReports,.pr-report-scope) :is(.pr-heading,.fp-report-head){
   display:flex;align-items:center;justify-content:flex-start;gap:8px;
   margin:0 0 8px;min-width:0;

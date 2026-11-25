@@ -144,7 +144,7 @@
     if(mounted||!isActive())return;
     const area=$("ordersArea"),calendar=$("calendarPanel");
     const tools=node("section");tools.id="owTools";tools.setAttribute("aria-label","Управление заказами");
-    const toolbar=node("div","ow-toolbar rd-opening");
+    const toolbar=node("div","ow-toolbar");
     const modes=node("div","ow-view-switch");modes.id="owViewSwitch";modes.setAttribute("role","tablist");modes.setAttribute("aria-label","Вид заказов");
     for(const [value,label] of [["calendar","По дням"],["all","Все заказы"]]){
       const tab=node("button","",label);tab.type="button";tab.dataset.owMode=value;

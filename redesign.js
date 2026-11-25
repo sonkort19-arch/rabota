@@ -176,6 +176,7 @@ function permittedSections(){
  return sections.filter(canOpen);
 }
 let closeMobileMore=()=>{};
+let updateOwnerReportHeader=()=>{};
 const sectionScroll=new Map();
 function build(){
  if(ready)return;
@@ -185,7 +186,7 @@ function build(){
  const nav=makeNode("nav","rd-nav");
  for(const key of permittedSections().filter(key=>key!=="calendar"))nav.append(navButton(key));
  side.append(nav);
- const search=makeNode("input","rd-inline-search rd-opening");
+ const search=makeNode("input","rd-inline-search");
  search.id="rdOrderSearch";search.type="search";search.placeholder="Поиск по заказам";
  search.setAttribute("aria-label","Поиск по заказам");
  search.addEventListener("input",()=>{
@@ -225,14 +226,14 @@ function build(){
   moreSheet.append(navButton(key));
  }
  const setMoreOpen=opening=>{
-  if(opening)window.__rdCloseProfile?.();
+  if(opening)window.__rdCloseHeaderMenus?.();
   moreSheet.hidden=!opening;
   veil.hidden=!opening;
   navMore.setAttribute("aria-expanded",String(opening));
   body.classList.toggle("rd-more-open",opening);
   // The menu is outside the app; background controls must not receive input.
   app.inert=opening;
-  $("rdProfile").inert=opening;
+  if($("rdScreenHeader"))$("rdScreenHeader").inert=opening;
   $("newOrderBtn").inert=opening;
   $("newExpenseBtn").inert=opening;
  };
@@ -254,7 +255,7 @@ function build(){
  body.append(side,veil,moreSheet,mobile);
  window.addEventListener("pagehide",closeMore);
  const syncMobileNavigationVisibility=()=>{
-  if(app.hidden){closeMore();window.__rdCloseProfile?.();}
+  if(app.hidden){closeMore();window.__rdCloseHeaderMenus?.();}
   mobile.hidden=app.hidden;
  };
  new MutationObserver(syncMobileNavigationVisibility).observe(app,{
@@ -263,7 +264,7 @@ function build(){
  syncMobileNavigationVisibility();
  const home=sectionView("rdHome","Главная");
  const leads=sectionView("rdLeads","Лиды");
- const leadSearch=makeNode("input","rd-inline-search rd-opening");
+ const leadSearch=makeNode("input","rd-inline-search");
  leadSearch.id="rdLeadSearch";leadSearch.type="search";leadSearch.placeholder="Поиск по лидам";
  leadSearch.setAttribute("aria-label","Поиск лидов");
  leadSearch.addEventListener("input",()=>{
@@ -273,11 +274,13 @@ function build(){
  leads.append(leadSearch);
  const leadsRoot=makeNode("div","rd-leads-mount");leadsRoot.id="rdLeadsMount";leads.append(leadsRoot);
  const clients=sectionView("rdClients","Клиенты");
- const clientsToolbar=makeNode("div","rd-toolbar rd-opening");
+ const clientsToolbar=makeNode("div","rd-toolbar");
  const clientsInput=makeNode("input","rd-inline-search");clientsInput.id="rdClientSearch";clientsInput.type="search";clientsInput.placeholder="Найти клиента или телефон";clientsInput.setAttribute("aria-label","Поиск клиентов");
  clientsInput.addEventListener("input",()=>{selectedClientKey=null;drawClients()});
  clientsToolbar.id="rdClientToolbar";clientsToolbar.append(clientsInput);clients.append(clientsToolbar);
- clients.append(makeNode("div","rd-client-list"));clients.querySelector(".rd-client-list").id="rdClientsList";
+ const clientsList=makeNode("div","rd-client-list");clientsList.id="rdClientsList";
+ clientsList.tabIndex=-1;
+ clients.append(clientsList);
  const clientHistory=makeNode("section","rd-panel rd-client-history");clientHistory.id="rdClientHistory";clientHistory.hidden=true;clients.append(clientHistory);
  const calendar=sectionView("rdCalendarIntro","Действия календаря");
  calendar.classList.add("rd-calendar-intro");
@@ -487,7 +490,12 @@ function build(){
       getRaulMasterId:()=>window.__rdReportMasterId?.(),
       getPayroll:()=>window.__rdPayrollSnapshot?.(),
       getFinanceStatus:()=>window.__rdFinanceStatus?.(),
-      onOpenChange:()=>restoreVerticalScroll(0)})||null;
+      embedded:true,
+      onOpenChange:open=>{
+        updateOwnerReportHeader();
+        restoreVerticalScroll(0);
+        if(open)$("rdScreenBack")?.focus({preventScroll:true});
+      }})||null;
    const menu=reportsRoot.querySelector(".pr-menu");
    if(menu){
      // Keep the report hub dense: only link real, working reports.
@@ -495,7 +503,6 @@ function build(){
      menu.querySelector(".pr-description")?.remove();
      function reportGroup(title,label,icon,entry){
        const section=makeNode("section","rd-report-section");
-       if(!menu.querySelector(".rd-report-section"))section.classList.add("rd-opening");
        const heading=makeNode("h2","rd-report-section-title",title);
        const items=makeNode("div","rd-report-section-items");
        const arrow=entry.querySelector(".pr-report-arrow")||makeNode("span","pr-report-arrow","›");
@@ -511,22 +518,25 @@ function build(){
      const closeSalary=()=>{
        salaryRoot.hidden=true;salaryRoot.replaceChildren();
        menu.hidden=false;ownerSalaryReport=null;
+       updateOwnerReportHeader();
        restoreVerticalScroll(0);
        openSalary.focus({preventScroll:true});
      };
+     updateOwnerReportHeader=()=>{
+       if(activePage!=="reports")return;
+       if(!salaryRoot.hidden)window.__rdSetScreenHeader?.("Зарплата",closeSalary,"Назад к отчётам");
+       else if(profitReport?.isOpen())window.__rdSetScreenHeader?.("Прибыль по заказам",profitReport.close,"Назад к отчётам");
+       else window.__rdSetScreenHeader?.(titles.reports);
+     };
      openSalary.addEventListener("click",()=>{
        menu.hidden=true;salaryRoot.hidden=false;
-       ownerSalaryReport=window.__rdPayrollReport?.mount(salaryRoot,{onBack:closeSalary})||null;
+       ownerSalaryReport=window.__rdPayrollReport?.mount(salaryRoot,{embedded:true})||null;
        if(!ownerSalaryReport){
-         const heading=makeNode("header","fp-report-head rd-opening");
-         const back=makeNode("button","fp-link fp-report-back","Назад");
-         back.type="button";back.setAttribute("aria-label","Назад к отчётам");
-         back.addEventListener("click",closeSalary);
-         heading.append(back,makeNode("h2","fp-report-title","Зарплата"));
-         salaryRoot.replaceChildren(heading,makeNode("p","","Модуль зарплаты недоступен. Обновите страницу."));
+         salaryRoot.textContent="Модуль зарплаты недоступен. Обновите страницу.";
        }
+       updateOwnerReportHeader();
        restoreVerticalScroll(0);
-       salaryRoot.querySelector(".fp-report-back")?.focus({preventScroll:true});
+       $("rdScreenBack")?.focus({preventScroll:true});
        // Reload the existing financial snapshot; no payroll data is duplicated.
        void window.__rdOwnerPayrollReload?.();
      });
@@ -543,7 +553,7 @@ function build(){
    ownerSalaryReport?.render();
  };
  const settings=sectionView("rdSettings","Настройки");
- window.__rdWhatsAppSettings?.mount(settings);
+ window.__rdWhatsAppSettings?.mount(settings,{embedded:true});
  app.insertBefore(settings,$("ordersArea"));
  app.insertBefore(reports,$("ordersArea"));
  app.insertBefore(home,$("ordersArea"));
@@ -578,7 +588,7 @@ function build(){
 function navigate(key,updateHistory=true){
  if(!ready||app.hidden||!canOpen(key))return;
  closeMobileMore();
- window.__rdCloseProfile?.();
+ window.__rdCloseHeaderMenus?.();
  if(key==="ai"){openAiChat();return}
  if(updateHistory&&locationPage()!==key){
   const url=new URL(window.location.href);
@@ -601,6 +611,7 @@ function navigate(key,updateHistory=true){
  if(key!=="orders")rdSearchTerm="";
  // Update navigation and section visibility together.
  activePage=key;window.__rdCurrentPage=key;
+ window.__rdSetScreenHeader?.(titles[key]);
  const isOrders=key==="orders",isCalendar=key==="calendar";
  // Initial calendar date must be Moscow today, not the date left in the Orders tab.
  // Revisiting calendar later keeps an explicitly selected date.
@@ -646,6 +657,7 @@ function navigate(key,updateHistory=true){
  else if(key==="leads"){window.__rdLeadsRender?.();window.__rdLeadsSearch?.(leadsSearchTerm);}
  else if(key==="settings"){window.__rdWhatsAppSettings?.refresh();void window.__rdLoadTeam?.();}
  else if(key==="reports"){
+  updateOwnerReportHeader();
   profitReport?.render();
   if(salaryRoot&&!salaryRoot.hidden)ownerSalaryReport?.render();
  }
@@ -665,7 +677,7 @@ window.__rdResetOwnerModules=()=>{
  leadsSearchTerm="";
  if($("rdLeadSearch"))$("rdLeadSearch").value="";
  if($("rdOrderSearch"))$("rdOrderSearch").value="";
- window.__rdCloseProfile?.();
+ window.__rdCloseHeaderMenus?.();
  for(const module of ownerModules.values())module.reset();
 };
 function drawChart(parent,values,month){
@@ -844,7 +856,7 @@ function homeSlotOptions(){
 function homeSlotPicker({primary,spots,key}=homeSlotOptions()){
  const section=makeNode("section","rd-home-slot-picker");
  section.dataset.options=key;
- const header=makeNode("div","rd-home-slot-heading rd-opening");
+ const header=makeNode("div","rd-home-slot-heading");
  const heading=makeNode("div");
  heading.append(boxText("h2","Подбор времени"),boxText("p","Предварительные варианты для клиента"));
  const all=makeNode("button","rd-home-slots-all","Все варианты ›");
@@ -1217,7 +1229,7 @@ function drawCalendar(){
  if(!total)detail.append(boxText("p","На выбранный период записей нет.","rd-empty"));
  calendarDetailCache=detailKey;
 }
-let clientOrders=null,clientGroups=null,lastClientRender=null;
+let clientOrders=null,clientGroups=null,lastClientRender=null,clientListScroll=0;
 function indexClients(){
  const orders=getOrders();
  if(orders===clientOrders&&clientGroups)return clientGroups;
@@ -1238,15 +1250,23 @@ function indexClients(){
  return clientGroups;
 }
 window.__rdResetClientView=()=>{
- clientOrders=null;clientGroups=null;lastClientRender=null;selectedClientKey=null;
+ clientOrders=null;clientGroups=null;lastClientRender=null;selectedClientKey=null;clientListScroll=0;
  if($("rdClientSearch"))$("rdClientSearch").value="";
  $("rdClientsList")?.replaceChildren();
  $("rdClientHistory")?.replaceChildren();
 };
+function closeClientHistory(){
+ selectedClientKey=null;
+ drawClients();
+ restoreVerticalScroll(clientListScroll);
+ $("rdClientsList").focus({preventScroll:true});
+}
 function drawClients(){
  if(!ready||activePage!=="clients")return;
  const list=$("rdClientsList"),history=$("rdClientHistory"),toolbar=$("rdClientToolbar");
  const index=indexClients(),selected=index.groups.get(selectedClientKey);
+ if(selected)window.__rdSetScreenHeader?.(selected.name||"История клиента",closeClientHistory,"Назад к клиентам");
+ else window.__rdSetScreenHeader?.(titles.clients);
  const local=$("rdClientSearch").value.toLocaleLowerCase("ru").trim(),global=rdSearchTerm;
  if(lastClientRender?.index===index&&lastClientRender.selected===selected&&
     lastClientRender.local===local&&lastClientRender.global===global)return;
@@ -1254,9 +1274,8 @@ function drawClients(){
  list.replaceChildren();history.replaceChildren();
  if(selected){
   list.hidden=true;toolbar.hidden=true;history.hidden=false;
-  const back=makeNode("button","secondary rd-opening","‹ Все клиенты");back.type="button";
-  back.addEventListener("click",()=>{selectedClientKey=null;drawClients()});history.append(back);
-  history.append(boxText("h2",selected.name||"Без имени"),boxText("p",(selected.phone||"Телефон не указан")+" · "+selected.items.length+" заказ(ов)","rd-muted"));
+  history.setAttribute("aria-label","История заказов клиента");
+  history.append(boxText("p",(selected.phone||"Телефон не указан")+" · "+selected.items.length+" заказ(ов)","rd-muted"));
   const entries=[...selected.items].sort((a,b)=>String(b.date||b.createdAt||"").localeCompare(String(a.date||a.createdAt||""))||
     String(b.time||"").localeCompare(String(a.time||"")));
   for(const o of entries){
@@ -1282,7 +1301,13 @@ function drawClients(){
   card.append(boxText("strong",g.name||"Без имени"),boxText("span",g.phone||"Телефон не указан"),
    boxText("span","Заказов: "+g.items.length+" · Последняя запись: "+(g.last?dateLong(g.last):"—")));
   const btn=makeNode("button","","Вся история клиента");btn.type="button";
-  btn.addEventListener("click",()=>{selectedClientKey=g.key;drawClients()});card.append(btn);list.append(card);
+  btn.addEventListener("click",()=>{
+   clientListScroll=verticalScrollPosition();
+   selectedClientKey=g.key;
+   drawClients();
+   restoreVerticalScroll(0);
+   $("rdScreenBack")?.focus({preventScroll:true});
+  });card.append(btn);list.append(card);
  }
  if(values.length>150)list.append(boxText("div","Показаны первые 150 клиентов. Уточните поиск.","rd-note"));
 }
@@ -1393,12 +1418,11 @@ window.__rdAccess=()=>{
  if(!ready)build();
  else {
   const requested=locationPage();
-  if(requested!==activePage)navigate(requested,false);
-  else if(requested==="reports"){
-   profitReport?.render();
-   if(salaryRoot&&!salaryRoot.hidden)ownerSalaryReport?.render();
-  }
-  else ownerModules.get(activePage)?.open(currentUser.id);
+  const selected=ownerModules.get(requested);
+  if(requested===activePage&&selected){
+   window.__rdSetScreenHeader?.(titles[requested]);
+   selected.open(currentUser.id);
+  }else navigate(requested,false);
  }
  window.__rdLeadsSyncNav?.();
 };

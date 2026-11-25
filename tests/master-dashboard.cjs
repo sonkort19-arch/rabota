@@ -182,17 +182,25 @@ test("Master navigation identifies the current section and report back stays in 
  assert.match(script,/\["payments","Платежи","payments"\]/);
  assert.match(script,/\["settings","Настройки","settings"\]/);
  assert.match(script,/window\.__rdSetActiveNavItem\(nav,/);
- assert.match(script,/querySelector\("\.pr-back,\.fp-report-back"\)/);
- assert.match(script,/window\.__rdCloseProfile\?\.\(\)/);
+ assert.match(script,/window\.__rdSetScreenHeader\(title,step==="menu"\?null:closeMasterReport/);
+ assert.match(script,/\$\("rdScreenBack"\)/);
+ assert.match(script,/window\.__rdCloseHeaderMenus\?\.\(\)/);
  assert.doesNotMatch(script,/mw-orders-minimal-header|mw-payments-header|mw-settings-title/);
  assert.doesNotMatch(styles,/mw-orders-minimal-header|mw-payments-header|--master-brand-height/);
  assert.match(html,/href="\/money-workspace\.css\?v=[^"]+"/);
  assert.match(html,/src="\/money-workspace\.js\?v=[^"]+"/);
 });
-test("the app keeps one accessible workspace and a separate profile control",()=>{
+test("the accessible workspace follows the shared title, back, notifications and profile header",()=>{
+ const header=html.match(/<header id="rdScreenHeader" hidden>[\s\S]*?<\/header>/)?.[0];
+ assert.ok(header,"shared header is present");
+ assert.match(header,/id="rdScreenBack"[^>]*aria-label="Назад" hidden[\s\S]*<h1 id="appTitle">Заказы<\/h1>/);
+ assert.match(header,/id="pushBellBtn"[^>]*aria-controls="pushPopover"/);
+ assert.match(header,/id="rdProfileTrigger"[^>]*aria-controls="rdProfileMenu"/);
  assert.match(html,/<main id="appScreen" aria-label="CRM «Работа»" hidden>/);
+ assert.ok(html.indexOf(header)<html.indexOf('<main id="appScreen"'));
+ assert.equal((html.match(/id="rdScreenHeader"/g)||[]).length,1);
  assert.equal((html.match(/id="rdProfile"/g)||[]).length,1);
- assert.doesNotMatch(html,/id="(?:rdScreenHeader|rdScreenBack|appTitle|masterBrand)"|class="master-header-info"/);
+ assert.doesNotMatch(html,/id="masterBrand"|class="master-header-info"/);
 });
 
 test("the shared profile retains Raul's photo and accessible account control",()=>{

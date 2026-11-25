@@ -120,5 +120,5 @@ test("Order card offers explicit retry and original blank chat link remains",()=
   assert.match(card,/if\(state!==\"Отменён\"\)/);
   assert.match(card,/openClientDraft\(fresh,fresh\.status===\"Выполнен\"\?\"review\":\"booking\"\)/);
   assert.match(c,/whatsapp-client\.js\?v=20261118-safety-fix-v1/);
-  assert.match(c,/whatsapp-settings\.js\?v=20261125-compact-expenses/);
+  assert.match(c,/whatsapp-settings\.js\?v=20261125-fixed-header/);
 });

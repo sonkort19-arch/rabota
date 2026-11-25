@@ -12,11 +12,11 @@ body.rd {
   --rd-safe-bottom:env(safe-area-inset-bottom, 0px);
   --rd-safe-left:env(safe-area-inset-left, 0px);
   --rd-screen-gutter:clamp(12px, 2.2vw, 24px);
-  --rd-profile-size:44px;
-  --rd-profile-right:calc(var(--rd-safe-right) + var(--rd-screen-gutter));
-  --rd-screen-top:calc(var(--rd-safe-top) + 6px);
-  --rd-profile-gap:5px;
-  --rd-profile-row:calc(var(--rd-profile-size) + var(--rd-profile-gap));
+  --rd-header-control:44px;
+  --rd-header-height:56px;
+  --rd-header-total:calc(var(--rd-header-height) + var(--rd-safe-top));
+  --rd-header-right:calc(var(--rd-safe-right) + var(--rd-screen-gutter));
+  --rd-header-popover-space:max(0px, calc(100dvh - var(--rd-header-total) - var(--rd-content-bottom) - 14px));
   --rd-dock-row:48px;
   --rd-dock-top:4px;
   --rd-dock-bottom:max(4px, var(--rd-safe-bottom));
@@ -26,8 +26,6 @@ body.rd {
   --rd-content-max:1260px;
   --rd-content-left:calc(var(--rd-safe-left) + var(--rd-sidebar-width));
   --rd-content-side-gap:max(0px, calc((100vw - var(--rd-content-left) - var(--rd-safe-right) - var(--rd-content-max)) / 2));
-  --rd-corner-width:max(0px, calc(var(--rd-profile-row) + var(--rd-screen-gutter) - var(--rd-content-side-gap)));
-  --rd-opening-inset:max(0px, calc(var(--rd-corner-width) - var(--rd-screen-gutter)));
   --rd-card-radius:14px;
   --rd-control-radius:11px;
   --rd-fab-height:46px;
@@ -40,32 +38,71 @@ body.rd[data-rd-role="master"] {
   --rd-content-bottom:var(--rd-dock-height);
 }
 
-body.rd #rdProfile {
+body.rd #rdScreenHeader {
   position:fixed;
   z-index:50;
-  top:var(--rd-screen-top);
-  right:var(--rd-profile-right);
-  width:var(--rd-profile-size);
+  inset:0 0 auto var(--rd-sidebar-width);
+  box-sizing:border-box;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:8px;
+  height:var(--rd-header-total);
+  margin:0;
+  padding:var(--rd-safe-top) var(--rd-header-right) 0
+    calc(var(--rd-safe-left) + var(--rd-content-side-gap) + var(--rd-screen-gutter));
+  border-bottom:1px solid #e2e9f4;
+  background:#fbfcff;
 }
+
+body.rd #rdScreenHeader .rd-header-heading {
+  display:flex;
+  align-items:center;
+  gap:6px;
+  min-width:0;
+}
+
+body.rd #rdScreenHeader #appTitle {
+  display:-webkit-box;
+  min-width:0;
+  margin:0;
+  overflow:hidden;
+  color:#1e2d46;
+  font-size:clamp(16px, 4.7vw, 18px);
+  font-weight:750;
+  line-height:1.15;
+  overflow-wrap:anywhere;
+  -webkit-box-orient:vertical;
+  -webkit-line-clamp:2;
+}
+
+body.rd #rdScreenHeader #appTitle:focus {outline:none}
+
+body.rd #rdHeaderActions {
+  position:relative;
+  display:flex;
+  flex:none;
+  align-items:center;
+  gap:8px;
+}
+
+body.rd #rdHeaderActions #masterPushPanel,
+body.rd #rdHeaderActions #rdProfile {position:static}
 
 html.rd-app-open body.rd #appScreen:is(.rd-owner,.rd-manager,.rd-master.master-mode) {
   position:fixed;
-  inset:var(--rd-screen-top) var(--rd-safe-right) var(--rd-content-bottom) var(--rd-content-left);
+  inset:var(--rd-header-total) var(--rd-safe-right) var(--rd-content-bottom) var(--rd-content-left);
   width:auto;
   height:auto;
   max-width:var(--rd-content-max);
   max-height:none;
   min-height:0;
   margin:0 auto;
-  padding:0 var(--rd-screen-gutter) var(--rd-screen-gutter);
+  padding:8px var(--rd-screen-gutter) var(--rd-screen-gutter);
   overflow:auto;
   background:transparent;
   overscroll-behavior:contain;
-  scroll-padding-block:var(--rd-profile-row) 8px;
-  /* Exclude the profile corner from painting and hit testing during scrolling. */
-  clip-path:polygon(0 0, calc(100% - var(--rd-corner-width)) 0,
-    calc(100% - var(--rd-corner-width)) var(--rd-profile-row),
-    100% var(--rd-profile-row), 100% 100%, 0 100%);
+  scroll-padding-block:8px;
 }
 
 html.rd-app-open body.rd:has(> #newOrderBtn:not([hidden])) #appScreen:has(> #ordersArea:not([hidden])),
@@ -73,17 +110,7 @@ html.rd-app-open body.rd[data-rd-role="owner"] #appScreen:has(> #exMain:not([hid
   padding-bottom:calc(var(--rd-fab-height) + var(--rd-fab-gap) + var(--rd-screen-gutter));
 }
 
-/* A screen's first controls share the top line with the profile. */
-body.rd #appScreen .rd-opening {
-  box-sizing:border-box;
-  min-block-size:var(--rd-profile-row);
-  max-inline-size:calc(100% - var(--rd-opening-inset));
-  margin-inline-end:var(--rd-opening-inset);
-}
-
-body.rd #appScreen .gw-tabs.rd-opening {
-  margin-bottom:8px;
-}
+body.rd #gwMain .gw-tabs {margin-bottom:8px}
 
 body.rd #appScreen :is(.rd-panel,.rd-client,.ex-list,.gw-card,.mw-payment-breakdown,
                         .mw-payment-day-rows,.wa-settings-entry,.wa-template-card) {
@@ -231,19 +258,37 @@ body.rd > :is(#newOrderBtn,#newExpenseBtn) .plus {margin:0;font-size:23px;line-h
 body.rd > :is(#newOrderBtn,#newExpenseBtn):active {translate:0 1px}
 body.rd > #orderOverlay:not(.master-quick) {z-index:110}
 
-body.rd #rdProfileTrigger {
+body.rd #rdScreenHeader :is(#pushBellBtn,#rdProfileTrigger,#rdScreenBack) {
   position:relative;
   display:grid;
   place-items:center;
   box-sizing:border-box;
-  width:var(--rd-profile-size);
-  height:var(--rd-profile-size);
+  flex:0 0 var(--rd-header-control);
+  width:var(--rd-header-control);
+  height:var(--rd-header-control);
   padding:0;
-  overflow:hidden;
   border:1px solid #dae4f6;
   border-radius:50%;
   background:#eef3ff;
   color:#3d59a3;
+}
+
+body.rd #rdScreenHeader #rdScreenBack {border-radius:var(--rd-control-radius)}
+body.rd #rdScreenHeader #rdScreenBack[data-keyboard-open="true"]:focus {
+  outline:3px solid #9db8ff;
+  outline-offset:2px;
+}
+body.rd #rdScreenHeader #rdProfileTrigger {overflow:hidden}
+body.rd #rdScreenHeader #pushBellBtn svg {width:23px;height:23px}
+
+body.rd #rdScreenHeader #pushUnreadCount {
+  top:-2px;
+  right:-3px;
+  min-width:19px;
+  height:19px;
+  padding:0 3px;
+  font-size:10px;
+  line-height:15px;
 }
 
 body.rd #rdProfileTrigger > .rd-profile-photo:not([hidden]) {
@@ -255,16 +300,27 @@ body.rd #rdProfileTrigger > .rd-profile-photo:not([hidden]) {
   pointer-events:none;
 }
 
-body.rd #rdProfileMenu {
+body.rd #rdHeaderActions :is(#rdProfileMenu,#pushPopover) {
   position:absolute;
-  top:calc(100% + 8px);
+  top:calc(100% + 12px);
   right:0;
-  width:min(288px, calc(100vw - var(--rd-profile-right) - var(--rd-safe-left) - var(--rd-screen-gutter)));
-  max-height:max(0px, calc(100dvh - var(--rd-screen-top) - var(--rd-profile-size) - var(--rd-content-bottom) - 14px));
   box-sizing:border-box;
-  padding:12px;
+  max-height:var(--rd-header-popover-space);
+  overflow-y:auto;
   overscroll-behavior:contain;
 }
+
+body.rd #rdHeaderActions #rdProfileMenu {
+  width:min(288px, calc(100vw - var(--rd-safe-left) - var(--rd-safe-right) - 2 * var(--rd-screen-gutter)));
+  padding:12px;
+}
+
+body.rd #rdHeaderActions #pushPopover {
+  width:min(365px, calc(100vw - var(--rd-safe-left) - var(--rd-safe-right) - 2 * var(--rd-screen-gutter)));
+}
+
+body.rd #rdHeaderActions #pushRoleMessage {margin:0;padding:16px}
+body.rd #rdHeaderActions #pushMasterContent {display:flex;flex-direction:column}
 
 body.rd #rdProfileMenu .rd-profile-identity {
   display:flex;
@@ -293,8 +349,7 @@ body.rd #rdProfileMenu .rd-profile-text {
 
 body.rd #rdProfileMenu .rd-profile-text small {font-size:12px;color:#586986}
 
-body.rd #rdProfileMenu #logoutBtn,
-body.rd #rdProfileMenu #pushBellBtn {
+body.rd #rdProfileMenu #logoutBtn {
   display:flex;
   align-items:center;
   justify-content:flex-start;
@@ -306,30 +361,13 @@ body.rd #rdProfileMenu #pushBellBtn {
   text-align:left;
 }
 
-body.rd #rdProfileMenu #pushBellBtn svg {width:20px;height:20px;flex:none}
-
-body.rd #rdProfileMenu #pushUnreadCount {
-  position:static;
-  margin-left:auto;
-  border:0;
-  line-height:20px;
-}
-
-body.rd #rdProfileMenu #pushPopover {
-  position:static;
-  width:100%;
-  max-height:min(45dvh, 370px);
-  margin:7px 0 0;
-  box-shadow:none;
-}
-
 body.rd #appScreen > #syncStatus:not([hidden]) {min-block-size:0;margin:0 0 8px}
 
 body.rd #appScreen .rd-inline-search {
   display:block;
   width:100%;
   min-width:0;
-  min-height:var(--rd-profile-size);
+  min-height:var(--rd-header-control);
   box-sizing:border-box;
   padding:8px 12px;
   border:1px solid #dbe4f4;

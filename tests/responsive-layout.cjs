@@ -63,69 +63,68 @@ async function scan(page,label){
  },label);
 }
 async function verifyProfile(page,role){
- const profile=page.locator('#rdProfile');
- const trigger=page.locator('#rdProfileTrigger');
+ const header=page.locator('#rdScreenHeader');
+ const profile=header.locator('#rdProfile');
+ const trigger=header.locator('#rdProfileTrigger');
+ const bell=header.locator('#pushBellBtn');
  const menu=page.locator('#rdProfileMenu');
  await trigger.waitFor();
- assert.equal(await page.locator('#rdScreenHeader,#rdScreenBack,#appTitle').count(),0,'no separate section header');
- assert.equal(await profile.count(),1,'one fixed profile');
+ assert.equal(await profile.count(),1,'one profile in the shared header');
+ assert.equal(await header.getByRole('heading',{name:'Заказы',exact:true}).count(),1,'section title is in the shared header');
+ assert.equal(await bell.isVisible(),true,role+' can reach notifications from the shared header');
  const workspace=page.locator('#appScreen');
  assert.equal(await workspace.getAttribute('aria-label'),'CRM «Работа»');
- assert.equal(await profile.evaluate(node=>node.parentElement===document.getElementById('appScreen').parentElement
-  &&getComputedStyle(node).position==='fixed'),true,'profile is fixed outside the scrolling workspace');
- const control=await trigger.boundingBox(),appBox=await workspace.boundingBox();
- assert.ok(Math.abs(appBox.y-control.y)<=1,'workspace begins alongside the fixed profile');
+ assert.equal(await header.evaluate(node=>node.parentElement===document.getElementById('appScreen').parentElement
+  &&getComputedStyle(node).position==='fixed'),true,'header is fixed outside the scrolling workspace');
+ const headerBox=await header.boundingBox(),appBox=await workspace.boundingBox();
+ assert.ok(Math.abs(headerBox.height-56)<=1,'header has a 56px control row');
+ assert.ok(Math.abs(appBox.y-headerBox.y-headerBox.height)<=1,'workspace begins at the header bottom');
  assert.match(await workspace.evaluate(node=>getComputedStyle(node).overflowY),/^(auto|scroll)$/);
- assert.ok(control.width>=43.5&&control.height>=43.5,'profile is tappable');
- const exposed=await profile.evaluate(node=>{
-  const app=document.getElementById('appScreen');
-  const {x,y,width,height}=document.getElementById('rdProfileTrigger').getBoundingClientRect();
-  const previous=node.style.visibility;
-  node.style.visibility='hidden';
-  const hit=app.contains(document.elementFromPoint(x+width/2,y+height/2));
-  node.style.visibility=previous;
-  return hit;
- });
- assert.equal(exposed,false,'no workspace content intercepts the profile footprint');
+ for(const control of [trigger,bell]){
+  const target=await control.boundingBox();
+  assert.ok(target.width>=43.5&&target.height>=43.5&&target.y>=headerBox.y&&target.y+target.height<=appBox.y+1,
+   'header control is tappable without covering the workspace');
+ }
  const toolbar=page.locator('#owTools .ow-toolbar');
  await toolbar.waitFor();
- const controls=await toolbar.evaluate(node=>[...node.querySelectorAll('button')].filter(button=>button.getClientRects().length).map(button=>{
-  const box=button.getBoundingClientRect(),y=box.top+box.height/2;
-  return [box.left+3,box.right-3].every(x=>button.contains(document.elementFromPoint(x,y)));
- }));
- assert.ok(controls.length>=4&&controls.every(Boolean),'all visible order controls have independent hit targets beside the profile');
+ const tools=await toolbar.evaluate(node=>({width:node.getBoundingClientRect().width,
+  available:node.parentElement.getBoundingClientRect().width,
+  controls:[...node.querySelectorAll('button')].filter(button=>button.getClientRects().length).map(button=>{
+   const box=button.getBoundingClientRect(),y=box.top+box.height/2;
+   return [box.left+3,box.right-3].every(x=>button.contains(document.elementFromPoint(x,y)));
+  })}));
+ assert.ok(Math.abs(tools.width-tools.available)<=1,'toolbar uses the available content width');
+ assert.ok(tools.controls.length>=4&&tools.controls.every(Boolean),'all visible order controls have independent hit targets');
  await trigger.click();
  await menu.waitFor();
  assert.deepEqual(await workspace.boundingBox(),appBox,'opening profile keeps the workspace in place');
  assert.equal(await menu.locator('#logoutBtn').isVisible(),true,'sign-out is inside the profile');
- if(role==='master'){
-  await menu.locator('#pushBellBtn').click();
-  await menu.locator('#pushPopover').waitFor();
-  await page.keyboard.press('Escape');
-  assert.equal(await menu.locator('#pushPopover').isVisible(),false,'Escape closes nested notifications');
-  assert.equal(await menu.isVisible(),true,'profile remains available after closing notifications');
- }else{
-  assert.equal(await menu.locator('#pushBellBtn').isVisible(),false,'master notifications are role-scoped');
- }
  await page.keyboard.press('Escape');
  assert.equal(await menu.isVisible(),false,'Escape closes the profile');
- assert.equal(await trigger.evaluate(node=>node===document.activeElement),true,'focus returns to the fixed profile');
+ assert.equal(await trigger.evaluate(node=>node===document.activeElement),true,'Escape restores profile focus');
+ await bell.click();
+ const notices=page.locator('#pushPopover');
+ await notices.waitFor();
+ assert.deepEqual(await workspace.boundingBox(),appBox,'opening notifications keeps the workspace in place');
+ await page.keyboard.press('Escape');
+ assert.equal(await notices.isVisible(),false,'Escape closes notifications');
+ assert.equal(await bell.evaluate(node=>node===document.activeElement),true,'Escape restores bell focus');
 }
 async function verifyWorkspaceScroll(page,label){
  const positions=await page.evaluate(()=>{
   const app=document.getElementById('appScreen');
-  const profile=document.getElementById('rdProfileTrigger');
+  const header=document.getElementById('rdScreenHeader');
   const initialScroll=app.scrollTop;
-  const initialProfile=profile.getBoundingClientRect().top;
+  const initialHeader=header.getBoundingClientRect().top;
   app.scrollTop=0;
   app.scrollTop=Math.min(120,app.scrollHeight-app.clientHeight);
-  const result={scroll:app.scrollTop,profile:profile.getBoundingClientRect().top,
-   initialProfile,documentScroll:window.scrollY};
+  const result={scroll:app.scrollTop,header:header.getBoundingClientRect().top,
+   initialHeader,documentScroll:window.scrollY};
   app.scrollTop=initialScroll;
   return result;
  });
  assert.ok(positions.scroll>0,label+' scrollable workspace');
- assert.equal(positions.profile,positions.initialProfile,label+' profile stays anchored');
+ assert.equal(positions.header,positions.initialHeader,label+' header stays anchored');
  assert.equal(positions.documentScroll,0,label+' document remains stationary');
 }
 (async()=>{const kind=process.env.TEST_BROWSER||'chromium';
@@ -146,7 +145,9 @@ async function verifyWorkspaceScroll(page,label){
    results.push(await scan(page,section));
    if(section==='clients'){
     await page.locator('.rd-client button').first().click();results.push(await scan(page,'client-history'));
-    await page.getByRole('button',{name:'‹ Все клиенты',exact:true}).click();
+    const back=page.locator('#rdScreenHeader').getByRole('button',{name:'Назад к клиентам',exact:true});
+    await back.click();
+    assert.equal(await page.locator('#rdScreenHeader #appTitle').textContent(),'Клиенты');
    }
    if(section==='calendar'){
     await page.locator('#owViewSwitch [data-ow-mode="calendar"]').click();
@@ -204,12 +205,14 @@ async function verifyWorkspaceScroll(page,label){
    }
    if(section==='reports'){
     await page.locator('#rdReports .rd-salary-entry').click();
+    assert.equal(await page.locator('#rdScreenHeader #appTitle').textContent(),'Зарплата');
+    assert.equal(await page.locator('#rdSalaryReport').getByRole('heading',{name:'Зарплата',exact:true}).count(),0,'report title appears once');
     await page.locator('.fp-balance-value').waitFor();results.push(await scan(page,'salary-detail'));
     await page.locator('.fp-subtab').nth(1).click();results.push(await scan(page,'salary-payments'));
     await page.locator('.fp-balance-payout').click();results.push(await scan(page,'payout-dialog'));
     await page.locator('.fp-close').click();
-    await page.locator('#rdSalaryReport').getByRole('button',{name:'Назад к отчётам'}).click();
-    assert.equal(await page.locator('#rdReports .rd-salary-entry').evaluate(node=>node===document.activeElement),true,'local report back restores focus');
+    await page.locator('#rdScreenHeader #rdScreenBack').click();
+    assert.equal(await page.locator('#rdReports .rd-salary-entry').evaluate(node=>node===document.activeElement),true,'report back restores focus');
    }
    if(section==='settings'){
     await page.locator('#teamMembers .team-item').first().waitFor();

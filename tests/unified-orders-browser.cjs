@@ -413,10 +413,11 @@ async function checkWhatsAppSettings({ page, role }, nav, attribute) {
   else{await page.locator("#rdMobileMoreBtn").tap();await page.locator('#rdMobileMoreSheet [data-page="settings"]').tap();}
   const settings = page.locator(role === "master" ? "#mwMasterSettings" : "#rdSettings");
   const entry = settings.getByRole("button", { name: /^WhatsApp/ });
-  const heading = settings.getByRole("heading", { name: "WhatsApp · сообщения клиентам" });
+  const header = page.locator("#rdScreenHeader");
+  const heading = header.getByRole("heading", { name: "WhatsApp", exact:true });
 
   await entry.tap();
-  const back = settings.getByRole("button", { name: "← Настройки", exact: true });
+  const back = header.getByRole("button", { name: "Назад к настройкам", exact: true });
   assert.equal(await heading.evaluate(element => document.activeElement === element), true, "tap focuses the heading");
   assert.equal(await back.evaluate(element => getComputedStyle(element).outlineStyle), "none", "tap does not outline the back button");
   await capture(page, role + "-whatsapp-settings-390");

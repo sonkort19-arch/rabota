@@ -90,8 +90,12 @@ async function check(browser, browserName, width) {
     assert.equal(await payments.getByText(/23 ноября/).count(), 1);
     assert.equal(await payments.getByText(/22 ноября/).count(), 1);
     assert.match(await readText(), /02:11/);
-    assert.equal(await page.getByRole("heading", {name: "Платежи", exact: true}).count(), 0);
+    const header = page.locator("#rdScreenHeader");
+    assert.equal(await header.getByRole("heading", {name: "Платежи", exact: true}).count(), 1);
+    assert.equal(await payments.getByRole("heading", {name: "Платежи", exact: true}).count(), 0);
     assert.equal(await payments.getByRole("heading", {name: "Оплаты заказов", exact: true}).count(), 1);
+    const headerBox = await header.boundingBox(), workspace = await page.locator("#appScreen").boundingBox();
+    assert.ok(Math.abs(workspace.y - headerBox.y - headerBox.height) <= 1, "payments start below the shared header");
     await summary.click();
     assert.match(await readText(), /Способ не указан\s+1 100,50? ₽/);
     await summary.click();

@@ -11,18 +11,17 @@ assert.ok(inline,"base inline style");
 const links=[...html.matchAll(/<link rel="stylesheet" href="\/([^"?]+)(?:\?[^"]*)?">/g)].map(m=>m[1]);
 assert.ok(links.includes("money-workspace.css"),"master UI stylesheet loaded");
 assert.ok(links.indexOf("money-workspace.css")>links.indexOf("master-dense-enhancements.css"),"master patches load after base styles");
-assert.ok(links.indexOf("app-shell.css")>links.indexOf("money-workspace.css"),"fixed profile and viewport load after master styles");
+assert.ok(links.indexOf("app-shell.css")>links.indexOf("money-workspace.css"),"shared header and viewport load after master styles");
 const i=links.indexOf("master-dense.css");
 assert.deepEqual(links.slice(i,i+2),["master-dense.css","master-dense-enhancements.css"]);
 const styles=[inline,...links.map(file=>fs.readFileSync(path.join(root,file),"utf8"))].join("\n");
+const sharedHeader=html.match(/<header\b[^>]*\bid="rdScreenHeader"[^>]*>[\s\S]*?<\/header>/)?.[0];
+assert.ok(sharedHeader,"shared header markup");
 const fixture=[
-'<div id="rdProfile" class="rd-profile"><button id="rdProfileTrigger" type="button" aria-label="Открыть меню профиля" aria-controls="rdProfileMenu">Р</button>',
-'<div id="rdProfileMenu" class="rd-profile-menu" hidden><div class="rd-profile-identity"><span class="rd-profile-initial">Р</span><span class="rd-profile-text"><strong>Рауль</strong><small>Мастер</small></span></div>',
-'<section id="masterPushPanel" class="push-panel push-compact"><button id="pushBellBtn" class="push-bell" type="button">Уведомления</button>',
-'<div id="pushPopover" class="push-popover" hidden><strong>Новые заявки</strong></div></section><button id="logoutBtn" type="button">Выйти</button></div></div>',
+sharedHeader,
 '<main id="appScreen" class="rd-master master-mode" aria-label="CRM «Работа»">',
 '<div class="sync-note" id="syncStatus" hidden></div><div id="ordersArea">',
-'<section id="mwMasterFilterbar" class="mw-master-filterbar rd-opening"><input class="mw-filter-search" placeholder="Поиск по заказам"><div class="mw-status-filters">',
+'<section id="mwMasterFilterbar" class="mw-master-filterbar"><input class="mw-filter-search" placeholder="Поиск по заказам"><div class="mw-status-filters">',
 ...["Все","Записаны","В работе","Выполнены","Отменены"].map(label=>'<button type="button" class="mw-filter-chip" aria-label="Фильтр: '+label+'"><span class="mw-filter-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="22" height="22"><circle cx="12" cy="12" r="9"></circle></svg></span></button>'),
 '</div></section>',
 '<nav class="tabs"><button class="tab">По дням</button><button class="tab active">Расписание</button><button class="tab">История</button></nav>',
@@ -65,12 +64,18 @@ try{
  for(const width of [320,350,375,390,430,768]){
   const page=await browser.newPage({viewport:{width,height:844},isMobile:true,hasTouch:true});
   await page.setContent('<!DOCTYPE html><html class="rd-app-open"><head><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><style>'+styles+'</style></head><body class="rd" data-rd-role="master">'+fixture+'</body></html>');
+  await page.evaluate(()=>{
+    for(const id of ["rdScreenHeader","rdProfile","masterPushPanel","pushBellBtn"]){
+      const node=document.getElementById(id);
+      if(node)node.hidden=false;
+    }
+  });
   const result=await page.evaluate(()=>{
    const dim=sel=>{const node=document.querySelector(sel),r=node.getBoundingClientRect();return {height:r.height,size:parseFloat(getComputedStyle(node).fontSize)}};
    const workspace=document.getElementById("appScreen");
    return {scroll:document.documentElement.scrollWidth,width:document.documentElement.clientWidth,
     workspaceOverflow:workspace.scrollWidth-workspace.clientWidth,
-    newOrder:dim("#newOrderBtn"),profile:dim("#rdProfileTrigger"),
+    newOrder:dim("#newOrderBtn"),profile:dim("#rdProfileTrigger"),bell:dim("#pushBellBtn"),
     tab:dim(".mw-bottom-nav .mw-nav-btn"),next:dim(".master-next-jump"),
     time:dim(".master-schedule-time"),name:dim(".master-schedule-name"),
     summary:dim(".master-today-summary"),card:dim(".master-schedule-toggle"),avatar:dim(".master-schedule-avatar"),
@@ -106,7 +111,7 @@ try{
     "filter row fills available width at "+width+": "+JSON.stringify(filters));
   assert.equal(filters.overflow,false,"filter bar does not scroll sideways at "+width);
   assert.ok(filters.buttonWidths[0]>=40,"status filter remains tappable at "+width);
-  for(const key of ["newOrder","profile","tab","next"])
+  for(const key of ["newOrder","profile","bell","tab","next"])
    assert.ok(result[key].height>=43.5,key+" tap target at "+width+" height "+result[key].height);
   assert.ok(result.time.size<=19.1,"time font "+width);
   assert.ok(result.name.size<=15.1,"client font "+width);
@@ -122,39 +127,50 @@ try{
 
   const shell=await page.evaluate(()=>{
     const r=selector=>document.querySelector(selector).getBoundingClientRect();
-    const profile=document.querySelector("#rdProfile"),menu=document.querySelector("#rdProfileMenu");
-    const app=document.querySelector("#appScreen"),trigger=r("#rdProfileTrigger");
+    const header=document.getElementById("rdScreenHeader"),menu=document.getElementById("rdProfileMenu");
+    const app=document.getElementById("appScreen");
+    const trigger=r("#rdProfileTrigger"),bell=r("#pushBellBtn"),title=r("#appTitle");
     const search=r(".mw-filter-search"),chips=r(".mw-status-filters");
     const initiallyClosed=menu.getClientRects().length===0;
-    const profilePoint=[trigger.x+trigger.width/2,trigger.y+trigger.height/2];
-    const profileHit=document.getElementById("rdProfileTrigger").contains(document.elementFromPoint(...profilePoint));
+    const hits=(selector,box)=>document.querySelector(selector).contains(document.elementFromPoint(box.x+box.width/2,box.y+box.height/2));
+    const profileHit=hits("#rdProfileTrigger",trigger),bellHit=hits("#pushBellBtn",bell);
     const searchHit=document.elementFromPoint(search.right-3,search.top+search.height/2)?.matches(".mw-filter-search");
-    profile.style.visibility="hidden";
-    const profileOverlap=app.contains(document.elementFromPoint(...profilePoint));
-    profile.style.visibility="";
     menu.hidden=false;
-    const bell=r("#pushBellBtn"),logout=r("#logoutBtn"),panel=r("#rdProfileMenu");
+    const logout=r("#logoutBtn"),panel=r("#rdProfileMenu");
+    const searchAfterMenu=r(".mw-filter-search").top;
+    menu.hidden=true;
     document.querySelector("#pushPopover").hidden=false;
     const notices=r("#pushPopover");
-    return {initiallyClosed,sibling:profile.parentElement===app.parentElement,profileHit,profileOverlap,searchHit,
-      fixedProfile:getComputedStyle(profile).position==="fixed",profileTop:trigger.top,profileLeft:trigger.left,
-      workspaceScroll:getComputedStyle(app).overflowY,
-      workspaceTop:r("#appScreen").top,menuBottom:panel.bottom,dockTop:r("#mwMasterNav").top,
-      searchTop:search.top,searchAfterMenu:r(".mw-filter-search").top,
+    document.querySelector("#pushPopover").hidden=true;
+    const headerBox=r("#rdScreenHeader"),workspaceTop=r("#appScreen").top;
+    document.body.style.setProperty("--rd-safe-top","24px");
+    const insetHeader=r("#rdScreenHeader"),insetWorkspace=r("#appScreen"),insetBell=r("#pushBellBtn");
+    document.body.style.removeProperty("--rd-safe-top");
+    return {initiallyClosed,sibling:header.parentElement===app.parentElement,profileHit,bellHit,searchHit,
+      fixedHeader:getComputedStyle(header).position==="fixed",headerHeight:headerBox.height,headerBottom:headerBox.bottom,
+      controlsInHeader:trigger.top>=headerBox.top&&bell.top>=headerBox.top&&
+        Math.max(trigger.bottom,bell.bottom)<=headerBox.bottom&&title.right<=Math.min(trigger.left,bell.left)+1,
+      workspaceScroll:getComputedStyle(app).overflowY,workspaceTop,menuTop:panel.top,menuBottom:panel.bottom,dockTop:r("#mwMasterNav").top,
+      insetHeight:insetHeader.height,insetTop:insetHeader.top,insetContentTop:insetWorkspace.top,insetBellTop:insetBell.top,
+      searchTop:search.top,searchAfterMenu,
       searchBottom:search.bottom,statusTop:chips.top,
-      menuLeft:panel.left,menuRight:panel.right,noticeLeft:notices.left,noticeRight:notices.right,
+      menuLeft:panel.left,menuRight:panel.right,noticeTop:notices.top,noticeBottom:notices.bottom,noticeLeft:notices.left,noticeRight:notices.right,
       bell:bell.height,logout:logout.height,viewportWidth:document.documentElement.clientWidth};
   });
   const detail=width+": "+JSON.stringify(shell);
-  assert.ok(shell.fixedProfile&&shell.sibling&&shell.initiallyClosed,"fixed profile starts closed outside the workspace at "+detail);
-  assert.ok(shell.profileHit&&shell.searchHit&&!shell.profileOverlap,"profile and search occupy separate hit targets at "+detail);
+  assert.ok(shell.fixedHeader&&shell.sibling&&shell.initiallyClosed,"fixed header starts outside the workspace at "+detail);
+  assert.ok(shell.profileHit&&shell.bellHit&&shell.searchHit&&shell.controlsInHeader,"header and search occupy separate hit targets at "+detail);
+  assert.ok(Math.abs(shell.headerHeight-56)<=1,"base header height is 56px at "+detail);
   assert.match(shell.workspaceScroll,/^(auto|scroll)$/);
-  assert.ok(Math.abs(shell.workspaceTop-shell.profileTop)<=1,"workspace starts alongside the profile at "+detail);
-  assert.ok(shell.menuBottom<=shell.dockTop+1,"profile menu stays above the dock at "+detail);
-  assert.ok(shell.searchTop-shell.workspaceTop<=10&&shell.searchAfterMenu===shell.searchTop,"local search starts without a top band at "+detail);
+  assert.ok(Math.abs(shell.workspaceTop-shell.headerBottom)<=1,"workspace starts at the header bottom at "+detail);
+  assert.ok(Math.abs(shell.insetHeight-80)<=1&&Math.abs(shell.insetContentTop-shell.insetTop-shell.insetHeight)<=1&&shell.insetBellTop>=24,
+    "safe top is added once and all controls clear it at "+detail);
+  assert.ok(shell.menuTop>=shell.headerBottom-1&&shell.menuBottom<=shell.dockTop+1,"profile menu fits between header and dock at "+detail);
+  assert.ok(shell.searchTop-shell.workspaceTop<=16&&shell.searchAfterMenu===shell.searchTop,"local search starts without a top band at "+detail);
   assert.ok(shell.statusTop>=shell.searchBottom-2&&shell.statusTop-shell.searchBottom<28,"status icons follow search at "+detail);
   assert.ok(shell.menuLeft>=0&&shell.menuRight<=shell.viewportWidth+1,"profile stays within the viewport at "+detail);
-  assert.ok(shell.noticeLeft>=shell.menuLeft&&shell.noticeRight<=shell.menuRight+1,"notifications stay within the profile at "+detail);
+  assert.ok(shell.noticeLeft>=0&&shell.noticeRight<=shell.viewportWidth+1&&shell.noticeTop>=shell.headerBottom-1&&shell.noticeBottom<=shell.dockTop+1,
+    "notifications fit between header and dock at "+detail);
   assert.ok(shell.bell>=43.5&&shell.logout>=43.5,"alerts and sign-out remain tappable at "+detail);
 
   await page.close();

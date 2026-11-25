@@ -75,7 +75,9 @@
   }
   let draft=blank(),activeFilter="all",openId=null,notice="",leadCache=[];
   let editing=false,cloudReady=false,read=null,write=null,loadError="",lastFetch=0,searchTerm="";
-  let cachedUserId=null,accountVersion=0,cacheVersion=0,lastDueKey="";
+  let cachedUserId=null,accountVersion=0,cacheVersion=0,lastDueKey="",listScroll=0;
+  const usesScreenHeader=()=>typeof window.__rdSetScreenHeader==="function";
+  const editorTitle=()=>openId?"Карточка клиента":"Новый лид";
   const notified=new Set();
   const context=()=>window.__rdLeadContext?.()||{};
   function accountId(){
@@ -93,7 +95,8 @@
     const id=force?null:accountId();
     if(!force&&id===cachedUserId)return;
     accountVersion++;cacheVersion++;cachedUserId=id;leadCache=[];cloudReady=false;read=null;write=null;loadError="";
-    lastFetch=0;searchTerm="";activeFilter="all";lastDueKey="";editing=false;openId=null;notice="";draft=blank();notified.clear();
+    lastFetch=0;searchTerm="";activeFilter="all";lastDueKey="";listScroll=0;
+    editing=false;openId=null;notice="";draft=blank();notified.clear();
     $("rdLeadsMount")?.replaceChildren();
   }
   const load=()=>leadCache;
@@ -202,9 +205,22 @@
     if(write)return;
     const match=load().find(l=>l.id===id);
     draft=match?{...blank(),...match}:blank();
+    listScroll=window.__rdViewportScroll?.position()??0;
     openId=match?.id||null;editing=true;notice="";render();
+    if(usesScreenHeader()){
+      window.__rdViewportScroll?.restore(0);
+      $("rdScreenBack")?.focus({preventScroll:true});
+    }
   }
-  function listView(){if(write)return;editing=false;openId=null;draft=blank();render();refresh()}
+  function listView(){
+    if(write)return;
+    editing=false;openId=null;draft=blank();render();
+    if(usesScreenHeader()){
+      window.__rdViewportScroll?.restore(listScroll);
+      $("rdLeadsMount")?.querySelector(".la-compact-heading button")?.focus({preventScroll:true});
+    }
+    refresh();
+  }
   async function save(){
     if(write)return;
     const clean={...blank(),...draft};
@@ -417,9 +433,10 @@
   }
   function editor(){
     const wrap=node("section","la-box la-editor");
-    const back=btn("← К списку","la-neutral",listView);
-    const header=group("la-title",node("h2","",openId?"Карточка клиента":"Новый лид"),back);
-    wrap.append(header);
+    if(!usesScreenHeader()){
+      const back=btn("← К списку","la-neutral",listView);
+      wrap.append(group("la-title",node("h2","",editorTitle()),back));
+    }else wrap.setAttribute("aria-label",editorTitle());
     if(notice){const message=node("p","la-message",notice);message.setAttribute("role","status");wrap.append(message)}
     const contact=node("div","la-field-grid");
     contact.append(field("Имя клиента *","name","text","Имя клиента"),
@@ -580,6 +597,12 @@
   function render(){
     resetForAccount();
     const root=$("rdLeadsMount");if(!root||!cachedUserId)return;
+    if(usesScreenHeader()&&window.__rdCurrentPage==="leads"&&!$("appScreen")?.hidden){
+      const search=$("rdLeadSearch");
+      if(search)search.hidden=editing;
+      if(editing)window.__rdSetScreenHeader(editorTitle(),listView,"Назад к списку лидов");
+      else window.__rdSetScreenHeader("Лиды");
+    }
     root.replaceChildren();
     root.append(editing?editor():leadsList());
     if(!editing)filterVisible();
