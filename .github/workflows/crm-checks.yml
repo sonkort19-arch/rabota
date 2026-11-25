@@ -2,7 +2,7 @@ name: CRM checks
 
 on:
   pull_request:
-    branches: [main, infra/isolated-qa]
+    branches: [main]
     types: [opened, reopened, synchronize, ready_for_review]
   workflow_dispatch:
 

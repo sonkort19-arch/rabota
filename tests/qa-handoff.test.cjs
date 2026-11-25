@@ -121,16 +121,19 @@ test("a review signal reads live PR data and updates only the named check",async
   assert.deepEqual(requests,[]);
   event.payload.workflow_run.event="workflow_dispatch";
   await runHandoff(github,event,{env:{CRM_QA_REVIEWERS:"tester"}});
+  pr.base.ref="infra/isolated-qa";
+  event.payload.workflow_run.event="pull_request_review";
+  await runHandoff(github,event,{env:{CRM_QA_REVIEWERS:"tester"}});
   assert.equal(statuses.length,1);
 });
 
 test("release check requires every isolated job and the write-enabled handoff reads no candidate files",()=>{
   const checks=workflow("crm-checks.yml");
-  assert.match(checks,/pull_request:\s+branches: \[main, infra\/isolated-qa\]/);
+  assert.match(checks,/pull_request:\s+branches: \[main\]/);
   assert.match(checks,/needs: \[javascript, browser, postgres\]/);
   assert.match(checks,/JAVASCRIPT" == success && "\$BROWSERS" == success && "\$POSTGRES" == success/);
   assert.equal((checks.match(/--network none/g)||[]).length,3);
-  assert.match(handoff,/pull_request_target:/);
+  assert.match(handoff,/pull_request_target:\s+branches: \[main\]/);
   assert.doesNotMatch(handoff,/actions\/checkout|secrets\.|\beval\(/);
   const signal=workflow("crm-review-signal.yml");
   assert.match(signal,/pull_request_review:[\s\S]+permissions: \{\}/);

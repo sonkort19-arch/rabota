@@ -4,7 +4,7 @@ name: CRM QA handoff
 # or evaluates PR text, even when a contributor opens the PR from a fork.
 on:
   pull_request_target:
-    branches: [main, infra/isolated-qa]
+    branches: [main]
     types: [opened, reopened, synchronize, ready_for_review, converted_to_draft]
   workflow_run:
     workflows: [CRM review signal]
@@ -33,7 +33,6 @@ jobs:
           script: |
             const marker = "<!-- crm-qa-handoff -->";
             const statusContext = "Independent QA";
-            const baseRefs = new Set(["main", "infra/isolated-qa"]);
             const testers = new Set((process.env.CRM_QA_REVIEWERS || "").toLowerCase().split(/[\s,]+/)
               .filter(login => /^[a-z0-9](?:[a-z0-9-]{0,37}[a-z0-9])?$/.test(login)));
             const repoUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}`;
@@ -138,7 +137,7 @@ jobs:
             }
             for (const number of numbers) {
               const { data: pr } = await github.rest.pulls.get({...context.repo, pull_number: number});
-              if (pr.state !== "open" || !baseRefs.has(pr.base.ref) || !/^[0-9a-f]{40}$/.test(pr.head.sha)) continue;
+              if (pr.state !== "open" || pr.base.ref !== "main" || !/^[0-9a-f]{40}$/.test(pr.head.sha)) continue;
               const allowed = new Set([...testers].filter(login => login !== pr.user.login.toLowerCase()));
               await recordStatus(pr, allowed);
               if (!reviewSignal) await updateBrief(pr, allowed);
