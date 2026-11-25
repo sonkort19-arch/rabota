@@ -11,6 +11,8 @@ window.__rdCreateExpenses = function createExpenses({root, dbRequest, loadExpens
   let ownerId=null, rows=null, read=null, busy=false, generation=0, reviewIntent=null;
   const unconfirmed=new Map();
   const currencyFormat=new Intl.NumberFormat("ru-RU",{maximumFractionDigits:2});
+  const countRules=new Intl.PluralRules("ru-RU");
+  const countLabels={one:"запись",few:"записи",many:"записей"};
   const monthFormat=new Intl.DateTimeFormat("sv-SE",{timeZone:ZONE,year:"numeric",month:"2-digit"});
   const dateFormat=new Intl.DateTimeFormat("ru-RU",{timeZone:ZONE,day:"numeric",month:"short",hour:"2-digit",minute:"2-digit"});
   const titleFormat=new Intl.DateTimeFormat("ru-RU",{timeZone:"UTC",month:"short",year:"numeric"});
@@ -104,9 +106,9 @@ window.__rdCreateExpenses = function createExpenses({root, dbRequest, loadExpens
     const monthRows=current.filter(row=>monthOf(row.created_at)===month);
     $("exMonth").textContent=monthTitle(month);
     $("exMonthlyTotal").textContent=rows ? money(sum(monthRows)) : "—";
-    $("exCount").textContent=rows ? monthRows.length+" "+(monthRows.length===1?"запись":"записей") : "—";
+    const count=monthRows.length;
+    $("exCount").textContent=rows ? count+" "+countLabels[countRules.select(count)] : "—";
     $("exAllTotal").textContent="Всего: "+(rows ? money(sum(current)) : "—");
-    $("exHistoryCount").textContent=rows ? monthRows.length+" записей" : "";
     const totals=new Map();
     for(const row of monthRows){
       const name=parseNote(row.note).category;

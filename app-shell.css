@@ -59,6 +59,7 @@ html.rd-app-open body.rd #appScreen:is(.rd-owner,.rd-manager,.rd-master.master-m
   margin:0 auto;
   padding:0 var(--rd-screen-gutter) var(--rd-screen-gutter);
   overflow:auto;
+  background:transparent;
   overscroll-behavior:contain;
   scroll-padding-block:var(--rd-profile-row) 8px;
   /* Exclude the profile corner from painting and hit testing during scrolling. */
