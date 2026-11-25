@@ -199,6 +199,13 @@ async function checkRaulPortal(name,shouldHaveProfit){
     await page.evaluate(masterName=>{
       // The real index owns this state; the isolated portal must supply it too.
       window.currentTab="calendar";
+      window.__rdViewportScroll={position:()=>scrollY,restore:y=>scrollTo(0,y)};
+      window.__rdSetActiveNavItem=(nav,active)=>{
+        for(const button of nav.querySelectorAll("button")){
+          button.classList.toggle("is-active",button===active);
+          button.setAttribute("aria-current",button===active?"page":"false");
+        }
+      };
       const now=new Date().toISOString();
       const orders=[
         {id:"raul",assignedUserId:"raul-uid",referenceCode:"№00012",name:"Мой клиент",

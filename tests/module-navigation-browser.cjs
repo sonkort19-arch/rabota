@@ -15,6 +15,7 @@ const delayMs = 75;
 const origin = "https://crm.test";
 const today = new Intl.DateTimeFormat("sv-SE", { timeZone: "Europe/Moscow" }).format(new Date());
 const stamp = today + "T08:00:00Z";
+const safeAreaInsets = { top: 47, right: 29, bottom: 34, left: 21 };
 const fixtureMaster = { user_id: "fixture-master", role: "master", active: true, master_name: "Рауль" };
 const expense = { id: "fixture-expense", kind: "expense", amount: 1200, note: "[Запчасти] Тестовый расход",
   created_at: stamp, voided_at: null, order_id: null };
@@ -49,9 +50,9 @@ function deferred() {
   return { promise, release };
 }
 
-async function fixture(browser, source, width, role) {
+async function fixture(browser, source, width, role, {safeArea = null, standalone = false, height = 760, touch = true} = {}) {
   const context = await browser.newContext({
-    ...devices["iPhone 13"], viewport: { width, height: 760 }, screen: { width, height: 760 },
+    ...(touch ? devices["iPhone 13"] : {}), viewport: { width, height }, screen: { width, height },
     timezoneId: "Europe/Moscow", reducedMotion: "reduce", serviceWorkers: "block",
   });
   const state = { expenses: [{ ...expense }], tasks: [{ ...task }], fail: new Set(), loseResponse: new Set(), gates: new Map() };
@@ -62,7 +63,16 @@ async function fixture(browser, source, width, role) {
   }));
   const member = role === "master" ? fixtureMaster : { user_id: "fixture-" + role, role, active: true };
   const requests = [], documents = [], writes = [], errors = [];
-  await context.addInitScript(() => {
+  await context.addInitScript(standalone => {
+    if (standalone) {
+      Object.defineProperty(navigator, "standalone", {value: true});
+      const match = window.matchMedia.bind(window);
+      window.matchMedia = query => {
+        const result = match(query);
+        if (query === "(display-mode: standalone)") Object.defineProperty(result, "matches", {value: true});
+        return result;
+      };
+    }
     window.fixtureDocument = crypto.randomUUID();
     window.observeFixtureNavigation = () => {
       const transition = JSON.parse(sessionStorage.getItem("fixture-transition") || "null");
@@ -84,7 +94,7 @@ async function fixture(browser, source, width, role) {
       requestAnimationFrame(frame);
     };
     window.observeFixtureNavigation();
-  });
+  }, standalone);
   await context.route("**/*", async route => {
     const request = route.request();
     const url = new URL(request.url());
@@ -94,6 +104,15 @@ async function fixture(browser, source, width, role) {
       const file = path.resolve(source, "." + name);
       if (!file.startsWith(source + path.sep) || !existsSync(file))
         return route.fulfill({ status: 404, body: "" });
+      if (safeArea && /\.(css|html)$/.test(file)) {
+        // Desktop Playwright has no configurable native screen cutout. Replace the
+        // environment values while keeping the application's layout rules intact.
+        const body = readFileSync(file, "utf8").replace(
+          /env\(\s*safe-area-inset-(top|right|bottom|left)(?:\s*,[^)]*)?\)/g,
+          (_, edge) => safeArea[edge] + "px"
+        );
+        return route.fulfill({contentType: file.endsWith(".css") ? "text/css" : "text/html", body});
+      }
       return route.fulfill({ path: file });
     }
     if (!url.hostname.endsWith(".supabase.co")) return route.abort();
@@ -243,7 +262,7 @@ async function ownerBenchmark(browser, source, width, standaloneModules = false)
   } finally { await s.close(); }
 }
 
-async function assertDock(page, role) {
+async function assertDock(page, role, view) {
   const nav = page.locator(role === "master" ? "#mwMasterNav" : "#rdMobileNav");
   await nav.waitFor();
   const state = await nav.evaluate(node => {
@@ -252,17 +271,28 @@ async function assertDock(page, role) {
       const { top, bottom, left, right, width } = node.getBoundingClientRect();
       return { top, bottom, left, right, width };
     };
-    const buttons = [...node.querySelectorAll("button, a")].map(box);
-    return { bottom, top, buttons, viewport: innerHeight, width: innerWidth, documentWidth: document.documentElement.scrollWidth };
+    const buttons = [...node.querySelectorAll("button, a")].filter(button => button.getClientRects().length)
+      .map(button => ({...box(button), key:button.dataset.page || button.dataset.mwPage || "more",
+        current:button.getAttribute("aria-current") === "page", background:getComputedStyle(button).backgroundColor}));
+    return { bottom, top, buttons, parent:node.parentElement?.tagName, position:getComputedStyle(node).position,
+      viewport: innerHeight, width: innerWidth, documentWidth: document.documentElement.scrollWidth };
   });
   assert.equal(state.buttons.length, role === "master" ? 4 : 5);
+  assert.equal(state.parent, "BODY", "fixed navigation is outside the scroll container");
+  assert.equal(state.position, "fixed");
   assert.ok(Math.abs(state.bottom - state.viewport) <= 3, JSON.stringify(state));
   assert.ok(state.documentWidth <= state.width + 1, "page must not overflow horizontally: " + JSON.stringify(state));
   for (const [index, button] of state.buttons.entries()) {
-    assert.ok(button.width >= 40 && Math.abs(button.top - state.buttons[0].top) < 1 &&
+    assert.ok(button.width >= 44 && button.bottom - button.top >= 44 && button.left >= 0 &&
+      button.right <= state.width + 1 && Math.abs(button.top - state.buttons[0].top) < 1 &&
       Math.abs(button.bottom - state.buttons[0].bottom) < 1 &&
       (index === 0 || state.buttons[index - 1].right <= button.left + 1), JSON.stringify(state));
   }
+  const active = state.buttons.filter(button => button.current);
+  assert.equal(active.length, 1, "exactly one visible dock section is selected");
+  assert.deepEqual(state.buttons.filter(button => button.background !== "rgba(0, 0, 0, 0)"), active,
+    "only the active dock item has selected styling");
+  if (view) assert.equal(active[0].key, state.buttons.some(button => button.key === view) ? view : "more");
   return state;
 }
 
@@ -282,6 +312,7 @@ async function assertHeaderLayout(page, view, initial = null) {
   const layout = await profile.evaluate(node => {
     const app = document.getElementById("appScreen");
     const title = document.getElementById("appTitle");
+    const header = document.getElementById("rdScreenHeader");
     const button = node.getBoundingClientRect();
     const text = document.createRange();
     text.selectNodeContents(title);
@@ -294,25 +325,29 @@ async function assertHeaderLayout(page, view, initial = null) {
       clickable: node.contains(document.elementFromPoint(button.x + button.width / 2, button.y + button.height / 2)),
       titleTop: title.getBoundingClientRect().top, titleLeft: title.getBoundingClientRect().left,
       titleFits: textRects.every(rect => rect.right <= button.left + 1 || rect.top >= button.bottom || rect.bottom <= button.top),
-      scroll: document.scrollingElement.scrollTop || app.scrollTop,
+      fixedHeader: getComputedStyle(header).position === "fixed" && header.parentElement === document.body,
+      headerBottom:header.getBoundingClientRect().bottom,
+      contentTop:app.getBoundingClientRect().top,
+      contentWidth:app.clientWidth,
+      contentScrollWidth:app.scrollWidth,
     };
   });
-  assert.ok(layout.top >= 0 && layout.top <= 70 && layout.right >= 0 && layout.right <= 40,
+  assert.ok(layout.top >= 0 && layout.top <= 80 && layout.right >= 0 && layout.right <= 80,
     view + ": profile at the upper-right edge " + JSON.stringify(layout));
   assert.ok(layout.width >= 44 && Math.abs(layout.width - layout.height) < 1 && layout.round && layout.clickable,
     view + ": unobstructed, round profile touch target " + JSON.stringify(layout));
-  if (layout.scroll < 1) {
-    assert.ok(layout.titleTop >= 0 && layout.titleTop <= layout.top + layout.height,
-      view + ": heading starts in the profile row without an empty strip");
-    assert.ok(layout.titleFits, view + ": title text does not overlap profile");
-  }
+  assert.ok(layout.fixedHeader && layout.contentTop >= layout.headerBottom - 1,
+    view + ": working area stays outside the reserved fixed header " + JSON.stringify(layout));
+  assert.ok(layout.contentScrollWidth <= layout.contentWidth + 1,
+    view + ": working area does not introduce horizontal scrolling " + JSON.stringify(layout));
+  assert.ok(layout.titleTop >= 0 && layout.titleTop <= layout.top + layout.height,
+    view + ": heading starts in the profile row without an empty strip");
+  assert.ok(layout.titleFits, view + ": title text does not overlap profile");
   if (initial) {
     for (const key of ["top", "right", "width", "height"])
       assert.ok(Math.abs(layout[key] - initial[key]) <= 1, view + ": profile moves after transition or scroll (" + key + ")");
-    if (initial.scroll < 1 && layout.scroll < 1) {
-      assert.ok(Math.abs(layout.titleTop - initial.titleTop) <= 1 && Math.abs(layout.titleLeft - initial.titleLeft) <= 1,
-        view + ": headings align between routes " + JSON.stringify({initial, layout}));
-    }
+    assert.ok(Math.abs(layout.titleTop - initial.titleTop) <= 1 && Math.abs(layout.titleLeft - initial.titleLeft) <= 1,
+      view + ": headings align between routes and stay pinned when scrolled " + JSON.stringify({initial, layout}));
   }
   return layout;
 }
@@ -327,7 +362,7 @@ async function assertPeriodControls(page, selector, count) {
 }
 
 async function assertScrollRestored(page, role) {
-  const scroller = role === "master" ? page.locator("#appScreen") : page.locator("html");
+  const scroller = page.locator("#appScreen");
   const orderModes = page.locator("#owViewSwitch");
   await orderModes.locator('[data-ow-mode="all"]').click();
   if (role !== "master") {
@@ -338,15 +373,15 @@ async function assertScrollRestored(page, role) {
   const header = await assertHeaderLayout(page, "orders");
   const scroll = await scroller.evaluate(node => {
     node.scrollTop = 350;
-    return node.scrollTop;
+    window.scrollTo(0, 350);
+    return {content:node.scrollTop, document:document.scrollingElement.scrollTop};
   });
-  assert.ok(scroll > 100, "fixture must contain a long order list");
+  assert.ok(scroll.content > 100, "fixture must contain a long order list");
+  assert.equal(scroll.document, 0, "the shared content element is the only document scroller");
   await assertHeaderLayout(page, "orders", header);
-  await assertDock(page, role);
-  const waitForScroll = () => page.waitForFunction(({ master, scroll }) => {
-    const scroller = master ? document.getElementById("appScreen") : document.scrollingElement;
-    return Math.abs(scroller.scrollTop - scroll) <= 2;
-  }, { master: role === "master", scroll });
+  await assertDock(page, role, "orders");
+  const waitForScroll = () => page.waitForFunction(previous =>
+    Math.abs(document.getElementById("appScreen").scrollTop - previous) <= 2, scroll.content);
   await switchSection(page, role, "settings");
   if (role === "master") await switchSection(page, role, "orders");
   else {
@@ -371,7 +406,7 @@ async function assertScrollRestored(page, role) {
   }
   assert.equal(await orderModes.locator('[data-ow-mode="all"]').getAttribute("aria-selected"), "true");
   await assertHeaderLayout(page, "orders", header);
-  await assertDock(page, role);
+  await assertDock(page, role, "orders");
 }
 
 async function assertProfileTargets(page, role) {
@@ -421,7 +456,7 @@ async function assertRapidNavigation(page, role) {
   const navHandle = await nav.elementHandle();
   const visibilityObserver = await page.evaluateHandle(role => {
     const failures = [];
-    const selectors = ["appScreen", role === "master" ? "mwMasterNav" : "rdMobileNav"];
+    const selectors = ["rdScreenHeader", "appScreen", role === "master" ? "mwMasterNav" : "rdMobileNav"];
     const observer = new MutationObserver(records => {
       for (const { target, oldValue } of records) {
         if (target.hidden || oldValue !== null) failures.push(target.id);
@@ -466,20 +501,19 @@ async function roleLayout(browser, width, role) {
     access.release();
     await page.locator("#appScreen").waitFor();
     await page.locator("#ordersArea").waitFor();
-    await assertDock(page, role);
+    await assertDock(page, role, "orders");
     const identity = await page.evaluate(() => window.fixtureDocument);
     await page.evaluate(() => { window.fixtureProfile = document.getElementById("rdProfileTrigger"); });
     let initialHeader;
     for (const view of sectionsByRole[role]) {
       await switchSection(page, role, view);
-      const dock = await assertDock(page, role);
+      const dock = await assertDock(page, role, view);
       const header = await assertHeaderLayout(page, view, initialHeader);
       initialHeader ??= header;
       assert.equal(await page.evaluate(() => window.fixtureProfile === document.getElementById("rdProfileTrigger")),
         true, "navigation retains the original account control");
       if (role !== "master") {
         assert.equal(await page.locator("#rdMobileMoreBtn").getAttribute("aria-expanded"), "false");
-        assert.equal(await page.locator('#rdMobileNav [aria-current="page"]').count(), 1);
       }
       if (role === "owner" && ["expenses", "growth"].includes(view)) {
         if (view === "expenses") await assertPeriodControls(page, "#exPrev, #exNext", 2);
@@ -528,7 +562,7 @@ async function roleLayout(browser, width, role) {
     await reopened.waitForFunction(previous=>Boolean(window.fixtureDocument&&window.fixtureDocument!==previous),
       identity,{timeout:20000});
     await reopened.locator(sectionRoots[role === "master" ? "orders" : reopenedView]).waitFor({timeout:20000});
-    await assertDock(reopened, role);
+    await assertDock(reopened, role, role === "master" ? "orders" : reopenedView);
     await assertHeaderLayout(reopened, role === "master" ? "orders" : reopenedView, initialHeader);
     assert.equal(documents.length, 2, "only the explicit reopen requested a new document");
     assert.equal(requests.filter(name => name === "user").length, 2);
@@ -538,6 +572,137 @@ async function roleLayout(browser, width, role) {
       await assertPeriodControls(reopened, ".gw-period-selector button", 2);
       await assertDock(reopened, role);
     }
+    assert.deepEqual(s.writes, []);
+  } finally { await s.close(); }
+}
+
+async function assertClippedControl(page, header) {
+  const filter = page.locator("#owFilterToggle");
+  await filter.waitFor();
+  const displacement = await filter.evaluate(button => {
+    const scroller = document.getElementById("appScreen");
+    const profile = document.getElementById("rdProfileTrigger");
+    const before = scroller.scrollTop;
+    // Move this real, right-aligned control to precisely the avatar's vertical
+    // position. Without clipping, it is painted under the avatar at this offset.
+    scroller.scrollTop += button.getBoundingClientRect().top - profile.getBoundingClientRect().top;
+    return scroller.scrollTop - before;
+  });
+  assert.ok(displacement > 0, "the fixture exercised scrolling into the profile row");
+  const visible = await filter.evaluate(button => new Promise(resolve => {
+    const observer = new IntersectionObserver(([entry]) => {
+      observer.disconnect();
+      const {top, height} = entry.intersectionRect;
+      resolve({top, height});
+    });
+    observer.observe(button);
+  }));
+  assert.ok(visible.height === 0 || visible.top >= header.headerBottom - 1,
+    "a scrolled working control is clipped out of the fixed header: " + JSON.stringify(visible));
+  await assertHeaderLayout(page, "orders", header);
+  await filter.evaluate(button => button.scrollIntoView({block:"start", behavior:"instant"}));
+  await filter.click({trial:true});
+  const filterBox = await filter.boundingBox();
+  assert.ok(filterBox.y >= header.headerBottom - 1, "bringing the filter into view leaves it available below the header");
+}
+
+function assertDockInsets(dock, insets) {
+  for (const button of dock.buttons) {
+    assert.ok(button.left >= insets.left - 1 && button.right <= dock.width - insets.right + 1,
+      "dock controls stay inside the left and right safe areas " + JSON.stringify({button, dockWidth:dock.width, insets}));
+    assert.ok(button.bottom <= dock.viewport - insets.bottom + 1,
+      "dock controls clear the bottom home indicator " + JSON.stringify({button, insets}));
+  }
+}
+
+async function safeAreaLayout(browser, width, role, height = 760, insets = safeAreaInsets) {
+  const s = await fixture(browser, root, width, role, {safeArea:insets, standalone:true, height});
+  const {page, documents, writes} = s;
+  try {
+    await page.goto(origin);
+    await switchSection(page, role, "orders");
+    assert.match(await page.locator('meta[name="viewport"]').getAttribute("content"), /viewport-fit=cover/);
+    assert.equal(await page.evaluate(() => navigator.standalone && matchMedia("(display-mode: standalone)").matches), true);
+    await page.locator('#owViewSwitch [data-ow-mode="all"]').click();
+    const header = await assertHeaderLayout(page, "orders");
+    assert.ok(header.top >= insets.top && header.right >= insets.right && header.titleLeft >= insets.left,
+      "header respects top, right and left safe areas " + JSON.stringify({header, insets}));
+    const dock = await assertDock(page, role, "orders");
+    assertDockInsets(dock, insets);
+    assert.ok(await page.locator("#appScreen").evaluate((node, dockTop) =>
+      node.getBoundingClientRect().bottom <= dockTop + 1, dock.top), "content stops above the fixed dock");
+    await assertClippedControl(page, header);
+    const scrolled = await page.locator("#appScreen").evaluate(node => {
+      node.scrollTop = 280;
+      window.scrollTo(0, 280);
+      return {content:node.scrollTop, document:document.scrollingElement.scrollTop};
+    });
+    assert.deepEqual(scrolled, {content:280, document:0}, "only the shared working area scrolls");
+    await assertHeaderLayout(page, "orders", header);
+    assertDockInsets(await assertDock(page, role, "orders"), insets);
+    const add = page.locator("#newOrderBtn");
+    await add.waitFor();
+    const addBox = await add.boundingBox();
+    assert.ok(addBox.x >= insets.left - 1 && addBox.x + addBox.width <= width - insets.right + 1 &&
+      addBox.y + addBox.height <= dock.top + 1, "add order stays inside the safe area above the dock");
+    await add.click({trial:true});
+
+    if (role !== "master") {
+      const more = page.locator("#rdMobileMoreBtn");
+      const paint = () => more.evaluate(node => getComputedStyle(node).backgroundColor);
+      const idle = await paint();
+      await more.evaluate(node => node.click());
+      const sheet = page.locator("#rdMobileMoreSheet");
+      await sheet.waitFor();
+      await assertDock(page, role, "orders");
+      assert.equal(await paint(), idle, "opening More does not highlight a second dock item");
+      const bounds = await sheet.boundingBox();
+      assert.ok(bounds.x >= insets.left - 1 && bounds.x + bounds.width <= width - insets.right + 1 &&
+        bounds.y >= insets.top - 1 && bounds.y + bounds.height < dock.top, "More stays within the safe content area");
+      const view = role === "owner" ? "growth" : "home";
+      await sheet.locator('[data-page="' + view + '"]').click();
+      await page.locator(sectionRoots[view]).waitFor();
+      await assertDock(page, role, view);
+      assert.notEqual(await paint(), idle, "More represents a secondary active section");
+      await more.evaluate(node => node.click());
+      await sheet.waitFor();
+      assert.equal(await sheet.locator('[aria-current="page"]').count(), 1);
+      assert.equal(await sheet.locator('[aria-current="page"]').getAttribute("data-page"), view);
+      await page.keyboard.press("Escape");
+      await sheet.waitFor({state:"hidden"});
+    } else await switchSection(page, role, "payments");
+    await switchSection(page, role, "orders");
+    await page.waitForFunction(previous => document.getElementById("appScreen").scrollTop === previous, scrolled.content);
+    await assertHeaderLayout(page, "orders", header);
+    assertDockInsets(await assertDock(page, role, "orders"), insets);
+    assert.equal(documents.length, 1);
+    assert.deepEqual(writes, []);
+  } finally { await s.close(); }
+}
+
+async function desktopScrollLayout(browser) {
+  const s = await fixture(browser, root, 1366, "owner", {height:800, touch:false});
+  try {
+    const {page} = s;
+    await page.goto(origin);
+    await page.locator('.rd-shell [data-page="orders"]').click();
+    assert.equal(await page.locator("#rdMobileNav").isVisible(), false, "desktop retains sidebar navigation");
+    await page.locator('#owViewSwitch [data-ow-mode="all"]').click();
+    const header = await assertHeaderLayout(page, "orders");
+    await assertClippedControl(page, header);
+    const scroll = await page.locator("#appScreen").evaluate(node => {
+      node.scrollTop = 300;
+      window.scrollTo(0, 300);
+      return {content:node.scrollTop, document:document.scrollingElement.scrollTop};
+    });
+    assert.deepEqual(scroll, {content:300, document:0});
+    await assertHeaderLayout(page, "orders", header);
+    await page.locator('.rd-shell [data-page="expenses"]').click();
+    await assertHeaderLayout(page, "expenses");
+    assert.equal(await page.locator("#appScreen").evaluate(node => node.scrollTop), 0);
+    await page.locator('.rd-shell [data-page="orders"]').click();
+    await page.waitForFunction(() => document.getElementById("appScreen").scrollTop === 300);
+    assert.equal(s.documents.length, 1);
     assert.deepEqual(s.writes, []);
   } finally { await s.close(); }
 }
@@ -677,6 +842,11 @@ if (require.main === module) (async () => {
     }
     console.log(browserName, "candidate", JSON.stringify(summarize(results)));
     if (process.env.BENCHMARK_ONLY === "1") return;
+    for (const role of roles) await safeAreaLayout(browser, 320, role);
+    for (const role of ["owner", "master"])
+      await safeAreaLayout(browser, 844, role, 390, {top:21, right:44, bottom:21, left:44});
+    await desktopScrollLayout(browser);
+    console.log("PASS", browserName, "safe areas, standalone portrait and landscape, clipped profile strip and shared scrolling");
     await dataFlow(browser);
     await legacyLinks(browser);
     console.log("PASS", browserName, "progressive rendering, connection retry, writes, freshness, history and legacy links");

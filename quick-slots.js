@@ -135,7 +135,7 @@
   host.append(dialog);
   document.body.append(host);
 
-  let visible=false,busy=false,booking=false,previousFocus=null,previousOverflow="",latest=null,choice="",runId=0;
+  let visible=false,busy=false,booking=false,previousFocus=null,latest=null,choice="",runId=0;
   let mode="free",selectedDay="",customDateOpen=false;
   function updateDateControls(){
     const clock=moscowClock(new Date());
@@ -351,8 +351,6 @@
     mode="free";selectedDay="";customDateOpen=false;dateInput.value="";
     updateDateControls();
     previousFocus=document.activeElement;
-    previousOverflow=document.body.style.overflow;
-    document.body.style.overflow="hidden";
     host.hidden=false;
     dialog.focus({preventScroll:true});
     readFresh(true);
@@ -361,7 +359,6 @@
     if(!visible)return;
     visible=false;runId++;busy=false;
     host.hidden=true;list.replaceChildren();latest=null;
-    document.body.style.overflow=previousOverflow;
     if(previousFocus?.isConnected)previousFocus.focus?.({preventScroll:true});
   }
   closeButton.addEventListener("click",close);

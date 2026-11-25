@@ -247,7 +247,7 @@
   <link rel="stylesheet" href="/master-dense.css?v=20261113-stage8">
   <link rel="stylesheet" href="/master-dense-enhancements.css?v=20261117-compact-v1">
   <link rel="stylesheet" href="/master-completed-day.css?v=20261117-v1">
-  <link rel="stylesheet" href="/money-workspace.css?v=20261125-fullscreen">
+  <link rel="stylesheet" href="/money-workspace.css?v=20261125-shell">
   <link rel="stylesheet" href="/master-order-sheet.css?v=20261117-icon-align-v2">
   <link rel="stylesheet" href="/master-quick-order.css?v=20261118-inline-busy-v1">
   <link rel="stylesheet" href="/master-quick-premium.css?v=20261118-v1">
@@ -365,12 +365,12 @@
   <link rel="stylesheet" href="/whatsapp-settings.css?v=20261124-wa-focus-v1">
   <link rel="stylesheet" href="/client-source.css?v=20261118-v1">
   <!-- Reports inherit the final light CRM palette, including on dark-mode iPhones. -->
-  <link rel="stylesheet" href="/profit-report.css?v=20261125-fullscreen">
-  <link rel="stylesheet" href="/contextual-search.css?v=20261125-fullscreen">
+  <link rel="stylesheet" href="/profit-report.css?v=20261125-shell">
+  <link rel="stylesheet" href="/contextual-search.css?v=20261125-shell">
   <link rel="stylesheet" href="/expenses.css?v=20261125-fullscreen">
   <link rel="stylesheet" href="/growth.css?v=20261125-fullscreen">
-  <link rel="stylesheet" href="/orders-workspace.css?v=20261125-fullscreen">
-  <link rel="stylesheet" href="/app-shell.css?v=20261125-fullscreen">
+  <link rel="stylesheet" href="/orders-workspace.css?v=20261125-shell">
+  <link rel="stylesheet" href="/app-shell.css?v=20261125-shell">
 </head>
 <body>
 
@@ -437,8 +437,65 @@
       <div class="auth-message" id="accessMessage" role="status"></div>
     </div>
   </section>
-  <main id="appScreen" hidden>
-    <div class="rd-screen-heading"><h1 id="appTitle">Заказы</h1></div>
+  <header id="rdScreenHeader" hidden>
+    <div class="rd-screen-heading">
+      <button id="rdScreenBack" type="button" aria-label="Назад к отчётам" hidden>
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="m15 18-6-6 6-6"/>
+        </svg>
+      </button>
+      <h1 id="appTitle">Заказы</h1>
+    </div>
+    <div class="rd-profile" id="rdProfile">
+      <button class="rd-profile-trigger" id="rdProfileTrigger" type="button" aria-label="Открыть меню профиля" aria-haspopup="dialog" aria-controls="rdProfileMenu" aria-expanded="false">
+        <svg viewBox="0 0 24 24" width="23" height="23" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <circle cx="12" cy="8" r="3.7"/><path d="M4.5 20v-1.6a7.5 7.5 0 0 1 15 0V20H4.5Z"/>
+        </svg>
+        <img class="rd-profile-photo" hidden src="/icons/raul-profile-avatar-20261114.jpg" width="104" height="104" alt="" aria-hidden="true" decoding="async">
+      </button>
+      <div class="rd-profile-menu" id="rdProfileMenu" role="dialog" hidden aria-label="Меню профиля">
+        <div class="rd-profile-identity">
+          <span class="rd-profile-initial" id="rdProfileInitial" aria-hidden="true">Р</span>
+          <span class="rd-profile-text"><strong id="rdProfileName">Рауль</strong><small id="rdProfileRole">Мастер</small></span>
+        </div>
+        <section id="masterPushPanel" class="push-panel push-compact" hidden aria-label="Уведомления мастера">
+          <button id="pushBellBtn" class="push-bell" type="button" aria-label="Открыть уведомления" aria-expanded="false" aria-controls="pushPopover">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9"/><path d="M10 21h4"/></svg>
+            <span>Уведомления</span>
+            <span id="pushUnreadCount" class="push-unread" hidden>0</span>
+          </button>
+          <div id="pushPopover" class="push-popover" hidden aria-label="Уведомления и заказы для проверки">
+            <div class="push-popover-head">
+              <strong>Уведомления</strong>
+              <button type="button" class="push-close" id="closePushPopover" aria-label="Закрыть уведомления">×</button>
+            </div>
+            <div class="push-setting-row">
+              <div class="push-setting-label">
+                <strong>Уведомления на телефон</strong>
+                <span>О новых заказах</span>
+              </div>
+              <label class="push-toggle">
+                <input id="pushToggle" type="checkbox" role="switch" aria-label="Уведомления о новых заказах на телефон" disabled>
+                <span id="pushToggleText">Выкл</span>
+              </label>
+            </div>
+            <div id="pushStatus" class="push-status" role="status" aria-live="polite"></div>
+            <div id="masterStatusReviewList" class="push-review-list" hidden aria-label="Заказы, требующие проверки статуса"></div>
+            <div class="push-list-heading">Новые заявки</div>
+            <div id="recentNotificationList"><div class="push-empty">Загрузка…</div></div>
+            <button class="secondary" id="testPushBtn" type="button" hidden>Проверить уведомление на телефоне</button>
+          </div>
+        </section>
+        <button class="rd-profile-logout" id="logoutBtn" type="button">
+          <svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M9 4H5a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h4"/><path d="m14 8 4 4-4 4M8 12h10"/>
+          </svg>
+          <span>Выйти</span>
+        </button>
+      </div>
+    </div>
+  </header>
+  <main id="appScreen" aria-labelledby="appTitle" hidden>
     <a id="aiChatLink" class="secondary ai-chat-entry" href="/ai.html" hidden>✦ Открыть ИИ-чат</a>
     <div class="sync-note" id="syncStatus" role="status" hidden></div>
     <section id="exMain" class="rd-view ex-main" aria-label="Расходы" hidden>
@@ -502,7 +559,6 @@
       <div id="gwNotice" class="gw-notice" role="status" aria-live="polite"></div>
     </section>
     <div id="ordersArea">
-    <button id="newOrderBtn" class="primary new-order" type="button" aria-label="Создать новый заказ" hidden><span class="plus" aria-hidden="true">+</span><span class="new-order-label">Новый заказ</span></button>
     <button class="secondary" id="importBtn" type="button" hidden>Перенести старые заказы с телефона</button>
     <section class="panel" id="teamPanel" hidden>
       <div class="panel-top"><h2>Мастера и доступ</h2><button class="secondary" id="refreshTeam" type="button">Обновить</button></div>
@@ -551,55 +607,7 @@
       <div id="financeContent"></div>
     </section>
   </main>
-
-  <div class="rd-profile" id="rdProfile" hidden>
-    <button class="rd-profile-trigger" id="rdProfileTrigger" type="button" aria-label="Открыть меню профиля" aria-haspopup="dialog" aria-controls="rdProfileMenu" aria-expanded="false">
-      <svg viewBox="0 0 24 24" width="23" height="23" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-        <circle cx="12" cy="8" r="3.7"/><path d="M4.5 20v-1.6a7.5 7.5 0 0 1 15 0V20H4.5Z"/>
-      </svg>
-      <img class="rd-profile-photo" hidden src="/icons/raul-profile-avatar-20261114.jpg" width="104" height="104" alt="" aria-hidden="true" decoding="async">
-    </button>
-    <div class="rd-profile-menu" id="rdProfileMenu" role="dialog" hidden aria-label="Меню профиля">
-      <div class="rd-profile-identity">
-        <span class="rd-profile-initial" id="rdProfileInitial" aria-hidden="true">Р</span>
-        <span class="rd-profile-text"><strong id="rdProfileName">Рауль</strong><small id="rdProfileRole">Мастер</small></span>
-      </div>
-        <section id="masterPushPanel" class="push-panel push-compact" hidden aria-label="Уведомления мастера">
-          <button id="pushBellBtn" class="push-bell" type="button" aria-label="Открыть уведомления" aria-expanded="false" aria-controls="pushPopover">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9"/><path d="M10 21h4"/></svg>
-            <span>Уведомления</span>
-            <span id="pushUnreadCount" class="push-unread" hidden>0</span>
-          </button>
-          <div id="pushPopover" class="push-popover" hidden aria-label="Уведомления и заказы для проверки">
-            <div class="push-popover-head">
-              <strong>Уведомления</strong>
-              <button type="button" class="push-close" id="closePushPopover" aria-label="Закрыть уведомления">×</button>
-            </div>
-            <div class="push-setting-row">
-              <div class="push-setting-label">
-                <strong>Уведомления на телефон</strong>
-                <span>О новых заказах</span>
-              </div>
-              <label class="push-toggle">
-                <input id="pushToggle" type="checkbox" role="switch" aria-label="Уведомления о новых заказах на телефон" disabled>
-                <span id="pushToggleText">Выкл</span>
-              </label>
-            </div>
-            <div id="pushStatus" class="push-status" role="status" aria-live="polite"></div>
-            <div id="masterStatusReviewList" class="push-review-list" hidden aria-label="Заказы, требующие проверки статуса"></div>
-            <div class="push-list-heading">Новые заявки</div>
-            <div id="recentNotificationList"><div class="push-empty">Загрузка…</div></div>
-            <button class="secondary" id="testPushBtn" type="button" hidden>Проверить уведомление на телефоне</button>
-          </div>
-        </section>
-      <button class="rd-profile-logout" id="logoutBtn" type="button">
-        <svg viewBox="0 0 24 24" width="21" height="21" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <path d="M9 4H5a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h4"/><path d="m14 8 4 4-4 4M8 12h10"/>
-        </svg>
-        <span>Выйти</span>
-      </button>
-    </div>
-  </div>
+  <button id="newOrderBtn" class="primary new-order" type="button" aria-label="Создать новый заказ" hidden><span class="plus" aria-hidden="true">+</span><span class="new-order-label">Новый заказ</span></button>
 
   <div class="overlay" id="orderOverlay" hidden>
     <section class="sheet" role="dialog" aria-modal="true" aria-labelledby="formTitle">
@@ -870,32 +878,32 @@
     }
     function phoneForDisplay(phone){return sharedServices.phoneForDisplay(phone);}
     function normalizePhone(phone){return sharedServices.normalizePhone(phone);}
-    function masterViewportScroller(){
-      return currentRole==="master" &&
-        window.matchMedia?.("(max-width:790px)")?.matches
-        ?document.getElementById("appScreen"):null;
-    }
     function verticalScrollPosition(){
-      return masterViewportScroller()?.scrollTop??window.scrollY??0;
+      return document.getElementById("appScreen").scrollTop;
     }
     function restoreVerticalScroll(value){
-      const y=Math.max(0,Number(value)||0),scrollable=masterViewportScroller();
-      if(scrollable)scrollable.scrollTop=y;
-      else window.scrollTo(0,y);
+      document.getElementById("appScreen").scrollTop=Math.max(0,Number(value)||0);
     }
-    // Shared with the compact master navigation, which retains scroll per section.
-    window.__rdMasterViewportScroll={
+    window.__rdViewportScroll={
       position:verticalScrollPosition,
       restore:restoreVerticalScroll
+    };
+    window.__rdSetActiveNavItem=(nav,selected)=>{
+      for(const button of nav.querySelectorAll("[data-page], [data-mw-page], #rdMobileMoreBtn"))
+        button.setAttribute("aria-current",button===selected?"page":"false");
     };
     function showScreen(which) {
       ["startupScreen","loginScreen","accessScreen","appScreen"].forEach(id => {
         document.getElementById(id).hidden = (id !== which);
       });
-      document.getElementById("rdProfile").hidden=which!=="appScreen";
-      if(which!=="appScreen")window.__rdCloseProfile?.();
-      document.documentElement.classList.toggle("rd-master-scroll-locked",
-        which==="appScreen"&&currentRole==="master");
+      const appOpen=which==="appScreen";
+      document.getElementById("rdScreenHeader").hidden=!appOpen;
+      document.documentElement.classList.toggle("rd-app-open",appOpen);
+      if(appOpen)document.body.dataset.rdRole=currentRole;
+      else{
+        delete document.body.dataset.rdRole;
+        window.__rdCloseProfile?.();
+      }
       // Order dialogs live outside appScreen and must also leave the account view.
       if(which!=="appScreen"){
         window.__rdClosePaymentPrompt?.();
@@ -1764,7 +1772,7 @@
       controls.paid.disabled=raulCreating;
       controls.status.closest(".field").style.display=raulCreating?"none":"";
       controls.paid.parentElement.style.display="none";
-      overlay.hidden=false;document.body.style.overflow="hidden";
+      overlay.hidden=false;
       window.__rdOrderAvailability?.open(getOrders(),editingId);
       document.getElementById("orderFormScroll").scrollTop=0;
       // На iPhone автоматический фокус открывал клавиатуру и сдвигал форму.
@@ -1773,7 +1781,7 @@
     function closeForm(force) {
       // Запретить закрытие до завершения сохранения: результат запроса ещё неизвестен.
       if(orderSaving && force!==true)return;
-      overlay.hidden=true;overlay.classList.remove("master-quick");window.__rdOrderAvailability?.close();document.body.style.overflow="";form.reset();delete form.dataset.leadPreview;delete form.dataset.leadId;editingId=null;
+      overlay.hidden=true;overlay.classList.remove("master-quick");window.__rdOrderAvailability?.close();form.reset();delete form.dataset.leadPreview;delete form.dataset.leadId;editingId=null;
       if(previousFocus&&typeof previousFocus.focus==="function")previousFocus.focus();
       previousFocus=null;formPaymentChoice=null;formStatus.textContent="";
     }
@@ -2644,7 +2652,14 @@
     const profileRoot=document.getElementById("rdProfile");
     const profileTrigger=document.getElementById("rdProfileTrigger");
     const profileMenu=document.getElementById("rdProfileMenu");
-    window.__rdSetScreenHeading=title=>{document.getElementById("appTitle").textContent=title;};
+    const screenBack=document.getElementById("rdScreenBack");
+    let screenBackAction=null;
+    screenBack.addEventListener("click",()=>screenBackAction?.());
+    window.__rdSetScreenHeading=(title,backAction=null)=>{
+      document.getElementById("appTitle").textContent=title;
+      screenBackAction=backAction;
+      screenBack.hidden=!backAction;
+    };
     function closeProfileMenu(focusTrigger=false){
       if(profileMenu.hidden)return;
       window.__rdClosePushPopover?.();
@@ -2699,19 +2714,19 @@
   <script src="/booking-timeline.js?v=20261117-v1"></script>
   <script src="/order-availability.js?v=20261124-indexed-bookings"></script>
   <script src="/master-quick-order.js?v=20261117-mock-v1"></script>
-  <script src="/quick-slots.js?v=20261124-stable-slots"></script>
+  <script src="/quick-slots.js?v=20261125-shell"></script>
   <script src="/whatsapp-order.js?v=20261111-master-notes"></script>
   <script src="/whatsapp-client.js?v=20261118-safety-fix-v1"></script>
   <script src="/whatsapp-settings.js?v=20261124-wa-focus-v1"></script>
-  <script src="/profit-report.js?v=20261125-fullscreen"></script>
+  <script src="/profit-report.js?v=20261125-shell"></script>
   <script src="/expenses.js?v=20261124-stability"></script>
   <script src="/growth.js?v=20261124-integrated-modules"></script>
-  <script src="/redesign.js?v=20261125-fullscreen"></script>
+  <script src="/redesign.js?v=20261125-shell"></script>
   <script src="/master-notifications.js?v=20261125-fullscreen"></script>
-  <script src="/orders-list.js?v=20261124-payroll-v3"></script>
+  <script src="/orders-list.js?v=20261125-shell"></script>
   <script src="/owner-parity.js?v=20261124-unified-v1"></script>
-  <script src="/finance-payroll.js?v=20261125-fullscreen"></script>
-  <script src="/money-workspace.js?v=20261125-fullscreen"></script>
+  <script src="/finance-payroll.js?v=20261125-shell"></script>
+  <script src="/money-workspace.js?v=20261125-shell"></script>
   <script src="/lead-assistant.js?v=20261124-stability"></script>
   <script src="/orders-workspace.js?v=20261125-fullscreen"></script>
 </body>

@@ -396,13 +396,19 @@ async function ownerReports(browser){
   try{
     const {page,state}=f;
     await page.goto(origin+"/?view=reports");
-    await page.locator("#rdReports .pr-menu .pr-report-link").filter({hasText:"Прибыль по заказам"}).click();
+    const profitEntry=page.locator("#rdReports .pr-menu .pr-report-link").filter({hasText:"Прибыль по заказам"});
+    await profitEntry.click();
     const table=page.locator(".pr-table");
     await table.waitFor();
-    assert.equal(await page.locator("#appTitle").textContent(),"Отчёты");
-    const breadcrumb=page.getByRole("navigation",{name:"Путь к отчёту"});
-    assert.equal(await breadcrumb.getByRole("heading",{name:"Прибыль по заказам"}).count(),1);
+    const back=page.getByRole("button",{name:"Назад к отчётам"});
+    assert.equal(await page.locator("#appTitle").textContent(),"Прибыль по заказам");
+    assert.equal(await page.getByRole("heading",{name:"Прибыль по заказам",exact:true}).count(),1);
+    assert.equal(await back.isVisible(),true);
     await page.locator(".pr-row-open").first().click();
+    await dock(page,"finance").click();
+    assert.equal(await back.isVisible(),false);
+    await dock(page,"reports").click();
+    assert.equal(await page.locator("#appTitle").textContent(),"Прибыль по заказам");
     await page.evaluate(()=>{window.initialTotal=document.querySelector(".pr-total-row");});
     state.fail.add("rabota_finance_operations");
     await page.evaluate(()=>void window.__rdMoneyUi.refreshFinance());
@@ -413,11 +419,15 @@ async function ownerReports(browser){
     assert.equal(await page.evaluate(()=>window.initialTotal===document.querySelector(".pr-total-row")),true);
     await page.locator(".pr-retry").click();
     await page.waitForFunction(()=>!document.querySelector(".pr-export").disabled);
-    await page.getByRole("button",{name:"Вернуться ко всем отчётам"}).click();
-    await page.locator("#rdReports .rd-salary-entry").click();
+    await back.click();
+    assert.equal(await page.locator("#appTitle").textContent(),"Отчёты");
+    assert.equal(await profitEntry.evaluate(node=>node===document.activeElement),true);
+    const salaryEntry=page.locator("#rdReports .rd-salary-entry");
+    await salaryEntry.click();
     const salary=v3Report(page);
     await salary.waitFor();
-    assert.equal(await breadcrumb.getByRole("heading",{name:"Зарплата"}).count(),1);
+    assert.equal(await page.locator("#appTitle").textContent(),"Зарплата");
+    assert.equal(await page.getByRole("heading",{name:"Зарплата",exact:true}).count(),1);
     state.fail.add("rabota_finance_operations");
     await page.evaluate(()=>void window.__rdMoneyUi.refreshFinance());
     await page.getByText(/Показаны последние расчёты зарплаты/).waitFor();
@@ -425,6 +435,10 @@ async function ownerReports(browser){
     assert.equal(await salary.getByRole("button",{name:"Выплатить всё"}).isDisabled(),true);
     await page.locator("#rdSalaryReport .fp-retry").click();
     await page.waitForFunction(()=>document.querySelector("#rdSalaryReport .fp-balance-payout:enabled"));
+    await back.click();
+    assert.equal(await page.locator("#appTitle").textContent(),"Отчёты");
+    assert.equal(await back.isVisible(),false);
+    assert.equal(await salaryEntry.evaluate(node=>node===document.activeElement),true);
   }finally{await f.close();}
 }
 
@@ -595,9 +609,14 @@ async function v3Master(browser,width){
     const nav=page.locator("#mwMasterNav");
     await nav.locator('[data-mw-page="reports"]').click();
     assert.equal(await page.locator("#appTitle").textContent(),"Отчёты");
-    await page.locator("#mwMasterReports").getByRole("button",{name:/Зарплата/i}).click();
+    const salaryEntry=page.locator("#mwMasterReports").getByRole("button",{name:/Зарплата/i});
+    await salaryEntry.click();
     const report=v3Report(page);
     await report.waitFor();
+    const back=page.getByRole("button",{name:"Назад к отчётам"});
+    assert.equal(await page.locator("#appTitle").textContent(),"Зарплата");
+    assert.equal(await page.getByRole("heading",{name:"Зарплата",exact:true}).count(),1);
+    assert.equal(await back.isVisible(),true);
     await salaryValues(report,priorPayout,amountDue);
     await assertPhoneFit(report);
     await assertAccrual(report);
@@ -608,6 +627,7 @@ async function v3Master(browser,width){
     const payments=page.locator("#mwMasterPayments");
     await payments.waitFor();
     assert.equal(await page.locator("#appTitle").textContent(),"Платежи");
+    assert.equal(await back.isVisible(),false);
     for(const order of [directReceipt,refundedOrder]){
       const row=paymentRow(payments,order.id);
       await row.waitFor();
@@ -627,6 +647,15 @@ async function v3Master(browser,width){
     await assertNoCustody(payments,calls);
     assert.equal(await report.locator(".fp-cutover-review").count(),0);
     await assertPhoneFit(payments);
+    await nav.locator('[data-mw-page="reports"]').click();
+    assert.equal(await page.locator("#appTitle").textContent(),"Зарплата");
+    await back.click();
+    assert.equal(await page.locator("#appTitle").textContent(),"Отчёты");
+    assert.equal(await salaryEntry.evaluate(node=>node===document.activeElement),true);
+    await page.locator("#mwMasterReports").getByRole("button",{name:/Прибыль по заказам/}).click();
+    assert.equal(await page.getByRole("heading",{name:"Прибыль по заказам",exact:true}).count(),1);
+    await back.click();
+    assert.equal(await page.locator("#appTitle").textContent(),"Отчёты");
     assert.deepEqual(writes,[]);
   }finally{await f.close();}
 }

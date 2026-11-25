@@ -6,7 +6,7 @@
   if(typeof originalDecorate!=="function")return;
 
   // Keep the list static: a single dialog displays the selected live order.
-  let activeId=null,activeDialog=null,oldBodyOverflow="",returnFocus=null;
+  let activeId=null,activeDialog=null,returnFocus=null;
   function visibleCards(){
     return Array.from(document.querySelectorAll("#orders .rd-list-row"))
       .filter(node=>!node.closest("[hidden]")&&node.dataset.rdOrderId);
@@ -19,7 +19,6 @@
     const dialog=activeDialog;
     activeDialog=null;activeId=null;
     dialog.remove();
-    document.body.style.overflow=oldBodyOverflow;
     document.removeEventListener("keydown",onDialogKey,true);
     if(focus){
       const row=returnFocus;
@@ -205,8 +204,6 @@
     }
     if(!orderCard(id))return;
     returnFocus=trigger||document.activeElement;
-    oldBodyOverflow=document.body.style.overflow;
-    document.body.style.overflow="hidden";
     const overlay=text("div","","rd-order-overlay");
     const dialog=text("section","","rd-order-dialog");
     dialog.setAttribute("role","dialog");

@@ -93,7 +93,7 @@
       item.dataset.mwPage=key;
       item.append(navIcon(icon),el("span","",label));nav.append(item);
     }
-    app.append(nav);masterReady=true;
+    document.body.append(nav);masterReady=true;
     syncFilterChips(filters);updateNav();
   }
   function syncFilterChips(filters){
@@ -138,11 +138,8 @@
   }
   function updateNav(){
     const nav=$("mwMasterNav");if(!nav)return;
-    for(const b of nav.querySelectorAll("button")){
-      const active=b.dataset.mwPage===(page==="day"||page==="orders"?"orders":page);
-      b.classList.toggle("is-active",active);
-      b.setAttribute("aria-current",active?"page":"false");
-    }
+    const destination=page==="day"?"orders":page;
+    window.__rdSetActiveNavItem(nav,nav.querySelector('[data-mw-page="'+destination+'"]'));
   }
   function switchPage(which,restore=true){
     if(api()?.snapshot()?.role!=="master")return;
@@ -151,7 +148,7 @@
     if(!reports||!payments||!orders||!finance)return;
     if(which!==page){
       window.__rdCloseProfile?.();
-      if(restore)scrollPositions.set(page,window.__rdMasterViewportScroll?.position?.()??window.scrollY??0);
+      if(restore)scrollPositions.set(page,window.__rdViewportScroll.position());
     }
     page=which;
     window.__rdMasterCurrentPage=page;
@@ -180,8 +177,7 @@
     window.__rdOrdersWorkspace?.refresh?.();
     if(restore){
       const y=scrollPositions.get(which)||0;
-      if(window.__rdMasterViewportScroll?.restore)window.__rdMasterViewportScroll.restore(y);
-      else window.scrollTo({top:y,behavior:"instant"});
+      window.__rdViewportScroll.restore(y);
     }
   }
   window.__rdMasterNavigate=(which,restore=false)=>switchPage(which,restore);
@@ -316,10 +312,28 @@
     select.onchange=()=>{paymentMethod=select.value;renderPaymentHistory(list,rows);};
     renderPaymentHistory(list,rows);
   }
+  function showMasterReport(next){
+    const previous=step;
+    step=next;
+    renderMaster();
+    window.__rdViewportScroll?.restore(0);
+    const focus=next==="menu"
+      ?$("mwMasterReports")?.querySelector('[data-report="'+previous+'"]')
+      :$("rdScreenBack");
+    focus?.focus({preventScroll:true});
+  }
+  function closeMasterReport(){showMasterReport("menu");}
   function renderMaster(){
     const root=$("mwMasterReports");if(!root||root.hidden)return;
     const m=api()?.snapshot();
     if(!m||m.role!=="master")return;
+    const isRaul=String(m.masterName||"").trim().toLocaleLowerCase("ru")==="рауль";
+    if(step==="orderProfit"&&!isRaul)step="menu";
+    const embedded=typeof window.__rdSetScreenHeading==="function";
+    if(embedded){
+      const title={menu:"Отчёты",detail:"Зарплата",orderProfit:"Прибыль по заказам"}[step];
+      window.__rdSetScreenHeading(title,step==="menu"?undefined:closeMasterReport);
+    }
     if(step==="orderProfit"&&masterProfitReport?.container?.isConnected){
       masterProfitReport.api.render();return;
     }
@@ -329,16 +343,15 @@
     masterProfitReport=null;
     masterPayrollReport=null;
     root.replaceChildren();
-    const back=(label,fn)=>btn("‹ "+label,"mw-back",fn);
-    const isRaul=String(m.masterName||"").trim().toLocaleLowerCase("ru")==="рауль";
     if(step==="menu"){
-      // The authenticated master only has one report: no extra staff directory.
-      const entry=btn("","mw-entry",()=>{step="detail";renderMaster()});
+      const entry=btn("","mw-entry",()=>showMasterReport("detail"));
+      entry.dataset.report="detail";
       entry.append(el("span","mw-entry-icon","▤"),box("mw-entry-copy",
         el("strong","","Зарплата"),el("small","","Баланс, начисления и выплаты")),el("span","mw-chevron","›"));
       root.append(entry);
       if(isRaul){
-        const orderProfit=btn("","mw-entry",()=>{step="orderProfit";renderMaster()});
+        const orderProfit=btn("","mw-entry",()=>showMasterReport("orderProfit"));
+        orderProfit.dataset.report="orderProfit";
         orderProfit.append(el("span","mw-entry-icon","▤"),box("mw-entry-copy",
           el("strong","","Прибыль по заказам"),
           el("small","","Мои заказы, оплаты и начисления")),el("span","mw-chevron","›"));
@@ -346,21 +359,23 @@
       }
       return;
     }
+    const unavailable=()=>{
+      if(!embedded)root.append(btn("‹ Отчёты","mw-back",closeMasterReport));
+      root.append(el("p","mw-error","Отчёт временно недоступен."));
+    };
     if(step==="orderProfit"){
-      if(!isRaul){step="menu";renderMaster();return;}
-      const container=el("div","mw-profit-report");root.append(container);
       const maker=window.__rdCreateProfitReport;
       if(typeof maker!=="function"){
-        root.append(back("Отчёты",()=>{step="menu";renderMaster()}),
-          el("p","mw-error","Отчёт временно недоступен."));return;
+        unavailable();return;
       }
+      const container=el("div","mw-profit-report");root.append(container);
       const report=maker(container,{
         getOrders:()=>api()?.masterReportOrders?.()||[],
         getRaulMasterId:()=>api()?.snapshot()?.masterId||null,
         getFinanceStatus:()=>api()?.snapshot(),
         getPayroll:()=>window.__rdPayrollSnapshot?.(),
         onRetry:financeRetry,
-        startOpen:true,onBack:()=>{step="menu";masterProfitReport=null;renderMaster()}
+        startOpen:true,embedded,onBack:closeMasterReport
       });
       masterProfitReport={container,api:report};
       return;
@@ -368,13 +383,13 @@
     if(window.__rdPayrollReport?.mount){
       const container=el("div","fp-master-payroll");
       root.append(container);
-      const report=window.__rdPayrollReport.mount(container,{master:true,
-        onBack:()=>{step="menu";masterPayrollReport=null;renderMaster();}
+      const report=window.__rdPayrollReport.mount(container,{master:true,embedded,
+        onBack:closeMasterReport
       });
       masterPayrollReport={container,api:report};
       return;
     }
-    root.append(back("Отчёты",()=>{step="menu";renderMaster()}),el("p","mw-error","Отчёт временно недоступен."));
+    unavailable();
   }
   function modalBase(title){
     const prev=document.activeElement,overlay=el("div","mw-modal-backdrop");

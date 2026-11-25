@@ -1,8 +1,8 @@
-/* Browser layout regression on synthetic data only. Requires Playwright and Chromium.
+/* Browser layout regression on synthetic data only. Requires Playwright Chromium or WebKit.
  * Run: node tests/responsive-layout.cjs
  * Optional: CHROMIUM_PATH=/path/to/chromium. No live API requests are allowed.
  */
-const {chromium,devices}=require('playwright');
+const {chromium,webkit,devices}=require('playwright');
 const fs=require('node:fs'),path=require('node:path');
 const assert=require('node:assert/strict');
 const root=path.resolve(__dirname,'..');
@@ -51,32 +51,39 @@ async function setup(browser,device,role='owner'){
 async function scan(page,label){
  return page.evaluate(label=>{
   const viewport=document.documentElement.clientWidth;
+  const workspace=document.getElementById('appScreen');
   const issues=[];
   for(const e of document.querySelectorAll('button,input,select,textarea,a,strong,h1,h2,h3,.rd-panel,.team-item,.fp-person-row')){
    const r=e.getBoundingClientRect();if(!r.width||!r.height||getComputedStyle(e).visibility==='hidden')continue;
-   let intentional=false;for(let p=e.parentElement;p&&p!==document.body&&p!==document.documentElement;p=p.parentElement){const s=getComputedStyle(p);if(['auto','scroll'].includes(s.overflowX)&&p.scrollWidth>p.clientWidth+2){intentional=true;break}}
+   let intentional=false;for(let p=e.parentElement;p&&p!==workspace&&p!==document.body&&p!==document.documentElement;p=p.parentElement){const s=getComputedStyle(p);if(['auto','scroll'].includes(s.overflowX)&&p.scrollWidth>p.clientWidth+2){intentional=true;break}}
    if(!intentional&&(r.left< -2||r.right>viewport+2))issues.push({id:e.id,cls:e.className,tag:e.tagName,left:Math.round(r.left),right:Math.round(r.right)});
   }
-  return {label,width:innerWidth,overflow:document.documentElement.scrollWidth-viewport,issues:issues.slice(0,16)};
+  return {label,width:innerWidth,overflow:document.documentElement.scrollWidth-viewport,
+   workspaceOverflow:workspace?workspace.scrollWidth-workspace.clientWidth:0,issues:issues.slice(0,16)};
  },label);
 }
 async function verifyProfile(page,role){
- const heading=page.locator('#appScreen > .rd-screen-heading');
- const profile=page.locator('#rdProfile');
+ const header=page.locator('#rdScreenHeader');
+ const heading=header.locator(':scope > .rd-screen-heading');
+ const profile=header.locator('#rdProfile');
  const trigger=page.locator('#rdProfileTrigger');
  const menu=page.locator('#rdProfileMenu');
  await heading.waitFor();
  await trigger.waitFor();
- assert.equal(await page.locator('#appTitle').count(),1,'one flow title per document');
- assert.equal(await profile.count(),1,'one fixed profile per document');
- assert.equal(await profile.evaluate(node=>node.parentElement===document.querySelector('#appScreen').parentElement
-  &&getComputedStyle(node).position==='fixed'),true,'profile is fixed outside the scrolling app');
+ assert.equal(await page.locator('#appTitle').count(),1,'one shared title per document');
+ assert.equal(await profile.count(),1,'one profile in the shared header');
+ const workspace=page.locator('#appScreen');
+ assert.equal(await header.evaluate(node=>node.parentElement===document.getElementById('appScreen').parentElement),true,
+  'shared header is outside the scrolling workspace');
+ const headerBox=await header.boundingBox(),appBox=await workspace.boundingBox();
+ assert.ok(appBox.y>=headerBox.y+headerBox.height-1,'workspace begins below the shared header');
+ assert.match(await workspace.evaluate(node=>getComputedStyle(node).overflowY),/^(auto|scroll)$/);
  const control=await trigger.boundingBox();
  assert.ok(control.width>=43.5&&control.height>=43.5,'profile is tappable');
  const titleBefore=await heading.boundingBox();
  await trigger.click();
  await menu.waitFor();
- assert.deepEqual(await heading.boundingBox(),titleBefore,'opening profile keeps the flow title in place');
+ assert.deepEqual(await heading.boundingBox(),titleBefore,'opening profile keeps the shared title in place');
  assert.equal(await menu.locator('#logoutBtn').isVisible(),true,'sign-out is inside the profile');
  if(role==='master'){
   await menu.locator('#pushBellBtn').click();
@@ -90,7 +97,28 @@ async function verifyProfile(page,role){
  await page.keyboard.press('Escape');
  assert.equal(await menu.isVisible(),false,'Escape closes the profile');
 }
-(async()=>{const browser=await chromium.launch({executablePath:process.env.CHROMIUM_PATH||'/usr/bin/chromium',args:['--no-sandbox']});try{
+async function verifyWorkspaceScroll(page,label){
+ const positions=await page.evaluate(()=>{
+  const app=document.getElementById('appScreen');
+  const header=document.getElementById('rdScreenHeader');
+  const initialScroll=app.scrollTop;
+  const initialHeader=header.getBoundingClientRect().top;
+  app.scrollTop=0;
+  app.scrollTop=Math.min(120,app.scrollHeight-app.clientHeight);
+  const result={scroll:app.scrollTop,header:header.getBoundingClientRect().top,
+   initialHeader,documentScroll:window.scrollY};
+  app.scrollTop=initialScroll;
+  return result;
+ });
+ assert.ok(positions.scroll>0,label+' scrollable workspace');
+ assert.equal(positions.header,positions.initialHeader,label+' header stays anchored');
+ assert.equal(positions.documentScroll,0,label+' document remains stationary');
+}
+(async()=>{const kind=process.env.TEST_BROWSER||'chromium';
+ const browser=await (kind==='webkit'?webkit:chromium).launch({
+  executablePath:process.env.TEST_BROWSER_PATH||(kind==='chromium'?(process.env.CHROMIUM_PATH||'/usr/bin/chromium'):undefined),
+  args:kind==='chromium'?['--no-sandbox']:[]
+ });try{
  const {page,context,writes,errors}=await setup(browser);
  await page.goto('https://crm.test/');await page.locator('.rd-shell').waitFor();
  const results=[];
@@ -117,6 +145,11 @@ async function verifyProfile(page,role){
    if(screenshots&&[320,800,1440].includes(width))await page.screenshot({path:path.join(screenshots,section+'-'+width+'.png')});
    if(section==='orders'){
     await page.locator('#owViewSwitch [data-ow-mode="all"]').click();
+    if(width===1440){
+     await page.setViewportSize({width,height:600});
+     await verifyWorkspaceScroll(page,'desktop owner');
+     await page.setViewportSize({width,height:800});
+    }
     if(width<=790){
      const toggle=page.locator('#owFilterToggle');
      const count=page.locator('#orderCount');
@@ -161,7 +194,7 @@ async function verifyProfile(page,role){
     await page.locator('.fp-subtab').nth(1).click();results.push(await scan(page,'salary-payments'));
     await page.locator('.fp-balance-payout').click();results.push(await scan(page,'payout-dialog'));
     await page.locator('.fp-close').click();
-    await page.getByRole('button',{name:'Вернуться ко всем отчётам'}).click();
+    await page.locator('#rdScreenHeader').getByRole('button',{name:'Назад к отчётам'}).click();
    }
    if(section==='settings'){
     await page.locator('#teamMembers .team-item').first().waitFor();
@@ -220,7 +253,14 @@ async function verifyProfile(page,role){
    await mobile.context.close();
   }
  }
- const failures=results.filter(x=>x.overflow>2||x.issues.length);
+ const desktopMaster=await setup(browser,{viewport:{width:1280,height:600}},'master');
+ try{
+  await desktopMaster.page.goto('https://crm.test/');
+  await desktopMaster.page.locator('#owViewSwitch [data-ow-mode="all"]').click();
+  await verifyWorkspaceScroll(desktopMaster.page,'desktop master');
+  assert.deepEqual(desktopMaster.writes,[]);assert.deepEqual(desktopMaster.errors,[]);
+ }finally{await desktopMaster.context.close();}
+ const failures=results.filter(x=>x.overflow>2||x.workspaceOverflow>2||x.issues.length);
  console.log(JSON.stringify({checks:results.length,failures,writes,errors},null,2));
  assert.deepEqual(failures,[],'layout overflow');assert.deepEqual(writes,[],'unexpected mutation attempt');assert.deepEqual(errors,[],'browser errors');
  await context.close();

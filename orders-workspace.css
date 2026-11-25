@@ -4,7 +4,6 @@ body.rd #appScreen.rd-unified-orders{
   --ow-ink:#17243e;--ow-muted:#72819c;--ow-blue:#315cd9;
   --ow-border:#dce4f5;--ow-surface:#fff;--ow-background:#f3f6fd;
   color:var(--ow-ink);background:var(--ow-background);
-  padding-bottom:calc(156px + env(safe-area-inset-bottom,0px));
 }
 body.rd #appScreen.rd-unified-orders :is(#ordersArea,#orders,#owViewSwitch,#owSearch){min-width:0;max-width:100%;box-sizing:border-box}
 body.rd #appScreen.rd-unified-orders :is(#rdOrdersIntro,#rdOrderStats,#rdOrderToolbar,#rdOrdersDayPicker,#mwMasterFilterbar,#rdOrdersFilterToggle),
@@ -230,44 +229,9 @@ body.rd #appScreen.rd-unified-orders .ow-cancelled-toggle:after{content:"⌄";fl
 body.rd #appScreen.rd-unified-orders .ow-cancelled-toggle[aria-expanded="true"]:after{transform:rotate(180deg)}
 body.rd #appScreen.rd-unified-orders .ow-cancelled-body{display:flex;flex-direction:column;gap:8px;padding-top:8px;min-width:0}
 
-/* The master's four destinations have their own dock. */
-body.rd #mwMasterNav{grid-template-columns:repeat(4,minmax(0,1fr))}
-@media(max-width:790px){
-  body.rd{
-    --rd-mobile-dock-padding-bottom:max(8px,env(safe-area-inset-bottom,0px));
-    --rd-mobile-dock-height:calc(64px + var(--rd-mobile-dock-padding-bottom));
-    --rd-mobile-more-gap:6px;
-  }
-  body.rd #appScreen.rd-unified-orders:is(.rd-owner,.rd-manager){
-    padding-bottom:calc(var(--rd-mobile-dock-height) + 84px);
-  }
-  body.rd > #orderOverlay:not(.master-quick){z-index:110}
-  html.rd-master-scroll-locked body.rd #appScreen.rd-master.master-mode.rd-unified-orders:not([hidden]){
-    padding-bottom:calc(156px + env(safe-area-inset-bottom,0px));
-  }
-  body.rd #appScreen.rd-unified-orders #ordersArea>#newOrderBtn{
-    position:fixed;z-index:34;right:max(14px,env(safe-area-inset-right,0px));
-    bottom:calc(83px + env(safe-area-inset-bottom,0px));left:auto;
-    display:inline-flex;align-items:center;justify-content:center;gap:6px;
-    box-sizing:border-box;width:auto;min-width:111px;min-height:45px;
-    margin:0;padding:0 16px;border:0;border-radius:999px;
-    background:linear-gradient(110deg,#4079f3,#603be9);color:#fff;
-    font-size:14px;line-height:1;font-weight:750;white-space:nowrap;
-    box-shadow:0 6px 16px #445de72e;animation:none;touch-action:manipulation;
-  }
-  body.rd #appScreen.rd-unified-orders:is(.rd-owner,.rd-manager) #ordersArea>#newOrderBtn{
-    bottom:calc(var(--rd-mobile-dock-height) + 10px);
-    right:max(14px,env(safe-area-inset-right,0px),calc((100vw - 670px) / 2 + 16px));
-  }
-  body.rd #appScreen.rd-unified-orders:is(.rd-owner,.rd-manager) #ordersArea>#newOrderBtn:active{transform:translateY(1px)}
-  body.rd #appScreen.rd-master.master-mode.rd-unified-orders #ordersArea>#newOrderBtn{right:max(14px,calc((100vw - 670px)/2 + 14px))}
-  body.rd #appScreen.rd-unified-orders #ordersArea>#newOrderBtn .plus{display:inline-block;margin:0;font-size:23px;line-height:1}
-  body.rd #appScreen.rd-unified-orders #ordersArea>#newOrderBtn .new-order-label{display:inline;font-size:14px}
-}
+body.rd > #orderOverlay:not(.master-quick){z-index:110}
 @media(min-width:791px){
   body.rd #appScreen.rd-unified-orders #ordersArea{max-width:760px;margin-left:auto;margin-right:auto}
-  body.rd #appScreen.rd-unified-orders #ordersArea>#newOrderBtn{position:fixed;z-index:34;right:28px;bottom:28px;width:auto;min-width:122px;min-height:46px;padding:10px 18px;border-radius:999px;background:linear-gradient(110deg,#4079f3,#603be9);font-size:14px;box-shadow:0 6px 16px #445de72e}
-  body.rd #appScreen.rd-master.master-mode.rd-unified-orders #ordersArea>#newOrderBtn{bottom:100px;right:max(22px,calc((100vw - 690px)/2 + 20px))}
 }
 @media(max-width:350px){
   body.rd #appScreen.rd-unified-orders:is(.rd-master.master-mode,.rd-owner,.rd-manager) #calendarPanel.master-calendar-compact{padding:9px 7px}
@@ -310,87 +274,3 @@ body.rd #rdSettings>.ow-settings-tools .rd-raul-share-settings{flex:1 1 130px}
 body.rd #rdSettings>.ow-settings-tools button:focus-visible{outline:3px solid #92aff4;outline-offset:2px}
 body.rd #appScreen.rd-unified-orders :is(button,input,select):focus-visible{outline:3px solid #92aff4;outline-offset:2px}
 @media(prefers-reduced-motion:reduce){body.rd #appScreen.rd-unified-orders *{animation:none!important;scroll-behavior:auto!important}}
-
-
-/* The dock, menu and floating create action use the same viewport geometry. */
-@media(max-width:790px){
- body.rd #appScreen:not(.rd-master){
-   padding-bottom:calc(var(--rd-mobile-dock-height) + 29px);
- }
- body.rd > #rdMobileNav:not([hidden]){
-   box-sizing:border-box;
-   display:grid;
-   grid-template-columns:repeat(5,minmax(0,1fr));
-   grid-template-rows:56px;
-   align-items:stretch;
-   gap:2px;
-   min-width:0;
-   height:var(--rd-mobile-dock-height);
-   padding:7px max(5px,env(safe-area-inset-right,0px)) var(--rd-mobile-dock-padding-bottom) max(5px,env(safe-area-inset-left,0px));
-   border-top:1px solid #e6eaf3;
-   background:#fff;
-   overflow:hidden;
-   scroll-snap-type:none;
- }
- body.rd > #rdMobileNav > .rd-nav-btn{
-   box-sizing:border-box;
-   flex:none;
-   width:100%;
-   min-width:0;
-   min-height:0;
-   height:56px;
-   padding:4px 1px;
-   gap:4px;
-   margin:0;
-   font-size:clamp(9px,2.35vw,11px);
-   white-space:nowrap;
-   overflow:hidden;
- }
- body.rd > #rdMobileNav > .rd-nav-btn > span:last-child{
-   max-width:100%;
-   overflow:hidden;
-   text-overflow:ellipsis;
- }
- body.rd.rd-more-open > #rdMobileNav:not([hidden]){z-index:102}
- body.rd > #rdMobileMoreVeil:not([hidden]){
-   position:fixed;
-   inset:0;
-   z-index:101;
-   display:block;
-   background:#11182766;
-   touch-action:none;
- }
- body.rd > #rdMobileMoreSheet:not([hidden]){
-   position:fixed;
-   left:max(9px,env(safe-area-inset-left,0px));
-   right:max(9px,env(safe-area-inset-right,0px));
-   bottom:calc(var(--rd-mobile-dock-height) + var(--rd-mobile-more-gap));
-   z-index:103;
-   height:auto;
-   min-height:0;
-   max-height:calc(100vh - var(--rd-mobile-dock-height) - var(--rd-mobile-more-gap) - env(safe-area-inset-top,0px) - 18px);
-   max-height:calc(100dvh - var(--rd-mobile-dock-height) - var(--rd-mobile-more-gap) - env(safe-area-inset-top,0px) - 18px);
-   overflow-y:auto;
-   overscroll-behavior:contain;
-   -webkit-overflow-scrolling:touch;
-   background:#fff;
- }
- body.rd > #rdMobileMoreSheet .rd-more-header{
-   position:sticky;
-   top:0;
-   z-index:1;
-   background:#fff;
- }
- body.rd > #rdMobileMoreSheet .rd-nav-btn{
-   flex-shrink:0;
-   min-height:47px;
- }
- /* Do not give two primary items the selected styling while the drawer is open. */
- body.rd > #rdMobileNav .rd-mobile-more-trigger[aria-expanded="true"]:not([aria-current="page"]){
-   background:#f4f6fb;
-   color:#435373;
- }
- body.rd > #rdMobileNav .rd-mobile-more-trigger[aria-expanded="true"]:not([aria-current="page"]) .rd-icon{
-   color:#435373;
- }
-}

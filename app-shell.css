@@ -1,42 +1,239 @@
+html.rd-app-open,
+html.rd-app-open body.rd {
+  height:100%;
+  min-height:0;
+  overflow:hidden;
+  overscroll-behavior:none;
+}
+
 body.rd {
-  --rd-screen-top:calc(8px + env(safe-area-inset-top, 0px));
-  --rd-screen-gutter:12px;
+  --rd-safe-top:env(safe-area-inset-top, 0px);
+  --rd-safe-right:env(safe-area-inset-right, 0px);
+  --rd-safe-bottom:env(safe-area-inset-bottom, 0px);
+  --rd-safe-left:env(safe-area-inset-left, 0px);
+  --rd-screen-gutter:clamp(12px, 2.2vw, 24px);
   --rd-profile-size:44px;
-  --rd-profile-right:max(var(--rd-screen-gutter), env(safe-area-inset-right, 0px));
+  --rd-profile-right:calc(var(--rd-safe-right) + var(--rd-screen-gutter));
+  --rd-screen-top:calc(var(--rd-safe-top) + 6px);
+  --rd-content-top:calc(var(--rd-screen-top) + var(--rd-profile-size) + 5px);
+  --rd-dock-row:48px;
+  --rd-dock-top:4px;
+  --rd-dock-bottom:max(4px, var(--rd-safe-bottom));
+  --rd-dock-height:calc(1px + var(--rd-dock-top) + var(--rd-dock-row) + var(--rd-dock-bottom));
+  --rd-content-bottom:var(--rd-safe-bottom);
+  --rd-sidebar-width:242px;
+  --rd-content-max:1260px;
+  --rd-content-left:calc(var(--rd-safe-left) + var(--rd-sidebar-width));
+  --rd-content-align:max(var(--rd-content-left), calc((100% + var(--rd-content-left) - var(--rd-safe-right) - var(--rd-content-max)) / 2));
+  --rd-fab-height:46px;
+  --rd-fab-gap:10px;
 }
 
-body.rd #appScreen:is(.rd-owner,.rd-manager,.rd-master.master-mode) {
-  padding-top:var(--rd-screen-top);
-  scroll-padding-top:var(--rd-screen-top);
+body.rd[data-rd-role="master"] {
+  --rd-content-max:690px;
+  --rd-sidebar-width:0px;
+  --rd-content-bottom:var(--rd-dock-height);
 }
 
-body.rd #appScreen > .rd-screen-heading {
-  display:flex;
+/* The header, scrollport and dock are siblings so content is clipped clear of both rails. */
+body.rd #rdScreenHeader {
+  position:fixed;
+  inset:0 0 auto;
+  z-index:50;
+  display:grid;
+  grid-template-columns:minmax(0,1fr) var(--rd-profile-size);
   align-items:center;
-  box-sizing:border-box;
-  min-height:var(--rd-profile-size);
-  margin:0 0 6px;
-  padding-right:calc(var(--rd-profile-size) + 12px);
+  gap:8px;
+  height:var(--rd-content-top);
+  margin:0;
+  padding:var(--rd-screen-top) var(--rd-profile-right) 5px calc(var(--rd-content-align) + var(--rd-screen-gutter));
+  pointer-events:none;
 }
 
+body.rd #rdScreenHeader > * {pointer-events:auto}
+body.rd .rd-screen-heading {display:flex;align-items:center;gap:6px;min-width:0}
 body.rd .rd-screen-heading > #appTitle {
   margin:0;
+  overflow:hidden;
   color:#1b2b45;
-  font-size:clamp(22px, 4.8vw, 26px);
+  font-size:clamp(19px, 4.8vw, 26px);
   font-weight:750;
   line-height:1.18;
   letter-spacing:-.4px;
-  overflow-wrap:anywhere;
+  text-overflow:ellipsis;
+  white-space:nowrap;
 }
 
-body.rd #rdProfile {
+body.rd #rdScreenBack:not([hidden]) + #appTitle {
+  display:-webkit-box;
+  -webkit-box-orient:vertical;
+  -webkit-line-clamp:2;
+  line-height:1.1;
+  white-space:normal;
+}
+
+body.rd #rdScreenBack {
+  display:grid;
+  place-items:center;
+  flex:0 0 44px;
+  min-height:44px;
+  padding:0;
+  border:0;
+  border-radius:11px;
+  background:#edf2ff;
+  color:#365cc2;
+}
+
+body.rd #rdProfile {position:relative;width:var(--rd-profile-size)}
+
+html.rd-app-open body.rd #appScreen:is(.rd-owner,.rd-manager,.rd-master.master-mode) {
   position:fixed;
-  top:var(--rd-screen-top);
-  right:var(--rd-profile-right);
-  z-index:50;
+  inset:var(--rd-content-top) var(--rd-safe-right) var(--rd-content-bottom) var(--rd-content-left);
+  width:auto;
+  height:auto;
+  max-width:var(--rd-content-max);
+  max-height:none;
+  min-height:0;
+  margin:0 auto;
+  padding:0 var(--rd-screen-gutter) var(--rd-screen-gutter);
+  overflow:auto;
+  overscroll-behavior:contain;
+  scroll-padding-block:8px;
 }
 
-body.rd #rdProfile[hidden] {display:none}
+html.rd-app-open body.rd:has(> #newOrderBtn:not([hidden])) #appScreen:has(> #ordersArea:not([hidden])) {
+  padding-bottom:calc(var(--rd-fab-height) + var(--rd-fab-gap) + var(--rd-screen-gutter));
+}
+
+body.rd #appScreen:is(.rd-owner,.rd-manager,.rd-master.master-mode) #ordersArea > .list-head {
+  scroll-margin-top:0;
+}
+
+body.rd #appScreen.rd-master.master-mode {
+  --master-brand-height:0px;
+  --master-heading-height:0px;
+  --master-tabs-height:0px;
+}
+
+body.rd #appScreen.rd-master.master-mode #ordersArea > .tabs {top:0}
+
+html.rd-app-open body.rd:has(dialog[open], > :is(#orderOverlay,.qs-backdrop,.rd-pay-overlay,.rd-order-overlay,.mw-modal-backdrop,.mw-order-modal-backdrop,.fp-backdrop):not([hidden])) #appScreen:is(.rd-owner,.rd-manager,.rd-master.master-mode) {
+  overflow-y:hidden;
+}
+
+body.rd:not([data-rd-role]) > #rdSideNav {display:none}
+body.rd:not([data-rd-role="master"]) > #mwMasterNav {display:none}
+body.rd > :is(#mwMasterNav,#rdMobileNav) {
+  position:fixed;
+  inset:auto 0 0;
+  z-index:40;
+  display:grid;
+  grid-template-columns:repeat(var(--rd-dock-columns),minmax(0,1fr));
+  grid-template-rows:var(--rd-dock-row);
+  gap:2px;
+  box-sizing:border-box;
+  height:var(--rd-dock-height);
+  margin-inline:auto;
+  padding:var(--rd-dock-top) max(6px, var(--rd-safe-right)) var(--rd-dock-bottom) max(6px, var(--rd-safe-left));
+  overflow:hidden;
+  border:0;
+  border-top:1px solid #e6eaf3;
+  background:#fff;
+  transform:none;
+  scroll-snap-type:none;
+}
+
+body.rd > #mwMasterNav {
+  --rd-dock-columns:4;
+  max-width:var(--rd-content-max);
+}
+
+body.rd > #rdMobileNav {--rd-dock-columns:5;display:none}
+
+body.rd > :is(#mwMasterNav,#rdMobileNav) > :is(.mw-nav-btn,.rd-nav-btn) {
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  gap:3px;
+  box-sizing:border-box;
+  width:100%;
+  min-width:0;
+  min-height:0;
+  height:var(--rd-dock-row);
+  margin:0;
+  padding:3px 1px;
+  overflow:hidden;
+  border:1px solid transparent;
+  border-radius:10px;
+  background:transparent;
+  color:#526582;
+  font-size:clamp(9px, 2.35vw, 11px);
+  font-weight:700;
+  line-height:1.15;
+  text-align:center;
+  white-space:nowrap;
+  touch-action:manipulation;
+}
+
+body.rd > :is(#mwMasterNav,#rdMobileNav) > :is(.mw-nav-btn,.rd-nav-btn) > span:last-child {
+  max-width:100%;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+
+body.rd > :is(#mwMasterNav,#rdMobileNav) > :is(.mw-nav-btn,.rd-nav-btn) :is(.mw-icon,.rd-icon) {
+  display:grid;
+  place-items:center;
+  flex:none;
+  width:22px;
+  height:22px;
+  color:inherit;
+}
+
+body.rd > :is(#mwMasterNav,#rdMobileNav) > :is(.mw-nav-btn,.rd-nav-btn)[aria-current="page"] {
+  background:#edf1ff;
+  color:#3659c7;
+}
+
+body.rd #rdMobileNav .rd-mobile-more-trigger:not([aria-current="page"]) {
+  background:transparent;
+  color:#526582;
+}
+
+body.rd #rdMobileNav .rd-mobile-more-trigger:not([aria-current="page"]) .rd-icon {color:inherit}
+
+body.rd > #newOrderBtn {display:none}
+
+html.rd-app-open:has(#ordersArea:not([hidden])) body.rd > #newOrderBtn:not([hidden]) {
+  position:fixed;
+  right:max(calc(var(--rd-safe-right) + var(--rd-screen-gutter)), calc((100vw - var(--rd-content-left) - var(--rd-content-max)) / 2 + var(--rd-screen-gutter)));
+  bottom:calc(var(--rd-content-bottom) + var(--rd-fab-gap));
+  z-index:41;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  gap:6px;
+  width:auto;
+  height:var(--rd-fab-height);
+  min-height:0;
+  margin:0;
+  padding:0 16px;
+  border:0;
+  border-radius:999px;
+  background:linear-gradient(110deg,#4079f3,#603be9);
+  color:#fff;
+  box-shadow:0 6px 16px #445de72e;
+  font-size:14px;
+  line-height:1;
+  font-weight:750;
+  white-space:nowrap;
+  touch-action:manipulation;
+}
+
+body.rd > #newOrderBtn .plus {margin:0;font-size:23px;line-height:1}
+body.rd > #newOrderBtn:active {translate:0 1px}
+body.rd > #orderOverlay:not(.master-quick) {z-index:110}
 
 body.rd #rdProfileTrigger {
   position:relative;
@@ -66,8 +263,8 @@ body.rd #rdProfileMenu {
   position:absolute;
   top:calc(100% + 8px);
   right:0;
-  width:min(288px, calc(100vw - var(--rd-profile-right) - max(var(--rd-screen-gutter), env(safe-area-inset-left, 0px))));
-  max-height:calc(100dvh - var(--rd-screen-top) - var(--rd-profile-size) - env(safe-area-inset-bottom, 0px) - 20px);
+  width:min(288px, calc(100vw - var(--rd-profile-right) - var(--rd-safe-left) - var(--rd-screen-gutter)));
+  max-height:max(0px, calc(100dvh - var(--rd-content-top) - var(--rd-content-bottom) - 10px));
   box-sizing:border-box;
   padding:12px;
   overscroll-behavior:contain;
@@ -150,26 +347,80 @@ body.rd #appScreen .rd-inline-search[hidden] {display:none}
 body.rd #rdLeadSearch,body.rd #rdOrderSearch {margin:0 0 8px}
 body.rd #rdCalendarIntro {margin:0 0 8px}
 
-@media (min-width:791px) {
-  body.rd #appScreen:is(.rd-view-expenses,.rd-view-growth) > .rd-screen-heading {
-    max-width:690px;
-    margin-inline:auto;
+@media (max-width:790px), (pointer:coarse) and (orientation:landscape) and (max-height:500px) {
+  body.rd[data-rd-role] {
+    --rd-screen-gutter:12px;
+    --rd-sidebar-width:0px;
+    --rd-content-max:690px;
+    --rd-content-bottom:var(--rd-dock-height);
   }
-  body.rd #appScreen.rd-unified-orders > .rd-screen-heading {
-    max-width:760px;
-    margin-inline:auto;
-  }
-}
 
-@media (max-width:790px) {
-  body.rd #appScreen:is(.rd-owner,.rd-manager,.rd-master.master-mode) {
-    padding-left:max(var(--rd-screen-gutter), env(safe-area-inset-left, 0px));
-    padding-right:var(--rd-profile-right);
+  body.rd > #rdSideNav {display:none}
+  body.rd:is([data-rd-role="owner"],[data-rd-role="manager"]) > #rdMobileNav {display:grid}
+  body.rd[data-rd-role="master"] > #mwMasterNav {max-width:none}
+  body.rd #appScreen {scrollbar-width:none}
+  body.rd #appScreen::-webkit-scrollbar {display:none}
+
+  body.rd.rd-more-open > #rdMobileNav {z-index:102}
+  body.rd > #rdMobileMoreVeil:not([hidden]) {
+    position:fixed;
+    inset:0;
+    z-index:101;
+    display:block;
+    width:100%;
+    height:100%;
+    border:0;
+    background:#11182766;
+    touch-action:none;
   }
-  body.rd #appScreen.rd-master.master-mode {
-    --master-brand-height:0px;
-    --master-heading-height:0px;
+
+  body.rd > #rdMobileMoreSheet:not([hidden]) {
+    position:fixed;
+    inset:auto max(9px, var(--rd-safe-right)) calc(var(--rd-content-bottom) + 6px) max(9px, var(--rd-safe-left));
+    z-index:103;
+    display:flex;
+    flex-direction:column;
+    gap:3px;
+    height:auto;
+    min-height:0;
+    max-height:calc(100dvh - var(--rd-content-bottom) - var(--rd-safe-top) - 12px);
+    padding:10px 13px;
+    overflow-y:auto;
+    overscroll-behavior:contain;
+    border:1px solid #e6eaf3;
+    border-radius:16px;
+    background:#fff;
+    box-shadow:0 12px 36px #172a4a30;
   }
-  body.rd #appScreen.rd-master.master-mode.rd-unified-orders {--master-tabs-height:0px}
-  body.rd #appScreen.rd-master.master-mode #ordersArea > .tabs {top:0}
+
+  body.rd #rdMobileMoreSheet .rd-more-header {
+    position:sticky;
+    top:0;
+    z-index:1;
+    display:flex;
+    flex:none;
+    align-items:center;
+    justify-content:space-between;
+    gap:8px;
+    margin:0;
+    padding:0 0 0 10px;
+    background:#fff;
+  }
+
+  body.rd #rdMobileMoreSheet .rd-more-header h2 {margin:0;font-size:17px}
+  body.rd #rdMobileMoreSheet .rd-more-close {
+    display:grid;
+    place-items:center;
+    width:44px;
+    height:44px;
+    padding:0;
+    border:0;
+    border-radius:11px;
+    background:#f1f4fb;
+    color:#526582;
+    font-size:25px;
+    line-height:1;
+  }
+
+  body.rd #rdMobileMoreSheet .rd-nav-btn {flex:none;min-height:47px}
 }

@@ -188,7 +188,10 @@ test("Master routes use the shared section heading",()=>{
 });
 test("the app starts with one shared section heading",()=>{
  assert.equal((html.match(/id="appTitle"/g)||[]).length,1);
- assert.match(html,/<main id="appScreen" hidden>\s*<div class="rd-screen-heading"><h1 id="appTitle">Заказы<\/h1>/);
+ const header=html.match(/<header id="rdScreenHeader" hidden>([\s\S]*?)<\/header>/)?.[1]||"";
+ assert.match(header,/^\s*<div class="rd-screen-heading">[\s\S]*?<button[^>]*id="rdScreenBack"[^>]*>[\s\S]*?<h1 id="appTitle">Заказы<\/h1>/);
+ assert.match(header,/<\/div>\s*<div class="rd-profile" id="rdProfile"/);
+ assert.match(html,/<\/header>\s*<main id="appScreen" aria-labelledby="appTitle" hidden>/);
  assert.doesNotMatch(html,/id="masterBrand"|class="master-header-info"/);
 });
 

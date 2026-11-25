@@ -111,13 +111,6 @@ body.rd #appScreen.rd-owner .owner-day-count{color:#8793aa;font-size:11px;white-
   body.rd #appScreen.rd-owner.rd-view-orders #orders .rd-list-arrow{grid-area:arrow}
   body.rd #appScreen.rd-owner.rd-view-orders #orders .rd-list-chevron{font-size:19px}
   body.rd #appScreen.rd-owner.rd-view-orders .owner-day-heading{margin:2px 0 0}
-  /* Raul-inspired bottom navigation; owner-only destinations remain intact. */
-  body.rd #appScreen.rd-owner ~ #rdMobileNav .rd-nav-btn{
-    border:0;border-radius:12px;color:#6c7c97;
-  }
-  body.rd #appScreen.rd-owner ~ #rdMobileNav .rd-nav-btn[aria-current="page"]{
-    background:#e9efff;color:#315ccd;
-  }
   /* Shared density for owner-specific modules without hiding their functionality. */
   body.rd #appScreen.rd-owner :is(#rdClients,#rdLeads,#rdReports,#rdSettings,#rdHome) .rd-panel{
     border-radius:13px;

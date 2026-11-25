@@ -16,13 +16,16 @@ const i=links.indexOf("master-dense.css");
 assert.deepEqual(links.slice(i,i+2),["master-dense.css","master-dense-enhancements.css"]);
 const styles=[inline,...links.map(file=>fs.readFileSync(path.join(root,file),"utf8"))].join("\n");
 const fixture=[
-'<main id="appScreen" class="rd-master master-mode">',
-'<div class="rd-screen-heading"><h1 id="appTitle">Заказы</h1></div>',
+'<header id="rdScreenHeader"><div class="rd-screen-heading"><button id="rdScreenBack" hidden aria-label="Назад к отчётам">‹</button><h1 id="appTitle">Заказы</h1></div>',
+'<div id="rdProfile" class="rd-profile"><button id="rdProfileTrigger" type="button" aria-label="Открыть меню профиля" aria-controls="rdProfileMenu">Р</button>',
+'<div id="rdProfileMenu" class="rd-profile-menu" hidden><div class="rd-profile-identity"><span class="rd-profile-initial">Р</span><span class="rd-profile-text"><strong>Рауль</strong><small>Мастер</small></span></div>',
+'<section id="masterPushPanel" class="push-panel push-compact"><button id="pushBellBtn" class="push-bell" type="button">Уведомления</button>',
+'<div id="pushPopover" class="push-popover" hidden><strong>Новые заявки</strong></div></section><button id="logoutBtn" type="button">Выйти</button></div></div>',
+'</header><main id="appScreen" class="rd-master master-mode" aria-labelledby="appTitle">',
 '<div class="sync-note" id="syncStatus" hidden></div><div id="ordersArea">',
 '<section id="mwMasterFilterbar" class="mw-master-filterbar"><input class="mw-filter-search" placeholder="Поиск по заказам"><div class="mw-status-filters">',
 ...["Все","Записаны","В работе","Выполнены","Отменены"].map(label=>'<button type="button" class="mw-filter-chip" aria-label="Фильтр: '+label+'"><span class="mw-filter-icon" aria-hidden="true"><svg viewBox="0 0 24 24" width="22" height="22"><circle cx="12" cy="12" r="9"></circle></svg></span></button>'),
 '</div></section>',
-'<button class="primary new-order" id="newOrderBtn"><span class="plus">+</span>Новый заказ</button>',
 '<nav class="tabs"><button class="tab">По дням</button><button class="tab active">Расписание</button><button class="tab">История</button></nav>',
 '<section class="panel" id="calendarPanel"><div class="panel-top"><h2>Календарь</h2><div class="nav"><button class="secondary" id="prevWeek">‹</button><button class="secondary" id="goToday">Сегодня</button><button class="secondary" id="nextWeek">›</button></div></div>',
 '<input class="calendar-date" id="calendarDate" type="date" value="2026-11-12"><div class="week" id="weekDays">',
@@ -48,10 +51,7 @@ const fixture=[
 '<span class="master-schedule-meta"><span class="status-badge s-booked">Записан</span></span>',
 '<strong class="master-schedule-price">11 000 ₽</strong></button></article>',
 '</div></div></main>',
-'<div id="rdProfile" class="rd-profile"><button id="rdProfileTrigger" type="button" aria-label="Открыть меню профиля" aria-controls="rdProfileMenu">Р</button>',
-'<div id="rdProfileMenu" class="rd-profile-menu" hidden><div class="rd-profile-identity"><span class="rd-profile-initial">Р</span><span class="rd-profile-text"><strong>Рауль</strong><small>Мастер</small></span></div>',
-'<section id="masterPushPanel" class="push-panel push-compact"><button id="pushBellBtn" class="push-bell" type="button">Уведомления</button>',
-'<div id="pushPopover" class="push-popover" hidden><strong>Новые заявки</strong></div></section><button id="logoutBtn" type="button">Выйти</button></div></div>',
+'<button class="primary new-order" id="newOrderBtn"><span class="plus">+</span>Новый заказ</button>',
 '<nav id="mwMasterNav" class="mw-bottom-nav"><button class="mw-nav-btn is-active"><span class="mw-icon">▣</span>Заказы</button><button class="mw-nav-btn">Платежи</button><button class="mw-nav-btn">Отчёты</button><button class="mw-nav-btn">Настройки</button></nav>'
 ].join("");
 (async()=>{
@@ -65,10 +65,12 @@ const browser=await ({webkit,chromium})[browserName].launch({
 try{
  for(const width of [320,350,375,390,430,768]){
   const page=await browser.newPage({viewport:{width,height:844},isMobile:true,hasTouch:true});
-  await page.setContent('<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><style>'+styles+'</style></head><body class="rd">'+fixture+'</body></html>');
+  await page.setContent('<!DOCTYPE html><html class="rd-app-open"><head><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><style>'+styles+'</style></head><body class="rd" data-rd-role="master">'+fixture+'</body></html>');
   const result=await page.evaluate(()=>{
    const dim=sel=>{const node=document.querySelector(sel),r=node.getBoundingClientRect();return {height:r.height,size:parseFloat(getComputedStyle(node).fontSize)}};
+   const workspace=document.getElementById("appScreen");
    return {scroll:document.documentElement.scrollWidth,width:document.documentElement.clientWidth,
+    workspaceOverflow:workspace.scrollWidth-workspace.clientWidth,
     title:dim("#appTitle"),newOrder:dim("#newOrderBtn"),profile:dim("#rdProfileTrigger"),
     tab:dim(".mw-bottom-nav .mw-nav-btn"),next:dim(".master-next-jump"),
     time:dim(".master-schedule-time"),name:dim(".master-schedule-name"),
@@ -95,7 +97,8 @@ try{
         gap:parseFloat(getComputedStyle(parent).gap),overflow:parent.scrollWidth>parent.clientWidth};
     })()};
   });
-  assert.ok(result.scroll<=result.width+1,"horizontal overflow at "+width+" "+JSON.stringify(result));
+  assert.ok(result.scroll<=result.width+1,"horizontal document overflow at "+width+" "+JSON.stringify(result));
+  assert.ok(result.workspaceOverflow<=1,"horizontal workspace overflow at "+width+" "+JSON.stringify(result));
   const filters=result.filterLayout;
   assert.equal(filters.buttonWidths.length,5,"all status filters render at "+width);
   assert.ok(filters.buttonWidths.every(w=>Math.abs(w-filters.buttonWidths[0])<1),
@@ -108,7 +111,7 @@ try{
    assert.ok(result[key].height>=43.5,key+" tap target at "+width+" height "+result[key].height);
   assert.ok(result.time.size<=19.1,"time font "+width);
   assert.ok(result.name.size<=15.1,"client font "+width);
-  assert.ok(result.title.size>=22&&result.title.size<=26.1,"compact title font "+width);
+  assert.ok(result.title.size>=19&&result.title.size<=26.1,"compact title font "+width);
   assert.ok(result.summary.height<=120,"today block height "+width+" "+result.summary.height);
   assert.ok(result.card.height<=88,"compact card at "+width+": "+result.card.height);
   assert.ok(result.card.height>=62,"compact card remains tappable at "+width);
@@ -122,6 +125,7 @@ try{
   const shell=await page.evaluate(()=>{
     const r=selector=>document.querySelector(selector).getBoundingClientRect();
     const profile=document.querySelector("#rdProfile"),menu=document.querySelector("#rdProfileMenu");
+    const header=document.querySelector("#rdScreenHeader"),app=document.querySelector("#appScreen");
     const heading=r(".rd-screen-heading"),title=r("#appTitle"),trigger=r("#rdProfileTrigger");
     const search=r(".mw-filter-search"),chips=r(".mw-status-filters");
     const initiallyClosed=menu.getClientRects().length===0;
@@ -129,18 +133,22 @@ try{
     const bell=r("#pushBellBtn"),logout=r("#logoutBtn"),panel=r("#rdProfileMenu");
     document.querySelector("#pushPopover").hidden=false;
     const notices=r("#pushPopover");
-    return {initiallyClosed,fixed:getComputedStyle(profile).position==="fixed",
-      sibling:profile.parentElement===document.querySelector("#appScreen").parentElement,
-      headingHeight:heading.height,headingTop:heading.top,headingBottom:heading.bottom,
-      titleRight:title.right,profileLeft:trigger.left,profileTop:trigger.top,
+    return {initiallyClosed,sharedProfile:header.contains(profile),sibling:header.parentElement===app.parentElement,
+      workspaceScroll:getComputedStyle(app).overflowY,headerBottom:r("#rdScreenHeader").bottom,
+      workspaceTop:r("#appScreen").top,menuBottom:panel.bottom,dockTop:r("#mwMasterNav").top,
+      headingHeight:heading.height,headingCenter:(heading.top+heading.bottom)/2,headingBottom:heading.bottom,
+      titleRight:title.right,profileLeft:trigger.left,profileCenter:(trigger.top+trigger.bottom)/2,
       searchTop:search.top,searchAfterMenu:r(".mw-filter-search").top,
       searchBottom:search.bottom,statusTop:chips.top,
       menuLeft:panel.left,menuRight:panel.right,noticeLeft:notices.left,noticeRight:notices.right,
       bell:bell.height,logout:logout.height,viewportWidth:document.documentElement.clientWidth};
   });
   const detail=width+": "+JSON.stringify(shell);
-  assert.ok(shell.fixed&&shell.sibling&&shell.initiallyClosed,"single fixed profile starts closed at "+detail);
-  assert.ok(shell.headingHeight<=45&&Math.abs(shell.headingTop-shell.profileTop)<2,"title fits the profile row at "+detail);
+  assert.ok(shell.sharedProfile&&shell.sibling&&shell.initiallyClosed,"header profile starts closed outside the workspace at "+detail);
+  assert.match(shell.workspaceScroll,/^(auto|scroll)$/);
+  assert.ok(shell.workspaceTop>=shell.headerBottom-1,"workspace starts below shared header at "+detail);
+  assert.ok(shell.menuBottom<=shell.dockTop+1,"profile menu stays above the dock at "+detail);
+  assert.ok(shell.headingHeight<=45&&Math.abs(shell.headingCenter-shell.profileCenter)<2,"title fits the profile row at "+detail);
   assert.ok(shell.titleRight<=shell.profileLeft-5,"title leaves room for profile at "+detail);
   assert.ok(shell.searchTop>=shell.headingBottom-1&&shell.searchAfterMenu===shell.searchTop,"profile leaves the local search in flow at "+detail);
   assert.ok(shell.statusTop>=shell.searchBottom-2&&shell.statusTop-shell.searchBottom<28,"status icons follow search at "+detail);

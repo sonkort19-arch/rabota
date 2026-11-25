@@ -84,8 +84,8 @@ async function assertDocked(page,label){
    visible:!!(rect.width&&rect.height)&&getComputedStyle(nav).display!=="none",
    bottom:rect.bottom,
    viewport:window.innerHeight,
-   scrollY:window.scrollY,
-   scrollHeight:document.documentElement.scrollHeight,
+   scrollY:document.getElementById("appScreen").scrollTop,
+   scrollHeight:document.getElementById("appScreen").scrollHeight,
    height:rect.height
   };
  });
@@ -106,10 +106,11 @@ async function runOne(browser,label,device){
   const tabGeometry=await tabs.evaluateAll(items=>items.map(i=>{const r=i.getBoundingClientRect();return {top:r.top,bottom:r.bottom,left:r.left,right:r.right,width:r.width};}));
   assert.ok(tabGeometry.every(r=>Math.abs(r.top-tabGeometry[0].top)<1&&Math.abs(r.bottom-tabGeometry[0].bottom)<1),label+": five buttons share one row");
   assert.ok(tabGeometry.every((r,i)=>r.width>=44&&(i===0||r.left>=tabGeometry[i-1].right)),label+": tabs are separate, tappable, non-overlapping");
-  const metrics=await page.evaluate(()=>({scrollHeight:document.documentElement.scrollHeight,innerHeight:innerHeight}));
-  assert.ok(metrics.scrollHeight>metrics.innerHeight+700,label+": has long scrollable orders list");
+  const scroller=page.locator("#appScreen");
+  const metrics=await scroller.evaluate(node=>({scrollHeight:node.scrollHeight,viewport:node.clientHeight}));
+  assert.ok(metrics.scrollHeight>metrics.viewport+700,label+": has long scrollable orders list");
   for(const fraction of [0,.15,.5,1,.25,1,0]){
-   await page.evaluate(v=>window.scrollTo({top:(document.documentElement.scrollHeight-innerHeight)*v,behavior:"instant"}),fraction);
+   await scroller.evaluate((node,v)=>node.scrollTo({top:(node.scrollHeight-node.clientHeight)*v,behavior:"instant"}),fraction);
    await page.waitForTimeout(70);
    await assertDocked(page,label+" scroll "+fraction);
    if(fraction===.5)await assertHeaderLayout(page,"orders",header);

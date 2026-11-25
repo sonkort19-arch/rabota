@@ -135,7 +135,6 @@ body.rd :is(#rdReports,.pr-report-scope) select:focus-visible {
   outline:2px solid var(--pr-blue);outline-offset:2px;
 }
 @media(max-width:790px) {
-  body.rd #appScreen.rd-view-reports {padding-bottom:calc(95px + env(safe-area-inset-bottom))}
   body.rd :is(#rdReports,.pr-report-scope) .pr-heading {gap:8px}
   body.rd :is(#rdReports,.pr-report-scope) .pr-heading h2 {font-size:16px}
   body.rd :is(#rdReports,.pr-report-scope) .pr-controls {grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}

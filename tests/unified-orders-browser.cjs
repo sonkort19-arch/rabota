@@ -227,12 +227,14 @@ async function checkGeometry(s) {
       dates: visible.map(day => day.dataset.date),
       minDayWidth: Math.min(...visible.map(day => day.getBoundingClientRect().width)),
       overflow: document.documentElement.scrollWidth - innerWidth,
+      workspaceOverflow: document.getElementById("appScreen").scrollWidth - document.getElementById("appScreen").clientWidth,
     };
   });
   assert.equal(geometry.dates.length, 7, role + ": exactly seven visible day centers: " + JSON.stringify(geometry));
   assert.equal(new Set(geometry.dates).size, 7, role + ": no duplicate dates");
   assert.ok(geometry.minDayWidth >= 30, role + ": dates remain tappable");
   assert.ok(geometry.overflow <= 2, role + ": no horizontal document overflow");
+  assert.ok(geometry.workspaceOverflow <= 2, role + ": no horizontal workspace overflow");
   const cancelledDay = page.locator('#weekDays .day[data-date="' + CANCELLED_DAY + '"]');
   assert.doesNotMatch(await cancelledDay.getAttribute("class"), /\bhas-orders\b/, "cancelled orders do not occupy a day");
   assert.match(await cancelledDay.getAttribute("class"), /\bworkload-free\b/, "cancelled-only day stays free");

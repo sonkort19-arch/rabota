@@ -67,6 +67,15 @@ function uiIcon(name,extra=""){
  svg.innerHTML=iconPaths[name]||iconPaths.orders;return svg;
 }
 let activePage="home",ready=false,lastOrderKey="",rdSearchTerm="",selectedClientKey=null,builtRole=null,calendarMode="week",calendarMaster="",calendarStatus="",calendarHideDone=false,calendarOpened=false,profitReport=null,salaryRoot=null,ownerSalaryReport=null;
+let closeOwnerSalaryReport=null;
+function syncOwnerReportHeading(){
+ if(activePage!=="reports")return;
+ if(salaryRoot&&!salaryRoot.hidden&&closeOwnerSalaryReport)
+  window.__rdSetScreenHeading?.("Зарплата",closeOwnerSalaryReport);
+ else if(profitReport?.isOpen())
+  window.__rdSetScreenHeading?.("Прибыль по заказам",profitReport.close);
+ else window.__rdSetScreenHeading?.("Отчёты");
+}
 let leadsSearchTerm="";
 let calendarWeekCache="",calendarDetailCache="",calendarMastersCache="";
 let calendarFiltersOpen=false;
@@ -179,7 +188,7 @@ let closeMobileMore=()=>{};
 const sectionScroll=new Map();
 function build(){
  if(ready)return;
- const side=makeNode("aside","rd-shell");side.setAttribute("aria-label","Главное меню");
+ const side=makeNode("aside","rd-shell");side.id="rdSideNav";side.setAttribute("aria-label","Главное меню");
  const brand=makeNode("div","rd-brand");brand.append(boxText("span","▰","rd-logo"));
  const brandText=makeNode("div");brandText.append(boxText("strong","Работа"),boxText("small","CRM · промывка отопления"));brand.append(brandText);side.append(brand);
  const nav=makeNode("nav","rd-nav");
@@ -232,7 +241,8 @@ function build(){
   body.classList.toggle("rd-more-open",opening);
   // The menu is outside the app; background controls must not receive input.
   app.inert=opening;
-  if($("rdProfile"))$("rdProfile").inert=opening;
+  $("rdScreenHeader").inert=opening;
+  $("newOrderBtn").inert=opening;
  };
  const closeMore=()=>setMoreOpen(false);
  closeMobileMore=closeMore;
@@ -247,15 +257,9 @@ function build(){
  document.addEventListener("keydown",event=>{
   if(event.key==="Escape"&&!moreSheet.hidden){closeMore();navMore.focus()}
  });
- window.addEventListener("resize",()=>{
-  if(window.innerWidth>790&&!moreSheet.hidden)closeMore();
- });
- app.prepend(side);
- // Keep mobile navigation outside the main scrolling/content container.
- // Mobile Safari can otherwise paint a fixed descendant at an incorrect
- // vertical position after long-list scrolls or browser viewport changes.
- // Keep backdrop and sheet outside the scrolling/stacking context as well.
- body.append(veil,moreSheet,mobile);
+ const mobileShell=window.matchMedia("(max-width:790px), (pointer:coarse) and (orientation:landscape) and (max-height:500px)");
+ mobileShell.addEventListener("change",event=>{if(!event.matches)closeMore();});
+ body.append(side,veil,moreSheet,mobile);
  window.addEventListener("pagehide",closeMore);
  const syncMobileNavigationVisibility=()=>{
   if(app.hidden){closeMore();window.__rdCloseProfile?.();}
@@ -485,12 +489,17 @@ function build(){
  salaryRoot=makeNode("div","rd-salary-report");
  salaryRoot.id="rdSalaryReport";salaryRoot.hidden=true;
  reportsRoot.append(salaryRoot);
- ownerSalaryReport=null;
+ ownerSalaryReport=null;closeOwnerSalaryReport=null;
  if(currentRole==="owner"){
    profitReport=window.__rdCreateProfitReport?.(reportsRoot,{getOrders:()=>window.__rdOwnerReportOrders?.()??[],
       getRaulMasterId:()=>window.__rdReportMasterId?.(),
       getPayroll:()=>window.__rdPayrollSnapshot?.(),
-      getFinanceStatus:()=>window.__rdFinanceStatus?.()})||null;
+      getFinanceStatus:()=>window.__rdFinanceStatus?.(),embedded:true,
+      onOpenChange:open=>{
+        syncOwnerReportHeading();
+        restoreVerticalScroll(0);
+        if(open)$("rdScreenBack")?.focus({preventScroll:true});
+      }})||null;
    const menu=reportsRoot.querySelector(".pr-menu");
    if(menu){
      // Keep the report hub dense: only link real, working reports.
@@ -510,17 +519,20 @@ function build(){
      const openSalary=makeNode("button","pr-report-link rd-salary-entry");
      openSalary.type="button";openSalary.textContent="Зарплата";
      openSalary.append(makeNode("span","pr-report-arrow","›"));
+     closeOwnerSalaryReport=()=>{
+       salaryRoot.hidden=true;salaryRoot.replaceChildren();
+       menu.hidden=false;ownerSalaryReport=null;
+       syncOwnerReportHeading();
+       restoreVerticalScroll(0);
+       openSalary.focus({preventScroll:true});
+     };
      openSalary.addEventListener("click",()=>{
        menu.hidden=true;salaryRoot.hidden=false;
-       reports.classList.add("rd-reports-detail-open");
-       ownerSalaryReport=window.__rdPayrollReport?.mount(salaryRoot,{
-         onBack:()=>{
-           salaryRoot.hidden=true;salaryRoot.replaceChildren();
-           menu.hidden=false;ownerSalaryReport=null;
-           reports.classList.remove("rd-reports-detail-open");
-         }
-       })||null;
+       ownerSalaryReport=window.__rdPayrollReport?.mount(salaryRoot,{embedded:true})||null;
        if(!ownerSalaryReport)salaryRoot.textContent="Модуль зарплаты недоступен. Обновите страницу.";
+       syncOwnerReportHeading();
+       restoreVerticalScroll(0);
+       $("rdScreenBack")?.focus({preventScroll:true});
        // Reload the existing financial snapshot; no payroll data is duplicated.
        void window.__rdOwnerPayrollReload?.();
      });
@@ -550,8 +562,6 @@ function build(){
  listHead.append(listActions);
  // Staff access administration is still available, but should not obscure the booking list.
  settings.append($("teamPanel"));
- // Keep the order editor inside the orders section.
- $("ordersArea").insertBefore($("newOrderBtn"),$("ordersArea").querySelector(".tabs"));
  if(currentRole==="owner"){
   const moduleRequest=async(path,method,payload)=>{
    if(currentRole!=="owner"||!currentUser?.id)throw Error("Раздел доступен только владельцу.");
@@ -621,13 +631,15 @@ function navigate(key,updateHistory=true){
  $("newOrderBtn").hidden=!isOrders || !(currentRole==="owner"||currentRole==="manager");
  $("teamPanel").hidden=key!=="settings"||currentRole!=="owner";
  app.className=app.className.replace(/\brd-view-\S+/g,"").trim()+" rd-view-"+key;
- document.querySelectorAll(".rd-nav-btn[data-page]").forEach(btn=>
-  btn.setAttribute("aria-current",btn.dataset.page===key?"page":"false"));
- const moreButton=$("rdMobileMoreBtn");
- if(moreButton){
-  const secondary=[...$("rdMobileMoreSheet").querySelectorAll("[data-page]")].some(btn=>btn.dataset.page===key);
-  moreButton.setAttribute("aria-current",secondary?"page":"false");
- }
+ const desktopNav=$("rdSideNav");
+ const mobileNav=$("rdMobileNav");
+ const moreNav=$("rdMobileMoreSheet");
+ const navSelector='.rd-nav-btn[data-page="'+key+'"]';
+ const activeOverflowItem=moreNav.querySelector(navSelector);
+ window.__rdSetActiveNavItem(desktopNav,desktopNav.querySelector(navSelector));
+ window.__rdSetActiveNavItem(moreNav,activeOverflowItem);
+ window.__rdSetActiveNavItem(mobileNav,mobileNav.querySelector(navSelector)||
+   (activeOverflowItem?$("rdMobileMoreBtn"):null));
  if(isOrders||isCalendar){
   currentTab=requestedCalendar||isCalendar?"calendar":window.__rdOrdersWorkspace?.currentMode()||"calendar";
   if(isOrders)restoreOrderFilters(currentTab);
@@ -636,7 +648,11 @@ function navigate(key,updateHistory=true){
  else if(key==="clients")drawClients();
  else if(key==="leads"){window.__rdLeadsRender?.();window.__rdLeadsSearch?.(leadsSearchTerm);}
  else if(key==="settings"){window.__rdWhatsAppSettings?.refresh();void window.__rdLoadTeam?.();}
- else if(key==="reports"){profitReport?.render();if(salaryRoot&&!salaryRoot.hidden)ownerSalaryReport?.render();}
+ else if(key==="reports"){
+  syncOwnerReportHeading();
+  profitReport?.render();
+  if(salaryRoot&&!salaryRoot.hidden)ownerSalaryReport?.render();
+ }
  else ownerModules.get(key)?.open(currentUser.id);
  if(!isOrders&&!isCalendar)window.__rdOrdersWorkspace?.refresh();
  restoreVerticalScroll(changed?sectionScroll.get(key)||0:0);
@@ -1382,6 +1398,11 @@ window.__rdAccess=()=>{
  else {
   const requested=locationPage();
   if(requested!==activePage)navigate(requested,false);
+  else if(requested==="reports"){
+   syncOwnerReportHeading();
+   profitReport?.render();
+   if(salaryRoot&&!salaryRoot.hidden)ownerSalaryReport?.render();
+  }
   else ownerModules.get(activePage)?.open(currentUser.id);
  }
  window.__rdLeadsSyncNav?.();

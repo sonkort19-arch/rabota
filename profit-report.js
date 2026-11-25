@@ -162,33 +162,37 @@
     el.value=initial;el.addEventListener("change",()=>changed(el.value));
     return el;
   }
-  function mount(rootEl,{getOrders,getRaulMasterId=null,getFinanceStatus=null,getPayroll=null,startOpen=false,onBack=null,onRetry=null}){
+  function mount(rootEl,{getOrders,getRaulMasterId=null,getFinanceStatus=null,getPayroll=null,
+    startOpen=false,embedded=false,onBack=null,onOpenChange=null,onRetry=null}){
     if(!rootEl||typeof getOrders!=="function")throw Error("Отчёт не может загрузиться");
     rootEl.classList.add("pr-report-scope");
     const state={open:false,period:"month",basis:"closed",status:"",search:"",from:"",to:"",visible:PAGE_SIZE};
     const expanded=new Set();
     let renderKey=null,renderedOrders=null;
     const menu=node("div","pr-menu");
-    const card=button("Прибыль по заказам","pr-report-link",()=>{
-      state.open=true;menu.hidden=true;detail.hidden=false;
-      rootEl.closest("#rdReports")?.classList.add("rd-reports-detail-open");
-      render();
-    });
+    const card=button("Прибыль по заказам","pr-report-link",()=>setOpen(true));
     card.append(node("span","pr-report-arrow","›"));
     const desc=node("p","pr-description","Список заказов, оплата, зарплата мастерам и доля компании.");
     menu.append(card,desc);
     const detail=node("section","pr-detail");detail.hidden=true;
-    const heading=node("nav","pr-heading");
-    const back=button("Отчёты","pr-back",()=>{
-      if(typeof onBack==="function"){onBack();return;}
-      state.open=false;detail.hidden=true;menu.hidden=false;
-      rootEl.closest("#rdReports")?.classList.remove("rd-reports-detail-open");
-    });
-    back.setAttribute("aria-label","Вернуться ко всем отчётам");
-    heading.setAttribute("aria-label","Путь к отчёту");
-    const separator=node("span","pr-crumb-sep","/");
-    separator.setAttribute("aria-hidden","true");
-    heading.append(back,separator,node("h2","","Прибыль по заказам"));
+    function setOpen(open){
+      if(state.open===open)return;
+      state.open=open;menu.hidden=open;detail.hidden=!open;
+      if(!embedded)rootEl.closest("#rdReports")?.classList.toggle("rd-reports-detail-open",open);
+      onOpenChange?.(open);
+      if(open)render();
+      else card.focus({preventScroll:true});
+    }
+    if(!embedded){
+      const heading=node("nav","pr-heading");
+      const back=button("Отчёты","pr-back",()=>onBack?onBack():setOpen(false));
+      back.setAttribute("aria-label","Вернуться ко всем отчётам");
+      heading.setAttribute("aria-label","Путь к отчёту");
+      const separator=node("span","pr-crumb-sep","/");
+      separator.setAttribute("aria-hidden","true");
+      heading.append(back,separator,node("h2","","Прибыль по заказам"));
+      detail.append(heading);
+    }
     const controls=node("div","pr-controls");
     const period=makeSelect([["month","Текущий месяц"],["previous","Прошлый месяц"],["week","Эта неделя"],["all","За всё время"],["custom","Свой период"]],
       "Период отчёта",state.period,value=>{state.period=value;custom.hidden=value!=="custom";redraw()});
@@ -249,7 +253,7 @@
     thead.append(tr);table.append(thead);
     const tbody=node("tbody");table.append(tbody);scroll.append(table);
     const more=node("div","pr-more");
-    detail.append(heading,controls,custom,financeStatus,caption,scroll,more,info);
+    detail.append(controls,custom,financeStatus,caption,scroll,more,info);
     rootEl.append(menu,detail);
     function queryRows(orders=getOrders(),masterId=getRaulMasterId?.(),today=moscowDay(new Date()),payroll=getPayroll?.()){
       const options={...state,today,payroll};
@@ -364,12 +368,8 @@
           "pr-more-btn",()=>{state.visible+=PAGE_SIZE;render()}));
       }
     }
-    if(startOpen){
-      state.open=true;menu.hidden=true;detail.hidden=false;
-      rootEl.closest("#rdReports")?.classList.add("rd-reports-detail-open");
-      render();
-    }
-    return {render,isOpen:()=>state.open};
+    if(startOpen)setOpen(true);
+    return {render,isOpen:()=>state.open,close:()=>setOpen(false)};
   }
   if(root)root.__rdCreateProfitReport=mount;
   if(typeof module!=="undefined"&&module.exports)module.exports={
