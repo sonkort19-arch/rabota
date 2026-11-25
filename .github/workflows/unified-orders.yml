@@ -10,6 +10,10 @@ on:
       - 'order-model.js'
       - 'order-sync.js'
       - 'calendar-model.js'
+      - 'calendar-load.js'
+      - 'booking-timeline.js'
+      - 'quick-slots.js'
+      - 'order-reschedule.*'
       - 'finance-model.js'
       - 'finance-payroll.js'
       - 'master-quick-*.css'
@@ -23,6 +27,7 @@ on:
       - 'whatsapp-client.js'
       - 'whatsapp-order.js'
       - 'tests/module-navigation-browser.cjs'
+      - 'tests/order-reschedule*.cjs'
       - 'tests/travel-surcharge-browser.cjs'
       - 'tests/unified-orders-browser.cjs'
       - '.github/workflows/unified-orders.yml'
@@ -36,6 +41,10 @@ on:
       - 'order-model.js'
       - 'order-sync.js'
       - 'calendar-model.js'
+      - 'calendar-load.js'
+      - 'booking-timeline.js'
+      - 'quick-slots.js'
+      - 'order-reschedule.*'
       - 'finance-model.js'
       - 'finance-payroll.js'
       - 'master-quick-*.css'
@@ -49,6 +58,7 @@ on:
       - 'whatsapp-client.js'
       - 'whatsapp-order.js'
       - 'tests/module-navigation-browser.cjs'
+      - 'tests/order-reschedule*.cjs'
       - 'tests/travel-surcharge-browser.cjs'
       - 'tests/unified-orders-browser.cjs'
       - '.github/workflows/unified-orders.yml'
@@ -80,10 +90,11 @@ jobs:
           node --check money-workspace.js
           node --check redesign.js
           node --check orders-list.js
+          node --check order-reschedule.js
           node --check owner-parity.js
       - name: Calendar and synchronization regressions
         if: matrix.browser == 'chromium'
-        run: node --test tests/calendar-model.test.cjs tests/calendar-load.test.cjs tests/order-sync.test.cjs tests/order-notes.test.js
+        run: node --test tests/calendar-model.test.cjs tests/calendar-load.test.cjs tests/order-sync.test.cjs tests/order-notes.test.js tests/order-reschedule-slots.test.cjs tests/order-reschedule.test.cjs
       - name: Owner, manager and master workflows with isolated data
         env:
           TEST_BROWSER: ${{ matrix.browser }}
@@ -92,3 +103,7 @@ jobs:
         env:
           TEST_BROWSER: ${{ matrix.browser }}
         run: node tests/travel-surcharge-browser.cjs
+      - name: Quick order rescheduling with isolated data
+        env:
+          TEST_BROWSER: ${{ matrix.browser }}
+        run: node tests/order-reschedule-browser.cjs

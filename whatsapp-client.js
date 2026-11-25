@@ -185,7 +185,12 @@
   }
   function bookingLink(order){return link(order.phone,bookingText(order));}
   function reviewLink(order,reviewUrl){return link(order.phone,reviewText(order,reviewUrl));}
+  function rescheduleText({date,time}){
+    return "Здравствуйте! Ваша запись на промывку системы отопления перенесена на "+
+      prettyDate(date)+" в "+prettyTime(time)+". Благодарим за понимание!";
+  }
+  function rescheduleLink(order){return link(order.phone,rescheduleText(order));}
   return {normalizePhone,prettyDate,prettyTime,DEFAULT_TEMPLATES,TOKENS,CLIENT_SOURCES,REVIEW_SOURCE_KEYS,
     sourceLabel,validSource,defaults,getSettings,saveSettings,validateSettings,renderTemplate,
-    sourceReviewUrl,bookingText,reviewText,link,bookingLink,reviewLink};
+    sourceReviewUrl,bookingText,reviewText,rescheduleText,link,bookingLink,reviewLink,rescheduleLink};
 });

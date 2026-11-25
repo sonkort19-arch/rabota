@@ -41,3 +41,18 @@ test("Produces WhatsApp click-to-chat link but does not send",()=>{
   assert.equal(new URL(url).searchParams.get("text"),wa.bookingText(order));
   assert.equal(new URL(wa.reviewLink(order)).searchParams.get("text"),wa.reviewText(order));
 });
+test("Rescheduling creates a WhatsApp draft for the confirmed slot without internal order details",()=>{
+  const moved={...order,date:"2026-12-02",time:"09:30",orderNumber:42,price:10000,travelAmount:2000};
+  const expected="Здравствуйте! Ваша запись на промывку системы отопления перенесена на "+
+    "02.12.2026 в 09:30. Благодарим за понимание!";
+  assert.equal(wa.rescheduleText(moved),expected);
+  const url=new URL(wa.rescheduleLink(moved));
+  assert.equal(url.origin,"https://wa.me");
+  assert.equal(url.pathname,"/79181234567");
+  assert.deepEqual([...url.searchParams],[['text',expected]]);
+});
+test("Reschedule drafts reject missing or invalid customer and appointment details",()=>{
+  assert.throws(()=>wa.rescheduleLink({...order,phone:"123"}),/номер клиента/);
+  assert.throws(()=>wa.rescheduleLink({...order,date:"2026-11-31"}),/дату/);
+  assert.throws(()=>wa.rescheduleLink({...order,time:""}),/время/);
+});

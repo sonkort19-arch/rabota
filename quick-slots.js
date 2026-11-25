@@ -71,7 +71,36 @@
         tight:state==="tight",selectable:state==="available"||state==="tight"};
     }));
   }
-  const core={candidateSlots,inspectDay,moscowClock,addDay,TIMES,normalizeMasterNames};
+  function rescheduleChecker(order,orders,now,unavailable){
+    const commonJs=typeof module!=="undefined"&&module.exports;
+    const timeline=commonJs?require("./booking-timeline.js"):window.__rdBookingTimeline;
+    const calendar=commonJs?require("./calendar-load.js"):window.__rdCalendarLoad;
+    const check=timeline.rescheduleCheck(orders,order,calendar.travelMinutes);
+    const clock=moscowClock(now);
+    const midnight=timeline.appointmentMinute(clock.today,"00:00");
+    const rejected=new Set(unavailable.map(slot=>slot.date+"T"+slot.time));
+    return (time,date)=>{
+      const proposed=timeline.appointmentMinute(date,time);
+      if(!Number.isFinite(timeMinutes(time))||proposed===null)return "unknown";
+      if(proposed<=midnight+clock.minutes+20)return "past";
+      if(rejected.has(date+"T"+time))return "busy";
+      return check(date,time);
+    };
+  }
+  function rescheduleSlots({order,orders,now=new Date(),date,unavailable=[]}){
+    const master=String(order?.master??"").trim()||order?.assignedUserId;
+    if(!master)return [];
+    const masters=[master],checkTime=rescheduleChecker(order,orders,now,unavailable);
+    const slots=date
+      ?inspectDay({masters,date,now,checkTime}).filter(slot=>slot.selectable)
+      :candidateSlots({masters,now,checkTime,limit:3,sort:"earliest"});
+    return slots.map((slot,index)=>({...slot,recommended:index===0}));
+  }
+  function rescheduleTimeState({order,orders,date,time,now=new Date(),unavailable=[]}){
+    return rescheduleChecker(order,orders,now,unavailable)(time,date);
+  }
+  const core={candidateSlots,inspectDay,moscowClock,addDay,TIMES,normalizeMasterNames,
+    rescheduleSlots,rescheduleTimeState};
   if(typeof module!=="undefined"&&module.exports)module.exports=core;
   if(typeof document==="undefined")return;
 

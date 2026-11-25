@@ -31,6 +31,7 @@
   }
   function onDialogKey(event){
     if(!activeDialog)return;
+    if(window.__rdOrderReschedule?.isOpen())return;
     if(document.querySelector(".rd-pay-overlay")||document.getElementById("orderOverlay")?.hidden===false)return;
     if(event.key==="Escape"){event.preventDefault();closeDialog();return;}
     if(event.key==="ArrowLeft"&&event.target?.tagName!=="SELECT"&&event.target?.tagName!=="INPUT"){
@@ -93,6 +94,8 @@
     const payload=row.__rdActions;
     const inside=activeDialog.querySelector(".rd-order-content");
     if(!order||!inside)return;
+    const previousHistory=inside.querySelector(".rd-reschedule-history");
+    const historyOpened=!resetScroll&&Boolean(previousHistory?.open);
     inside.replaceChildren();
     const title=activeDialog.querySelector(".rd-order-title");
     title.textContent=order.name||"Без имени";
@@ -150,6 +153,8 @@
       comments.append(summary,note);
       inside.append(comments);
     }
+    const history=window.__rdOrderReschedule?.createHistory(order,{opened:historyOpened});
+    if(history)inside.append(history);
     if(payload?.controls){
       const manual=document.createElement("details");
       manual.className="rd-order-manual-status";

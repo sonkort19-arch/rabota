@@ -239,6 +239,7 @@
   <link rel="stylesheet" href="/mobile-order-form.css?v=20261125-travel">
   <link rel="stylesheet" href="/order-availability.css?v=20261117-completed-v1">
   <link rel="stylesheet" href="/quick-slots.css">
+  <link rel="stylesheet" href="/order-reschedule.css?v=20261125-reschedule">
   <link rel="stylesheet" href="/order-payment.css?v=20261125-travel">
   <link rel="stylesheet" href="/master-notifications.css?v=20261117-review-v1">
   <link rel="stylesheet" href="/orders-list.css?v=20261125-travel">
@@ -819,6 +820,7 @@
   <script src="/master-ui.js?v=20261125-travel"></script>
   <script src="/lead-ai-bridge.js?v=20261125-agreed-price"></script>
   <script src="/app-services.js?v=20261125-durable-intent"></script>
+  <script src="/order-reschedule.js?v=20261125-reschedule"></script>
   <script>
 
     "use strict";
@@ -956,6 +958,7 @@
       }
       // Dialogs outside appScreen must also leave the account view.
       if(which!=="appScreen"){
+        window.__rdOrderReschedule?.close(false);
         window.__rdClosePaymentPrompt?.();
         window.__rdResetPayrollUi?.();
         window.__rdCloseCashbookDialog?.();
@@ -974,6 +977,7 @@
     }
     function resetAccountData() {
       accessGeneration++;
+      window.__rdOrderReschedule?.reset();
       orderFormDraft=null;
       if(orderSaving){
         orderSaving=false;
@@ -1085,6 +1089,18 @@
       getCurrentUserId:()=>currentUser?.id||null,
       getScope:()=>accessGeneration,
       getFinanceOperations:()=>financeOperations
+    });
+    window.__rdOrderReschedule=window.__rdCreateReschedule?.({
+      request:(path,method,payload)=>sharedServices.withRequestDeadline(
+        signal=>dbRequest(path,method,payload,{signal}),10000,"Проверка переноса заняла больше времени."),
+      getActor:()=>currentUser?.id||null,getScope:()=>accessGeneration,getOrders,
+      reloadOrders:async()=>{
+        const generation=accessGeneration;
+        await sharedServices.withRequestDeadline(signal=>loadOrderData(false,{signal}),8000,
+          "Не удалось обновить расписание.");
+        if(generation===accessGeneration&&currentRole==="owner")void refreshFinance();
+      },
+      focusModal:window.__rdFocusModal,writeIntents:window.__rdCreateWriteIntents("order-reschedule")
     });
     function readOrder(row) {return orderModel.readOrder(row);}
     function serializeOrder(order) {return orderModel.serializeOrder(order);}
@@ -1431,6 +1447,16 @@
           openForm(order.id,opener);
         });
         actions.append(edit);
+        if(window.__rdCanReschedule?.(order)){
+          const move=make("button","action rd-order-move","Перенести");
+          move.type="button";
+          move.setAttribute("aria-haspopup","dialog");
+          move.addEventListener("click",()=>{
+            const live=getOrders().find(item=>String(item.id)===String(order.id));
+            if(live)window.__rdOrderReschedule.open(live,move);
+          });
+          actions.append(move);
+        }
       }
       if(refundAmount(order)!==null){
         const refund=make("button","action","Учесть полный возврат");
@@ -1677,7 +1703,10 @@
         order.status==="Отменён"?"cancelled":"booked");
       // Reuse the original live handlers and preserve scroll on background refresh.
       const scrollTop=body.scrollTop;
+      const historyOpened=Boolean(body.querySelector(".rd-reschedule-history")?.open);
       const parts=buildMasterSheetParts(order);
+      const history=window.__rdOrderReschedule?.createHistory(order,{opened:historyOpened});
+      if(history)parts.details.append(history);
       body.replaceChildren(parts.details);
       footer.replaceChildren(parts.footer);
       body.scrollTop=scrollTop;
@@ -3052,19 +3081,19 @@
 
   </script>
   <script src="/order-payment.js?v=20261125-travel"></script>
-  <script src="/booking-timeline.js?v=20261125-midnight"></script>
+  <script src="/booking-timeline.js?v=20261125-reschedule"></script>
   <script src="/order-availability.js?v=20261125-midnight"></script>
   <script src="/master-quick-order.js?v=20261117-mock-v1"></script>
-  <script src="/quick-slots.js?v=20261125-shell"></script>
+  <script src="/quick-slots.js?v=20261125-reschedule"></script>
   <script src="/whatsapp-order.js?v=20261125-travel"></script>
-  <script src="/whatsapp-client.js?v=20261125-travel"></script>
+  <script src="/whatsapp-client.js?v=20261125-reschedule"></script>
   <script src="/whatsapp-settings.js?v=20261125-template-reset"></script>
   <script src="/profit-report.js?v=20261125-travel"></script>
   <script src="/expenses.js?v=20261125-durable-intent"></script>
   <script src="/growth.js?v=20261125-reconcile"></script>
-  <script src="/redesign.js?v=20261125-travel"></script>
+  <script src="/redesign.js?v=20261125-reschedule"></script>
   <script src="/master-notifications.js?v=20261125-session-exit"></script>
-  <script src="/orders-list.js?v=20261125-travel"></script>
+  <script src="/orders-list.js?v=20261125-reschedule"></script>
   <script src="/owner-parity.js?v=20261125-order-pages"></script>
   <script src="/finance-payroll.js?v=20261125-travel"></script>
   <script src="/money-workspace.js?v=20261125-travel"></script>

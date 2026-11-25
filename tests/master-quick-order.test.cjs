@@ -115,7 +115,7 @@ test("compact Raul form has dense 16px text inputs and accessible touch targets"
 test("one unified time row replaces double red-green timeline",()=>{
   assert.doesNotMatch(html,/id="oaBusyTimeline"/);
   assert.match(html,/id="oaSlotSuggestions" class="oa-slots"/);
-  assert.match(html,/src="\/booking-timeline\.js\?v=20261125-midnight"/);
+  assert.match(html,/src="\/booking-timeline\.js\?v=20261125-reschedule"/);
   assert.match(html,/src="\/order-availability\.js\?v=[^"]+"/);
   assert.match(html,/master-quick-order\.css\?v=[^"]+"/);
   assert.match(availability,/function renderBusySummary\(blocks,date\)/);

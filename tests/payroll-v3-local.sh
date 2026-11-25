@@ -208,3 +208,57 @@ test "$(db -c "SELECT NOT EXISTS(SELECT 1 FROM public.rabota_finance_operations 
 echo 'PASS: travel correction and concurrent payouts serialize on the payroll master'
 
 db -f tests/sql/ai-order-travel.sql
+
+db -f tests/sql/order-reschedule.sql
+move_a='40000000-0000-4000-8000-000000000010'
+move_b='40000000-0000-4000-8000-000000000011'
+move_request='40000001-0000-4000-8000-000000000010'
+move_date="$(db -c "SELECT (clock_timestamp() AT TIME ZONE 'Europe/Moscow')::date+90")"
+db -c "INSERT INTO public.rabota_orders(id,name,master,assigned_user_id,radiators,appointment_date,appointment_time)
+ VALUES('$move_a','Fixture competing move A','Рауль','$raul',2,'$move_date','08:00'),
+       ('$move_b','Fixture competing move B','Рауль','$raul',5,'$move_date','18:00');" >/dev/null
+move_a_revision="$(db -c "SELECT updated_at FROM public.rabota_orders WHERE id='$move_a'")"
+move_b_revision="$(db -c "SELECT updated_at FROM public.rabota_orders WHERE id='$move_b'")"
+move_first="public.rabota_reschedule_order('$move_a','$move_request','$move_a_revision','$move_date','10:00')"
+PGAPPNAME=rabota_move_first db -c "BEGIN; $as_owner
+ SELECT 'status:'||($move_first->>'state'); SELECT pg_sleep(1.4); COMMIT;" >"$cluster/move-first.log" 2>&1 &
+first_pid=$!
+wait_for "SELECT EXISTS(SELECT 1 FROM pg_stat_activity WHERE application_name='rabota_move_first' AND wait_event='PgSleep')"
+PGAPPNAME=rabota_move_second db -c "BEGIN; $as_owner
+ SELECT 'status:'||(public.rabota_reschedule_order('$move_b',gen_random_uuid(),
+ '$move_b_revision','$move_date','10:30')->>'state'); COMMIT;" >"$cluster/move-second.log" 2>&1 &
+second_pid=$!
+wait_for "SELECT EXISTS(SELECT 1 FROM pg_stat_activity WHERE application_name='rabota_move_second' AND wait_event_type='Lock')"
+PGAPPNAME=rabota_move_replay db -c "BEGIN; $as_owner
+ SELECT 'replayed:'||($move_first->>'replayed'); COMMIT;" >"$cluster/move-replay.log" 2>&1 &
+replay_pid=$!
+wait_for "SELECT EXISTS(SELECT 1 FROM pg_stat_activity WHERE application_name='rabota_move_replay' AND wait_event_type='Lock')"
+wait "$first_pid" || { cat "$cluster/move-first.log" >&2; exit 1; }
+wait "$second_pid" || { cat "$cluster/move-second.log" >&2; exit 1; }
+wait "$replay_pid" || { cat "$cluster/move-replay.log" >&2; exit 1; }
+grep -qx 'status:saved' "$cluster/move-first.log"
+grep -qx 'status:occupied' "$cluster/move-second.log"
+grep -qx 'replayed:true' "$cluster/move-replay.log"
+test "$(db -c "SELECT count(*)=1 FROM private.rabota_order_reschedule_events
+ WHERE order_id IN ('$move_a','$move_b')")" = t
+echo 'PASS: concurrent overlapping moves serialize and repeated intent returns original history'
+
+# The ordinary calendar write has no new RPC or trigger. The later quick move
+# must still await its committed schedule and reject the overlap.
+PGAPPNAME=rabota_move_legacy_first db -c "BEGIN; $as_owner
+ INSERT INTO public.rabota_orders(name,master,assigned_user_id,radiators,appointment_date,appointment_time)
+ VALUES('Fixture competing legacy edit','Рауль','$raul',2,'$move_date','13:00');
+ SELECT pg_sleep(1.4); COMMIT;" >"$cluster/move-legacy-first.log" 2>&1 &
+first_pid=$!
+wait_for "SELECT EXISTS(SELECT 1 FROM pg_stat_activity
+ WHERE application_name='rabota_move_legacy_first' AND wait_event='PgSleep')"
+PGAPPNAME=rabota_move_legacy_second db -c "BEGIN; $as_owner
+ SELECT 'status:'||(public.rabota_reschedule_order('$move_b',gen_random_uuid(),
+ '$move_b_revision','$move_date','13:30')->>'state'); COMMIT;" >"$cluster/move-legacy-second.log" 2>&1 &
+second_pid=$!
+wait_for "SELECT EXISTS(SELECT 1 FROM pg_stat_activity
+ WHERE application_name='rabota_move_legacy_second' AND wait_event_type='Lock')"
+wait "$first_pid" || { cat "$cluster/move-legacy-first.log" >&2; exit 1; }
+wait "$second_pid" || { cat "$cluster/move-legacy-second.log" >&2; exit 1; }
+grep -qx 'status:occupied' "$cluster/move-legacy-second.log"
+echo 'PASS: quick move rechecks a conflicting ordinary write after it commits'

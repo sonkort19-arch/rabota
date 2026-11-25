@@ -607,6 +607,7 @@ function navigate(key,updateHistory=true){
   if(activePage==="expenses")ownerModules.get("expenses")?.close();
  }
  if(activePage==="orders"&&key!=="orders"){
+  window.__rdOrderReschedule?.close(false);
   window.__rdClosePaymentPrompt?.();
   window.__rdCloseOrderFormForNavigation?.();
   storeOrderFilters(currentTab);
