@@ -17,7 +17,7 @@ async function check(browser,role){
     await page.goto("https://crm.test/");
     await go(page,"home");
     const home = page.locator("#rdHome");
-    await page.getByRole("heading",{name:"Главная",exact:true}).waitFor();
+    await home.waitFor();
     assert.equal(await home.locator(".rd-home-metrics button").count(),3);
     assert.equal(await home.locator(".rd-home-actions .rd-svgicon").count(),3);
     assert.equal(await page.locator("#rdTopSearch").isVisible(),false);
@@ -80,12 +80,13 @@ async function check(browser,role){
     assert.equal(await leads.count(),1);
     if(role==="owner"){
       await go(page,"finance");
-      await page.getByRole("heading",{name:"Платежи",exact:true}).waitFor();
-      const create=page.locator("#financePanel .mw-owner-create");
+      const finance=page.locator("#financePanel");
+      await finance.waitFor();
+      const create=finance.locator(".mw-owner-create");
       await create.click();
-      await page.getByRole("button",{name:/Создать приход/}).waitFor();
-      await page.getByRole("button",{name:/Создать расход/}).waitFor();
-      assert.equal(await page.getByRole("button",{name:/Сдать наличные|Подтвердить передачу/}).count(),0);
+      await finance.getByRole("button",{name:/Создать приход/}).waitFor();
+      await finance.getByRole("button",{name:/Создать расход/}).waitFor();
+      assert.equal(await finance.getByRole("button",{name:/Сдать наличные|Подтвердить передачу/}).count(),0);
       await create.click();
       await go(page,"reports");
       await page.locator("#rdReports .rd-salary-entry").waitFor();

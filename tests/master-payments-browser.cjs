@@ -90,7 +90,8 @@ async function check(browser, browserName, width) {
     assert.equal(await payments.getByText(/23 ноября/).count(), 1);
     assert.equal(await payments.getByText(/22 ноября/).count(), 1);
     assert.match(await readText(), /02:11/);
-    assert.equal(await page.getByRole("heading", {name: "Платежи", exact: true}).count(), 1);
+    assert.equal(await page.getByRole("heading", {name: "Платежи", exact: true}).count(), 0);
+    assert.equal(await payments.getByRole("heading", {name: "Оплаты заказов", exact: true}).count(), 1);
     await summary.click();
     assert.match(await readText(), /Способ не указан\s+1 100,50? ₽/);
     await summary.click();
