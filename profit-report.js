@@ -43,7 +43,7 @@
       Math.abs(Number(order.paymentAmount)-price)>=.01;
     const earned=order.status==="Выполнен"&&paid&&!refund;
     const masterId=options.payroll?.masterId||options.masterId;
-    const raul=Boolean(masterId)&&(receipt?.masterId??order.assignedUserId)===masterId;
+    const raul=Boolean(masterId)&&(receipt?receipt.masterId:order.assignedUserId)===masterId;
     const calculated=!refund&&!hold?.payrollOnHold&&Boolean(receipt&&(projection||!raul));
     const salary=calculated?(projection?round(projection.actualPaid-projection.companyShare):0):null;
     const profit=calculated?projection?.companyShare??receipt.amount:null;
@@ -133,7 +133,7 @@
     ].filter(Boolean);
   }
   function csvFor(rows){
-    const cols=["Заказ","Дата создания","Дата записи","Дата закрытия","Клиент","Мастер","Статус","Цена","Оплачено (по отметке)","Зарплата","Доля компании","Сведения о сумме оплаты"];
+    const cols=["Заказ","Дата создания","Дата записи","Дата закрытия","Клиент","Мастер","Статус","Цена","Учтённая оплата","Зарплата","Доля компании","Сведения о сумме оплаты"];
     const data=rows.map(r=>[r.referenceCode||r.orderNumber||"",getDate(r,"created"),r.date||"",
       getDate(r,"closed"),r.name,r.master,r.status,r.reportPrice==null?"":r.reportPrice,
       r.reportPaymentUnverified?"":r.reportReceived,r.reportPayrollOnHold?"На сверке":r.reportSalary??"",r.reportProfit??"",

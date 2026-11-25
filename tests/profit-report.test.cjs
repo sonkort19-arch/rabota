@@ -158,6 +158,7 @@ test("status and custom period filters work without altering records",()=>{
 test("CSV escapes spreadsheet formulas and preserves the order breakdown",()=>{
   const csv=csvFor([reportRow(order({name:"=cmd()"}),{payroll:defaultPayroll})]);
   assert.match(csv,/'=cmd\(\)/);
+  assert.match(csv,/Учтённая оплата/);
   assert.match(csv,/3500/);
   assert.match(csv,/№00012/);
 });
