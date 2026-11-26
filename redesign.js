@@ -67,6 +67,7 @@ function uiIcon(name,extra=""){
  svg.innerHTML=iconPaths[name]||iconPaths.orders;return svg;
 }
 let activePage="home",ready=false,lastOrderKey="",rdSearchTerm="",selectedClientKey=null,builtRole=null,calendarMode="week",calendarMaster="",calendarStatus="",calendarHideDone=false,calendarOpened=false,profitReport=null,salaryRoot=null,ownerSalaryReport=null;
+let orderFieldReport=null;
 let leadsSearchTerm="";
 let calendarWeekCache="",calendarDetailCache="",calendarMastersCache="";
 let calendarFiltersOpen=false;
@@ -477,7 +478,7 @@ function build(){
  window.addEventListener("resize",()=>{
   if(filterDialog.open&&window.innerWidth>790)closeMobileOrderFilters();
  });
- profitReport=null;
+ profitReport=null;orderFieldReport=null;
  const reports=sectionView("rdReports","Отчёты");
  const reportsRoot=makeNode("div","rd-reports-root");
  reports.append(reportsRoot);
@@ -486,10 +487,12 @@ function build(){
  reportsRoot.append(salaryRoot);
  ownerSalaryReport=null;
  if(currentRole==="owner"){
-   profitReport=window.__rdCreateProfitReport?.(reportsRoot,{getOrders:()=>window.__rdOwnerReportOrders?.()??[],
+   const financialReportData={getOrders:()=>window.__rdOwnerReportOrders?.()??[],
+      getOperations:()=>window.__rdOwnerReportOperations?.()??[],
       getRaulMasterId:()=>window.__rdReportMasterId?.(),
       getPayroll:()=>window.__rdPayrollSnapshot?.(),
-      getFinanceStatus:()=>window.__rdFinanceStatus?.(),
+      getFinanceStatus:()=>window.__rdFinanceStatus?.()};
+   profitReport=window.__rdCreateProfitReport?.(reportsRoot,{...financialReportData,
       embedded:true,
       onOpenChange:open=>{
         updateOwnerReportHeader();
@@ -501,17 +504,42 @@ function build(){
      // Keep the report hub dense: only link real, working reports.
      const profitEntry=menu.querySelector(".pr-report-link");
      menu.querySelector(".pr-description")?.remove();
-     function reportGroup(title,label,icon,entry){
+     function reportGroup(title,entries){
        const section=makeNode("section","rd-report-section");
        const heading=makeNode("h2","rd-report-section-title",title);
        const items=makeNode("div","rd-report-section-items");
-       const arrow=entry.querySelector(".pr-report-arrow")||makeNode("span","pr-report-arrow","›");
-       entry.textContent="";
-       entry.classList.add("rd-report-item");
-       entry.append(uiIcon(icon,"rd-report-item-icon"),makeNode("span","rd-report-item-label",label),arrow);
-       items.append(entry);section.append(heading,items);menu.append(section);
+       for(const [label,icon,entry] of entries){
+         if(!entry)continue;
+         const arrow=entry.querySelector(".pr-report-arrow")||makeNode("span","pr-report-arrow","›");
+         entry.textContent="";
+         entry.classList.add("rd-report-item");
+         entry.append(uiIcon(icon,"rd-report-item-icon"),makeNode("span","rd-report-item-label",label),arrow);
+         items.append(entry);
+       }
+       if(items.childElementCount){section.append(heading,items);menu.append(section);}
      }
-     if(profitEntry)reportGroup("Финансы","Прибыль по заказам","wallet",profitEntry);
+     const openField=makeNode("button","pr-report-link rd-order-field-report-entry");
+     openField.type="button";
+     if(typeof window.__rdCreateOrderFieldReport==="function"){
+       const fieldRoot=makeNode("section");
+       fieldRoot.id="rdOrderFieldReport";fieldRoot.hidden=true;
+       reportsRoot.append(fieldRoot);
+       orderFieldReport=window.__rdCreateOrderFieldReport(fieldRoot,{...financialReportData,
+         onRetry:()=>window.__rdMoneyUi?.refreshFinance?.(),
+         onOpenOrder:orderId=>openDashboardOrders({orderId}),
+         onViewChange:()=>{
+           const open=orderFieldReport?.isOpen();
+           menu.hidden=Boolean(open);
+           updateOwnerReportHeader();
+           restoreVerticalScroll(0);
+           (open?$("rdScreenBack"):openField)?.focus({preventScroll:true});
+         }});
+       openField.addEventListener("click",()=>orderFieldReport.open());
+     }
+     reportGroup("Финансы",[
+       ["Прибыль по заказам","wallet",profitEntry],
+       ["Заказы по полю","chart",orderFieldReport?openField:null]
+     ]);
      const openSalary=makeNode("button","pr-report-link rd-salary-entry");
      openSalary.type="button";openSalary.textContent="Зарплата";
      openSalary.append(makeNode("span","pr-report-arrow","›"));
@@ -526,6 +554,11 @@ function build(){
        if(activePage!=="reports")return;
        if(!salaryRoot.hidden)window.__rdSetScreenHeader?.("Зарплата",closeSalary,"Назад к отчётам");
        else if(profitReport?.isOpen())window.__rdSetScreenHeader?.("Прибыль по заказам",profitReport.close,"Назад к отчётам");
+       else if(orderFieldReport?.isOpen()){
+         const title=orderFieldReport.title();
+         window.__rdSetScreenHeader?.(title,orderFieldReport.back,orderFieldReport.isDrilldown()?
+           "Назад к заказам по полю":"Назад к отчётам");
+       }
        else window.__rdSetScreenHeader?.(titles.reports);
      };
      openSalary.addEventListener("click",()=>{
@@ -540,11 +573,11 @@ function build(){
        // Reload the existing financial snapshot; no payroll data is duplicated.
        void window.__rdOwnerPayrollReload?.();
      });
-     reportGroup("Сотрудники","Зарплата","clients",openSalary);
+     reportGroup("Сотрудники",[["Зарплата","clients",openSalary]]);
    }
  }
  window.__rdReportUpdated=()=>{
-   if(activePage==="reports")profitReport?.render();
+   if(activePage==="reports"){profitReport?.render();orderFieldReport?.render();}
  };
  window.__rdOwnerPayrollUpdated=()=>{
    if(activePage!=="reports"||!salaryRoot||salaryRoot.hidden)return;
@@ -666,6 +699,7 @@ function navigate(key,updateHistory=true){
   updateOwnerReportHeader();
   profitReport?.render();
   if(salaryRoot&&!salaryRoot.hidden)ownerSalaryReport?.render();
+  orderFieldReport?.render();
  }
  else ownerModules.get(key)?.open(currentUser.id);
  if(!isOrders&&!isCalendar)window.__rdOrdersWorkspace?.refresh();
@@ -686,6 +720,7 @@ window.__rdResetOwnerModules=()=>{
  if($("rdOrderSearch"))$("rdOrderSearch").value="";
  window.__rdCloseHeaderMenus?.();
  for(const module of ownerModules.values())module.reset();
+ orderFieldReport?.reset();
 };
 function drawChart(parent,values,month){
  // Draw the real month's orders. SVG is self-contained; no chart dependency,
@@ -1449,7 +1484,10 @@ window.__rdRefresh=()=>{
  if(activePage==="calendar")drawCalendar();
  if(activePage==="clients")drawClients();
  if(activePage==="orders"){drawOrderSummary();filterCards();}
- if(activePage==="reports"){profitReport?.render();if(document.getElementById("rdSalaryReport")?.hidden===false)window.__rdOwnerPayrollUpdated?.();}
+ if(activePage==="reports"){
+  profitReport?.render();orderFieldReport?.render();
+  if(document.getElementById("rdSalaryReport")?.hidden===false)window.__rdOwnerPayrollUpdated?.();
+ }
 };
 // Authentication and the initial schedule can finish while this script downloads.
 if(app.hidden===false)window.__rdAccess();

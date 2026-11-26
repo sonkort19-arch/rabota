@@ -79,7 +79,7 @@ test("HTML links CSS parts adjacently and preserves downstream precedence",()=>{
   const html=read("index.html");
   const files=[...html.matchAll(/<link\s+rel="stylesheet"\s+href="(\/[^"]+\.css(?:\?[^"]*)?)"/g)]
     .map(match=>match[1].split("?")[0].slice(1));
-  assert.equal(files.length,35,"baseline styles, integrated modules, rescheduling and the shared screen layout");
+  assert.equal(files.length,36,"baseline styles, integrated modules, reports and the shared screen layout");
   assert.equal(new Set(files).size,files.length,"each stylesheet is loaded once");
   const start=files.indexOf("ui-alignment.css");
   assert.deepEqual(files.slice(start,start+4),alignment);

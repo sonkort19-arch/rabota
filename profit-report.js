@@ -8,14 +8,16 @@
     (typeof require==="function"?require("./order-model.js").orderReference:null);
   const PAGE_SIZE=100;
   const round=n=>Math.round((Number(n)+Number.EPSILON)*100)/100;
+  const cents=n=>Math.round((Number(n)||0)*100);
   const money=n=>Number(n||0).toLocaleString("ru-RU",{minimumFractionDigits:0,maximumFractionDigits:2})+" ₽";
   const txt=v=>String(v==null?"":v);
+  const moscowDateFormat=new Intl.DateTimeFormat("sv-SE",{
+    timeZone:TIME_ZONE,year:"numeric",month:"2-digit",day:"2-digit"
+  });
   function moscowDay(date){
     if(!date)return "";
     const parsed=new Date(date);
-    return Number.isNaN(parsed.getTime())?"":new Intl.DateTimeFormat("sv-SE",{
-      timeZone:TIME_ZONE,year:"numeric",month:"2-digit",day:"2-digit"
-    }).format(parsed);
+    return Number.isNaN(parsed.getTime())?"":moscowDateFormat.format(parsed);
   }
   function getDate(order,basis){
     if(basis==="closed")return order.completedAt?moscowDay(order.completedAt):"";
@@ -24,6 +26,33 @@
   }
   function reportRefunds(payroll){
     return payroll?.accounting?.refunds??(payroll?.state==="active"?payroll.refunds:undefined)??[];
+  }
+  function linkedExpenseTotals(orders,operations){
+    const totals=new Map();
+    if(!operations?.length)return totals;
+    const ids=new Set(),byNumber=new Map();
+    for(const order of orders){
+      if(order.id==null)continue;
+      const id=String(order.id),number=Number(order.orderNumber);
+      ids.add(id);
+      if(Number.isSafeInteger(number)&&number>0)
+        byNumber.set(number,byNumber.has(number)?null:id);
+    }
+    // /Расходы stores a selected order number in this exact suffix of its note.
+    // An explicit order_id takes precedence, including links outside this report.
+    const expenses=new Map(operations.filter(row=>row?.id!=null).map(row=>[row.id,row]));
+    for(const operation of expenses.values()){
+      const amount=Number(operation.amount);
+      if(operation.kind!=="expense"||operation.voided_at||!Number.isFinite(amount)||amount<=0)continue;
+      let orderId=operation.order_id;
+      if(orderId==null){
+        const note=txt(operation.note);
+        const suffix=/^\[[^\]\r\n]{1,25}\][^\r\n]* · Заказ №(\d{1,8})$/u.exec(note);
+        orderId=suffix&&byNumber.get(Number(suffix[1]));
+      }else orderId=String(orderId);
+      if(ids.has(orderId))totals.set(orderId,(totals.get(orderId)??0)+cents(amount));
+    }
+    return totals;
   }
   function reportRow(order,options={}){
     const price=order.price==null||order.price===""?null:Number(order.price);
@@ -61,15 +90,19 @@
     const calculated=!refund&&!hold?.payrollOnHold&&Boolean(receipt&&(projection||!raul));
     const salary=calculated?(projection?round(projection.actualPaid-projection.companyShare):0):null;
     const profit=calculated?projection?.companyShare??receiptWash:null;
+    const expenses=(options.expensesByOrder?.get(orderId)??0)/100;
+    const uncoveredTravel=Math.max(0,round(travelEarned-receiptTravel+refundedTravel));
     const holdReference=!order.referenceCode?orderReference?.code(hold?.orderNumber):null;
     return Object.assign({},order,holdReference?{orderNumber:hold.orderNumber,referenceCode:holdReference}:null,{
       status:refund?"Отменён":order.status,
       reportPrice:validPrice?price:null,
       reportTravel:travel,reportTotalPrice:totalPrice,reportTravelReceived:receiptTravel,
       reportTravelRefunded:refundedTravel,reportTravelEarned:travelEarned,
-      reportTravelUncovered:Math.max(0,round(travelEarned-receiptTravel+refundedTravel)),
+      reportTravelUncovered:uncoveredTravel,
       reportReceived:received,reportEarned:!refund&&(earned||Boolean(projection)),reportCalculated:calculated,
       reportSalary:salary,reportProfit:profit,
+      reportAccruedSalary:(cents(salary)+cents(travelEarned))/100,
+      reportExpenses:expenses,reportNetProfit:(cents(profit)-cents(uncoveredTravel)-cents(expenses))/100,
       reportCalculationAmount:projection?.actualPaid??receiptWash,
       reportRuleVersion:projection?.ruleVersion??null,
       reportRefundedAmount:refund?.amount??null,
@@ -103,9 +136,29 @@
     });
     return total;
   }
+  function financialSummary(rows){
+    let revenue=0,salary=0,expenses=0,profit=0,paid=0,unverified=0;
+    for(const row of rows){
+      revenue+=cents(row.reportReceived);
+      salary+=cents(row.reportAccruedSalary);
+      expenses+=cents(row.reportExpenses);
+      profit+=cents(row.reportNetProfit);
+      if(row.reportReceived>0)paid++;
+      if(row.reportPayrollOnHold||row.reportPaymentUnverified||(row.reportEarned&&!row.reportCalculated))unverified++;
+    }
+    return {count:rows.length,revenue:revenue/100,salary:salary/100,expenses:expenses/100,
+      profit:profit/100,average:paid?Math.round(revenue/paid)/100:0,paid,unverified};
+  }
   function bounds(period,today,customFrom,customTo){
     if(period==="all")return ["",""];
     if(period==="custom")return [customFrom||"",customTo||""];
+    if(period==="today")return [today,today];
+    if(period==="yesterday"){
+      const day=new Date(today+"T12:00:00Z");
+      day.setUTCDate(day.getUTCDate()-1);
+      const yesterday=day.toISOString().slice(0,10);
+      return [yesterday,yesterday];
+    }
     const year=Number(today.slice(0,4)),month=Number(today.slice(5,7));
     if(period==="month")return [today.slice(0,7)+"-01",today];
     if(period==="previous"){
@@ -130,14 +183,16 @@
     const travelByOrder=new Map();
     for(const event of options.payroll?.travelHistory??[])
       travelByOrder.set(event.orderId,round((travelByOrder.get(event.orderId)??0)+event.delta));
-    const rowOptions=options.payroll?{...options,payrollByOrder,travelByOrder,
+    const expensesByOrder=linkedExpenseTotals(orders,options.operations);
+    const rowOptions=options.payroll?{...options,payrollByOrder,travelByOrder,expensesByOrder,
       receiptsByOrder:new Map((options.payroll.accounting?.receipts??[]).map(item=>[item.orderId,item])),
       refundsByOrder:new Map(reportRefunds(options.payroll).map(item=>[item.orderId,item])),
-      holdsByOrder:new Map((options.payroll.holds??[]).map(item=>[item.orderId,item]))}:options;
-    return orders.map(order=>reportRow(order,rowOptions)).filter(row=>{
-      const day=getDate(row,options.basis||"closed");
-      if(from&&(!day||day<from))return false;
-      if(to&&(!day||day>to))return false;
+      holdsByOrder:new Map((options.payroll.holds??[]).map(item=>[item.orderId,item]))}:{...options,expensesByOrder};
+    const dateRows=from||to?orders.filter(order=>{
+      const day=getDate(order,options.basis||"closed");
+      return day&&(!from||day>=from)&&(!to||day<=to);
+    }):orders;
+    return dateRows.map(order=>reportRow(order,rowOptions)).filter(row=>{
       if(options.status==="paid"&&(!row.paid||row.reportRefundedAmount))return false;
       if(options.status==="unpaid"&&row.paid)return false;
       if(options.status&&options.status!=="paid"&&options.status!=="unpaid"&&row.status!==options.status)return false;
@@ -194,13 +249,13 @@
     el.value=initial;el.addEventListener("change",()=>changed(el.value));
     return el;
   }
-  function mount(rootEl,{getOrders,getRaulMasterId=null,getFinanceStatus=null,getPayroll=null,
+  function mount(rootEl,{getOrders,getRaulMasterId=null,getFinanceStatus=null,getPayroll=null,getOperations=null,
     startOpen=false,embedded=false,onBack=null,onOpenChange=null,onRetry=null}){
     if(!rootEl||typeof getOrders!=="function")throw Error("Отчёт не может загрузиться");
     rootEl.classList.add("pr-report-scope");
     const state={open:false,period:"month",basis:"closed",status:"",search:"",from:"",to:"",visible:PAGE_SIZE};
     const expanded=new Set();
-    let renderKey=null,renderedOrders=null;
+    let renderKey=null,renderedOrders=null,renderedOperations=null;
     const menu=node("div","pr-menu");
     const detail=node("section","pr-detail");detail.hidden=true;
     let back=null;
@@ -226,7 +281,8 @@
       else card.focus({preventScroll:true});
     }
     const controls=node("div","pr-controls");
-    const period=makeSelect([["month","Текущий месяц"],["previous","Прошлый месяц"],["week","Эта неделя"],["all","За всё время"],["custom","Свой период"]],
+    const period=makeSelect([["month","Текущий месяц"],["previous","Прошлый месяц"],["week","Эта неделя"],
+      ["today","Сегодня"],["yesterday","Вчера"],["all","За всё время"],["custom","Свой период"]],
       "Период отчёта",state.period,value=>{state.period=value;custom.hidden=value!=="custom";redraw()});
     const basis=makeSelect([["closed","По дате закрытия"],["created","По дате создания"],["appointment","По дате записи"]],
       "Тип даты отчёта",state.basis,value=>{state.basis=value;redraw()});
@@ -287,8 +343,9 @@
     const more=node("div","pr-more");
     detail.append(controls,custom,financeStatus,caption,scroll,more,info);
     rootEl.append(menu,detail);
-    function queryRows(orders=getOrders(),masterId=getRaulMasterId?.(),today=moscowDay(new Date()),payroll=getPayroll?.()){
-      const options={...state,today,payroll};
+    function queryRows(orders=getOrders(),masterId=getRaulMasterId?.(),today=moscowDay(new Date()),
+      payroll=getPayroll?.(),operations=getOperations?.()){
+      const options={...state,today,payroll,operations};
       if(typeof getRaulMasterId==="function")options.masterId=masterId;
       return filterRows(orders,options);
     }
@@ -311,18 +368,19 @@
       if(unavailable){
         if(tbody.firstChild)tbody.replaceChildren();
         if(more.firstChild)more.replaceChildren();
-        renderKey=null;renderedOrders=null;expanded.clear();
+        renderKey=null;renderedOrders=null;renderedOperations=null;expanded.clear();
         return;
       }
       const orders=getOrders(),masterId=getRaulMasterId?.(),today=moscowDay(new Date()),payroll=getPayroll?.();
+      const operations=getOperations?.();
       const versioned=payroll?.state==="active";
       const explanationText=
         "После полной оплаты зарплата Рауля за промывку составляет 50% её стоимости плюс 1 500 ₽. Доплата за дорогу начисляется отдельно при сохранении заказа. Доля компании равна стоимости промывки за вычетом зарплаты за промывку. Дорога за счёт компании показана отдельно. Исторические расчёты сохранены.";
       if(explanation.textContent!==explanationText)explanation.textContent=explanationText;
       const key=JSON.stringify([state,finance?.revision,masterId,today,versioned]);
-      if(renderKey===key&&(finance?.revision!=null||renderedOrders===orders))return;
-      renderKey=key;renderedOrders=orders;
-      const rows=queryRows(orders,masterId,today,payroll);
+      if(renderKey===key&&(finance?.revision!=null||renderedOrders===orders&&renderedOperations===operations))return;
+      renderKey=key;renderedOrders=orders;renderedOperations=operations;
+      const rows=queryRows(orders,masterId,today,payroll,operations);
       const totals=summary(rows);
       const heldCount=rows.filter(row=>row.reportPayrollOnHold||row.reportCashOnHold).length;
       const hasOnlyUnverifiedMargin=rows.some(row=>row.reportPayrollOnHold)&&!rows.some(row=>row.reportCalculated);
@@ -335,6 +393,19 @@
            (totals.travelRefunded?", возвращено "+money(totals.travelRefunded):"")+
            ", начислено "+money(totals.travelEarned)+
            (totals.travelUncovered?", за счёт компании "+money(totals.travelUncovered):""):"");
+      if(getOperations){
+        const values=financialSummary(rows);
+        const reconciliation=node("span","pr-net-summary");
+        for(const [key,label] of [["salary","Начисленная зарплата"],["expenses","Доп. расходы"],
+          ["profit","Прибыль по заказам"],["average","Средний чек"]]){
+          reconciliation.append(document.createTextNode(" · "+label+" "));
+          const value=node("strong","",money(values[key]));
+          value.dataset.reportMetric=key;
+          reconciliation.append(value);
+        }
+        if(values.unverified)reconciliation.append(document.createTextNode(" · На сверке: "+values.unverified));
+        caption.append(reconciliation);
+      }
       tbody.replaceChildren();
       // Like HelloClient: period totals go above individual orders, after the header.
       // Totals include every matching order, not just the visible page of 100.
@@ -413,8 +484,10 @@
     if(startOpen)setOpen(true);
     return {render,isOpen:()=>state.open,close:()=>setOpen(false)};
   }
-  if(root)root.__rdCreateProfitReport=mount;
-  if(typeof module!=="undefined"&&module.exports)module.exports={
-    reportRow,summary,filterRows,bounds,moscowDay,csvFor
-  };
+  const model={reportRow,summary,financialSummary,filterRows,bounds,moscowDay,quoteCsv,csvFor};
+  if(root){
+    root.__rdCreateProfitReport=mount;
+    root.__rdProfitReportModel=model;
+  }
+  if(typeof module!=="undefined"&&module.exports)module.exports=model;
 })(typeof window!=="undefined"?window:null);
