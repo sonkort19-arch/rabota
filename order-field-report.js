@@ -5,17 +5,22 @@
   if (!model) return;
 
   const columns = model.COLUMNS;
-  const chartColors = ["#4656f5", "#008076", "#8b55cf", "#ac5e14", "#007aaf", "#be4875"];
+  const columnLabels = {
+    label: "Источник", count: "Заказы", percent: "Доля заказов", revenue: "Оплаты",
+    salary: "Зарплата", expenses: "Расходы", profit: "Прибыль", average: "Средний чек"
+  };
   const money = new Intl.NumberFormat("ru-RU", {
     style: "currency", currency: "RUB", minimumFractionDigits: 0, maximumFractionDigits: 2
   });
   const count = new Intl.NumberFormat("ru-RU");
   const percent = new Intl.NumberFormat("ru-RU", { style: "percent", maximumFractionDigits: 2 });
-  const dates = new Intl.DateTimeFormat("sv-SE", {
-    timeZone: "Europe/Moscow", year: "numeric", month: "2-digit", day: "2-digit"
+  const pluralOrders = new Intl.PluralRules("ru-RU");
+  const dateRange = new Intl.DateTimeFormat("ru-RU", {
+    timeZone: "UTC", day: "numeric", month: "short", year: "numeric"
   });
   const PAGE_SIZE = 50;
-  const TITLE = "Заказы по полю";
+  const TITLE = "Источники заказов";
+  const orderForms = { one: "заказ", few: "заказа", many: "заказов", other: "заказа" };
   const numberFor = {
     count: value => count.format(value),
     percent: value => percent.format(value / 100)
@@ -53,12 +58,35 @@
   function amount(value) {
     return value == null ? "—" : money.format(value);
   }
-  function showDate(day) {
-    return /^\d{4}-\d{2}-\d{2}$/.test(day) ? day.split("-").reverse().join(".") : "";
+  function amountNode(tag, value) {
+    return node(tag, value < 0 ? "of-amount-negative" : "", amount(value));
+  }
+  function orderCount(value) {
+    return count.format(value) + " " + orderForms[pluralOrders.select(value)];
   }
   function orderDay(order) {
-    const completed = order.completedAt && new Date(order.completedAt);
-    return showDate(completed && Number.isFinite(completed.valueOf()) ? dates.format(completed) : order.date);
+    const day = model.moscowDay(order.completedAt) || order.date;
+    return /^\d{4}-\d{2}-\d{2}$/.test(day) ? day.split("-").reverse().join(".") : "";
+  }
+  function periodLabel({ period, from, to }, today) {
+    if (period === "all") return "За всё время · включая незакрытые заказы";
+    const [first, last] = model.bounds(period, today, from, to);
+    const start = new Date(first + "T00:00:00Z"), end = new Date(last + "T00:00:00Z");
+    if (!Number.isFinite(start.valueOf()) || !Number.isFinite(end.valueOf()) || first > last) return "";
+    const interval = dateRange.formatRange ? dateRange.formatRange(start, end) :
+      first === last ? dateRange.format(start) : dateRange.format(start) + " – " + dateRange.format(end);
+    return interval + " · по дате закрытия";
+  }
+  function fillSummary(summary, values) {
+    summary.replaceChildren(...[
+      ["count", "Заказы"], ["revenue", "Оплаты клиентов"], ["profit", "Прибыль"]
+    ].map(([key, label]) => {
+      const group = node("div");
+      group.dataset.metric = key;
+      group.append(node("dt", "", label), key === "count"
+        ? node("dd", "", count.format(values.count)) : amountNode("dd", values[key]));
+      return group;
+    }));
   }
 
   function mount(panel, {
@@ -67,21 +95,18 @@
   }) {
     panel.hidden = true;
     panel.classList.add("of-report");
-    const initial = { field: "", period: "month", from: "", to: "", sort: "count", direction: "desc" };
+    const initial = {
+      field: model.FIELDS[0][0], period: "month", from: "", to: "", rank: "profit", sort: "count", direction: "desc"
+    };
     const state = { ...initial };
     const empty = [];
-    let selected = null, limit = PAGE_SIZE, cached = null, displayed = null;
-    let selectedLabel = "";
+    let selected = null, selectedLabel = "", sourceTrigger = null, limit = PAGE_SIZE;
+    let cached = null, overviewRendered = null, tableRendered = null, ordersRendered = null;
+
+    const overview = node("section", "of-overview");
     const controls = node("div", "of-controls");
-    const grouping = selector([["", "Выберите поле"], ...model.FIELDS], "Поле отчёта", "", value => {
-      state.field = value;
-      render();
-    });
-    const period = selector(model.PERIODS, "Период отчёта", state.period, value => {
-      state.period = value;
-      render();
-    });
-    const periodControl = field("Период", period);
+    const period = selector(model.PERIODS, "Период отчёта", state.period, setPeriod);
+    controls.append(field("Период", period));
     const custom = node("div", "of-custom");
     const customInputs = [];
     for (const [key, label] of [["from", "Начало периода"], ["to", "Конец периода"]]) {
@@ -94,7 +119,47 @@
       customInputs.push(input);
       custom.append(field(label, input));
     }
-    const download = button("of-export", "CSV ↓", () => {
+    const overviewPeriod = node("p", "of-period-caption");
+    const notice = node("div", "of-notice");
+    const message = node("p");
+    const retry = button("secondary of-retry", "Обновить", () => {
+      if (onRetry) void onRetry();
+      else void root.__rdMoneyUi?.refreshFinance?.();
+    });
+    notice.append(message, retry);
+    const note = node("p", "of-note");
+    const summary = node("dl", "of-summary");
+    summary.setAttribute("aria-label", "Итоги за период");
+
+    const chart = node("section", "of-chart");
+    const chartHeader = node("div", "of-chart-header");
+    const rank = selector([
+      ["profit", "По прибыли"], ["count", "По заказам"], ["revenue", "По оплатам"]
+    ], "Сравнить по", state.rank, value => {
+      state.rank = value;
+      render();
+    });
+    const rankField = field("Сравнить", rank);
+    rankField.classList.add("of-rank-control");
+    chartHeader.append(node("h2", "", "Откуда пришли заказы"), rankField);
+    const sourceList = node("ul", "of-source-list");
+    chart.append(chartHeader, sourceList);
+
+    const emptyResult = node("div", "of-empty");
+    const showAll = button("secondary", "Показать за всё время", () => {
+      setPeriod("all");
+      period.focus();
+    });
+    emptyResult.append(node("p", "", "За выбранный период заказов нет."), showAll);
+
+    const details = node("details", "of-details");
+    const detailContent = node("div", "of-details-content");
+    const grouping = model.FIELDS.length > 1 ? selector(model.FIELDS, "Поле отчёта", state.field, value => {
+      state.field = value;
+      render();
+    }) : null;
+    if (grouping) detailContent.append(field("Чем сгруппировать", grouping));
+    const download = button("of-export", "Скачать таблицу", () => {
       render();
       if (download.disabled || !cached) return;
       const report = cached.report;
@@ -102,27 +167,18 @@
       const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
       const link = node("a");
       link.href = url;
-      link.download = "rabota-orders-by-field-" + dates.format(new Date()) + ".csv";
+      link.download = "rabota-orders-by-field-" + model.moscowDay(new Date()) + ".csv";
       document.body.append(link);
       link.click();
       link.remove();
       setTimeout(() => URL.revokeObjectURL(url), 1000);
     });
-    download.setAttribute("aria-label", "Скачать CSV");
-    controls.append(field("Поле", grouping), periodControl, download);
-
-    const overview = node("section", "of-overview");
-    const notice = node("div", "of-notice");
-    const message = node("p");
-    const retry = button("secondary of-retry", "Повторить", () => {
-      if (onRetry) void onRetry();
-      else void root.__rdMoneyUi?.refreshFinance?.();
-    });
-    notice.append(message, retry);
-    const note = node("p", "of-note");
-    const chart = node("figure", "of-chart");
-    chart.setAttribute("aria-label", "Распределение заказов по источникам");
-
+    download.setAttribute("aria-label", "Скачать таблицу (CSV)");
+    const tableActions = node("div", "of-table-actions");
+    tableActions.append(download);
+    const explain = node("p", "of-note",
+      "Оплаты показаны с учётом возвратов. Прибыль учитывает начисленную зарплату и расходы по этим заказам. " +
+      "Средний чек считается по заказам с подтверждённой оплатой.");
     const scroll = node("div", "of-scroll");
     scroll.tabIndex = 0;
     scroll.setAttribute("role", "region");
@@ -137,14 +193,14 @@
     for (const [key, caption] of columns) {
       const heading = node("th");
       heading.scope = "col";
-      const sort = button("of-sort", caption, () => {
+      const sort = button("of-sort", columnLabels[key] || caption, () => {
         state.direction = state.sort === key
           ? (state.direction === "asc" ? "desc" : "asc")
           : (key === "label" ? "asc" : "desc");
         state.sort = key;
         render();
       });
-      const arrow = node("span", "of-sort-arrow", "↕");
+      const arrow = node("span", "of-sort-arrow");
       arrow.setAttribute("aria-hidden", "true");
       sort.append(arrow);
       sortButtons.push({ key, heading, arrow });
@@ -155,46 +211,71 @@
     const body = node("tbody");
     table.append(cols, head, body);
     scroll.append(table);
-    const emptyResult = node("p", "of-empty", "За выбранный период заказов нет.");
-    overview.append(controls, custom, notice, note, chart, scroll, emptyResult);
+    detailContent.append(tableActions, explain, node("p", "of-scroll-hint", "Прокрутите таблицу вправо."), scroll);
+    details.append(node("summary", "", "Подробная таблица"), detailContent);
+    details.addEventListener("toggle", render);
+    overview.append(controls, custom, overviewPeriod, notice, note, summary, chart, emptyResult, details);
 
     const list = node("section", "of-drilldown");
     list.setAttribute("aria-label", "Список заказов");
-    const listNotice = node("p", "of-note");
+    const listPeriod = node("p", "of-period-caption");
+    const listNote = node("p", "of-note");
+    const sourceSummary = node("dl", "of-summary");
+    sourceSummary.setAttribute("aria-label", "Итоги источника");
     const listRows = node("ul", "of-order-list");
     const more = button("secondary of-more", "Показать ещё", () => {
       limit += PAGE_SIZE;
       render();
     });
-    list.append(listNotice, listRows, more);
+    list.append(listPeriod, listNote, sourceSummary, listRows, more);
     panel.replaceChildren(overview, list);
 
-    function openGroup(group) {
-      selected = group.key;
-      selectedLabel = group.label;
-      limit = PAGE_SIZE;
-      onViewChange?.();
+    function setPeriod(value) {
+      state.period = period.value = value;
       render();
     }
-    function showChart(groups) {
-      const bar = node("div", "of-chart-bar");
-      bar.setAttribute("aria-hidden", "true");
-      const legend = node("ul", "of-chart-legend");
-      groups.forEach((group, index) => {
-        const color = chartColors[index % chartColors.length];
-        const segment = node("span");
-        segment.style.flexGrow = group.count;
-        segment.style.backgroundColor = color;
-        bar.append(segment);
-        const marker = node("span", "of-chart-marker");
-        marker.setAttribute("aria-hidden", "true");
-        marker.style.backgroundColor = color;
-        const entry = node("li");
-        entry.append(marker, node("span", "of-chart-label", group.label),
-          node("span", "of-chart-count", count.format(group.count) + " · " + numberFor.percent(group.percent)));
-        legend.append(entry);
-      });
-      chart.replaceChildren(bar, legend);
+    function openGroup(group, trigger) {
+      selected = group.key;
+      selectedLabel = group.label;
+      sourceTrigger = trigger;
+      limit = PAGE_SIZE;
+      render();
+      onViewChange?.();
+    }
+    function showSources(report, rankBy, canPickLeader) {
+      const { groups } = report;
+      const sorted = model.sortGroups(groups, rankBy, "desc");
+      const leaders = canPickLeader ? model.profitLeaders(report) : [];
+      const leaderKeys = new Set(leaders.map(group => group.key));
+      const leaderLabel = leaders.length > 1 ? "Делит первое место по прибыли" :
+        groups.some(group => !model.isKnownSource(group) && group.profit > leaders[0]?.profit)
+          ? "Лидер по прибыли среди известных" : "Больше всего прибыли";
+      sourceList.replaceChildren(...sorted.map(group => {
+        const item = node("li");
+        const card = button("of-source-card", "", event => openGroup(group, event.currentTarget));
+        card.dataset.source = group.key;
+        const title = node("span", "of-source-head");
+        const chevron = node("span", "of-source-chevron", "›");
+        chevron.setAttribute("aria-hidden", "true");
+        title.append(node("strong", "", group.label),
+          node("span", "of-source-count", orderCount(group.count) + " · " + numberFor.percent(group.percent)), chevron);
+        card.append(title);
+        if (leaderKeys.has(group.key)) card.append(node("span", "of-source-leader", leaderLabel));
+        const measure = node("span", "of-source-measure");
+        measure.setAttribute("aria-hidden", "true");
+        const bar = node("span", "of-source-bar");
+        bar.style.width = group.percent + "%";
+        measure.append(bar);
+        const finances = node("span", "of-source-finances");
+        for (const [label, value] of [["Оплаты", group.revenue], ["Прибыль", group.profit]]) {
+          const metric = node("span", "of-source-value");
+          metric.append(node("small", "", label), amountNode("strong", value));
+          finances.append(metric);
+        }
+        card.append(measure, finances);
+        item.append(card);
+        return item;
+      }));
     }
     function groupRow(group, total = false) {
       const row = node("tr", total ? "of-total" : "of-source");
@@ -202,15 +283,19 @@
       const heading = node("th");
       heading.scope = "row";
       if (total) heading.textContent = "Итого";
-      else heading.append(button("of-source-button", group.label, () => openGroup(group)));
+      else {
+        const trigger = button("of-source-button", group.label, event => openGroup(group, event.currentTarget));
+        trigger.dataset.source = group.key;
+        heading.append(trigger);
+      }
       row.append(heading);
       for (const [key] of columns.slice(1)) {
         const text = group[key] == null ? "—" : (numberFor[key] || amount)(group[key]);
-        row.append(node("td", "", text));
+        row.append(node("td", group[key] < 0 ? "of-amount-negative" : "", text));
       }
       return row;
     }
-    function showTable(report, groups) {
+    function showTable(report) {
       for (const { key, heading, arrow } of sortButtons) {
         if (key === state.sort) {
           heading.setAttribute("aria-sort", state.direction === "asc" ? "ascending" : "descending");
@@ -220,31 +305,47 @@
           arrow.textContent = "↕";
         }
       }
+      const groups = model.sortGroups(report.groups, state.sort, state.direction);
       body.replaceChildren(groupRow(report.totals, true), ...groups.map(group => groupRow(group)));
     }
     function showOrders(group) {
       const rows = group?.rows ?? empty;
-      listNotice.textContent = rows.length ? "Заказов — " + count.format(rows.length) : "За выбранный период заказов нет.";
-      listRows.replaceChildren();
-      for (const order of rows.slice(0, limit)) {
+      sourceSummary.hidden = !rows.length;
+      if (rows.length) fillSummary(sourceSummary, group);
+      listNote.textContent = !rows.length ? "За выбранный период заказов нет." : incompleteNote(group.unverified);
+      listNote.hidden = !listNote.textContent;
+      listRows.replaceChildren(...rows.slice(0, limit).map(order => {
         const item = node("li");
         const primary = order.name || order.referenceCode || "Заказ";
-        const action = onOpenOrder ? button("of-order", "", () => onOpenOrder(order.id)) : node("div", "of-order");
+        const id = String(order.id);
+        const action = onOpenOrder ? button("of-order", "", () => onOpenOrder(order.id, () => {
+          const target = Array.from(listRows.querySelectorAll("button[data-order-id]"))
+            .find(row => row.dataset.orderId === id);
+          (target || document.getElementById("rdScreenBack"))?.focus();
+        })) : node("div", "of-order");
+        action.dataset.orderId = id;
         const description = node("span", "of-order-description");
         const reference = order.referenceCode || (order.orderNumber ? "№" + order.orderNumber : "");
+        const refund = order.reportRefundedAmount;
         description.append(node("strong", "", primary),
-          node("small", "", [reference, orderDay(order), order.status].filter(Boolean).join(" · ")));
-        action.append(description, node("span", "of-order-amount",
-          amount(order.reportPaymentUnverified ? null : order.reportReceived)));
+          node("small", "", [reference, orderDay(order), refund ? "" : order.status].filter(Boolean).join(" · ")));
+        const payment = node("span", "of-order-payment");
+        const caption = refund ? "Возврат" : order.reportPaymentUnverified ? "Оплата на сверке" :
+          order.reportReceived > 0 ? "Оплачено" : "Не оплачено";
+        payment.append(node("small", "", caption));
+        if (refund || order.reportReceived > 0) payment.append(amountNode("strong", refund || order.reportReceived));
+        action.append(description, payment);
         item.append(action);
-        listRows.append(item);
-      }
+        return item;
+      }));
       more.hidden = rows.length <= limit;
     }
-    function readReport() {
+    function incompleteNote(value) {
+      return value ? "Показаны подтверждённые суммы. На сверке — " + orderCount(value) + "." : "";
+    }
+    function readReport(today) {
       const orders = getOrders(), payroll = getPayroll?.(), masterId = getRaulMasterId?.();
       const operations = getOperations?.() ?? empty;
-      const today = dates.format(new Date());
       const dependencies = [orders, payroll, masterId, operations, today, state.field, state.period, state.from, state.to];
       if (cached && dependencies.every((value, index) => value === cached.dependencies[index])) return cached.report;
       const report = model.build(orders, {
@@ -260,55 +361,64 @@
       list.hidden = !overview.hidden;
       const noticeParent = overview.hidden ? list : overview;
       if (notice.parentElement !== noticeParent) {
-        noticeParent.insertBefore(notice, overview.hidden ? listNotice : note);
+        noticeParent.insertBefore(notice, overview.hidden ? listNote : note);
       }
-      const hasField = Boolean(state.field);
-      periodControl.hidden = download.hidden = !hasField;
-      custom.hidden = !hasField || state.period !== "custom";
+      custom.hidden = state.period !== "custom";
       const finance = getFinanceStatus?.();
       const unavailable = finance ? !(finance.ready ?? !(finance.loading || finance.error)) : false;
       const stale = Boolean(finance?.stale || finance?.refreshError);
-      const dateError = custom.hidden ? "" : !state.from || !state.to ? "Укажите начало и конец периода."
-        : state.from > state.to ? "Проверьте порядок дат начала и окончания." : "";
-      const financeMessage = finance?.error ? "Не удалось загрузить расчёты. " + finance.error :
-        unavailable ? "Загружаем данные отчёта…" :
-        stale ? "Показаны последние доступные данные. Перед выгрузкой обновите отчёт." : "";
-      const statusText = hasField ? dateError || financeMessage : "";
+      const dateError = custom.hidden ? "" : !state.from || !state.to ? "Выберите обе даты."
+        : state.from > state.to ? "Дата начала должна быть раньше даты окончания или совпадать с ней." : "";
+      const financeMessage = finance?.error ? "Не удалось загрузить отчёт. " + finance.error :
+        unavailable ? "Загружаем отчёт…" : stale ? "Показаны последние загруженные суммы." : "";
+      const statusText = dateError || financeMessage;
       if (message.textContent !== statusText) message.textContent = statusText;
       message.setAttribute("role", finance?.error || finance?.refreshError ? "alert" : "status");
       notice.hidden = !statusText;
       retry.hidden = Boolean(dateError) || !(finance?.error || stale);
-      const ready = hasField && !dateError && !unavailable;
-      download.disabled = !ready || stale;
-      note.hidden = chart.hidden = scroll.hidden = emptyResult.hidden = true;
+      const ready = !dateError && !unavailable;
+      download.disabled = !ready || stale || Boolean(finance?.error);
+      const today = model.moscowDay(new Date());
+      const caption = dateError ? "" : periodLabel(state, today);
+      for (const element of [overviewPeriod, listPeriod]) {
+        if (element.textContent !== caption) element.textContent = caption;
+        element.hidden = !caption;
+      }
       if (!ready) {
-        displayed = null;
+        note.hidden = summary.hidden = chart.hidden = details.hidden = emptyResult.hidden = true;
         if (selected !== null) {
           listRows.replaceChildren();
-          listNotice.textContent = "";
-          more.hidden = true;
+          sourceSummary.hidden = listNote.hidden = more.hidden = true;
+          ordersRendered = null;
         }
         return;
       }
-      const report = readReport();
+      const report = readReport(today);
       if (selected !== null) {
         const group = report.groups.find(item => item.key === selected);
-        if (displayed?.report === report && displayed.source === selected && displayed.limit === limit) return;
-        showOrders(group);
-        displayed = { report, source: selected, limit };
+        if (ordersRendered?.report !== report || ordersRendered.source !== selected || ordersRendered.limit !== limit) {
+          showOrders(group);
+          ordersRendered = { report, source: selected, limit };
+        }
         return;
       }
-      note.hidden = scroll.hidden = false;
-      chart.hidden = report.groups.length === 0;
+
+      note.textContent = incompleteNote(report.totals.unverified);
+      note.hidden = !note.textContent;
+      summary.hidden = chart.hidden = report.groups.length === 0;
       emptyResult.hidden = report.groups.length !== 0;
-      note.textContent = "По дате закрытия." + (report.totals.unverified > 0
-        ? " Показаны подтверждённые суммы. Заказов с неполным расчётом — " +
-          count.format(report.totals.unverified) + "." : "");
-      if (displayed?.report === report && displayed.sort === state.sort && displayed.direction === state.direction) return;
-      const groups = model.sortGroups(report.groups, state.sort, state.direction);
-      if (displayed?.report !== report || displayed.source !== undefined) showChart(model.sortGroups(report.groups, "count", "desc"));
-      showTable(report, groups);
-      displayed = { report, sort: state.sort, direction: state.direction };
+      showAll.hidden = state.period === "all";
+      details.hidden = false;
+      if (overviewRendered?.report !== report) fillSummary(summary, report.totals);
+      const canPickLeader = !stale && !finance?.error;
+      if (overviewRendered?.report !== report || overviewRendered.rank !== state.rank ||
+          overviewRendered.canPickLeader !== canPickLeader) showSources(report, state.rank, canPickLeader);
+      overviewRendered = { report, rank: state.rank, canPickLeader };
+      if (details.open && (tableRendered?.report !== report ||
+          tableRendered.sort !== state.sort || tableRendered.direction !== state.direction)) {
+        showTable(report);
+        tableRendered = { report, sort: state.sort, direction: state.direction };
+      }
     }
     function open() {
       if (!panel.hidden) return;
@@ -321,23 +431,33 @@
       panel.hidden = true;
       selected = null;
       selectedLabel = "";
+      sourceTrigger = null;
       onViewChange?.();
     }
     function back() {
       if (selected === null) return close();
+      const key = selected;
+      const returnList = sourceTrigger?.closest("table") ? body : sourceList;
       selected = null;
       selectedLabel = "";
       render();
       onViewChange?.();
+      const target = sourceTrigger?.isConnected ? sourceTrigger :
+        Array.from(returnList.querySelectorAll("button[data-source]")).find(element => element.dataset.source === key);
+      (target || period).focus();
+      sourceTrigger = null;
     }
     function reset() {
       close();
-      cached = displayed = null;
+      cached = overviewRendered = tableRendered = ordersRendered = null;
       Object.assign(state, initial);
-      grouping.value = initial.field;
+      if (grouping) grouping.value = initial.field;
       period.value = initial.period;
+      rank.value = initial.rank;
+      details.open = false;
       for (const input of customInputs) input.value = "";
-      for (const element of [chart, body, listRows, note, listNotice, message]) element.replaceChildren();
+      for (const element of [summary, sourceSummary, sourceList, body, listRows, note, listNote, message])
+        element.replaceChildren();
     }
     return {
       open, close, back, render, reset,

@@ -526,7 +526,11 @@ function build(){
        reportsRoot.append(fieldRoot);
        orderFieldReport=window.__rdCreateOrderFieldReport(fieldRoot,{...financialReportData,
          onRetry:()=>window.__rdMoneyUi?.refreshFinance?.(),
-         onOpenOrder:orderId=>openDashboardOrders({orderId}),
+         onOpenOrder:(orderId,restoreFocus)=>openDashboardOrders({orderId,onDismiss:()=>{
+           if(activePage!=="orders")return;
+           navigate("reports");
+           restoreFocus();
+         }}),
          onViewChange:()=>{
            const open=orderFieldReport?.isOpen();
            menu.hidden=Boolean(open);
@@ -538,7 +542,7 @@ function build(){
      }
      reportGroup("Финансы",[
        ["Прибыль по заказам","wallet",profitEntry],
-       ["Заказы по полю","chart",orderFieldReport?openField:null]
+       ["Источники заказов","chart",orderFieldReport?openField:null]
      ]);
      const openSalary=makeNode("button","pr-report-link rd-salary-entry");
      openSalary.type="button";openSalary.textContent="Зарплата";
@@ -557,7 +561,7 @@ function build(){
        else if(orderFieldReport?.isOpen()){
          const title=orderFieldReport.title();
          window.__rdSetScreenHeader?.(title,orderFieldReport.back,orderFieldReport.isDrilldown()?
-           "Назад к заказам по полю":"Назад к отчётам");
+           "Назад к источникам":"Назад к отчётам");
        }
        else window.__rdSetScreenHeader?.(titles.reports);
      };
@@ -843,9 +847,9 @@ function drawChart(parent,values,month){
  }
  parent.append(svg);
 }
-function openDashboardOrders({filter="",orderId=null,date=""}={}){
+function openDashboardOrders({filter="",orderId=null,date="",onDismiss}={}){
  if(!ready)return;
- if(window.__rdOrdersWorkspace){window.__rdOrdersWorkspace.show({filter,orderId,date});return;}
+ if(window.__rdOrdersWorkspace){window.__rdOrdersWorkspace.show({filter,orderId,date,onDismiss});return;}
  navigate("orders");
  // Clear stale manual filters before selecting a dashboard shortcut.
  const dateInput=$("rdOrderDate"),master=$("rdMasterFilter"),status=$("rdStatusFilter"),search=$("rdOrderSearch");
@@ -865,7 +869,7 @@ function openDashboardOrders({filter="",orderId=null,date=""}={}){
   $("ordersArea")?.querySelector(".list-head")?.scrollIntoView({block:"start",behavior:"smooth"});
  }
  if(orderId){
-  const opened=window.__rdOpenOrderDetail?.(String(orderId));
+  const opened=window.__rdOpenOrderDetail?.(String(orderId),onDismiss);
   if(!opened)console.warn("Не удалось открыть карточку заказа из главной панели");
  }
 }

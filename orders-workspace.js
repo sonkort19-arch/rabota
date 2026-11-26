@@ -341,7 +341,7 @@
       }
     }
   }
-  function show({filter="",orderId=null,date=""}={}){
+  function show({filter="",orderId=null,date="",onDismiss}={}){
     if(!["owner","manager","master"].includes(currentRole))return false;
     if(state.searchOpen)restoreSearch(false);
     state.query="";state.status="";state.master="";state.date="";state.quick="";state.listPage=0;
@@ -359,7 +359,7 @@
       revealOrder(order.id);
       window.__rdOpenMasterOrder?.(order.id);return true;
     }
-    return Boolean(window.__rdOpenOrderDetail?.(String(orderId)));
+    return Boolean(window.__rdOpenOrderDetail?.(String(orderId),onDismiss));
   }
   window.__rdOrdersWorkspace={isActive,currentMode,beforeRender,filterOrders,calendarOrders,
     pageList,listPosition,revealOrder,renderListPages,dayCounts:()=>listDayCounts,

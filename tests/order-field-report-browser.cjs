@@ -4,7 +4,7 @@ const assert = require("node:assert/strict");
 const { readFile } = require("node:fs/promises");
 const path = require("node:path");
 const { chromium, webkit } = require("playwright");
-const { fixture, go, assertHeaderLayout } = require("./module-navigation-browser.cjs");
+const { fixture, assertHeaderLayout } = require("./module-navigation-browser.cjs");
 
 const root = path.resolve(__dirname, "..");
 const origin = "https://crm.test";
@@ -12,7 +12,7 @@ const frozen = new Date("2026-06-01T22:30:00Z"); // 2 June, 01:30 in Moscow.
 const activated = "2026-01-01T00:00:00Z";
 const raul = "fixture-master";
 const other = "another-fixture-master";
-const reportTitle = "Заказы по полю";
+const reportTitle = "Источники заказов";
 const stickyWidths = [320, 375, 390, 430];
 const endpoint = name => new RegExp("/rest/v1/" + name + "(?:\\?|$)");
 const stampFor = day => day + "T09:00:00Z";
@@ -125,22 +125,73 @@ async function setup(browser, width, role, extraOrders = []) {
 
 const fieldReport = page => page.locator(".of-report");
 const sourceTable = panel => panel.getByRole("table", { name: "Заказы по источникам клиентов" });
+const sourceCard = (panel, source) => panel.locator(`.of-source-card[data-source="${source}"]`);
+const tableToggle = panel => panel.locator(".of-details > summary");
 const totals = table => table.locator("tbody > tr:first-child");
 const reportBack = page => page.locator("#rdScreenBack");
-const fieldSelect = panel => panel.getByLabel("Поле отчёта", { exact: true });
+const reportEntry = page => page.getByRole("button", { name: /^Источники заказов(?:\s*›)?$/ });
 const periodSelect = panel => panel.getByLabel("Период отчёта", { exact: true });
 const normalize = value => value.trim().replace(/\s+/g, " ");
 const amount = value => Number(value.replace(/[\s₽%]/g, "").replace("−", "-").replace(",", "."));
 
 async function openFieldReport(page) {
-  await page.getByRole("button", { name: /^Заказы по полю(?:\s*›)?$/ }).click();
+  await reportEntry(page).click();
   const panel = fieldReport(page);
-  await fieldSelect(panel).waitFor();
-  assert.equal(await fieldSelect(panel).inputValue(), "", "a grouping field is chosen explicitly");
-  assert.equal(await sourceTable(panel).isVisible(), false, "analytics are hidden until a field is selected");
-  await fieldSelect(panel).selectOption({ label: "Откуда узнали" });
-  await sourceTable(panel).waitFor();
+  await panel.getByLabel("Итоги за период", { exact: true }).waitFor();
+  assert.equal(await periodSelect(panel).inputValue(), "month", "opens immediately on this month");
+  assert.equal(await panel.getByLabel("Поле отчёта", { exact: true }).isVisible(), false,
+    "a visitor does not have to select the only grouping field");
+  assert.equal(await sourceTable(panel).isVisible(), false, "detailed table is collapsed on first use");
   return panel;
+}
+
+async function assertSummary(panel, expected) {
+  const values = await Promise.all([
+    ["count", "Заказы"], ["revenue", "Оплаты клиентов"], ["profit", "Прибыль"],
+  ].map(async ([key, label]) => {
+    const metric = panel.locator(`.of-summary [data-metric="${key}"]:visible`);
+    assert.equal(await metric.locator("dt").innerText(), label);
+    return amount(await metric.locator("dd").innerText());
+  }));
+  assert.deepEqual(values, expected);
+}
+
+async function assertSourceOverview(page, panel) {
+  await assertSummary(panel, [5, 24001, 11485.48]);
+  const chart = panel.locator(".of-chart:visible");
+  const by = panel.getByLabel("Сравнить по", { exact: true });
+  const cards = chart.locator(".of-source-card");
+  const order = () => cards.evaluateAll(items => items.map(item => item.dataset.source));
+  assert.equal(await by.inputValue(), "profit");
+  assert.deepEqual(await order(), ["", "avito", "telegram", "vk"]);
+  const leader = panel.locator(".of-source-leader");
+  assert.equal(await leader.count(), 1);
+  assert.match(await sourceCard(chart, "avito").locator(".of-source-leader").innerText(), /среди известных/);
+  assert.equal(await sourceCard(chart, "").locator(".of-source-leader").count(), 0,
+    "a missing source is not an advertising recommendation even when it has the largest profit");
+  const blank = normalize(await sourceCard(chart, "").innerText());
+  assert.match(blank, /Не указан/);
+  assert.match(blank, /20\s*%/);
+  const avito = normalize(await sourceCard(chart, "avito").innerText());
+  assert.match(avito, /40\s*%/);
+  assert.match(avito, /16\s*001/);
+  assert.match(avito, /4\s*365,49/);
+  assert.equal(amount(await sourceCard(chart, "vk").locator(".of-amount-negative").innerText()), -500);
+  await by.selectOption("count");
+  assert.equal((await order())[0], "avito");
+  await by.selectOption("revenue");
+  assert.deepEqual((await order()).slice(0, 2), ["avito", ""]);
+  await by.selectOption("profit");
+
+  await sourceCard(chart, "vk").click();
+  const details = panel.locator(".of-drilldown:visible");
+  assert.match(normalize(await details.innerText()), /Клиент с полным возвратом.*Возврат/);
+  await reportBack(page).click();
+  await page.locator('.of-source-card[data-source="vk"]:focus').waitFor();
+  await sourceCard(chart, "telegram").click();
+  assert.match(normalize(await details.innerText()), /Клиент с неоплаченной дорогой.*Не оплачено/);
+  await reportBack(page).click();
+  assert.equal(await periodSelect(panel).inputValue(), "month");
 }
 
 async function cellValues(row) {
@@ -184,17 +235,11 @@ async function filterAndAccounting(page, table, panel) {
 }
 
 async function sortAndExport(page, panel, table) {
-  const chart = panel.getByRole("figure", { name: "Распределение заказов по источникам" });
-  await chart.waitFor();
-  const chartText = normalize(await chart.innerText());
-  assert.match(chartText, /Авито/);
-  assert.match(chartText, /Не указан/);
-  assert.match(chartText, /25\s*%/);
-  const reveal = table.getByRole("button", { name: "Выручка", exact: true });
+  const reveal = table.getByRole("button", { name: "Оплаты", exact: true });
   const values = async () => (await table.locator("tbody > tr:not(:first-child) > :nth-child(4)")
     .allTextContents()).map(amount);
   const header = table.getByRole("columnheader").filter({
-    has: page.getByRole("button", { name: "Выручка", exact: true }),
+    has: page.getByRole("button", { name: "Оплаты", exact: true }),
   });
   for (let direction = 0; direction < 2; direction++) {
     await reveal.click();
@@ -205,7 +250,7 @@ async function sortAndExport(page, panel, table) {
     await assertTotals(table, [8, 100, 29000.19, 12300.51, 215.01, 16484.67, 5800.04]);
   }
   const downloadEvent = page.waitForEvent("download");
-  await panel.getByRole("button", { name: "Скачать CSV", exact: true }).click();
+  await panel.getByRole("button", { name: "Скачать таблицу (CSV)", exact: true }).click();
   const download = await downloadEvent;
   assert.match(download.suggestedFilename(), /\.csv$/);
   const csv = await readFile(await download.path(), "utf8");
@@ -224,8 +269,23 @@ async function detailAndParity(page, panel, table) {
   assert.match(names, /Клиент Авито с дорогой/);
   assert.match(names, /Клиент Авито без дороги/);
   assert.doesNotMatch(names, /Клиент без источника|Майский заказ/);
-  assert.match(await reportBack(page).getAttribute("aria-label"), /Назад к заказам по полю/);
+  assert.match(names, /За всё время/);
+  await assertSummary(panel, [2, 16001, 4365.49]);
+  const firstOrder = details.getByRole("button", { name: /Клиент Авито с дорогой/ });
+  await firstOrder.click();
+  const orderDialog = page.getByRole("dialog", { name: "Клиент Авито с дорогой", exact: true });
+  await orderDialog.getByRole("button", { name: "Назад к источнику", exact: true }).click();
+  await firstOrder.and(page.locator(":focus")).waitFor();
+  await firstOrder.click();
+  await orderDialog.waitFor();
+  await page.keyboard.press("Escape");
+  await orderDialog.waitFor({ state: "hidden" });
+  await firstOrder.and(page.locator(":focus")).waitFor();
+  assert.match(normalize(await details.innerText()), /За всё время/);
+  assert.equal(await reportBack(page).getAttribute("aria-label"), "Назад к источникам");
   await reportBack(page).click();
+  assert.equal(await table.isVisible(), true, "return from source preserves the open detailed table");
+  assert.equal(await periodSelect(panel).inputValue(), "all");
   await assertTotals(table, [8, 100, 29000.19, 12300.51, 215.01, 16484.67, 5800.04]);
   await reportBack(page).click();
   await page.getByRole("button", { name: /^Прибыль по заказам(?:\s*›)?$/ }).click();
@@ -241,6 +301,73 @@ async function detailAndParity(page, panel, table) {
     "the existing report shows the same full-cost financial KPIs with the same period");
 }
 
+async function incompleteOverview(browser, engine) {
+  const f = await setup(browser, 390, "owner");
+  const { page } = f;
+  try {
+    const panel = await openFieldReport(page);
+    const period = periodSelect(panel);
+    await period.selectOption("custom");
+    await panel.getByLabel("Начало периода", { exact: true }).fill("2026-03-01");
+    await panel.getByLabel("Конец периода", { exact: true }).fill("2026-03-31");
+    assert.match(normalize(await panel.innerText()), /[Нн]ет заказов|заказов нет/);
+    assert.equal(await panel.locator(".of-chart").isVisible(), false);
+    assert.equal(await panel.locator(".of-source-leader").isVisible(), false);
+    await panel.getByRole("button", { name: "Показать за всё время", exact: true }).click();
+    assert.equal(await period.inputValue(), "all");
+    await assertSummary(panel, [8, 29000.19, 16484.67]);
+    await tableToggle(panel).click();
+    const download = panel.getByRole("button", { name: "Скачать таблицу (CSV)", exact: true });
+    assert.equal(await download.isEnabled(), true);
+
+    await page.evaluate(() => {
+      const complete = window.__rdOwnerReportOrders;
+      window.__rdOwnerReportOrders = () => complete().filter(row => ["refunded", "unpaid", "no-source"].includes(row.id));
+      window.__rdReportUpdated();
+      window.__rdOwnerReportOrders = complete;
+    });
+    await assertSummary(panel, [3, 8000, 7119.99]);
+    assert.equal(await panel.locator(".of-source-leader").isVisible(), false,
+      "neither an unknown source with a profit nor a known source with a loss receives a recommendation");
+
+    await page.evaluate(() => {
+      const complete = window.__rdPayrollSnapshot;
+      const snapshot = complete();
+      window.__rdPayrollSnapshot = () => ({ ...snapshot, accounting: { ...snapshot.accounting,
+        receipts: snapshot.accounting.receipts.filter(receipt => receipt.orderId !== "no-source") },
+      });
+      window.fixtureRestorePayroll = () => {
+        window.__rdPayrollSnapshot = complete;
+        delete window.fixtureRestorePayroll;
+      };
+      window.__rdReportUpdated();
+    });
+    await assertSummary(panel, [8, 21000.19, 8484.67]);
+    assert.equal(await panel.locator(".of-source-leader").isVisible(), false,
+      "unverified orders can change which source is most profitable");
+    const chart = panel.locator(".of-chart:visible");
+    await sourceCard(chart, "").click();
+    const drilldown = panel.locator(".of-drilldown:visible");
+    assert.match(normalize(await drilldown.innerText()), /Клиент без источника.*Оплата на сверке/);
+    await reportBack(page).click();
+
+    await page.evaluate(() => {
+      window.fixtureRestorePayroll();
+      const financeStatus = window.__rdFinanceStatus;
+      window.__rdFinanceStatus = () => ({ ...financeStatus(), stale: true });
+      window.__rdReportUpdated();
+    });
+    assert.equal(await panel.locator(".of-source-leader").isVisible(), false,
+      "stale data cannot recommend a source");
+    assert.equal(await download.isEnabled(), false, "stale data cannot be exported as a current table");
+    await assertSummary(panel, [8, 29000.19, 16484.67]);
+    assert.match(normalize(await panel.innerText()), /последние загруженные суммы|последние данные|[Уу]старевш/);
+    console.log("PASS", engine, "empty range, one-tap recovery, and recommendations skip missing, negative, unverified and stale sources");
+  } finally {
+    await f.close();
+  }
+}
+
 async function ownerWorkflow(browser, engine) {
   const f = await setup(browser, 390, "owner");
   const { page, reads, documents, writes } = f;
@@ -248,13 +375,16 @@ async function ownerWorkflow(browser, engine) {
     const panel = await openFieldReport(page);
     const grid = sourceTable(panel);
     const before = reads.length;
+    await assertSourceOverview(page, panel);
+    await tableToggle(panel).click();
+    await grid.waitFor();
     await filterAndAccounting(page, grid, panel);
     await sortAndExport(page, panel, grid);
     assert.equal(reads.length, before, "grouping, filters, sorting, and CSV are local to the existing financial snapshot");
     await detailAndParity(page, panel, grid);
     assert.equal(writes.length, 0, "report interactions never write");
     assert.deepEqual(documents, ["/?view=reports"], "switching reports and drilldowns stays in one app document");
-    console.log("PASS", engine, "Moscow periods, fixture financial parity, chart, sorting, drilldown, CSV and no redundant reads");
+    console.log("PASS", engine, "immediate summary, source comparison, drilldown and return, Moscow periods, financial parity, sorting and CSV");
   } finally {
     await f.close();
   }
@@ -264,7 +394,16 @@ async function mobile(browser, engine, width) {
   const f = await setup(browser, width, "owner");
   try {
     const panel = await openFieldReport(f.page);
-    await assertHeaderLayout(f.page, "reports", null, { title: reportTitle, back: "Назад к отчётам" });
+    const header = await assertHeaderLayout(f.page, "reports", null, { title: reportTitle, back: "Назад к отчётам" });
+    const summary = await panel.getByLabel("Итоги за период", { exact: true }).boundingBox();
+    assert.ok(summary && summary.y >= header.header.bottom - 1 && summary.y + summary.height < header.dockTop,
+      "opening the report puts the summary between the fixed panels on the first screen");
+    const firstCard = await panel.locator(".of-source-card").first().boundingBox();
+    assert.ok(firstCard && firstCard.x >= 0 && firstCard.x + firstCard.width <= width + 1 &&
+      firstCard.y >= header.header.bottom && firstCard.y + firstCard.height < header.dockTop && firstCard.height >= 44,
+      "source comparison is visible and fits the viewport without a horizontal gesture");
+    await tableToggle(panel).click();
+    await totals(sourceTable(panel)).waitFor();
     const geometry = await panel.locator(".of-scroll").evaluate(scroll => {
       const table = scroll.querySelector("table");
       const head = table.querySelector("thead th");
@@ -282,7 +421,7 @@ async function mobile(browser, engine, width) {
     assert.ok(Math.abs(before[0] - after[0]) <= 2 && Math.abs(before[1] - after[1]) <= 2,
       "header and total row retain the frozen first column " + JSON.stringify(geometry));
     assert.ok(geometry.firstCellWidth < geometry.width * 0.65, "sticky source leaves space for numeric columns");
-    console.log("PASS", engine, width, "iPhone viewport and frozen first column");
+    console.log("PASS", engine, width, "iPhone first screen, touch target and frozen first column");
   } finally {
     await f.close();
   }
@@ -298,7 +437,7 @@ async function permissions(browser, engine, role) {
       await page.locator('#mwMasterNav [data-mw-page="reports"]').click();
       await page.locator("#mwMasterReports").waitFor();
     }
-    assert.equal(await page.getByRole("button", { name: /^Заказы по полю(?:\s*›)?$/ }).count(), 0);
+    assert.equal(await reportEntry(page).count(), 0);
     assert.equal(await fieldReport(page).count(), 0);
     assert.deepEqual(await page.evaluate(() => window.__rdOwnerReportOrders?.()), []);
     assert.ok(f.reads.every(request => request.resource !== "rabota_finance_operations"),
@@ -318,19 +457,18 @@ async function benchmark(browser, engine) {
   const f = await setup(browser, 390, "owner", extra);
   try {
     const { page, reads } = f;
-    await page.getByRole("button", { name: /^Заказы по полю(?:\s*›)?$/ }).click();
     const panel = fieldReport(page);
     const marker = reads.length;
-    const renderMs = await fieldSelect(panel).evaluate(select => {
+    const renderMs = await reportEntry(page).evaluate(entry => {
       const start = performance.now();
-      select.value = [...select.options].find(option => option.label === "Откуда узнали").value;
-      select.dispatchEvent(new Event("change", { bubbles: true }));
-      select.closest(".of-report").querySelector("table").getBoundingClientRect();
+      entry.click();
+      document.querySelector(".of-chart").getBoundingClientRect();
       return performance.now() - start;
     });
     const grid = sourceTable(panel);
     await periodSelect(panel).selectOption("all");
-    const sortTimings = await grid.getByRole("button", { name: "Выручка", exact: true }).evaluate(button => {
+    await tableToggle(panel).click();
+    const sortTimings = await grid.getByRole("button", { name: "Оплаты", exact: true }).evaluate(button => {
       const samples = [];
       for (let index = 0; index < 7; index++) {
         const start = performance.now();
@@ -342,7 +480,7 @@ async function benchmark(browser, engine) {
     });
     await assertTotals(grid, [1200, 100, 29000.19, 12300.51, 215.01, 16484.67, 5800.04]);
     assert.equal(reads.length, marker, "large loaded data sets need no API requests for grouping and sorting");
-    console.log("PASS", engine, "1200 orders: first grouping", renderMs.toFixed(1), "ms, median sort",
+    console.log("PASS", engine, "1200 orders: first overview", renderMs.toFixed(1), "ms, median table sort",
       sortTimings[3].toFixed(1), "ms");
   } finally {
     await f.close();
@@ -358,6 +496,7 @@ async function main() {
   });
   try {
     await ownerWorkflow(browser, engine);
+    await incompleteOverview(browser, engine);
     for (const width of stickyWidths) await mobile(browser, engine, width);
     for (const role of ["manager", "master"]) await permissions(browser, engine, role);
     await benchmark(browser, engine);

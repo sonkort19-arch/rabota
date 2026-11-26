@@ -7,7 +7,7 @@
   const dateFormatter=new Intl.DateTimeFormat("ru-RU",{timeZone:"UTC",day:"numeric",month:"short",year:"numeric"});
 
   // Keep the list static: a single dialog displays the selected live order.
-  let activeId=null,activeDialog=null,returnFocus=null;
+  let activeId=null,activeDialog=null,returnFocus=null,returnToSource=null;
   function visibleCards(){
     return Array.from(document.querySelectorAll("#orders .rd-list-row"))
       .filter(node=>!node.closest("[hidden]")&&node.dataset.rdOrderId);
@@ -15,25 +15,25 @@
   function orderCard(id){
     return visibleCards().find(node=>node.dataset.rdOrderId===id)||null;
   }
-  function closeDialog({focus=true}={}){
+  function closeDialog({focus=true,dismiss=false}={}){
     if(!activeDialog)return;
-    const dialog=activeDialog,id=activeId;
-    activeDialog=null;activeId=null;
+    const dialog=activeDialog,id=activeId,trigger=returnFocus,onDismiss=returnToSource;
+    activeDialog=null;activeId=null;returnFocus=null;returnToSource=null;
     dialog.remove();
     document.removeEventListener("keydown",onDialogKey,true);
+    if(dismiss&&onDismiss){onDismiss();return;}
     if(focus){
-      const originalAvailable=returnFocus?.isConnected&&!returnFocus.closest("[hidden]");
-      const trigger=originalAvailable?returnFocus:orderCard(id)?.querySelector(".rd-list-toggle");
-      if(!originalAvailable)trigger?.scrollIntoView({block:"nearest"});
-      trigger?.focus({preventScroll:true});
+      const originalAvailable=trigger?.isConnected&&!trigger.closest("[hidden]");
+      const target=originalAvailable?trigger:orderCard(id)?.querySelector(".rd-list-toggle");
+      if(!originalAvailable)target?.scrollIntoView({block:"nearest"});
+      target?.focus({preventScroll:true});
     }
-    returnFocus=null;
   }
   function onDialogKey(event){
     if(!activeDialog)return;
     if(window.__rdOrderReschedule?.isOpen())return;
     if(document.querySelector(".rd-pay-overlay")||document.getElementById("orderOverlay")?.hidden===false)return;
-    if(event.key==="Escape"){event.preventDefault();closeDialog();return;}
+    if(event.key==="Escape"){event.preventDefault();closeDialog({dismiss:true});return;}
     if(event.key==="ArrowLeft"&&event.target?.tagName!=="SELECT"&&event.target?.tagName!=="INPUT"){
       event.preventDefault();moveDialog(-1);return;
     }
@@ -221,15 +221,19 @@
       activeDialog.querySelector(".rd-order-dialog").focus({preventScroll:true});
     }
   }
-  function openDialog(id,trigger){
+  function openDialog(id,trigger,onDismiss){
     if(!id)return;
+    const closeLabel=onDismiss?"Назад к источнику":"Закрыть заказ";
     if(activeDialog){
       activeId=id;
+      returnToSource=onDismiss;
+      activeDialog.querySelector(".rd-order-close").setAttribute("aria-label",closeLabel);
       paintDialog(true);
       return;
     }
     if(!orderCard(id))return;
     returnFocus=trigger||document.activeElement;
+    returnToSource=onDismiss;
     const overlay=text("div","","rd-order-overlay");
     const dialog=text("section","","rd-order-dialog");
     dialog.setAttribute("role","dialog");
@@ -251,14 +255,14 @@
     next.addEventListener("click",()=>moveDialog(1));
     nav.append(prev,text("span","","rd-order-position"),next);
     const close=text("button","×","rd-order-close");
-    close.type="button";close.setAttribute("aria-label","Закрыть заказ");
-    close.addEventListener("click",()=>closeDialog());
+    close.type="button";close.setAttribute("aria-label",closeLabel);
+    close.addEventListener("click",()=>closeDialog({dismiss:true}));
     const headControls=text("div","","rd-order-head-controls");
     headControls.append(nav,close);
     head.append(heading,headControls);
     dialog.append(head,text("div","","rd-order-content"),text("div","","rd-order-footer"));
     overlay.append(dialog);
-    overlay.addEventListener("click",event=>{if(event.target===overlay)closeDialog();});
+    overlay.addEventListener("click",event=>{if(event.target===overlay)closeDialog({dismiss:true});});
     document.body.append(overlay);
     activeDialog=overlay;activeId=id;
     document.addEventListener("keydown",onDialogKey,true);
@@ -334,7 +338,7 @@
     card.replaceChildren(toggle);
   };
   // Owner dashboard deep link: open the same compact dialog as tapping a list row.
-  window.__rdOpenOrderDetail=(orderId)=>{
+  window.__rdOpenOrderDetail=(orderId,onDismiss)=>{
     if(window.__rdCurrentPage!=="orders"||currentRole==="master")return false;
     const id=String(orderId||"");
     let row=orderCard(id);
@@ -345,7 +349,7 @@
     }
     if(!row)return false;
     const trigger=row.querySelector(".rd-list-toggle");
-    openDialog(id,trigger);
+    openDialog(id,trigger,onDismiss);
     return true;
   };
   window.__rdActiveOrderDetail=()=>activeId;

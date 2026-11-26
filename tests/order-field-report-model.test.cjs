@@ -1,8 +1,20 @@
 "use strict";
 const test=require("node:test");
 const assert=require("node:assert/strict");
-const {FIELDS,PERIODS,build,sortGroups,csvFor,moscowDay}=require("../order-field-report-model.js");
+const {FIELDS,PERIODS,build,sortGroups,profitLeaders,csvFor,moscowDay}=require("../order-field-report-model.js");
 const {bounds,financialSummary,filterRows}=require("../profit-report.js");
+
+test("profit leaders require a positive verified result from an identified source",()=>{
+  const groups=[
+    {key:"",profit:4000},{key:"unknown",profit:3500},
+    {key:"avito",profit:2000},{key:"vk",profit:2000},
+    {key:"2gis",profit:0},{key:"instagram",profit:-200}
+  ];
+  const report={groups,totals:{unverified:0}};
+  assert.deepEqual(profitLeaders(report).map(group=>group.key),["avito","vk"]);
+  assert.deepEqual(profitLeaders({...report,totals:{unverified:1}}),[]);
+  assert.deepEqual(profitLeaders({...report,groups:groups.filter(group=>!["avito","vk"].includes(group.key))}),[]);
+});
 
 function order(id,orderNumber,clientSource,extra={}){
   return {id,orderNumber,clientSource,status:"Выполнен",paid:true,price:10000,paymentAmount:10000,

@@ -57,12 +57,22 @@
       return sign*primary||collator.compare(a.label,b.label);
     });
   }
+  function isKnownSource(group){
+    return Boolean(group.key)&&group.key!=="unknown";
+  }
+  function profitLeaders({groups,totals}){
+    if(totals.unverified)return [];
+    const profitable=groups.filter(group=>isKnownSource(group)&&group.profit>0);
+    const top=profitable.reduce((best,group)=>Math.max(best,group.profit),0);
+    return profitable.filter(group=>group.profit===top);
+  }
   function csvFor(report,groups=report.groups){
     const header=COLUMNS.map(([,label])=>label);
     const data=[report.totals,...groups].map(group=>COLUMNS.map(([key])=>group[key]));
     return "\uFEFF"+[header,...data].map(row=>row.map(profit.quoteCsv).join(";")).join("\r\n");
   }
-  const model={FIELDS,PERIODS,COLUMNS,build,sortGroups,csvFor,moscowDay:profit.moscowDay};
+  const model={FIELDS,PERIODS,COLUMNS,build,sortGroups,isKnownSource,profitLeaders,csvFor,
+    moscowDay:profit.moscowDay,bounds:profit.bounds};
   if(root)root.__rdOrderFieldReportModel=model;
   if(typeof module==="object"&&module.exports)module.exports=model;
 })(typeof window!=="undefined"?window:null);
