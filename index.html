@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#fbfcff">
+  <link rel="preconnect" href="https://yedzfmibceboncrytbqz.supabase.co" crossorigin>
   <link rel="manifest" href="/manifest.webmanifest">
   <link rel="icon" type="image/png" sizes="192x192" href="/icons/rabota-soft-blue-192.png">
   <link rel="apple-touch-icon" sizes="180x180" href="/icons/rabota-soft-blue-180.png">
@@ -14,6 +15,28 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="Работа">
   <title>Работа — промывка отопления</title>
+  <script>
+    {
+      const timeout = setTimeout(() => {
+        const recovery = document.getElementById("bootstrapRecovery");
+        if (!recovery) return;
+        // A stalled stylesheet can prevent the browser from painting even the recovery screen.
+        const stalledStyles = Array.from(document.querySelectorAll('link[rel="stylesheet"]')).filter(link => !link.sheet);
+        if (stalledStyles.length) {
+          document.documentElement.dataset.rdBootFailed = "styles";
+          stalledStyles.forEach(link => link.remove());
+        }
+        recovery.hidden = false;
+      }, 12000);
+      window.addEventListener("rd:boot", () => {
+        clearTimeout(timeout);
+        document.getElementById("bootstrapRecovery").hidden = true;
+      }, { once: true });
+      document.addEventListener("click", event => {
+        if (event.target.id === "retryBootstrap") location.reload();
+      });
+    }
+  </script>
   <style>
     :root {font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;color:#192335;background:#f6f7fb;font-synthesis:none}
     * {box-sizing:border-box}
@@ -30,6 +53,8 @@
     .new-order .plus {font-size:25px;vertical-align:-2px;margin-right:8px;font-weight:400}
     .sync-note {font-size:12px;color:#718097;margin:-12px 0 12px}
     .sync-note.sync-error {color:#b42318;font-weight:650}
+    body.rd #appScreen > #syncStatus.sync-connection:not([hidden]) {display:block!important;margin:0 0 8px}
+    #retryOrderSync {margin-inline-start:8px;min-height:44px}
     .panel {background:white;border:1px solid #e6eaf1;border-radius:17px;padding:16px;margin-top:18px}
     .panel-top {display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:16px}
     .secondary {border:1px solid #dee3ed;border-radius:10px;padding:10px 13px;background:white;color:#263753;font-weight:600;min-height:41px}
@@ -234,17 +259,17 @@
   <link rel="stylesheet" href="/redesign.css?v=20261113-clean-v3">
   <link rel="stylesheet" href="/light-theme.css?v=20261113-clean-v3">
   <link rel="stylesheet" href="/polished-v2.css?v=20261113-clean-v3">
-  <link rel="stylesheet" href="/calendar-v3.css">
-  <link rel="stylesheet" href="/orders-polish.css">
+  <link rel="stylesheet" href="/calendar-v3.css?v=20261126-pwa">
+  <link rel="stylesheet" href="/orders-polish.css?v=20261126-pwa">
   <link rel="stylesheet" href="/mobile-order-form.css?v=20261125-travel">
   <link rel="stylesheet" href="/order-availability.css?v=20261117-completed-v1">
-  <link rel="stylesheet" href="/quick-slots.css">
+  <link rel="stylesheet" href="/quick-slots.css?v=20261126-pwa">
   <link rel="stylesheet" href="/order-reschedule.css?v=20261125-reschedule">
   <link rel="stylesheet" href="/order-payment.css?v=20261125-travel">
   <link rel="stylesheet" href="/master-notifications.css?v=20261117-review-v1">
   <link rel="stylesheet" href="/orders-list.css?v=20261125-travel">
   <link rel="stylesheet" href="/finance-payroll.css?v=20261125-accounting">
-  <link rel="stylesheet" href="/lead-assistant.css">
+  <link rel="stylesheet" href="/lead-assistant.css?v=20261126-pwa">
   <link rel="stylesheet" href="/ui-alignment.css?v=20261124-stability">
   <link rel="stylesheet" href="/ui-alignment-orders.css?v=20261113-stage8">
   <link rel="stylesheet" href="/ui-alignment-home-calendar.css?v=20261113-stage8">
@@ -377,7 +402,9 @@
   <link rel="stylesheet" href="/expenses.css?v=20261125-write-integrity">
   <link rel="stylesheet" href="/growth.css?v=20261125-reconcile">
   <link rel="stylesheet" href="/orders-workspace.css?v=20261125-order-pages">
-  <link rel="stylesheet" href="/app-shell.css?v=20261125-fixed-header">
+  <link rel="stylesheet" href="/app-shell.css?v=20261126-ios">
+  <script src="/app-viewport.js?v=20261126-ios" defer></script>
+  <script src="/pwa-runtime.js?v=20261126-pwa" async></script>
 </head>
 <body>
 
@@ -414,13 +441,16 @@
         <path d="M25 163C81 157 180 133 207 98C231 66 197 45 158 44" fill="none" stroke="#e4ecfe" stroke-width="9" stroke-linecap="round"/>
         <path class="rd-startup-flow" d="M25 163C81 157 180 133 207 98C231 66 197 45 158 44" pathLength="320" fill="none" stroke="url(#rd-startup-blue-flow)" stroke-width="6" stroke-linecap="round"/>
       </svg>
+      <div class="rd-startup-schedule" id="bootstrapRecovery" hidden>
+        <p>Не удалось загрузить приложение. Проверьте интернет и попробуйте ещё раз.</p>
+        <button class="secondary" id="retryBootstrap" type="button">Повторить запуск</button>
+      </div>
       <div class="rd-startup-schedule" id="startupSchedule" hidden>
         <p id="startupScheduleStatus" role="status"></p>
         <button class="secondary" id="retryStartupSchedule" type="button" hidden>Повторить загрузку расписания</button>
       </div>
     </div>
   </section>
-
   <section id="loginScreen" class="login-screen" hidden>
     <div class="login-card">
       <h1>Работа</h1>
@@ -512,7 +542,10 @@
   </header>
   <main id="appScreen" aria-label="CRM «Работа»" hidden>
     <a id="aiChatLink" class="secondary ai-chat-entry" href="/ai.html" hidden>✦ Открыть ИИ-чат</a>
-    <div class="sync-note" id="syncStatus" role="status" hidden></div>
+    <div class="sync-note" id="syncStatus" hidden>
+      <span id="syncStatusMessage" role="status"></span>
+      <button class="secondary" id="retryOrderSync" type="button" hidden>Повторить загрузку расписания</button>
+    </div>
     <section id="exMain" class="rd-view ex-main" aria-label="Расходы" hidden>
       <nav class="ex-month-controls" aria-label="Месяц расходов">
         <button id="exPrev" type="button" aria-label="Предыдущий месяц">‹</button>
@@ -820,7 +853,7 @@
   <script src="/finance-model.js?v=20261125-travel"></script>
   <script src="/master-ui.js?v=20261125-travel"></script>
   <script src="/lead-ai-bridge.js?v=20261125-agreed-price"></script>
-  <script src="/app-services.js?v=20261125-durable-intent"></script>
+  <script src="/app-services.js?v=20261126-ios-auth"></script>
   <script src="/order-reschedule.js?v=20261125-reschedule"></script>
   <script>
 
@@ -889,11 +922,20 @@
     let payrollLookup = null;
     let payrollRequest = null;
     let accessGeneration = 0;
+    let accessVerifiedAt=0,accessCheck=null,authFormRequest=null,accessRetry=false,startupReady=false;
+    let initialOrderRead=null,backgroundSync=null,backgroundSyncAt=0;
     function storedSession(){
-      try {return JSON.parse(localStorage.getItem(AUTH_KEY)||"null");}
-      catch(error){return null;}
+      let value;
+      try{value=localStorage.getItem(AUTH_KEY);}
+      catch(error){return undefined;}
+      try{
+        const stored=JSON.parse(value||"null");
+        return typeof stored?.access_token==="string"&&stored.access_token&&
+          typeof stored.refresh_token==="string"&&stored.refresh_token?stored:null;
+      }catch(error){return null;}
     }
-    session=storedSession();
+    let observedSession=storedSession();
+    session=observedSession??null;
 
     // Public date helpers retain their old function names for other sections.
     function localDate(date) {return window.__rdCalendarUtils.localDate(date);}
@@ -972,12 +1014,24 @@
       }
     }
     function setSession(data) {
-      session = {access_token:data.access_token,refresh_token:data.refresh_token,
+      if(!data?.access_token||!data.refresh_token)throw Error("Сервер не подтвердил вход. Повторите попытку.");
+      const next={access_token:data.access_token,refresh_token:data.refresh_token,
         expires_at:Math.floor(Date.now()/1000) + Number(data.expires_in || 3600)};
-      localStorage.setItem(AUTH_KEY, JSON.stringify(session));
+      try{
+        localStorage.setItem(AUTH_KEY,JSON.stringify(next));
+        observedSession=next;
+      }catch(error){
+        // A storage restriction must not restore a different account on the next launch.
+        if(observedSession&&!sharedServices.sameAuthSession(observedSession,next))
+          throw Error("Браузер не сохранил новый сеанс. Повторите вход в Safari.");
+      }
+      session=next;
     }
     function resetAccountData() {
       accessGeneration++;
+      accessVerifiedAt=0;
+      accessRetry=false;
+      initialOrderRead=null;
       window.__rdOrderReschedule?.reset();
       orderFormDraft=null;
       if(orderSaving){
@@ -986,6 +1040,7 @@
         saveBtn.disabled=false;saveBtn.textContent="Сохранить заказ";
         deleteOrderBtn.disabled=false;formStatus.classList.remove("is-saving");
       }
+      if(ordersLoaded)window.__rdOrdersRevision=(window.__rdOrdersRevision||0)+1;
       currentUser=null;currentRole=null;currentMasterName="";cloudOrders=[];ordersLoaded=false;
       backgroundSync=null;backgroundSyncAt=0;
       resetStaffData();
@@ -1011,8 +1066,26 @@
     }
     function clearSession() {
       session=null;
-      try{localStorage.removeItem(AUTH_KEY);}
-      finally{resetAccountData();}
+      try{localStorage.removeItem(AUTH_KEY);observedSession=null;}
+      catch(error){/* A storage restriction must never keep the account open. */}
+      resetAccountData();
+    }
+    function syncStoredSession(){
+      const stored=storedSession();
+      if(stored===undefined||(stored?.access_token===observedSession?.access_token&&
+        stored?.refresh_token===observedSession?.refresh_token))return false;
+      observedSession=stored;
+      if(sharedServices.sameAuthSession(session,stored)){
+        session=stored;
+        return false;
+      }
+      if(!session&&!stored)return false;
+      session=stored;
+      resetAccountData();
+      resumeSessionButton.hidden=true;
+      showScreen(stored?"startupScreen":"loginScreen");
+      if(stored&&startupReady)void initialize();
+      return true;
     }
     // Existing session state and refresh policy are authoritative in this file.
     // SharedServices handles only network request/response semantics.
@@ -1029,57 +1102,37 @@
     async function ensureSession() {
       if (!session || !session.refresh_token) throw new Error("Требуется вход в аккаунт.");
       if (Number(session.expires_at || 0) > Math.floor(Date.now()/1000) + 90) return;
-      if (!refreshPromise) {
+      const generation=accessGeneration;
+      if(refreshPromise?.generation!==generation) {
         const previous=session;
-        refreshPromise = sharedServices.withRequestDeadline(signal=>authRequest(
+        const pending=sharedServices.withRequestDeadline(signal=>authRequest(
           "token?grant_type=refresh_token","POST",{refresh_token:previous.refresh_token},false,{signal}
         ),5000,"Не удалось дождаться обновления сеанса.")
           .then(data => {
+            if(generation!==accessGeneration)throw Error("Сеанс изменился. Повторите действие.");
             if(session!==previous){
               if(sharedServices.sameAuthSession(previous,session))return;
               throw Error("Сеанс изменился. Повторите действие.");
             }
-            if(!data?.access_token||!data.refresh_token)throw Error("Не удалось обновить сеанс. Повторите попытку.");
             setSession(data);
           })
           .catch(error => {
-            if(session===previous&&[400,401,403].includes(error.status)){
-              const stored=storedSession();
-              if(stored?.access_token!==previous.access_token&&sharedServices.sameAuthSession(previous,stored)){
-                session=stored;
-                return;
-              }
-              if(stored?.access_token===previous.access_token){
-                clearSession();showScreen("loginScreen");
-              }
+            if(generation===accessGeneration&&[400,401,403].includes(error.status)){
+              syncStoredSession();
+              if(generation===accessGeneration&&session!==previous&&
+                sharedServices.sameAuthSession(previous,session))return;
+              if(generation===accessGeneration)showExpiredSession();
             }
             throw error;
           })
-          .finally(() => {refreshPromise = null;});
+          .finally(() => {if(refreshPromise?.pending===pending)refreshPromise=null;});
+        refreshPromise={generation,pending};
       }
-      await refreshPromise;
+      await refreshPromise.pending;
     }
     async function dbRequest(path,method,payload,options){
       return sharedServices.dbRequest(path,method,payload,options);
     }
-    window.addEventListener("storage",event=>{
-      if(event.storageArea!==localStorage||(event.key!==AUTH_KEY&&event.key!==null))return;
-      const stored=storedSession();
-      if(sharedServices.sameAuthSession(session,stored)){
-        session=stored;
-        return;
-      }
-      if(!session&&!stored)return;
-      session=stored;
-      resetAccountData();
-      if(!stored){
-        resumeSessionButton.hidden=true;
-        showScreen("loginScreen");
-        return;
-      }
-      showScreen("startupScreen");
-      window.location.reload();
-    });
     // Adapter: user-facing code keeps its existing function names. The
     // implementation lives in the isolated order-model.js module.
     const orderModel=window.__rdCreateOrdersModel({
@@ -1109,11 +1162,25 @@
     function reportSync(error, source="orders") {
       const node=document.getElementById("syncStatus");
       if(!node)return;
+      if(source==="finance"&&node.dataset.scheduleRead)return;
+      const scheduleLoading=source==="orders-loading";
+      const retry=Boolean(error)&&["orders","initial-orders","access"].includes(source);
+      if(scheduleLoading||source==="initial-orders"||source==="access")node.dataset.scheduleRead=source;
+      else if(source!=="finance")delete node.dataset.scheduleRead;
       node.classList.toggle("sync-error",Boolean(error));
-      node.hidden=!error;
-      node.textContent=error?
-        (source==="finance"
+      node.classList.toggle("sync-connection",scheduleLoading||retry);
+      node.hidden=!error&&!scheduleLoading;
+      const retryButton=document.getElementById("retryOrderSync");
+      retryButton.hidden=!retry;
+      retryButton.textContent=source==="access"?"Повторить проверку доступа":"Повторить загрузку расписания";
+      document.getElementById("syncStatusMessage").textContent=scheduleLoading?"Загружаем расписание…":error?
+        (error.code==="OFFLINE"?"Нет интернета. Подключитесь снова, чтобы обновить расписание."
+          :source==="finance"
           ?"Заявки обновлены, но финансы недоступны. Баланс не обновлён."
+          :source==="access"
+            ?"Не удалось проверить сеанс. Показаны последние загруженные данные."
+          :source==="initial-orders"
+            ?"Расписание пока не загрузилось."
           :source==="saved-order"
             ?"Заказ сохранён. Список пока не обновился."
             :source==="saved-payment"
@@ -1127,13 +1194,13 @@
     }
     function loadOrderData(background=false,{signal}={}) {
       const sync=window.__rdOrderSync;
-      return sync.runRead(background,async isCurrent=>{
+      async function read(isCurrent,signal){
         // Read compact headers during polling. Explicit reads reconcile all orders.
         const unchanged=background&&ordersLoaded&&await sync.isUnchanged((offset,limit)=>
-          dbRequest("rabota_orders?select=id,updated_at&order=id.asc&limit="+limit+"&offset="+offset,"GET"),
+          dbRequest("rabota_orders?select=id,updated_at&order=id.asc&limit="+limit+"&offset="+offset,"GET",undefined,{signal}),
           isCurrent
         );
-        if(!isCurrent())return;
+        if(!isCurrent()||signal.aborted)return;
         if(unchanged){
           window.__rdQuickSlotsRefresh?.();
           return;
@@ -1142,7 +1209,7 @@
           dbRequest("rabota_orders?select=*&order=created_at.desc,id.desc&limit="+limit+"&offset="+offset,"GET",undefined,{signal}),
           isCurrent
         );
-        if(!isCurrent()||signal?.aborted)return;
+        if(!isCurrent()||signal.aborted)return;
         const incoming=items.map(readOrder);
         sync.rememberFull(items);
         const changed=!ordersLoaded || JSON.stringify(incoming)!==JSON.stringify(cloudOrders);
@@ -1158,6 +1225,7 @@
         }
         cloudOrders=incoming;
         ordersLoaded=true;
+        document.getElementById("newOrderBtn").disabled=false;
         window.__rdOrderAvailability?.refresh(incoming);
         const activeToggle=currentRole==="master"&&document.activeElement?.classList?.contains("master-schedule-toggle")
           ?document.activeElement:null;
@@ -1170,7 +1238,9 @@
           replacement?.querySelector(".master-schedule-toggle")?.focus({preventScroll:true});
         }
         updateImportButton();
-      });
+      }
+      return sync.runRead(background,isCurrent=>signal?read(isCurrent,signal):
+        sharedServices.withRequestDeadline(deadline=>read(isCurrent,deadline),6000,"Расписание пока не загрузилось."));
     }
     async function reloadOrders({background=false}={}) {
       const generation=accessGeneration;
@@ -1826,17 +1896,25 @@
       // the completed section is folded; other screens keep their old counts.
       const visibleDayCount=shown.length+completedForDay.length;
       const displayedCount=currentRole==="master"&&currentTab==="calendar"?visibleDayCount:shown.length;
-      document.getElementById("orderCount").textContent=unified?masterOrderCount(displayedCount):displayedCount+" шт.";
+      document.getElementById("orderCount").textContent=!ordersLoaded?"—":
+        unified?masterOrderCount(displayedCount):displayedCount+" шт.";
       const pageRows=unified?workspace.pageList(shown,masterOrderDialogId||window.__rdActiveOrderDetail?.()):shown;
       ordersNode.replaceChildren();
       renderMasterOverview(currentTab==="calendar"&&currentRole==="master"?
         masterWorkingOrders().filter(o=>o.assignedUserId===currentUser?.id):[]);
-      if(currentRole==="master"){
+      if(!ordersLoaded){
+        // An unauthoritative empty list must not look like a free schedule.
+        ordersNode.setAttribute("aria-busy",String(Boolean(initialOrderRead)));
+      }else if(currentRole==="master"){
+        ordersNode.removeAttribute("aria-busy");
         renderMasterSchedule(pageRows,{compactEmpty:completedForDay.length>0,allRows:shown,dayCounts:workspace?.dayCounts()});
         if(currentTab==="calendar")masterUI.renderMasterCompletedDay(completedForDay,selectedDate);
       }
-      else if(!shown.length) ordersNode.append(make("div","empty",currentTab==="history"?"Выполненных заказов нет":"Заказов нет"));
-      else pageRows.forEach(o=>ordersNode.append(makeCompactOwnerOrder(o)));
+      else {
+        ordersNode.removeAttribute("aria-busy");
+        if(!shown.length)ordersNode.append(make("div","empty",currentTab==="history"?"Выполненных заказов нет":"Заказов нет"));
+        else pageRows.forEach(o=>ordersNode.append(makeCompactOwnerOrder(o)));
+      }
       if(cancelledForDay.length)workspace.renderCancelled(cancelledForDay,
         currentRole==="master"?makeMasterScheduleRow:makeCompactOwnerOrder);
       if(unified)workspace.renderListPages();
@@ -2641,42 +2719,93 @@
       retryStartupSchedule.hidden=!retry;
       retryStartupSchedule.textContent=retryLabel;
     }
-    async function checkAccess() {
-      resetAccountData();
-      const generation=accessGeneration;
-      showScreen("startupScreen");
-      showStartupSchedule();
-      const accessNotice=setTimeout(()=>{
-        if(generation===accessGeneration)showStartupSchedule("Проверяем сеанс и права доступа…");
-      },400);
-      let access;
-      try{
-        access=await sharedServices.withRequestDeadline(async signal=>{
-          await ensureSession();
-          if(generation!==accessGeneration||signal.aborted)return;
-          const user=await authRequest("user","GET",null,true,{signal});
-          if(generation!==accessGeneration||signal.aborted)return;
-          if(!user?.id)throw new Error("Не удалось проверить аккаунт.");
-          const rows=await dbRequest("rabota_members?select=user_id,role,active,master_name&user_id=eq."+
-            encodeURIComponent(user.id)+"&limit=1","GET",undefined,{signal});
-          return {user,rows};
-        },6000,"Проверка доступа заняла слишком много времени. Повторите попытку.");
-      }catch(error){
-        if(generation!==accessGeneration)return;
-        if(error.code!=="REQUEST_TIMEOUT")throw error;
-        showStartupSchedule("Не удалось вовремя проверить доступ. Повторите попытку.",true,"Повторить проверку доступа");
+    async function readVerifiedAccess(generation){
+      return sharedServices.withRequestDeadline(async signal=>{
+        await ensureSession();
+        if(generation!==accessGeneration||signal.aborted)return null;
+        const findMember=id=>dbRequest("rabota_members?select=user_id,role,active,master_name&user_id=eq."+
+          encodeURIComponent(id)+"&limit=1","GET",undefined,{signal});
+        async function read(credential){
+          const userRead=authRequest("user","GET",null,true,{session:credential,signal});
+          // The JWT subject is only a query hint. Both server checks remain mandatory.
+          const subject=sharedServices.authTokenSubject(credential);
+          let user,rows;
+          if(subject){
+            [user,rows]=await Promise.all([userRead,findMember(subject)]);
+            if(user?.id!==subject)throw Error("Не удалось проверить аккаунт.");
+          }else{
+            user=await userRead;
+            if(generation!==accessGeneration||signal.aborted)return null;
+            if(!user?.id)throw Error("Не удалось проверить аккаунт.");
+            rows=await findMember(user.id);
+          }
+          if(generation!==accessGeneration||signal.aborted)return null;
+          if(!Array.isArray(rows))throw Error("Не удалось проверить права доступа.");
+          const member=rows[0];
+          return {user,member:member?.user_id===user.id&&member.active===true&&
+            ["owner","manager","master"].includes(member.role)?member:null};
+        }
+        const credential=session;
+        try{return await read(credential);}
+        catch(error){
+          if(![401,403].includes(error.status)||generation!==accessGeneration||signal.aborted)throw error;
+          syncStoredSession();
+          if(generation!==accessGeneration||credential===session||
+            !sharedServices.sameAuthSession(credential,session))throw error;
+          return read(session);
+        }
+      },6000,"Проверка доступа заняла слишком много времени. Повторите попытку.");
+    }
+    function startInitialOrders(){
+      if(initialOrderRead)return;
+      if(navigator.onLine===false){
+        reportSync({code:"OFFLINE"},"initial-orders");
         return;
-      }finally{clearTimeout(accessNotice);}
-      if(generation!==accessGeneration||!access)return;
-      showStartupSchedule();
-      const {user,rows}=access;
+      }
+      const generation=accessGeneration;
+      const startupOrders=loadOrderData();
+      initialOrderRead=startupOrders;
+      financeStartupOrders=startupOrders;
+      backgroundSyncAt=Date.now();
+      ordersNode.setAttribute("aria-busy","true");
+      const retryButton=document.getElementById("retryOrderSync");
+      retryButton.disabled=true;
+      const notice=setTimeout(()=>{
+        if(generation===accessGeneration&&initialOrderRead===startupOrders)reportSync(null,"orders-loading");
+      },400);
+      void startupOrders.then(()=>{
+        if(generation===accessGeneration)reportSync(null);
+      },error=>{
+        if(generation===accessGeneration)reportSync(error,"initial-orders");
+      }).finally(()=>{
+        clearTimeout(notice);
+        if(initialOrderRead===startupOrders){
+          initialOrderRead=null;
+          if(!ordersLoaded)ordersNode.setAttribute("aria-busy","false");
+          retryButton.disabled=false;
+        }
+        if(financeStartupOrders===startupOrders)financeStartupOrders=null;
+      });
+      if(currentRole==="owner"||currentRole==="master")void refreshFinance();
+    }
+    function applyVerifiedAccess({user,member}){
+      const name=member?.master_name||"";
+      const same=currentUser?.id===user.id&&currentRole===member?.role&&currentMasterName===name;
+      if(currentUser&&!same){
+        showScreen("startupScreen");
+        resetAccountData();
+      }
+      accessVerifiedAt=Date.now();
+      accessRetry=false;
       currentUser=user;
       document.getElementById("currentEmail").textContent=user.email||"";
-      if(!Array.isArray(rows)||!rows[0]?.active||!["owner","manager","master"].includes(rows[0].role)){
-        showScreen("accessScreen");return;
+      if(!member){
+        showScreen("accessScreen");
+        return false;
       }
-      currentRole=rows[0].role;
-      currentMasterName=rows[0].master_name||"";
+      if(same&&!document.getElementById("appScreen").hidden)return true;
+      currentRole=member.role;
+      currentMasterName=name;
       void readPayroll().catch(()=>{});
       // Label the menu with this authenticated member's name.
       const metadata=user.user_metadata||{};
@@ -2701,54 +2830,22 @@
       // The accessible name continues to describe the full action.
       document.querySelector("#newOrderBtn .new-order-label").textContent=
         (currentRole==="master"||currentRole==="owner")?"Заказ":"Новый заказ";
-      document.getElementById("newOrderBtn").hidden=!canCreateOrder();
+      const createButton=document.getElementById("newOrderBtn");
+      createButton.hidden=!canCreateOrder();
+      createButton.disabled=!ordersLoaded;
       document.getElementById("aiChatLink").hidden=currentRole!=="owner";
       if (currentRole==="master") { currentTab="calendar"; selectedDate=masterClock().date; masterFollowsToday=true; }
       document.getElementById("financePanel").hidden=true;
-      const initialView=new URLSearchParams(window.location.search).get("view");
-      const openModuleFirst=currentRole==="owner"&&["expenses","growth"].includes(initialView);
-      const masterStarting=currentRole==="master";
-      if(masterStarting){
-        showScreen("startupScreen");
-        showStartupSchedule();
-      }
-      const waitingNotice=masterStarting?setTimeout(()=>{
-        if(generation===accessGeneration)showStartupSchedule("Загружаем расписание…");
-      },400):null;
-      const startupOrders=masterStarting?sharedServices.withRequestDeadline(
-        signal=>loadOrderData(false,{signal}),6000,"Расписание пока не загрузилось. Повторите попытку."
-      ):loadOrderData();
-      if(openModuleFirst){
-        financeStartupOrders=startupOrders;
-        showScreen("appScreen");
-        window.__rdAccess?.();
-        void refreshFinance();
-      }
-      let ordersError;
-      try{await startupOrders;}
-      catch(error){
-        if(generation!==accessGeneration)return;
-        if(masterStarting&&error.code==="REQUEST_TIMEOUT"){
-          showStartupSchedule(error.message,true);
-          return;
-        }
-        if(!openModuleFirst)throw error;
-        ordersError=error;
-      }finally{
-        if(waitingNotice!==null)clearTimeout(waitingNotice);
-        if(financeStartupOrders===startupOrders)financeStartupOrders=null;
-      }
-      if(generation!==accessGeneration)return;
       showStartupSchedule();
-      reportSync(ordersError);
-      if(!openModuleFirst){
-        showScreen("appScreen");
-        if(currentRole==="owner"||currentRole==="master")void refreshFinance();
-        window.__rdAccess?.();
-      }
+      reportSync(null);
+      showScreen("appScreen");
+      // Start the shared order read before module hooks can request finance.
+      startInitialOrders();
+      window.__rdAccess?.();
       window.__rdInitMasterPush?.();
       window.__rdMoneyAccess?.();
       if(currentRole==="owner")void window.__rdLoadTeam();
+      return true;
     }
 
     // Role-aware adapters: the database RPC/RLS remains the final authority.
@@ -2919,76 +3016,120 @@
       }
     };
 
-    let restoringSession=false;
     function showAccessFailure(error){
       showScreen("loginScreen");
-      resumeSessionButton.hidden=!session;
+      accessRetry=Boolean(session);
+      resumeSessionButton.hidden=!accessRetry;
       loginMessage.textContent=error instanceof TypeError?"Проверьте подключение к интернету.":friendlyError(error);
     }
-    async function initialize() {
-      if(restoringSession)return;
-      if(!session||!session.refresh_token){showScreen("loginScreen");return;}
-      restoringSession=true;
+    function showExpiredSession(){
+      clearSession();
+      resumeSessionButton.hidden=true;
+      showScreen("loginScreen");
+      loginMessage.textContent="Сеанс завершён. Войдите снова.";
+    }
+    function checkAccess({foreground=false}={}){
+      const generation=accessGeneration;
+      if(accessCheck?.generation===generation)return accessCheck.pending;
+      if(!foreground){
+        showScreen("startupScreen");
+        showStartupSchedule();
+      }
+      const notice=foreground?null:setTimeout(()=>{
+        if(generation===accessGeneration)showStartupSchedule("Проверяем сеанс и права доступа…");
+      },400);
+      const pending=(async()=>{
+        try{
+          if(navigator.onLine===false)throw new TypeError("Нет подключения к интернету.");
+          const access=await readVerifiedAccess(generation);
+          if(generation!==accessGeneration||!access)return false;
+          resumeSessionButton.hidden=true;
+          return applyVerifiedAccess(access);
+        }catch(error){
+          if(generation!==accessGeneration)return false;
+          if([401,403].includes(error.status))showExpiredSession();
+          else if(foreground){
+            accessRetry=true;
+            reportSync(error,"access");
+            if(currentRole==="owner"||currentRole==="master")markFinanceStale({orders:false});
+          }else if(error.code==="REQUEST_TIMEOUT"){
+            accessRetry=true;
+            showStartupSchedule("Не удалось вовремя проверить доступ. Повторите попытку.",true,"Повторить проверку доступа");
+          }else showAccessFailure(error);
+          return false;
+        }finally{
+          clearTimeout(notice);
+        }
+      })().finally(()=>{
+        if(accessCheck?.pending===pending)accessCheck=null;
+      });
+      accessCheck={generation,pending};
+      return pending;
+    }
+    function initialize(){
+      startupReady=true;
+      if(syncStoredSession())return;
+      if(!session){showScreen("loginScreen");return;}
+      loginMessage.textContent="";
+      return checkAccess();
+    }
+    async function submitAuth(path,payload){
+      if(authFormRequest)return;
+      const generation=accessGeneration;
       const login=document.getElementById("loginSubmit"),signup=document.getElementById("signupBtn");
       login.disabled=signup.disabled=resumeSessionButton.disabled=true;
-      loginMessage.textContent="";
+      authFormRequest=true;
       try {
+        const data=await sharedServices.withRequestDeadline(
+          signal=>authRequest(path,"POST",payload,false,{signal}),8000,"Сервер не ответил вовремя. Повторите попытку."
+        );
+        if(generation!==accessGeneration)return;
+        if(path==="signup"&&!data.access_token){
+          loginMessage.textContent="Регистрация отправлена. Подтвердите почту и затем войдите.";
+          return;
+        }
+        setSession(data);
+        resetAccountData();
         await checkAccess();
-        resumeSessionButton.hidden=true;
-      }
-      catch(error) {showAccessFailure(error);} finally {
-        restoringSession=false;
+      }catch(error){
+        if(generation===accessGeneration)showAccessFailure(error);
+      }finally{
+        authFormRequest=null;
         login.disabled=signup.disabled=resumeSessionButton.disabled=false;
       }
     }
     resumeSessionButton.addEventListener("click",initialize);
     retryStartupSchedule.addEventListener("click",initialize);
-    document.getElementById("loginForm").addEventListener("submit",async event=>{
+    document.getElementById("loginForm").addEventListener("submit",event=>{
       event.preventDefault();loginMessage.textContent="";
-      const btn=document.getElementById("loginSubmit");btn.disabled=true;
-      try {
-        const inputLogin=document.getElementById("loginEmail").value.trim().toLowerCase();
-        const email=inputLogin.includes("@")?inputLogin:inputLogin+"@staff.rabota.invalid";
-        if (!inputLogin.includes("@") && !/^[a-z][a-z0-9_]{2,23}$/.test(inputLogin)) throw new Error("Логин должен содержать 3–24 символа: латиница, цифры, _.");
-        const password=document.getElementById("loginPassword").value;
-        const data=await authRequest("token?grant_type=password","POST",{email,password},false);
-        setSession(data);
-        await checkAccess();
-      } catch(error) {showAccessFailure(error);}
-      finally {btn.disabled=false;}
+      const inputLogin=document.getElementById("loginEmail").value.trim().toLowerCase();
+      const email=inputLogin.includes("@")?inputLogin:inputLogin+"@staff.rabota.invalid";
+      if(!inputLogin.includes("@")&&!/^[a-z][a-z0-9_]{2,23}$/.test(inputLogin)){
+        loginMessage.textContent="Логин должен содержать 3–24 символа: латиница, цифры, _.";
+        return;
+      }
+      const password=document.getElementById("loginPassword").value;
+      void submitAuth("token?grant_type=password",{email,password});
     });
-    document.getElementById("signupBtn").addEventListener("click",async()=>{
+    document.getElementById("signupBtn").addEventListener("click",()=>{
       loginMessage.textContent="";
       const email=document.getElementById("loginEmail").value.trim();
       const password=document.getElementById("loginPassword").value;
       if(!email||!email.includes("@")||password.length<6){loginMessage.textContent="Регистрация по логину доступна только администратору. Для самостоятельной регистрации нужна почта.";return;}
-      const btn=document.getElementById("signupBtn");btn.disabled=true;
-      try {
-        const data=await authRequest("signup","POST",{email,password},false);
-        if(data.access_token) {setSession(data);await checkAccess();}
-        else loginMessage.textContent="Регистрация отправлена. Подтвердите почту и затем войдите.";
-      } catch(error) {showAccessFailure(error);}
-      finally {btn.disabled=false;}
+      void submitAuth("signup",{email,password});
     });
-    document.getElementById("retryAccess").addEventListener("click",async()=>{
+    document.getElementById("retryAccess").addEventListener("click",()=>{
       accessMessage.textContent="";
-      try {await checkAccess();}
-      catch(error){showAccessFailure(error);}
+      void initialize();
     });
     function logout() {
+      if(syncStoredSession())return;
       const previous=session;
-      const stored=storedSession();
-      if(stored&&!sharedServices.sameAuthSession(previous,stored)){
-        session=stored;
-        resetAccountData();
-        showScreen("startupScreen");
-        window.location.reload();
-        return;
-      }
       const cleanupPush=currentRole==="master";
       clearSession();
       resumeSessionButton.hidden=true;
       showScreen("loginScreen");
+      loginMessage.textContent="";
       if(!previous?.access_token)return;
       const logoutGeneration=accessGeneration;
       const stillSignedOut=()=>accessGeneration===logoutGeneration&&!session&&!storedSession();
@@ -3058,50 +3199,76 @@
       logout();
     });
     document.getElementById("accessLogout").addEventListener("click",logout);
-    let backgroundSync=null,backgroundSyncAt=0;
-    function syncInBackground(immediate=false){
-      if(!session||document.hidden||document.getElementById("appScreen").hidden)return;
+    const SCHEDULE_REFRESH_MS=30000,ACCESS_REFRESH_MS=5*60*1000;
+    function syncInBackground({foreground=false,immediate=false}={}){
+      if(!startupReady||document.hidden||syncStoredSession()||!session||navigator.onLine===false)return;
+      if(document.getElementById("appScreen").hidden){
+        if(immediate&&accessRetry&&!authFormRequest)void initialize();
+        return;
+      }
       syncMasterToday();
-      if(backgroundSync||(!immediate&&Date.now()-backgroundSyncAt<3000))return;
-      backgroundSyncAt=Date.now();
+      const now=Date.now();
+      const verify=accessRetry||now-accessVerifiedAt>=ACCESS_REFRESH_MS||
+        Number(session.expires_at||0)<=Math.floor(now/1000);
+      const minimumDelay=verify?3000:SCHEDULE_REFRESH_MS;
+      if(backgroundSync||initialOrderRead||(!immediate&&now-backgroundSyncAt<minimumDelay))return;
+      backgroundSyncAt=now;
       const generation=accessGeneration;
-      const pending=reloadOrders({background:true}).catch(error=>{
+      const pending=(async()=>{
+        if(verify&&!await checkAccess({foreground:true}))return;
+        if(generation!==accessGeneration)return;
+        if(foreground)window.dispatchEvent(new Event("rd:resume"));
+        if(!ordersLoaded){startInitialOrders();return;}
+        if(currentRole==="owner"&&["home","settings"].includes(window.__rdCurrentPage))void window.__rdLoadTeam();
+        await reloadOrders({background:true});
+      })().catch(error=>{
         if(generation===accessGeneration)reportSync(error);
       }).finally(()=>{
         if(backgroundSync===pending)backgroundSync=null;
       });
       backgroundSync=pending;
-      if(currentRole==="owner"&&["home","settings"].includes(window.__rdCurrentPage))void window.__rdLoadTeam();
     }
-    window.addEventListener("focus",()=>syncInBackground());
-    window.addEventListener("online",()=>syncInBackground(true));
+    document.getElementById("retryOrderSync").addEventListener("click",()=>syncInBackground({immediate:true}));
+    window.addEventListener("storage",event=>{
+      if(event.key===AUTH_KEY||event.key===null)syncStoredSession();
+    });
+    window.addEventListener("focus",()=>syncInBackground({foreground:true}));
+    window.addEventListener("pageshow",event=>{
+      if(event.persisted)syncInBackground({foreground:true});
+    });
+    window.addEventListener("online",()=>syncInBackground({foreground:true,immediate:true}));
+    window.addEventListener("offline",()=>{
+      if(!session||document.getElementById("appScreen").hidden)return;
+      reportSync({code:"OFFLINE"},ordersLoaded?"orders":"initial-orders");
+      if(currentRole==="owner"||currentRole==="master")markFinanceStale({orders:false});
+    });
     document.addEventListener("visibilitychange",()=>{
-      if(!document.hidden)syncInBackground();
+      if(!document.hidden)syncInBackground({foreground:true});
     });
     setInterval(syncInBackground,30000);
-    initialize();
 
   </script>
-  <script src="/order-payment.js?v=20261125-travel"></script>
-  <script src="/booking-timeline.js?v=20261125-reschedule"></script>
-  <script src="/order-availability.js?v=20261125-midnight"></script>
-  <script src="/master-quick-order.js?v=20261117-mock-v1"></script>
-  <script src="/quick-slots.js?v=20261125-reschedule"></script>
-  <script src="/whatsapp-order.js?v=20261125-travel"></script>
-  <script src="/whatsapp-client.js?v=20261125-reschedule"></script>
-  <script src="/whatsapp-settings.js?v=20261125-template-reset"></script>
-  <script src="/profit-report.js?v=20261126-field-report"></script>
-  <script src="/order-field-report-model.js?v=20261126-sources"></script>
-  <script src="/order-field-report.js?v=20261126-sources"></script>
-  <script src="/expenses.js?v=20261125-durable-intent"></script>
-  <script src="/growth.js?v=20261125-reconcile"></script>
-  <script src="/redesign.js?v=20261126-sources"></script>
-  <script src="/master-notifications.js?v=20261125-session-exit"></script>
-  <script src="/orders-list.js?v=20261126-sources"></script>
-  <script src="/owner-parity.js?v=20261125-order-pages"></script>
-  <script src="/finance-payroll.js?v=20261125-travel"></script>
-  <script src="/money-workspace.js?v=20261125-travel"></script>
-  <script src="/lead-assistant.js?v=20261125-confirmed-price"></script>
-  <script src="/orders-workspace.js?v=20261126-sources"></script>
+  <script src="/order-payment.js?v=20261125-travel" defer></script>
+  <script src="/booking-timeline.js?v=20261125-reschedule" defer></script>
+  <script src="/order-availability.js?v=20261125-midnight" defer></script>
+  <script src="/master-quick-order.js?v=20261117-mock-v1" defer></script>
+  <script src="/quick-slots.js?v=20261125-reschedule" defer></script>
+  <script src="/whatsapp-order.js?v=20261125-travel" defer></script>
+  <script src="/whatsapp-client.js?v=20261125-reschedule" defer></script>
+  <script src="/whatsapp-settings.js?v=20261125-template-reset" defer></script>
+  <script src="/profit-report.js?v=20261126-field-report" defer></script>
+  <script src="/order-field-report-model.js?v=20261126-sources" defer></script>
+  <script src="/order-field-report.js?v=20261126-sources" defer></script>
+  <script src="/expenses.js?v=20261125-durable-intent" defer></script>
+  <script src="/growth.js?v=20261125-reconcile" defer></script>
+  <script src="/redesign.js?v=20261126-ios" defer></script>
+  <script src="/master-notifications.js?v=20261126-pwa" defer></script>
+  <script src="/orders-list.js?v=20261126-sources" defer></script>
+  <script src="/owner-parity.js?v=20261125-order-pages" defer></script>
+  <script src="/lead-assistant.js?v=20261125-confirmed-price" defer></script>
+  <script src="/orders-workspace.js?v=20261126-sources" defer></script>
+  <script src="/app-start.js?v=20261126-ios" defer></script>
+  <script src="/finance-payroll.js?v=20261125-travel" defer></script>
+  <script src="/money-workspace.js?v=20261125-travel" defer></script>
 </body>
 </html>

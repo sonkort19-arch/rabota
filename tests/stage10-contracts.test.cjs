@@ -3,12 +3,15 @@ const test=require("node:test");
 const assert=require("node:assert/strict");
 const fs=require("node:fs");
 const path=require("node:path");
+const vm=require("node:vm");
 
 const root=path.resolve(__dirname,"..");
 const read=name=>fs.readFileSync(path.join(root,name),"utf8");
 const html=read("index.html");
-const beforeInline=html.indexOf("<script>\n");
-const scripts=[...html.matchAll(/<script\s+src="(\/[^"]+\.js(?:\?[^"]*)?)"/g)].map(m=>m[1].split("?")[0].slice(1));
+const beforeInline=html.lastIndexOf("<script>\n");
+const scriptTags=[...html.matchAll(/<script\s+src="(\/[^"]+\.js(?:\?[^"]*)?)"[^>]*>/g)];
+const scriptName=tag=>tag[1].split("?")[0].slice(1);
+const scripts=scriptTags.map(scriptName);
 const modules=[
  "order-notes.js","order-sync.js","order-model.js","calendar-load.js","calendar-model.js",
  "finance-model.js","master-ui.js","lead-ai-bridge.js","app-services.js"
@@ -20,7 +23,8 @@ test("all extracted modules load before the main application",()=>{
     assert.ok(html.indexOf('src="/'+name)<beforeInline,name);
     assert.ok(fs.existsSync(path.join(root,name)),name);
   }
-  assert.deepEqual(scripts.slice(0,modules.length),modules);
+  const blocking=scriptTags.filter(tag=>tag.index<beforeInline&&!/\s(?:async|defer)\b/.test(tag[0]));
+  assert.deepEqual(blocking.slice(0,modules.length).map(scriptName),modules);
 });
 test("all external JavaScript and stylesheets exist in the current branch",()=>{
   const css=[...html.matchAll(/<link\s+rel="stylesheet"\s+href="(\/[^"]+\.css(?:\?[^"]*)?)"/g)]
@@ -64,9 +68,20 @@ test("public client never embeds secret role keys or dangerous runtime code",()=
   assert.doesNotMatch(frontend,/\beval\s*\(/);
 });
 test("service worker does not cache order JSON or payment data",()=>{
-  const worker=read("sw.js");
-  assert.doesNotMatch(worker,/caches\.open|CacheStorage|cache\.put/i);
-  assert.match(worker,/addEventListener\("push"/);
+  const listeners=new Map();
+  const origin="https://crm.example.test";
+  vm.runInNewContext(read("sw.js"),{URL,self:{location:{origin},addEventListener:(name,handler)=>listeners.set(name,handler)}});
+  assert.ok(listeners.has("push"));
+  for(const [url,method,mode,destination,authorized] of [
+    [origin+"/api/ai-chat","GET","same-origin","",false],
+    [origin+"/api/ai-chat","POST","same-origin","",false],
+    ["https://db.example.test/rest/v1/rabota_orders","GET","cors","",true],
+    ["https://db.example.test/rest/v1/rpc/rabota_record_order_payment","POST","cors","",true],
+    [origin+"/private.js","GET","same-origin","script",true]
+  ]){
+    listeners.get("fetch")({request:{url,method,mode,destination,headers:new Set(authorized?["authorization"]:[])},
+      respondWith:()=>assert.fail("Worker intercepted "+url),waitUntil:()=>assert.fail("Worker cached "+url)});
+  }
 });
 test("lead preview and AI bridge are read-only until explicit confirmation",()=>{
   assert.match(read("lead-ai-bridge.js"),/preventPreviewSubmit/);

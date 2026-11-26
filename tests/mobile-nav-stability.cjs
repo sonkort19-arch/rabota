@@ -94,6 +94,54 @@ async function assertDocked(page,label){
  assert.equal(state.visible,true,label+": dock remains visible");
  assert.ok(Math.abs(state.bottom-state.viewport)<=3,label+": dock touches bottom; "+JSON.stringify(state));
 }
+async function setVisualViewport(page,geometry){
+ await page.evaluate(values=>{
+  const viewport=window.visualViewport;
+  for(const key of ["offsetTop","height","scale"]){
+   if(values)Object.defineProperty(viewport,key,{value:values[key],configurable:true});
+   else delete viewport[key];
+  }
+  viewport.dispatchEvent(new Event("resize"));
+  viewport.dispatchEvent(new Event("scroll"));
+ },geometry);
+}
+async function assertVisualViewport(page){
+ const layoutHeight=await page.evaluate(()=>document.documentElement.clientHeight);
+ const keyboard={offsetTop:28,height:layoutHeight-260,scale:1};
+ const safeTop=47,safeBottom=34;
+ await page.evaluate(({safeTop,safeBottom})=>{
+  document.body.style.setProperty("--rd-safe-top",safeTop+"px");
+  document.body.style.setProperty("--rd-safe-bottom",safeBottom+"px");
+ },{safeTop,safeBottom});
+ // The iOS keyboard can resize the visual viewport without resizing the layout viewport.
+ await setVisualViewport(page,keyboard);
+ await page.waitForFunction(({offsetTop,height,safeTop,safeBottom})=>{
+  const header=document.getElementById("rdScreenHeader").getBoundingClientRect();
+  const profile=document.getElementById("rdProfileTrigger").getBoundingClientRect();
+  const content=document.getElementById("appScreen").getBoundingClientRect();
+  const dock=document.getElementById("rdMobileNav").getBoundingClientRect();
+  const dockButton=document.querySelector("#rdMobileNav .rd-nav-btn").getBoundingClientRect();
+  const add=document.getElementById("newOrderBtn").getBoundingClientRect();
+  const aligned=(a,b)=>Math.abs(a-b)<2;
+  return aligned(header.top,offsetTop)&&aligned(content.top,header.bottom)&&
+   aligned(content.bottom,dock.top)&&aligned(dock.bottom,offsetTop+height)&&add.bottom<dock.top&&
+   profile.top>=header.top+safeTop&&dockButton.bottom<=dock.bottom-safeBottom;
+ },{...keyboard,safeTop,safeBottom},{timeout:3000});
+ assert.equal(await page.evaluate(()=>document.documentElement.clientHeight),layoutHeight);
+
+ await setVisualViewport(page,{...keyboard,scale:2});
+ await page.waitForFunction(()=>document.getElementById("rdScreenHeader").getBoundingClientRect().top===0);
+ await assertDocked(page,"pinch zoom leaves the app in its normal layout");
+ await setVisualViewport(page,keyboard);
+ await page.waitForFunction(()=>document.getElementById("rdScreenHeader").getBoundingClientRect().top>0);
+ await setVisualViewport(page,null);
+ await page.waitForFunction(()=>document.getElementById("rdScreenHeader").getBoundingClientRect().top===0);
+ await assertDocked(page,"visual viewport restored after dismissing keyboard");
+ await page.evaluate(()=>{
+  document.body.style.removeProperty("--rd-safe-top");
+  document.body.style.removeProperty("--rd-safe-bottom");
+ });
+}
 async function assertOrderPages(page,label,expected){
  const rows=page.locator("#orders .rd-list-row:visible");
  const next=page.getByRole("navigation",{name:"Страницы заказов"}).getByRole("button",{name:"Далее",exact:true});
@@ -168,6 +216,7 @@ async function runOne(browser,label,device){
   await page.locator("#owSearchToggle").click();
   await page.locator("#owSearchInput").focus();
   await assertDocked(page,label+" search focused");
+  await assertVisualViewport(page);
   await page.locator("#owSearchInput").blur();
   await page.locator("#owSearchClose").click();
 

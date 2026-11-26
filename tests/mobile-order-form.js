@@ -8,7 +8,9 @@ const assert = require("node:assert/strict");
 const root = path.join(__dirname, "..");
 const html = fs.readFileSync(path.join(root, "index.html"), "utf8");
 const css = fs.readFileSync(path.join(root, "mobile-order-form.css"), "utf8");
-const script = html.match(/<script>([\s\S]*?)<\/script>/)?.[1];
+const script = [...html.matchAll(/<script>([\s\S]*?)<\/script>/g)]
+  .map(match => match[1])
+  .find(source => source.includes('form.addEventListener("invalid"'));
 assert(script, "inline app script must exist");
 assert.doesNotThrow(() => new Function(script), "inline script must parse");
 assert(/<link rel="stylesheet" href="\/mobile-order-form\.css(?:\?[^"]*)?">/.test(html), "order form CSS must be linked");

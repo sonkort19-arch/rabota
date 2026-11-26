@@ -4,7 +4,8 @@ const assert=require("node:assert/strict");
 const fs=require("node:fs");
 const path=require("node:path");
 const {webcrypto}=require("node:crypto");
-const {createSharedServices,createWriteIntents,normalizePhone,phoneForDisplay,friendlyError,sameAuthSession}=require("../app-services.js");
+const {createSharedServices,createWriteIntents,normalizePhone,phoneForDisplay,friendlyError,sameAuthSession,authTokenSubject,
+  withRequestDeadline}=require("../app-services.js");
 
 function fixture({initialToken="old-token",refreshTo=null,status=200,data=[{id:"x"}],jsonThrows=false}={}){
   let session={access_token:initialToken,refresh_token:"refresh",expires_at:5000};
@@ -105,6 +106,44 @@ test("recognizes token rotation only within the same Supabase session",()=>{
   assert.equal(sameAuthSession(token("owner","a",1),token("owner","b",1)),false);
   assert.equal(sameAuthSession(token("owner","a",1),token("manager","a",1)),false);
   assert.equal(sameAuthSession({access_token:"broken"},null),false);
+});
+test("only a UUID claim can be used as a membership lookup hint",()=>{
+  const token=sub=>({access_token:"header."+Buffer.from(JSON.stringify({sub})).toString("base64url")+".signature"});
+  const subject="b74a4e75-1efa-4d3b-8dfd-f880d48308d4";
+  assert.equal(authTokenSubject(token(subject)),subject);
+  assert.equal(authTokenSubject(token("bad-query&user_id=any")),null);
+  assert.equal(authTokenSubject({access_token:"opaque"}),null);
+  assert.equal(authTokenSubject(null),null);
+});
+test("unattended GET stops at its deadline and permits a retry",async t=>{
+  t.mock.timers.enable({apis:["setTimeout"]});
+  const requests=[];
+  const service=createSharedServices({
+    url:"https://example.supabase.co",key:"test",getSession:()=>({access_token:"token"}),
+    ensureSession:async()=>{},fetch:async(_url,options)=>{
+      requests.push(options);
+      if(requests.length===1)return new Promise(()=>{});
+      return {ok:true,json:async()=>[]};
+    }
+  });
+  const failure=assert.rejects(service.dbRequest("rabota_orders","GET"),{code:"REQUEST_TIMEOUT"});
+  await Promise.resolve();
+  t.mock.timers.tick(12000);
+  await failure;
+  assert.equal(requests[0].signal.aborted,true);
+  const controller=new AbortController();
+  assert.deepEqual(await service.dbRequest("rabota_orders","GET",undefined,{signal:controller.signal}),[]);
+  assert.equal(requests[1].signal,controller.signal);
+  assert.deepEqual(await service.dbRequest("rpc/mutation","POST",{}),[]);
+  assert.equal(requests[2].signal,undefined);
+});
+test("deadline cancels other requests when one parallel check fails early",async()=>{
+  let siblingSignal;
+  await assert.rejects(withRequestDeadline(async signal=>{
+    siblingSignal=signal;
+    await Promise.all([Promise.reject(Error("Unauthorized")),new Promise(()=>{})]);
+  },10000,"Timeout"),/Unauthorized/);
+  assert.equal(siblingSignal.aborted,true);
 });
 test("a REST mutation waiting on auth cannot use the next account's session",async()=>{
   let scope=1,called=false;

@@ -8,7 +8,8 @@ const start = html.indexOf('<section id="startupScreen"');
 const end = html.indexOf("</section>", start);
 const splash = start >= 0 && end > start ? html.slice(start, end + "</section>".length) : "";
 const scheduleControls=/<div class="rd-startup-schedule" id="startupSchedule" hidden>[\s\S]*?<\/div>/;
-const normalSplash=splash.replace(scheduleControls,"");
+const bootstrapControls=/<div class="rd-startup-schedule" id="bootstrapRecovery" hidden>[\s\S]*?<\/div>/;
+const normalSplash=splash.replace(scheduleControls,"").replace(bootstrapControls,"");
 
 test("startup screen contains the logo only, without captions or progress bar", () => {
   assert.ok(splash, "startupScreen must remain present");
@@ -20,6 +21,7 @@ test("startup screen contains the logo only, without captions or progress bar", 
   }
   assert.equal(normalSplash.replace(/<[^>]*>/g, "").trim(), "");
   assert.match(splash,scheduleControls);
+  assert.match(splash,bootstrapControls);
 });
 
 test("splash remains accessible and supports reduced motion", () => {

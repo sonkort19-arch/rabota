@@ -2,6 +2,7 @@
   "name": "Работа — заявки мастера",
   "short_name": "Работа",
   "lang": "ru",
+  "id": "/",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",

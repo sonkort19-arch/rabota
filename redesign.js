@@ -715,8 +715,7 @@ window.addEventListener("popstate",()=>navigate(locationPage(),false));
 function refreshVisibleModule(){
  if(!document.hidden&&!app.hidden&&currentRole==="owner")ownerModules.get(activePage)?.refresh();
 }
-window.addEventListener("online",refreshVisibleModule);
-document.addEventListener("visibilitychange",refreshVisibleModule);
+window.addEventListener("rd:resume",refreshVisibleModule);
 window.__rdResetOwnerModules=()=>{
  sectionScroll.clear();
  leadsSearchTerm="";
@@ -1493,6 +1492,4 @@ window.__rdRefresh=()=>{
   if(document.getElementById("rdSalaryReport")?.hidden===false)window.__rdOwnerPayrollUpdated?.();
  }
 };
-// Authentication and the initial schedule can finish while this script downloads.
-if(app.hidden===false)window.__rdAccess();
 })();

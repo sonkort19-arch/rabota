@@ -110,19 +110,29 @@ test("finance refresh failure only marks finance as unavailable, not stale order
  const start=main.indexOf("    function reportSync(error, source=");
  const end=main.indexOf("    async function reloadOrders(",start);
  assert.ok(start>=0&&end>start,"sync indicator function exists");
- const status={textContent:"",hidden:true,classList:{toggle(){}}};
+ const status={dataset:{},hidden:true,classList:{toggle(){}}};
+ const message={textContent:""};
+ const retry={textContent:"",hidden:true};
+ const elements={syncStatus:status,syncStatusMessage:message,retryOrderSync:retry};
  const fn=new Function("document","Date",main.slice(start,end)+"\nreturn reportSync;")(
-   {getElementById:id=>id==="syncStatus"?status:null},Date);
+   {getElementById:id=>elements[id]},Date);
  fn(new Error("financial timeout"),"finance");
  assert.equal(status.hidden,false);
- assert.match(status.textContent,/Заявки обновлены/);
- assert.match(status.textContent,/финансы недоступны/);
- assert.doesNotMatch(status.textContent,/Не удалось обновить заявки/);
+ assert.match(message.textContent,/Заявки обновлены/);
+ assert.match(message.textContent,/финансы недоступны/);
+ assert.doesNotMatch(message.textContent,/Не удалось обновить заявки/);
+ assert.equal(retry.hidden,true);
  fn(new Error("orders timeout"));
- assert.match(status.textContent,/Не удалось обновить заявки/);
+ assert.match(message.textContent,/Не удалось обновить заявки/);
+ assert.equal(retry.hidden,false);
+ fn(new Error("initial orders timeout"),"initial-orders");
+ fn(new Error("financial timeout"),"finance");
+ assert.match(message.textContent,/Расписание пока не загрузилось/);
+ assert.equal(retry.hidden,false,"Finance failure must not remove the schedule retry");
  fn(null);
  assert.equal(status.hidden,true);
- assert.equal(status.textContent,"");
+ assert.equal(message.textContent,"");
+ assert.equal(retry.hidden,true);
 });
 test("changed order data restores focus to the same master's order row",()=>{
  const start=main.indexOf("    function loadOrderData(");

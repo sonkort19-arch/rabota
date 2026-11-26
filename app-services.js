@@ -15,21 +15,29 @@
     if(error&&error.code==="23505")return "В это время у выбранного мастера уже есть заказ либо запись дублируется.";
     return error instanceof Error?error.message:String(error);
   }
+  function authClaims(token){
+    try{
+      const payload=token.split(".")[1].replace(/-/g,"+").replace(/_/g,"/");
+      return JSON.parse(atob(payload));
+    }catch(error){return null;}
+  }
+  function authTokenSubject(session){
+    const subject=authClaims(session?.access_token)?.sub;
+    return typeof subject==="string"&&/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(subject)
+      ?subject:null;
+  }
   function sameAuthSession(previous,next){
     const oldToken=previous?.access_token,newToken=next?.access_token;
     if(!oldToken||!newToken)return false;
     if(oldToken===newToken)return true;
     // Claims identify a token rotation here. Permission checks use server responses.
     function identity(token){
-      const payload=token.split(".")[1].replace(/-/g,"+").replace(/_/g,"/");
-      const {sub,session_id}=JSON.parse(atob(payload));
+      const {sub,session_id}=authClaims(token)||{};
       return typeof sub==="string"&&sub&&typeof session_id==="string"&&session_id
         ?JSON.stringify([sub,session_id]):null;
     }
-    try{
-      const previousIdentity=identity(oldToken);
-      return Boolean(previousIdentity&&previousIdentity===identity(newToken));
-    }catch(error){return false;}
+    const previousIdentity=identity(oldToken);
+    return Boolean(previousIdentity&&previousIdentity===identity(newToken));
   }
   function createWriteIntents(namespace,{getStorage=()=>root?.sessionStorage,crypto=root?.crypto}={}){
     const uuid=/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i;
@@ -142,6 +150,9 @@
         },milliseconds);
       });
       return await Promise.race([deadline,work(controller.signal)]);
+    }catch(error){
+      controller.abort();
+      throw error;
     }finally{clearTimeout(timer);}
   }
   function createSharedServices(deps){
@@ -175,10 +186,13 @@
       return value;
     }
     async function dbRequest(path,method,payload,{signal}={}){
+      if(method==="GET"&&!signal)return withRequestDeadline(
+        deadline=>dbRequest(path,method,payload,{signal:deadline}),12000,"Сервер не ответил. Повторите попытку."
+      );
       const scope=getScope();
-      signal?.throwIfAborted();
+      if(signal?.aborted)throw new DOMException("Запрос отменён.","AbortError");
       await ensureSession();
-      signal?.throwIfAborted();
+      if(signal?.aborted)throw new DOMException("Запрос отменён.","AbortError");
       const session=getSession();
       if(scope!==getScope()||!session?.access_token)
         throw new Error("Сеанс изменился. Повторите действие.");
@@ -205,7 +219,7 @@
       });
       if(!response.ok)throw new Error("Не удалось отключить подписку на уведомления.");
     }
-    return {authRequest,dbRequest,removePushSubscription,withRequestDeadline,phoneForDisplay,normalizePhone,friendlyError,sameAuthSession};
+    return {authRequest,dbRequest,removePushSubscription,withRequestDeadline,phoneForDisplay,normalizePhone,friendlyError,sameAuthSession,authTokenSubject};
   }
   if(root){
     root.__rdCreateSharedServices=createSharedServices;
@@ -213,5 +227,5 @@
     root.__rdFocusModal=focusModal;
   }
   if(typeof module!=="undefined"&&module.exports)
-    module.exports={createSharedServices,createWriteIntents,withRequestDeadline,phoneForDisplay,normalizePhone,friendlyError,sameAuthSession};
+    module.exports={createSharedServices,createWriteIntents,withRequestDeadline,phoneForDisplay,normalizePhone,friendlyError,sameAuthSession,authTokenSubject};
 })(typeof window!=="undefined"?window:null);

@@ -4,8 +4,10 @@
 const assert = require("node:assert/strict");
 const path = require("node:path");
 const fs = require("node:fs");
-const { chromium, webkit } = require("playwright");
+const { chromium, webkit, devices } = require("playwright");
+const { assertHeaderLayout } = require("./module-navigation-browser.cjs");
 const root = path.resolve(__dirname, "..");
+const fixtureManagerUuid = "10000000-0000-4000-8000-000000000001";
 
 function gate() {
   let release;
@@ -13,16 +15,20 @@ function gate() {
   return {promise, release};
 }
 
-async function session(browser, {role = "master", active = true, delayModule = false, view = "", abortFirstAccess = false,
-  hangFirstOrders = false, holdLogout = false, hangFirstAccess = "", loginManually = false} = {}) {
+async function session(browser, {role = "master", active = true, delayModule = "", view = "", abortFirstAccess = false,
+  hangFirstOrders = false, holdLogout = false, hangFirstAccess = "", loginManually = false,
+  mode = "safari", width = 390, safeArea = null, failEssentialBundle = false, jwtSubject = ""} = {}) {
+  const device = devices["iPhone 13"];
+  const inAppUserAgent = device.userAgent.replace(/\sVersion\/[^\s]+|\sSafari\/[^\s]+/g, "") + " Telegram";
   const context = await browser.newContext({
-    viewport: {width: 390, height: 844}, isMobile: true, hasTouch: true,
-    timezoneId: "Europe/Moscow", serviceWorkers: "block",
+    ...device, viewport: {...device.viewport, width}, screen: {...device.screen, width},
+    ...(mode === "embedded" ? {userAgent: inAppUserAgent} : {}),
+    timezoneId: "Europe/Moscow", reducedMotion: "reduce", serviceWorkers: "block",
   });
   const page = await context.newPage();
   page.setDefaultTimeout(5000);
-  const master = {user_id: "fixture-raul", master_name: "Рауль", role: "master", active: true};
-  const member = role === "master" ? master : {user_id: "fixture-" + role, role, active};
+  const master = {user_id: "fixture-raul", master_name: "Рауль", role: "master", active: role === "master" ? active : true};
+  const member = role === "master" ? master : {user_id: jwtSubject ? fixtureManagerUuid : "fixture-" + role, role, active};
   const day = new Intl.DateTimeFormat("sv-SE", {timeZone: "Europe/Moscow"}).format(new Date());
   const order = {
     id: "fixture-appointment", name: "Тестовый выезд", status: "Записан",
@@ -43,33 +49,60 @@ async function session(browser, {role = "master", active = true, delayModule = f
   if(role==="owner")payroll.accounting_payouts=[];
   const finance = gate(), notices = gate(), module = gate(), moduleRequested = gate();
   const ordersGate=gate(),logoutGate=gate(),logoutRequested=gate(),accessGate=gate(),accessSettled=gate();
-  const requests = [], writes = [], errors = [];
+  const firstOrdersRequested = gate(), controlledReads = new Set(), verifiedUser = gate();
+  const requests = [], writes = [], errors = [], documents = [];
   const accessRequests=[];
-  let heldAccess=false;
+  let heldAccess=false, heldModule=false, failedBundle=false, nextOrderRead=null;
   page.on("pageerror", error => errors.push(error.message));
-  await context.addInitScript(({loginManually,expired}) => {
+  const token = jwtSubject ? "fixture." + Buffer.from(JSON.stringify({sub: jwtSubject, session_id: "fixture-id"})).toString("base64url") + ".fixture" : "fixture";
+  await context.addInitScript(({loginManually,expired,mode,token}) => {
+    window.fixtureDocument = crypto.randomUUID();
+    if (mode === "standalone") {
+      Object.defineProperty(navigator, "standalone", {value: true});
+      const match = window.matchMedia.bind(window);
+      window.matchMedia = query => {
+        const result = match(query);
+        if (query === "(display-mode: standalone)") Object.defineProperty(result, "matches", {value: true});
+        return result;
+      };
+    }
     if(loginManually)return;
     if (sessionStorage.getItem("fixture-opened")) return;
     if (!localStorage.getItem("rabota-auth-session-v1")) {
       localStorage.setItem("rabota-auth-session-v1",
-        JSON.stringify({access_token:"fixture",refresh_token:"fixture",expires_at:expired?1:4102444800}));
+        JSON.stringify({access_token:token,refresh_token:"fixture",expires_at:expired?1:4102444800}));
     }
     sessionStorage.setItem("fixture-opened","1");
-  },{loginManually,expired:hangFirstAccess==="refresh"});
+  },{loginManually,expired:hangFirstAccess==="refresh",mode,token});
   await context.route("**/*", async route => {
     const request = route.request(), url = new URL(request.url());
     if (url.hostname === "crm.test") {
+      if (request.isNavigationRequest()) documents.push(url.pathname + url.search);
       if (url.pathname === "/session-observer")
         return route.fulfill({contentType:"text/html",body:"<!doctype html><title>Session observer</title>"});
       const file = path.resolve(root, "." + (url.pathname === "/" ? "/index.html" : url.pathname));
       if (!file.startsWith(root + path.sep) || !fs.existsSync(file))
         return route.fulfill({status: 404, body: ""});
-      if (delayModule && url.pathname === "/money-workspace.js") {
+      if (failEssentialBundle && url.pathname === "/orders-workspace.js" && !failedBundle) {
+        failedBundle = true;
+        return route.fulfill({status: 503, body: "Temporary CDN failure"});
+      }
+      if (url.pathname === delayModule && !heldModule) {
+        heldModule = true;
         moduleRequested.release();
         await module.promise;
+        return route.fulfill({path: file}).catch(() => {});
+      }
+      if (safeArea && /\.(css|html)$/.test(file)) {
+        const body = fs.readFileSync(file, "utf8").replace(
+          /env\(\s*safe-area-inset-(top|right|bottom|left)(?:\s*,[^)]*)?\)/g,
+          (_, edge) => safeArea[edge] + "px"
+        );
+        return route.fulfill({contentType: file.endsWith(".css") ? "text/css" : "text/html", body});
       }
       return route.fulfill({path: file});
     }
+    if (!url.hostname.endsWith(".supabase.co")) return route.abort();
     const endpoint = url.pathname.split("/").pop();
     requests.push(endpoint);
     const grant=url.searchParams.get("grant_type");
@@ -100,10 +133,26 @@ async function session(browser, {role = "master", active = true, delayModule = f
     }
     if (request.method() !== "GET") { writes.push(endpoint); return route.abort(); }
     let data = [];
-    if (endpoint === "user") data = {id: member.user_id};
+    if (endpoint === "user") {
+      if (jwtSubject) await verifiedUser.promise;
+      data = {id: member.user_id};
+    }
     if (endpoint === "rabota_members") data = url.searchParams.has("user_id") ? [member] : [master];
     if (endpoint === "rabota_orders") {
-      if(hangFirstOrders){hangFirstOrders=false;await ordersGate.promise;}
+      firstOrdersRequested.release();
+      if (hangFirstOrders) {
+        hangFirstOrders = false;
+        await ordersGate.promise;
+        return route.fulfill({json: [{...order, name: "Устаревший выезд"}, paid]}).catch(() => {});
+      }
+      if (nextOrderRead) {
+        const pending = nextOrderRead;
+        nextOrderRead = null;
+        pending.requested.release();
+        const result = await pending.response.promise;
+        controlledReads.delete(pending.response);
+        if (result === "offline") return route.abort("internetdisconnected");
+      }
       data = [order, paid];
     }
     if (endpoint === "rabota_finance_operations" && role === "owner") data = [
@@ -122,11 +171,22 @@ async function session(browser, {role = "master", active = true, delayModule = f
   await page.goto("https://crm.test/" + (view ? "?view=" + view : ""), {waitUntil: "commit"});
   async function close() {
     finance.release(); notices.release(); module.release(); ordersGate.release(); logoutGate.release(); accessGate.release();
+    verifiedUser.release();
+    for (const response of controlledReads) response.release();
     await context.close();
     assert.deepEqual(writes, []);
     assert.deepEqual(errors, []);
   }
-  return {page, context, finance, notices, module, moduleRequested, requests, logoutRequested, logoutGate, accessGate,accessSettled,accessRequests,close};
+  return {page, context, finance, notices, module, moduleRequested, requests, documents, ordersGate, firstOrdersRequested,
+    logoutRequested, logoutGate, accessGate, accessSettled, accessRequests, verifiedUser, close,
+    blockOrderRead() {
+      const requested = gate(), response = gate();
+      controlledReads.add(response);
+      nextOrderRead = {requested, response};
+      return {requested: requested.promise, release: response.release};
+    },
+    deactivateMember() { member.active = false; },
+  };
 }
 
 async function masterStartup(browser, failFinance) {
@@ -189,22 +249,57 @@ async function ownerFinance(browser) {
 }
 
 async function lateModule(browser) {
-  const s = await session(browser, {delayModule: true});
+  const s = await session(browser, {delayModule: "/money-workspace.js"});
   try {
     s.finance.release(); s.notices.release();
     await s.moduleRequested.promise;
-    // The cached session/API can finish while a rendering module is still downloading.
-    // Complete the download only after the parser reaches that module.
-    await s.page.waitForFunction(() => typeof window.__rdAccess === "function");
-    if (s.requests.includes("user")) {
-      await s.page.locator("#orders .master-schedule-card").first().waitFor({state: "attached"});
-      await s.page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
-    }
+    // The core workspace becomes usable while the finance renderer is still downloading.
+    await s.page.locator("#appScreen").waitFor();
+    await s.page.locator("#orders .master-schedule-card").filter({hasText: "Тестовый выезд"}).waitFor();
+    assert.deepEqual(s.accessRequests, ["session", "role"]);
     s.module.release();
+    await s.page.waitForLoadState("domcontentloaded");
     await s.page.locator('#mwMasterNav [data-mw-page="payments"]').click();
     await s.page.locator('#mwMasterPayments [data-order-id="fixture-paid"][data-payment-type="receipt"]').waitFor();
     assert.equal(await s.page.locator("#mwMasterNav").count(), 1);
     assert.equal(await s.page.locator('#mwMasterNav [data-mw-page="payments"]').count(), 1);
+  } finally { await s.close(); }
+}
+
+async function stalledBundleOffersRetry(browser, path) {
+  const s = await session(browser, {role: "manager", delayModule: path, view: "orders"});
+  try {
+    await s.moduleRequested.promise;
+    const recovery = s.page.locator("#bootstrapRecovery");
+    await recovery.waitFor({timeout: 15000});
+    assert.deepEqual(s.accessRequests, []);
+    assert.deepEqual(s.documents, ["/?view=orders"], "delayed assets must not force an automatic reload");
+    const retry = recovery.getByRole("button", {name: "Повторить запуск", exact: true});
+    // WebKit can defer animation frames while an intercepted stylesheet is pending.
+    // Hit-test the actual control and use mobile input without a frame-stability preflight.
+    const point = await retry.evaluate(node => {
+      const bounds = node.getBoundingClientRect();
+      const x = bounds.left + bounds.width / 2, y = bounds.top + bounds.height / 2;
+      return document.elementFromPoint(x, y) === node ? {x, y} : null;
+    });
+    assert.ok(point, path + " held: the recovery button receives touch input");
+    await s.page.touchscreen.tap(point.x, point.y);
+    s.module.release();
+    await s.page.locator("#appScreen").waitFor();
+    assert.deepEqual(s.documents, ["/?view=orders", "/?view=orders"], "the explicit retry opens the same view");
+    assert.deepEqual(s.accessRequests, ["session", "role"]);
+  } finally { await s.close(); }
+}
+
+async function failedEssentialBundleOffersRetry(browser) {
+  const s = await session(browser, {role: "manager", failEssentialBundle: true});
+  try {
+    await s.page.waitForLoadState("domcontentloaded");
+    assert.deepEqual(s.accessRequests, [], "missing required code cannot start an incomplete workspace");
+    await s.page.getByRole("button", {name: "Повторить запуск", exact: true}).click({timeout: 15000});
+    await s.page.locator("#appScreen").waitFor();
+    assert.deepEqual(s.accessRequests, ["session", "role"]);
+    assert.deepEqual(s.documents, ["/", "/"]);
   } finally { await s.close(); }
 }
 
@@ -214,6 +309,7 @@ async function accessBoundaries(browser) {
     try {
       const screen = s.page.locator(active ? "#appScreen" : "#accessScreen");
       await screen.waitFor();
+      if (active) await s.firstOrdersRequested.promise;
       assert.equal(await s.page.locator("#mwMasterNav:visible").count(), 0);
       assert.equal(s.requests.includes("rabota_finance_operations"), false);
       assert.equal(s.requests.includes("rabota_order_notifications"), false);
@@ -261,19 +357,30 @@ async function logoutHidesBothTabsBeforeServerResponse(browser) {
   }finally{await fixture.close();}
 }
 
-async function slowMasterScheduleHasBoundedRetry(browser){
-  const fixture=await session(browser,{hangFirstOrders:true});
+async function slowScheduleHasBoundedRetry(browser, role) {
+  const fixture = await session(browser, {role, hangFirstOrders: true});
   try{
-    const status=fixture.page.locator("#startupScheduleStatus");
-    await status.filter({hasText:"Загружаем расписание"}).waitFor();
-    assert.equal(await fixture.page.locator("#appScreen").isVisible(),false);
-    const retry=fixture.page.locator("#retryStartupSchedule");
+    const {page, accessRequests, requests} = fixture;
+    fixture.finance.release();
+    fixture.notices.release();
+    await fixture.firstOrdersRequested.promise;
+    const status = page.locator("#syncStatus");
+    await page.locator("#appScreen").waitFor({timeout: 1800});
+    await page.locator(role === "master" ? "#mwMasterNav" : "#rdMobileNav").waitFor();
+    await status.getByText(/загружаем/i).waitFor();
+    assert.equal(await page.locator("#startupScreen").isVisible(), false);
+    const retry = page.locator("#retryOrderSync");
     await retry.waitFor({timeout:8500});
-    assert.match(await status.innerText(),/Расписание пока не загрузилось/);
+    assert.match(await status.innerText(), /загруз|обнов/i);
     await retry.click();
-    await fixture.page.locator("#orders .master-schedule-card").filter({hasText:"Тестовый выезд"}).waitFor();
-    assert.equal(await retry.isVisible(),false);
-    assert.equal(fixture.requests.filter(endpoint=>endpoint==="rabota_orders").length,2);
+    await page.waitForFunction(() => window.__rdOrdersRevision >= 1);
+    assert.equal(await retry.isVisible(), false);
+    assert.deepEqual(accessRequests, ["session", "role"], "schedule retry does not repeat auth or role checks");
+    assert.equal(requests.filter(endpoint => endpoint === "rabota_orders").length, 2);
+    fixture.ordersGate.release();
+    await page.waitForLoadState("networkidle");
+    assert.equal(await page.getByText("Устаревший выезд", {exact: true}).count(), 0,
+      "the abandoned first read does not overwrite the result of the retry");
   }finally{await fixture.close();}
 }
 
@@ -297,6 +404,28 @@ async function slowAccessHasBoundedRetry(browser,stage){
   }finally{await fixture.close();}
 }
 
+async function jwtSubjectIsOnlyAHint(browser, matching) {
+  const s = await session(browser, {
+    role: "manager", jwtSubject: matching ? fixtureManagerUuid : "10000000-0000-4000-8000-000000000002",
+  });
+  try {
+    const {page} = s;
+    await page.locator("#startupScheduleStatus").filter({hasText: /проверяем сеанс/i}).waitFor();
+    assert.deepEqual(s.accessRequests, ["session", "role"], "the membership read can run before /user responds");
+    assert.equal(await page.locator("#appScreen").isVisible(), false);
+    assert.equal(s.requests.includes("rabota_orders"), false);
+    s.verifiedUser.release();
+    if (matching) {
+      await page.locator("#appScreen").waitFor();
+      await s.firstOrdersRequested.promise;
+    } else {
+      await page.locator("#loginScreen").waitFor();
+      assert.equal(await page.locator("#appScreen").isVisible(), false);
+      assert.equal(s.requests.includes("rabota_orders"), false, "mismatched verified identity exposes no data");
+    }
+  } finally { await s.close(); }
+}
+
 async function logoutClearsPasswordFromManualLogin(browser){
   const fixture=await session(browser,{role:"manager",loginManually:true,holdLogout:true});
   try{
@@ -314,6 +443,124 @@ async function logoutClearsPasswordFromManualLogin(browser){
   }finally{await fixture.close();}
 }
 
+async function iphoneEntryMode(browser, mode, width) {
+  const standalone = mode === "standalone";
+  const safeArea = {top: standalone ? 47 : 0, bottom: standalone ? 34 : 0, left: 0, right: 0};
+  const s = await session(browser, {role: "owner", mode, width, safeArea, view: "orders"});
+  try {
+    s.finance.release(); s.notices.release();
+    const {page} = s;
+    await page.locator("#appScreen").waitFor();
+    const launch = await page.evaluate(async () => {
+      const manifest = document.querySelector('link[rel="manifest"]');
+      const settings = await fetch(manifest.href).then(response => response.json());
+      return {
+        userAgent: navigator.userAgent,
+        iosStandalone: Boolean(navigator.standalone),
+        displayStandalone: matchMedia("(display-mode: standalone)").matches,
+        nativeMode: settings.display,
+        startUrl: settings.start_url,
+        scope: settings.scope,
+        browserFullscreen: Boolean(document.fullscreenElement || document.webkitFullscreenElement),
+        iosInstallation: document.querySelector('meta[name="apple-mobile-web-app-capable"]')?.content,
+        viewport: document.querySelector('meta[name="viewport"]')?.content,
+      };
+    });
+    assert.match(launch.userAgent, mode === "embedded" ? /iPhone.*Telegram/ : /iPhone.*Safari\//);
+    assert.equal(launch.iosStandalone, standalone);
+    assert.equal(launch.displayStandalone, standalone);
+    assert.equal(launch.nativeMode, "standalone");
+    assert.equal(launch.startUrl, "/");
+    assert.equal(launch.scope, "/");
+    assert.equal(launch.iosInstallation, "yes");
+    assert.match(launch.viewport, /viewport-fit=cover/);
+    assert.equal(launch.browserFullscreen, false, "the app does not request fullscreen from a browser tab");
+    const initial = await assertHeaderLayout(page, "orders");
+    assert.equal(initial.safeTop, safeArea.top);
+    const dock = await page.locator("#rdMobileNav").evaluate(nav => ({
+      end: nav.getBoundingClientRect().bottom,
+      viewport: window.innerHeight,
+      touchEnd: Math.max(...Array.from(nav.querySelectorAll("button"), button => button.getBoundingClientRect().bottom)),
+    }));
+    assert.ok(Math.abs(dock.end - dock.viewport) <= 1 && dock.touchEnd <= dock.end - safeArea.bottom + 1,
+      "dock attaches to the viewport while touch targets remain above the home indicator");
+    await page.locator('#rdMobileNav [data-page="expenses"]').click();
+    await page.locator("#exMain").waitFor();
+    await assertHeaderLayout(page, "expenses", initial);
+    await page.locator('#rdMobileNav [data-page="orders"]').click();
+    await assertHeaderLayout(page, "orders", initial);
+    assert.deepEqual(s.accessRequests, ["session", "role"]);
+    assert.deepEqual(s.documents, ["/?view=orders"]);
+  } finally { await s.close(); }
+}
+
+async function foregroundReconnectPreservesWorkspace(browser) {
+  const s = await session(browser, {role: "master", mode: "standalone"});
+  try {
+    s.finance.release(); s.notices.release();
+    const {page} = s;
+    const order = page.locator("#orders .master-schedule-card").filter({hasText: "Тестовый выезд"});
+    await order.waitFor();
+    await page.waitForLoadState("networkidle");
+    const doc = await page.evaluate(() => window.fixtureDocument);
+    const readsBeforeWake = s.requests.filter(endpoint => endpoint === "rabota_orders").length;
+    const nextRead = s.blockOrderRead();
+    const refresh = page.waitForRequest(request => new URL(request.url()).pathname.endsWith("/rabota_orders"), {timeout: 2500});
+    // The desktop browser cannot suspend an iPhone app. Drive the same DOM lifecycle signals.
+    await page.evaluate(() => {
+      const realNow = Date.now.bind(Date);
+      Date.now = () => realNow() + 45000;
+      window.dispatchEvent(new PageTransitionEvent("pageshow", {persisted: true}));
+      document.dispatchEvent(new Event("visibilitychange"));
+      window.dispatchEvent(new Event("focus"));
+      window.dispatchEvent(new Event("online"));
+    });
+    await Promise.all([nextRead.requested, refresh]);
+    await page.locator('#mwMasterNav [data-mw-page="reports"]').click();
+    await page.locator("#mwMasterReports").waitFor();
+    assert.equal(s.requests.filter(endpoint => endpoint === "rabota_orders").length, readsBeforeWake + 1,
+      "the persisted page, visibility, focus and online signals share one order refresh");
+    assert.deepEqual(s.accessRequests, ["session", "role"], "a short return still has verified access");
+    assert.equal(await page.locator("#startupScreen").isVisible(), false);
+    await page.locator('#mwMasterNav [data-mw-page="orders"]').click();
+    await order.waitFor();
+    nextRead.release("offline");
+    await page.locator("#retryOrderSync").waitFor();
+    assert.equal(await order.isVisible(), true, "a background error keeps the last confirmed order list visible");
+    await page.waitForLoadState("networkidle");
+    await page.evaluate(() => window.dispatchEvent(new Event("online")));
+    await page.locator("#retryOrderSync").waitFor({state: "hidden"});
+    assert.equal(await order.isVisible(), true);
+    assert.equal(await page.evaluate(() => window.fixtureDocument), doc);
+    assert.deepEqual(s.documents, ["/"]);
+  } finally { await s.close(); }
+}
+
+async function outdatedAccessIsRecheckedOnResume(browser) {
+  const s = await session(browser, {role: "manager", mode: "standalone"});
+  try {
+    s.finance.release(); s.notices.release();
+    const {page} = s;
+    await page.locator("#appScreen").waitFor();
+    await page.waitForLoadState("networkidle");
+    const previousDocument = await page.evaluate(() => window.fixtureDocument);
+    const requestsBeforeWake = s.requests.filter(endpoint => endpoint === "rabota_orders").length;
+    s.deactivateMember();
+    await page.evaluate(() => {
+      const realNow = Date.now.bind(Date);
+      Date.now = () => realNow() + 6 * 60000;
+      window.dispatchEvent(new PageTransitionEvent("pageshow", {persisted: true}));
+    });
+    await page.locator("#accessScreen").waitFor();
+    assert.equal(await page.locator("#appScreen").isVisible(), false);
+    assert.equal(await page.locator("#rdMobileNav").isVisible(), false);
+    assert.deepEqual(s.accessRequests, ["session", "role", "session", "role"]);
+    assert.equal(s.requests.filter(endpoint => endpoint === "rabota_orders").length, requestsBeforeWake,
+      "after an old session resumes, no new protected reads run before the role is verified");
+    assert.equal(await page.evaluate(() => window.fixtureDocument), previousDocument);
+  } finally { await s.close(); }
+}
+
 (async () => {
   const type=process.env.TEST_BROWSER==="webkit"?webkit:chromium;
   const browser = await type.launch({executablePath: process.env.TEST_BROWSER_PATH||process.env.CHROMIUM_PATH,
@@ -323,12 +570,22 @@ async function logoutClearsPasswordFromManualLogin(browser){
     await masterStartup(browser, true);
     await ownerFinance(browser);
     await lateModule(browser);
+    await Promise.all([
+      stalledBundleOffersRetry(browser, "/orders-workspace.js"),
+      stalledBundleOffersRetry(browser, "/redesign.css"),
+      failedEssentialBundleOffersRetry(browser),
+    ]);
     await accessBoundaries(browser);
     await reconnectAndSignOutAcrossTabs(browser);
     await logoutHidesBothTabsBeforeServerResponse(browser);
-    await slowMasterScheduleHasBoundedRetry(browser);
+    await Promise.all(["master", "manager", "owner"].map(role => slowScheduleHasBoundedRetry(browser, role)));
     await Promise.all(["session","role","refresh"].map(stage=>slowAccessHasBoundedRetry(browser,stage)));
+    await Promise.all([true, false].map(matching => jwtSubjectIsOnlyAHint(browser, matching)));
     await logoutClearsPasswordFromManualLogin(browser);
-    console.log("Passed mobile startup, pending finance, delayed module and access checks");
+    await Promise.all([["safari", 375], ["embedded", 320], ["standalone", 430]]
+      .map(([mode, width]) => iphoneEntryMode(browser, mode, width)));
+    await foregroundReconnectPreservesWorkspace(browser);
+    await outdatedAccessIsRecheckedOnResume(browser);
+    console.log("Passed mobile startup, delayed assets, all roles, emulated iPhone entry modes, foreground recovery and access revalidation");
   } finally { await browser.close(); }
 })().catch(error => { console.error(error); process.exitCode = 1; });

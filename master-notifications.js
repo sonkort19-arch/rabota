@@ -216,8 +216,8 @@
     const permission=await Notification.requestPermission();
     if(permission!=="granted")throw new Error("Разрешите уведомления в настройках телефона.");
     if(!ownsAccess(version,account))return;
-    await navigator.serviceWorker.register("/sw.js",{scope:"/"});
-    const reg=await navigator.serviceWorker.ready;
+    const reg=window.__rdPwa?await window.__rdPwa.ready():
+      await navigator.serviceWorker.register("/sw.js",{scope:"/",updateViaCache:"none"}).then(()=>navigator.serviceWorker.ready);
     let sub=await reg.pushManager.getSubscription();
     if(!ownsAccess(version,account))return;
     if(!sub)sub=await reg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:vapidBytes(PUSH_PUBLIC_KEY)});

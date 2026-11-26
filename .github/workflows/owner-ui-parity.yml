@@ -6,6 +6,12 @@ on:
       - 'owner-parity.js'
       - 'contextual-search.css'
       - 'app-shell.css'
+      - 'app-start.js'
+      - 'app-viewport.js'
+      - 'pwa-runtime.js'
+      - 'manifest.webmanifest'
+      - 'sw.js'
+      - 'master-notifications.js'
       - 'redesign.js'
       - 'index.html'
       - 'app-services.js'
@@ -19,6 +25,7 @@ on:
       - 'tests/module-navigation-browser.cjs'
       - 'tests/finance-stability-browser.cjs'
       - 'tests/startup-schedule-browser.cjs'
+      - 'tests/pwa-shell*'
       - 'tests/mobile-nav-stability.cjs'
       - 'tests/ui-smoke-v2.js'
       - '.github/workflows/owner-ui-parity.yml'
@@ -28,6 +35,12 @@ on:
       - 'owner-parity.js'
       - 'contextual-search.css'
       - 'app-shell.css'
+      - 'app-start.js'
+      - 'app-viewport.js'
+      - 'pwa-runtime.js'
+      - 'manifest.webmanifest'
+      - 'sw.js'
+      - 'master-notifications.js'
       - 'redesign.js'
       - 'index.html'
       - 'app-services.js'
@@ -41,6 +54,7 @@ on:
       - 'tests/module-navigation-browser.cjs'
       - 'tests/finance-stability-browser.cjs'
       - 'tests/startup-schedule-browser.cjs'
+      - 'tests/pwa-shell*'
       - 'tests/mobile-nav-stability.cjs'
       - 'tests/ui-smoke-v2.js'
       - '.github/workflows/owner-ui-parity.yml'
@@ -66,8 +80,12 @@ jobs:
           node --check redesign.js
           node --check orders-list.js
           node --check owner-parity.js
+          node --check app-start.js
+          node --check app-viewport.js
+          node --check pwa-runtime.js
+          node --check sw.js
       - name: Shared session and finance model contracts
-        run: node --test tests/app-services.test.cjs tests/finance-model.test.cjs
+        run: node --test tests/app-services.test.cjs tests/finance-model.test.cjs tests/pwa-shell.test.cjs
       - name: Install matching Playwright library
         run: npm install --no-save --ignore-scripts playwright@1.56.1
       - name: Owner order list, status icons and fixed navigation in Chromium
@@ -79,6 +97,7 @@ jobs:
           node tests/ui-smoke-v2.js
           node tests/finance-stability-browser.cjs
           node tests/startup-schedule-browser.cjs
+          node tests/pwa-shell-browser.cjs
       - name: Owner order list, status icons and fixed navigation in iPhone Safari
         env:
           TEST_BROWSER: webkit
@@ -86,3 +105,5 @@ jobs:
           node tests/mobile-nav-stability.cjs
           node tests/module-navigation-browser.cjs
           node tests/finance-stability-browser.cjs
+          node tests/startup-schedule-browser.cjs
+          node tests/pwa-shell-browser.cjs

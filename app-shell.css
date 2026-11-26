@@ -15,13 +15,16 @@ body.rd {
   --rd-header-control:44px;
   --rd-header-height:56px;
   --rd-header-total:calc(var(--rd-header-height) + var(--rd-safe-top));
+  --rd-visible-height:var(--rd-visual-height, 100dvh);
+  --rd-header-edge:calc(var(--rd-viewport-top, 0px) + var(--rd-header-total));
   --rd-header-right:calc(var(--rd-safe-right) + var(--rd-screen-gutter));
-  --rd-header-popover-space:max(0px, calc(100dvh - var(--rd-header-total) - var(--rd-content-bottom) - 14px));
+  --rd-header-popover-space:max(0px, calc(var(--rd-visible-height) - var(--rd-header-total) - var(--rd-content-bottom) - 14px));
   --rd-dock-row:48px;
   --rd-dock-top:4px;
   --rd-dock-bottom:max(4px, var(--rd-safe-bottom));
   --rd-dock-height:calc(1px + var(--rd-dock-top) + var(--rd-dock-row) + var(--rd-dock-bottom));
   --rd-content-bottom:var(--rd-safe-bottom);
+  --rd-bottom-edge:calc(var(--rd-viewport-bottom, 0px) + var(--rd-content-bottom));
   --rd-sidebar-width:242px;
   --rd-content-max:1260px;
   --rd-content-left:calc(var(--rd-safe-left) + var(--rd-sidebar-width));
@@ -41,7 +44,7 @@ body.rd[data-rd-role="master"] {
 body.rd #rdScreenHeader {
   position:fixed;
   z-index:50;
-  inset:0 0 auto var(--rd-sidebar-width);
+  inset:var(--rd-viewport-top, 0px) 0 auto var(--rd-sidebar-width);
   box-sizing:border-box;
   display:flex;
   align-items:center;
@@ -91,7 +94,7 @@ body.rd #rdHeaderActions #rdProfile {position:static}
 
 html.rd-app-open body.rd #appScreen:is(.rd-owner,.rd-manager,.rd-master.master-mode) {
   position:fixed;
-  inset:var(--rd-header-total) var(--rd-safe-right) var(--rd-content-bottom) var(--rd-content-left);
+  inset:var(--rd-header-edge) var(--rd-safe-right) var(--rd-bottom-edge) var(--rd-content-left);
   width:auto;
   height:auto;
   max-width:var(--rd-content-max);
@@ -147,7 +150,7 @@ body.rd:not([data-rd-role]) > #rdSideNav {display:none}
 body.rd:not([data-rd-role="master"]) > #mwMasterNav {display:none}
 body.rd > :is(#mwMasterNav,#rdMobileNav) {
   position:fixed;
-  inset:auto 0 0;
+  inset:auto 0 var(--rd-viewport-bottom, 0px);
   z-index:40;
   display:grid;
   grid-template-columns:repeat(var(--rd-dock-columns),minmax(0,1fr));
@@ -231,7 +234,7 @@ html.rd-app-open:has(#ordersArea:not([hidden])) body.rd > #newOrderBtn:not([hidd
 html.rd-app-open:has(#exMain:not([hidden])) body.rd[data-rd-role="owner"] > #newExpenseBtn:not([hidden]) {
   position:fixed;
   right:max(calc(var(--rd-safe-right) + var(--rd-screen-gutter)), calc((100vw - var(--rd-content-left) - var(--rd-content-max)) / 2 + var(--rd-screen-gutter)));
-  bottom:calc(var(--rd-content-bottom) + var(--rd-fab-gap));
+  bottom:calc(var(--rd-bottom-edge) + var(--rd-fab-gap));
   z-index:41;
   display:inline-flex;
   align-items:center;
@@ -410,14 +413,14 @@ body.rd #rdCalendarIntro {margin:0 0 8px}
 
   body.rd > #rdMobileMoreSheet:not([hidden]) {
     position:fixed;
-    inset:auto max(9px, var(--rd-safe-right)) calc(var(--rd-content-bottom) + 6px) max(9px, var(--rd-safe-left));
+    inset:auto max(9px, var(--rd-safe-right)) calc(var(--rd-bottom-edge) + 6px) max(9px, var(--rd-safe-left));
     z-index:103;
     display:flex;
     flex-direction:column;
     gap:3px;
     height:auto;
     min-height:0;
-    max-height:calc(100dvh - var(--rd-content-bottom) - var(--rd-safe-top) - 12px);
+    max-height:calc(var(--rd-visible-height) - var(--rd-content-bottom) - var(--rd-safe-top) - 12px);
     padding:10px 13px;
     overflow-y:auto;
     overscroll-behavior:contain;
