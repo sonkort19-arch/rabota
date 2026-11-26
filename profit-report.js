@@ -6,6 +6,8 @@
   const TIME_ZONE="Europe/Moscow";
   const orderReference=root?.__rdOrderReference ||
     (typeof require==="function"?require("./order-model.js").orderReference:null);
+  const phoneNormalizer=root?.normalizePhone ||
+    (typeof require==="function"?require("./app-services.js").normalizePhone:null);
   const PAGE_SIZE=100;
   const round=n=>Math.round((Number(n)+Number.EPSILON)*100)/100;
   const cents=n=>Math.round((Number(n)||0)*100);
@@ -48,22 +50,35 @@
     return description.replace(/\s+/gu," ").trim()||"Расход по заказу";
   }
   function expenseOrderId(operation){return operation.order_id??operation.orderId;}
-  function linkedExpensesByOrder(orders,operations){
-    const linked=new Map();
-    if(!operations?.length)return linked;
+  function expenseOrderIndex(orders,holdsByOrder){
     const ids=new Set(),byNumber=new Map();
     for(const order of orders){
       if(order.id==null)continue;
-      const id=String(order.id),number=Number(order.orderNumber);
+      const id=String(order.id),number=Number(order.orderNumber??holdsByOrder?.get(id)?.orderNumber);
       ids.add(id);
       if(Number.isSafeInteger(number)&&number>0)
-        byNumber.set(number,byNumber.has(number)?null:id);
+        byNumber.set(number,byNumber.has(number)&&byNumber.get(number)!==id?undefined:id);
     }
+    return {ids,byNumber};
+  }
+  function resolveExpenseOrder(operation,index){
     // An explicit order_id takes precedence, including links outside this report.
+    // null means an ordinary company expense, undefined means a missing or ambiguous link.
+    const explicitId=expenseOrderId(operation);
+    if(explicitId!=null){
+      const id=String(explicitId);
+      return index?.ids.has(id)?id:undefined;
+    }
+    const number=expenseOrderNumber(operation);
+    return number===null?null:index?.byNumber.get(number);
+  }
+  function linkedExpensesByOrder(orders,operations,holdsByOrder){
+    const linked=new Map();
+    if(!operations?.length)return linked;
+    const index=expenseOrderIndex(orders,holdsByOrder);
     for(const operation of activeExpenses(operations)){
-      const explicitId=expenseOrderId(operation);
-      const orderId=explicitId==null?byNumber.get(expenseOrderNumber(operation)):String(explicitId);
-      if(!ids.has(orderId))continue;
+      const orderId=resolveExpenseOrder(operation,index);
+      if(orderId==null)continue;
       const expense=linked.get(orderId)??{cents:0,items:[]};
       const amount=cents(operation.amount);
       expense.cents+=amount;
@@ -96,12 +111,16 @@
         event.orderId===orderId?total+event.delta:total,0));
     const totalPrice=validPrice?round(price+travel):null;
     const receiptWash=receipt?round(receipt.amount-receiptTravel):null;
-    const paymentIsMissing=paid&&(order.paymentAmount==null||order.paymentAmount==="");
+    const rawAmount=order.paymentAmount==null||order.paymentAmount===""?null:Number(order.paymentAmount);
+    const recordedAmount=paid&&rawAmount!==null&&Number.isFinite(rawAmount)?round(rawAmount):null;
+    const paymentIsMissing=paid&&rawAmount===null;
     const received=!refund&&receipt?receipt.amount:0;
     const paymentVerified=Boolean(paymentIsMissing&&receipt);
     const paymentAmountMissing=paymentIsMissing&&!receipt;
-    const paymentMismatch=paid&&validPrice&&!paymentIsMissing&&Number.isFinite(Number(order.paymentAmount))&&
-      round(Number(order.paymentAmount))!==totalPrice;
+    const configuredTotal=validPrice?round(price+Math.max(0,Number(order.travelAmount??travel)||0)):null;
+    const comparedAmount=receipt?.amount??recordedAmount;
+    const amountsDisagree=Boolean(receipt&&recordedAmount!==null&&recordedAmount!==receipt.amount);
+    const paymentMismatch=amountsDisagree||configuredTotal!==null&&comparedAmount!==null&&comparedAmount!==configuredTotal;
     const earned=order.status==="Выполнен"&&paid&&!refund;
     const masterId=options.payroll?.masterId||options.masterId;
     const raul=Boolean(masterId)&&(receipt?receipt.masterId:order.assignedUserId)===masterId;
@@ -127,6 +146,7 @@
       reportRuleVersion:projection?.ruleVersion??null,
       reportRefundedAmount:refund?.amount??null,
       reportPaymentMissing:!refund&&paymentAmountMissing,reportPaymentMismatch:!refund&&paymentMismatch,
+      reportReceiptDisagrees:!refund&&amountsDisagree,
       reportPaymentVerified:!refund&&paymentVerified,reportPaymentUnverified:!refund&&paid&&!receipt,
       reportPayrollOnHold:Boolean(hold?.payrollOnHold),reportCashOnHold:Boolean(hold?.cashOnHold),
       reportHoldReason:hold?.reason??"",
@@ -173,11 +193,15 @@
     return Boolean(row.reportPayrollOnHold||row.reportPaymentUnverified||(row.reportEarned&&!row.reportCalculated));
   }
   function orderProfit(row){return awaitsCalculation(row)?null:row.reportNetProfit;}
+  function paymentMismatchReason(row){
+    if(!row.reportPaymentMismatch)return "";
+    return row.reportReceiptDisagrees?"Сумма в карточке отличается от учтённой оплаты":"Оплата отличается от стоимости заказа";
+  }
   function reconciliationReasons(row){
     return [...new Set([
-      row.reportPaymentUnverified ? "Оплата отсутствует в учёте" :
-        row.reportPaymentMismatch ? "Оплата отличается от стоимости заказа" : "",
-      row.reportPayrollOnHold ? "Начисление зарплаты на сверке" : row.reportReason,
+      row.reportPaymentUnverified ? "Оплата отсутствует в учёте" : "",
+      paymentMismatchReason(row),
+      row.reportPayrollOnHold ? "Начисление зарплаты на сверке" : row.reportPaymentUnverified?"":row.reportReason,
       row.reportCashOnHold ? "Архивная операция на сверке" : "",
       row.reportHoldReason
     ].filter(Boolean))];
@@ -207,22 +231,28 @@
     }
     return ["",""];
   }
-  function companySummary(rows,{operations,cashbookEntries,period="all",today=moscowDay(new Date()),from,to}={}){
+  function companySummary(rows,{operations,cashbookEntries,orders,payroll,period="all",today=moscowDay(new Date()),from,to}={}){
     if(!Array.isArray(operations)||!Array.isArray(cashbookEntries))return null;
     const [start,end]=bounds(period,today,from,to);
     if(start&&end&&start>end)return null;
-    function expenseCents(ledger){
-      return ledger.reduce((total,row)=>{
-        const day=moscowDay(row.created_at??row.occurredAt);
-        const inPeriod=(!start&&!end)||(day&&(!start||day>=start)&&(!end||day<=end));
-        return total+(inPeriod?cents(row.amount):0);
-      },0);
+    function inPeriod(row){
+      if(!start&&!end)return true;
+      const day=moscowDay(row.created_at??row.occurredAt);
+      return day&&(!start||day>=start)&&(!end||day<=end);
     }
-    const commonCrm=activeExpenses(operations).filter(row=>expenseOrderId(row)==null&&expenseOrderNumber(row)==null);
-    const crm=expenseCents(commonCrm),cashbook=expenseCents(activeExpenses(cashbookEntries));
+    const index=Array.isArray(orders)?expenseOrderIndex(orders,orderHolds(payroll)):null;
+    let crm=0,unallocated=0;
+    for(const expense of activeExpenses(operations)){
+      if(!inPeriod(expense))continue;
+      const orderId=resolveExpenseOrder(expense,index);
+      if(orderId===null)crm+=cents(expense.amount);
+      else if(index&&orderId===undefined)unallocated+=cents(expense.amount);
+    }
+    const cashbook=activeExpenses(cashbookEntries).filter(inPeriod).reduce((sum,row)=>sum+cents(row.amount),0);
     const orderProfit=financialSummary(rows).profit;
     return {orderProfit,crmExpenses:crm/100,cashbookExpenses:cashbook/100,
-      commonExpenses:(crm+cashbook)/100,netProfit:(cents(orderProfit)-crm-cashbook)/100};
+      commonExpenses:(crm+cashbook)/100,unallocatedExpenses:unallocated/100,
+      netProfit:(cents(orderProfit)-crm-cashbook-unallocated)/100};
   }
   const DAY_MS=86400000;
   const utcDay=calendarDay=>Date.parse(calendarDay+"T00:00:00Z");
@@ -293,6 +323,7 @@
     });
     return orders.map(order=>order.row);
   }
+  function orderHolds(payroll){return new Map((payroll?.holds??[]).map(item=>[item.orderId,item]));}
   function filterRows(orders,options={}){
     const today=options.today||moscowDay(new Date());
     const [from,to]=bounds(options.period||"all",today,options.from,options.to);
@@ -301,11 +332,12 @@
     const travelByOrder=new Map();
     for(const event of options.payroll?.travelHistory??[])
       travelByOrder.set(event.orderId,round((travelByOrder.get(event.orderId)??0)+event.delta));
-    const expensesByOrder=linkedExpensesByOrder(orders,options.operations);
+    const holdsByOrder=orderHolds(options.payroll);
+    const expensesByOrder=linkedExpensesByOrder(orders,options.operations,holdsByOrder);
     const rowOptions=options.payroll?{...options,payrollByOrder,travelByOrder,expensesByOrder,
       receiptsByOrder:new Map((options.payroll.accounting?.receipts??[]).map(item=>[item.orderId,item])),
       refundsByOrder:new Map(reportRefunds(options.payroll).map(item=>[item.orderId,item])),
-      holdsByOrder:new Map((options.payroll.holds??[]).map(item=>[item.orderId,item]))}:{...options,expensesByOrder};
+      holdsByOrder}:{...options,expensesByOrder};
     const dateRows=from||to?orders.filter(order=>{
       const day=getDate(order,options.basis||"closed");
       return day&&(!from||day>=from)&&(!to||day<=to);
@@ -314,7 +346,10 @@
       .sort((a,b)=>txt(b.createdAt||b.date).localeCompare(txt(a.createdAt||a.date)));
   }
   function selectReportRows(rows,{status="",search=""}={}){
-    const query=txt(search).trim().toLocaleLowerCase("ru-RU").replace(/^[№#]\s*/,"");
+    const rawQuery=txt(search).trim();
+    const query=orderReference?.normalize(rawQuery)??rawQuery.toLocaleLowerCase("ru-RU").replace(/^[№#]\s*/,"");
+    const queryDigits=/^[\d+().\s\p{Dash_Punctuation}\u2212]+$/u.test(rawQuery)?rawQuery.replace(/\D/g,""):"";
+    const phoneQuery=queryDigits.length>=3?phoneNormalizer?.(queryDigits)||queryDigits:"";
     return rows.filter(row=>{
       if(status==="paid"&&!(row.reportReceived>0))return false;
       if(status==="unpaid"&&(row.paid||row.reportReceived>0||row.reportRefundedAmount))return false;
@@ -322,7 +357,9 @@
       if(query){
         const hay=[row.orderNumber,row.referenceCode,row.name,row.phone,row.address,row.master,row.clientSource].
           map(txt).join(" ").toLocaleLowerCase("ru-RU");
-        if(!hay.includes(query))return false;
+        if(hay.includes(query))return true;
+        const phone=phoneQuery&&(phoneNormalizer?.(row.phone)||txt(row.phone).replace(/\D/g,""));
+        return Boolean(phone&&phone.includes(phoneQuery));
       }
       return true;
     });
@@ -349,11 +386,12 @@
       r.reportPaymentUnverified?"":r.reportReceived,r.reportPayrollOnHold?"На сверке":r.reportSalary??"",r.reportProfit??"",
       [
         r.reportRefundedAmount?"Подтверждён возврат "+money(r.reportRefundedAmount):
-        !r.paid&&!(r.reportReceived>0)?"Не оплачено":r.reportPaymentMissing?"Сумма платежа не указана":
-        r.reportPaymentMismatch?"Оплата отличается от цены":
-        r.reportPaymentVerified?"Сумма подтверждена сверкой":"Сумма указана",
+        r.reportPaymentUnverified?"Оплата отсутствует в учёте":
+        r.reportReceived>0?(r.reportPaymentVerified?"Сумма подтверждена сверкой":"Оплата подтверждена"):"Не оплачено",
+        r.reportPaymentMissing?"Сумма платежа не указана":"",
+        paymentMismatchReason(r),
         ...holdDetails(r)
-      ].join(" · "),r.reportTravel??0,r.reportTotalPrice??"",r.reportTravelReceived??0,r.reportTravelRefunded??0,
+      ].filter(Boolean).join(" · "),r.reportTravel??0,r.reportTotalPrice??"",r.reportTravelReceived??0,r.reportTravelRefunded??0,
       r.reportTravelEarned??0,r.reportTravelUncovered??0,
       awaitsCalculation(r)?"":r.reportAccruedSalary,r.reportExpenses,orderProfit(r)??""]);
     return "\uFEFF"+[cols,...data].map(row=>row.map(quoteCsv).join(";")).join("\r\n");
@@ -376,6 +414,7 @@
   const sorts=[["date-desc","Сначала новые"],["date-asc","Сначала старые"],["profit-desc","Прибыль ↓"],
     ["profit-asc","Прибыль ↑"],["revenue-desc","Выручка ↓"],["client-asc","По имени клиента"]];
   const monthFormat=new Intl.DateTimeFormat("ru-RU",{timeZone:"UTC",month:"long",year:"numeric"});
+  const shortMonthFormat=new Intl.DateTimeFormat("ru-RU",{timeZone:"UTC",month:"short"});
   const dateFormat=new Intl.DateTimeFormat("ru-RU",{timeZone:"UTC",day:"numeric",month:"short"});
   const intervalFormat=new Intl.DateTimeFormat("ru-RU",{timeZone:"UTC",day:"numeric",month:"long",year:"numeric"});
   const numberFormat=new Intl.NumberFormat("ru-RU");
@@ -418,8 +457,13 @@
     const date=new Date(day+"T12:00:00Z");
     return Number.isFinite(date.getTime())?format.format(date):"";
   }
+  function validReportDay(day){
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(day)||day.startsWith("0000"))return false;
+    const date=new Date(day+"T12:00:00Z");
+    return Number.isFinite(date.getTime())&&date.toISOString().slice(0,10)===day;
+  }
   function formatInterval(from,to,format=intervalFormat){
-    if(!from||!to)return "";
+    if(!validReportDay(from)||!validReportDay(to))return "";
     if(from===to)return formatDay(from,format);
     if(typeof format.formatRange==="function")return format.formatRange(new Date(from+"T12:00:00Z"),new Date(to+"T12:00:00Z"));
     return formatDay(from,format)+" – "+formatDay(to,format);
@@ -428,7 +472,9 @@
     const endings={one:"заказ",few:"заказа",many:"заказов",other:"заказа"};
     return numberFormat.format(value)+" "+endings[plural.select(value)];
   }
-  function formatAmount(value){return value==null?"—":money(value);}
+  function formatAmount(value){
+    return value==null?"—":money(value).replace(/[\u00A0\u202F]/gu," ").replace(/ ₽$/u,"\u00A0₽");
+  }
   function paintAmount(element,value){
     element.textContent=formatAmount(value);
     element.classList.toggle("pr-negative",value<0);
@@ -450,8 +496,8 @@
     if(!rootEl||typeof getOrders!=="function")throw Error("Отчёт не может загрузиться");
     rootEl.classList.add("pr-report-scope");
     const id=++nextReportId;
-    let active=false,view="overview",filters={...defaultFilters},draft=null,searchTerm="",sortKey=sorts[0][0],
-      visible=PAGE_SIZE,orderId=null,chartKey=null;
+    let active=false,view="overview",filters={...defaultFilters},searchTerm="",sortKey=sorts[0][0],
+      orderLimit=PAGE_SIZE,reviewLimit=PAGE_SIZE,orderId=null,chartKey=null;
     let cached=null,cachedCompany=null,overviewData,chartData,listData=null,orderData=null,
       reviewData=null,netData=null;
     const trail=[];
@@ -534,30 +580,37 @@
     const search=node("input");search.type="search";search.placeholder="Номер заказа, клиент или телефон";
     search.setAttribute("aria-label","Поиск по заказам");
     search.addEventListener("input",()=>{
-      searchTerm=search.value;visible=PAGE_SIZE;render();
+      searchTerm=search.value;orderLimit=PAGE_SIZE;render();
     });
     const sorter=select(sorts,"Сортировка заказов");
-    sorter.addEventListener("change",()=>{sortKey=sorter.value;visible=PAGE_SIZE;render();});
+    sorter.addEventListener("change",()=>{sortKey=sorter.value;orderLimit=PAGE_SIZE;render();});
     const csv=button("","pr-export",exportCsv);csv.setAttribute("aria-label","Скачать CSV");
     csv.append(icon("download"),node("span","","CSV"));
     const resultCount=node("p","pr-result-count");
     const resultHeading=append(node("div","pr-list-heading"),resultCount,node("span","","Прибыль по заказу"));
     const listRows=node("ul","pr-order-list");listRows.setAttribute("aria-label","Заказы отчёта");
     const listEmpty=node("p","pr-empty");
-    const more=button("Показать ещё","pr-more-btn",()=>{visible+=PAGE_SIZE;render();});
+    const more=button("Показать ещё","pr-more-btn",()=>{orderLimit+=PAGE_SIZE;render();});
     list.append(append(node("div","pr-list-tools"),
       append(node("label","pr-search"),icon("search"),search),
       append(node("div","pr-list-actions"),sorter,csv)),resultHeading,listRows,listEmpty,more);
     const orderView=node("section","pr-order-detail");
     const reconcileView=node("section","pr-reconcile");
+    const reviewRows=node("ul","pr-order-list");
+    const reviewCount=node("strong"),reviewPeriod=node("p");
+    const reviewMore=button("Показать ещё","pr-more-btn",()=>{reviewLimit+=PAGE_SIZE;render();});
+    reconcileView.append(append(node("div","pr-review-intro"),reviewCount,reviewPeriod,
+      node("p","","Сверка охватывает все заказы за период.")),reviewRows,reviewMore);
     const netView=node("section","pr-company-detail");
     const filterView=node("form","pr-filter-view");
+    filterView.noValidate=true;
     const customDates=node("div","pr-custom");
     const dateInputs={};
     for(const [key,label] of [["from","Начало периода"],["to","Конец периода"]]){
       const input=node("input");input.type="date";
+      input.min="0001-01-01";input.max="9999-12-31";
       input.setAttribute("aria-label",label);
-      input.addEventListener("change",()=>{draft[key]=input.value;filterError.hidden=true;});
+      input.addEventListener("input",()=>{filterError.hidden=true;});
       customDates.append(append(node("label"),node("span","",label),input));
       dateInputs[key]=input;
     }
@@ -569,8 +622,7 @@
         const option=node("input");option.type="radio";option.name="pr-"+key+"-"+id;option.value=value;
         option.addEventListener("change",()=>{
           if(!option.checked)return;
-          draft[key]=value;
-          customDates.hidden=draft.period!=="custom";
+          if(key==="period")customDates.hidden=value!=="custom";
           filterError.hidden=true;
         });
         rows.append(append(node("label","pr-radio"),node("span","",label),option));
@@ -580,21 +632,29 @@
     const periodOptions=choices(periods,"Период отчёта","period");
     const basisOptions=choices(dateBases,"Тип даты отчёта","basis");
     const status=select(statuses,"Статус заказов");
-    status.addEventListener("change",()=>{draft.status=status.value;});
     const filterError=node("p","pr-filter-error");filterError.hidden=true;filterError.setAttribute("role","alert");
     const apply=node("button","pr-apply","Применить");apply.type="submit";
     filterView.append(periodOptions,customDates,basisOptions,
       append(node("label","pr-filter-status"),node("span","","Статус"),status),filterError,apply);
     filterView.addEventListener("submit",event=>{
       event.preventDefault();
-      if(draft.period==="custom"&&(!draft.from||!draft.to||draft.from>draft.to)){
-        filterError.textContent=!draft.from||!draft.to?"Укажите начало и конец периода.":"Дата начала позже даты окончания.";
-        filterError.hidden=false;
-        (!draft.from?dateInputs.from:dateInputs.to).focus();return;
+      const next={period:periodOptions.querySelector("input:checked").value,
+        basis:basisOptions.querySelector("input:checked").value,status:status.value,
+        from:dateInputs.from.value,to:dateInputs.to.value};
+      if(next.period==="custom"){
+        const invalidStart=!validReportDay(next.from),invalidEnd=!validReportDay(next.to);
+        if(invalidStart||invalidEnd||next.from>next.to){
+          filterError.textContent=invalidStart||invalidEnd?"Укажите действительные даты с четырёхзначным годом.":
+            "Дата начала позже даты окончания.";
+          filterError.hidden=false;
+          (invalidStart?dateInputs.from:dateInputs.to).focus();return;
+        }
       }
-      filters=draft;visible=PAGE_SIZE;chartKey=null;
-      tabScroll.overview=tabScroll.orders=0;
-      if(trail.length)trail.at(-1).scroll=0;
+      if(Object.keys(next).some(key=>next[key]!==filters[key])){
+        filters=next;orderLimit=reviewLimit=PAGE_SIZE;chartKey=null;
+        tabScroll.overview=tabScroll.orders=0;
+        trail.at(-1).scroll=0;
+      }
       back();
     });
     const views={overview,orders:list,order:orderView,review:reconcileView,net:netView,filters:filterView};
@@ -610,11 +670,11 @@
       warningText.setAttribute("role",error?"alert":"status");
       if(warningText.textContent!==text)warningText.textContent=text;
     }
-    function periodContext(today){
+    function periodContext(today,includeStatus=true){
       const [first,last]=bounds(filters.period,today,filters.from,filters.to);
       const basisName=dateBases.find(([value])=>value===filters.basis)?.[1].toLowerCase();
       const caption=[filters.period==="all"?"Все даты":formatInterval(first,last),basisName];
-      if(filters.status)caption.push(statuses.find(([key])=>key===filters.status)?.[1]);
+      if(includeStatus&&filters.status)caption.push(statuses.find(([key])=>key===filters.status)?.[1]);
       return caption.filter(Boolean).join(" · ");
     }
     function readReport(finance,today){
@@ -625,8 +685,8 @@
       if(cached&&deps.every((value,index)=>value===cached.deps[index]))return cached;
       const settings={...filters,today,payroll,operations,masterId};
       const cohort=filterRows(orders,{...settings,status:""});
-      const rows=selectReportRows(cohort,{status:filters.status,search:""});
-      const reviewed=rows.map(row=>({row,reasons:reconciliationReasons(row)})).filter(item=>item.reasons.length);
+      const rows=filters.status?selectReportRows(cohort,{status:filters.status}):cohort;
+      const reviewed=cohort.map(row=>({row,reasons:reconciliationReasons(row)})).filter(item=>item.reasons.length);
       cached={deps,version,orders,operations,settings,cohort,rows,reviewed,today,totals:financialSummary(rows)};
       return cached;
     }
@@ -636,7 +696,7 @@
       const ready=status?.ready;
       const deps=[data,status?.rows,status?.revision,ready,status?.stale,status?.error,status?.refreshError];
       if(cachedCompany&&deps.every((value,index)=>value===cachedCompany.deps[index]))return cachedCompany;
-      const summary=ready?companySummary(data.cohort,{...data.settings,cashbookEntries:status.rows}):null;
+      const summary=ready?companySummary(data.cohort,{...data.settings,orders:data.orders,cashbookEntries:status.rows}):null;
       cachedCompany={deps,status,summary};
       return cachedCompany;
     }
@@ -648,7 +708,7 @@
     }
     function title(){
       if(view!=="order")return titleByView[view];
-      const row=cached?.rows.find(item=>String(item.id)===orderId);
+      const row=cached?.cohort.find(item=>String(item.id)===orderId);
       return row&&reference(row)?"Заказ "+reference(row):"Заказ";
     }
     function backLabel(){
@@ -666,7 +726,7 @@
     }
     function close(){
       if(!active)return;
-      active=false;menu.hidden=false;detail.hidden=true;trail.length=0;view="overview";orderId=null;draft=null;
+      active=false;menu.hidden=false;detail.hidden=true;trail.length=0;view="overview";orderId=null;
       onOpenChange?.(false);
       scrollTo(0);
       entry.focus({preventScroll:true});
@@ -676,7 +736,6 @@
       if(!previous){if(onBack)onBack();else close();return;}
       view=previous.view;
       if(view!=="order")orderId=null;
-      draft=null;
       render();updateHeader();scrollTo(previous.scroll);
       const focus=previous.trigger?.isConnected?previous.trigger:
         previous.id?findRow(previous.id,view):null;
@@ -689,14 +748,13 @@
       trail.push({view,scroll:scrollPosition(),trigger,id:trigger?.dataset.orderId});
       orderId=row?String(row.id):null;view=next;
       if(next==="filters"){
-        draft={...filters};
         for(const counter of [periodOptions,basisOptions]){
           const key=counter===periodOptions?"period":"basis";
-          for(const option of counter.querySelectorAll("input"))option.checked=option.value===draft[key];
+          for(const option of counter.querySelectorAll("input"))option.checked=option.value===filters[key];
         }
-        status.value=draft.status;
-        dateInputs.from.value=draft.from;dateInputs.to.value=draft.to;
-        customDates.hidden=draft.period!=="custom";
+        status.value=filters.status;
+        dateInputs.from.value=filters.from;dateInputs.to.value=filters.to;
+        customDates.hidden=filters.period!=="custom";
         filterError.hidden=true;
       }
       render();updateHeader();scrollTo(0);
@@ -709,11 +767,20 @@
       tabButtons[next].focus({preventScroll:true});
     }
     function chartLabel(value){
-      return value===0?"0 ₽":compactFormat.format(value);
+      return value===0?"0 ₽":Math.abs(value)<1000?numberFormat.format(value):compactFormat.format(value);
+    }
+    function pointCaption(point,granularity){
+      if(granularity==="year"){
+        const from=point.from.slice(0,4),to=point.to.slice(0,4);
+        return from===to?from:from+"–"+to;
+      }
+      if(granularity==="month")return formatDay(point.from,monthFormat);
+      return formatInterval(point.from,point.to,dateFormat);
     }
     function updateChart(data){
       if(chartData===data)return;
       chartData=data;
+      const focusedDay=plot.contains(doc.activeElement)?doc.activeElement.dataset.day:null;
       plot.replaceChildren();chartScale.replaceChildren();ticks.replaceChildren();
       const trend=data?profitTrend(data.rows,data.settings):null;
       const points=trend?.points??[];
@@ -721,22 +788,22 @@
       chartFrame.hidden=ticks.hidden=chartSelected.hidden=!hasPoints;
       chartEmpty.hidden=hasPoints;
       chartEmpty.textContent=data?"За выбранный период нет заказов с датой для графика.":"График появится после загрузки отчёта.";
-      chartFoot.hidden=!trend?.undated;
-      if(trend?.undated)chartFoot.textContent="Без даты для графика — "+orderCount(trend.undated)+". Суммы учтены в итогах.";
+      const undated=trend?.undated?"Без даты для графика — "+orderCount(trend.undated)+". Суммы учтены в итогах.":"";
+      chartFoot.textContent=undated;chartFoot.hidden=!undated;
       if(!hasPoints)return;
       let high=0,low=0;
       for(const point of points){
         if(point.profit==null)continue;
         high=Math.max(high,point.profit);low=Math.min(low,point.profit);
       }
-      const stepScale=Math.pow(10,Math.floor(Math.log10(Math.max(1,(high-low)/2))));
+      const stepScale=Math.pow(10,Math.floor(Math.log10(Math.max(0.01,(high-low)/2))));
       const rawStep=(high-low)/2/stepScale;
       const step=(rawStep<=1?1:rawStep<=2?2:rawStep<=5?5:10)*stepScale;
       const min=Math.floor(low/step)*step,max=Math.max(min+step,Math.ceil(high/step)*step);
       const x=i=>points.length===1?50:5+90*i/(points.length-1);
       const y=value=>7+86*(max-value)/(max-min);
       const zero=y(0),shape=svgElement("svg",{class:"pr-axes",viewBox:"0 0 1000 100",preserveAspectRatio:"none","aria-hidden":"true"});
-      const levels=[max,...(min<0&&max>0?[0]:[round((min+max)/2)]),min];
+      const levels=[...new Set([max,min<0&&max>0?0:round((min+max)/2),min])];
       for(const value of levels){
         shape.append(svgElement("line",{class:value===0?"pr-chart-zero":"pr-chart-grid",
           x1:0,x2:1000,y1:y(value),y2:y(value)}));
@@ -758,10 +825,14 @@
       const guide=svgElement("line",{class:"pr-chart-guide"});
       shape.append(guide);plot.append(shape);
       const chartButtons=[];
+      const pointValue=point=>!point.orders?"Нет заказов":point.profit==null?"На сверке":formatAmount(point.profit);
       function selectPoint(index){
-        const point=points[index],caption=formatInterval(point.from,point.to,dateFormat);
+        const point=points[index],caption=pointCaption(point,trend.granularity);
         chartKey=point.from;
-        chartSelected.textContent=caption+" · "+(point.profit==null?"На сверке":money(point.profit));
+        chartSelected.textContent=caption+" · "+pointValue(point);
+        const partial=point.profit!=null&&point.unverified?"Не все суммы за этот отрезок подтверждены.":"";
+        chartFoot.textContent=[undated,partial].filter(Boolean).join(" ");
+        chartFoot.hidden=!chartFoot.textContent;
         for(const [i,btn] of chartButtons.entries()){
           btn.setAttribute("aria-pressed",String(i===index));
           btn.tabIndex=i===index?0:-1;
@@ -777,29 +848,36 @@
         target.style.top=y(point.profit??0)+"%";
         if(points.length>1)target.style.width="min(44px, "+90/(points.length-1)+"%)";
         target.dataset.unknown=String(point.profit==null);
-        target.setAttribute("aria-label",formatInterval(point.from,point.to,dateFormat)+", "+
-          (point.profit==null?"прибыль на сверке":money(point.profit))+(point.unverified?", есть заказы на сверке":""));
+        target.dataset.day=point.from;
+        target.setAttribute("aria-label",pointCaption(point,trend.granularity)+", "+
+          pointValue(point)+(point.unverified&&point.profit!=null?", есть суммы на сверке":""));
         target.append(node("span"));
         target.addEventListener("keydown",event=>{
-          if(event.key!=="ArrowLeft"&&event.key!=="ArrowRight")return;
+          if(!["ArrowLeft","ArrowRight","Home","End"].includes(event.key))return;
           event.preventDefault();
-          const next=Math.max(0,Math.min(points.length-1,i+(event.key==="ArrowLeft"?-1:1)));
+          const next=event.key==="Home"?0:event.key==="End"?points.length-1:
+            Math.max(0,Math.min(points.length-1,i+(event.key==="ArrowLeft"?-1:1)));
           selectPoint(next);chartButtons[next].focus();
         });
         chartButtons.push(target);plot.append(target);
         if(points.length<=4||i===0||i===points.length-1||i===Math.floor(points.length/2)){
-          const caption=node("span","",formatDay(point.from));
+          const axisDate=trend.granularity==="year"?point.from.slice(0,4):
+            formatDay(point.from,trend.granularity==="month"?shortMonthFormat:dateFormat);
+          const caption=node("span","",axisDate);
           caption.style.left=x(i)+"%";caption.dataset.date=point.from;ticks.append(caption);
         }
       }
       const selected=points.findIndex(point=>point.from===chartKey);
-      selectPoint(selected>=0?selected:points.length-1);
+      let latest=points.length-1;
+      while(latest>0&&!points[latest].orders)latest--;
+      selectPoint(selected>=0?selected:latest);
+      if(focusedDay)chartButtons.find(button=>button.dataset.day===focusedDay)?.focus({preventScroll:true});
     }
     function renderOverview(data,company){
       if(overviewData!==data){
         overviewData=data;
         const total=data?.totals;
-        const unknown=data?.reviewed.length&&data.rows.every(row=>orderProfit(row)==null);
+        const unknown=Boolean(data?.rows.length)&&data.rows.every(row=>orderProfit(row)==null);
         const revenueUnknown=total&&!total.paid&&data.rows.some(row=>row.reportPaymentUnverified);
         metricsValues.count.textContent=total?numberFormat.format(total.count):"—";
         paidCount.textContent=total?numberFormat.format(total.paid)+" оплачено":"Оплачено —";
@@ -813,9 +891,10 @@
       }
       if(netButton){
         paintAmount(netValue,company?.summary?.netProfit);
-        netNote.textContent=company?.status?.stale?"Последний расчёт":
-          company?.status?.error?"Касса недоступна":
-          filters.status?"По всем заказам за период":"После общих расходов";
+        netNote.textContent=company?.status?.stale&&company.summary?"Последний расчёт":
+          company?.status?.error||company?.status?.stale?"Нужно обновить кассу":
+          filters.status?"По всем заказам за период":
+          data?.reviewed.length?"По подтверждённым данным":"После общих расходов";
       }
       updateChart(data);
     }
@@ -840,17 +919,25 @@
       action.append(info,finance,icon("next"));return append(node("li"),action);
     }
     function renderList(data){
-      if(listData?.data===data&&listData.search===searchTerm&&listData.sort===sortKey&&listData.limit===visible)return;
-      const rows=sortedRows(data);
-      listData={data,search:searchTerm,sort:sortKey,limit:visible,rows};
+      const sameRows=listData?.data===data&&listData.search===searchTerm&&listData.sort===sortKey;
+      if(sameRows&&listData.limit===orderLimit)return;
+      const rows=sameRows?listData.rows:sortedRows(data);
+      const previousLimit=sameRows&&listData.limit<orderLimit?listData.limit:0;
+      listData={data,search:searchTerm,sort:sortKey,limit:orderLimit,rows};
       resultHeading.hidden=!data;
       resultCount.textContent=orderCount(rows.length);
-      const focused=doc.activeElement?.closest?.(".pr-order-row")?.dataset.orderId;
-      listRows.replaceChildren(...rows.slice(0,visible).map(row=>orderAction(row)));
-      if(focused)findRow(focused,"orders")?.focus({preventScroll:true});
+      drawPage(listRows,rows,orderLimit,previousLimit,orderAction);
       listEmpty.hidden=Boolean(rows.length);
       listEmpty.textContent=data?"Заказов по выбранным фильтрам нет.":"Список появится после загрузки отчёта.";
-      more.hidden=visible>=rows.length;
+      more.hidden=orderLimit>=rows.length;
+    }
+    function drawPage(container,rows,limit,previous,makeRow){
+      // Keep the visible nodes and scroll anchor when extending a page.
+      const children=rows.slice(previous,limit).map(row=>makeRow(row));
+      if(previous){container.append(...children);return;}
+      const focused=container.contains(doc.activeElement)?doc.activeElement.dataset.orderId:null;
+      container.replaceChildren(...children);
+      if(focused)findRow(focused,view)?.focus({preventScroll:true});
     }
     function exportCsv(){
       if(csv.disabled||!listData)return;
@@ -859,8 +946,10 @@
       doc.body.append(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);
     }
     function renderOrder(data){
-      const row=data?.rows.find(item=>String(item.id)===orderId);
+      const row=data?.cohort.find(item=>String(item.id)===orderId);
       if(orderData?.data===data&&orderData?.row===row)return;
+      const previousMeta=orderData?.row?.id===row?.id?orderView.querySelector(".pr-order-meta"):null;
+      const metaFocused=previousMeta?.contains(doc.activeElement);
       orderData={data,row};
       if(!row){orderView.replaceChildren(node("p","pr-empty","Данные этого заказа пока недоступны."));return;}
       const stamp=getDate(row,"closed");
@@ -902,6 +991,7 @@
         ...reconciliation.map(reason=>node("p","",reason))));
       const extra=node("details","pr-order-meta");
       extra.append(node("summary","","Сведения о заказе"));
+      extra.open=Boolean(previousMeta?.open);
       for(const [label,value] of [["Дата записи",[formatDay(getDate(row,"appointment")),row.time?.slice(0,5)].filter(Boolean).join(" · ")],
         ["Адрес",row.address],["Источник",root?.__rdClientWhatsApp?.sourceLabel?.(row.clientSource)||row.clientSource],
         ["Способ оплаты",{cash:"Наличные",card:"Карта"}[row.paymentMethod]],
@@ -909,35 +999,39 @@
         if(value)extra.append(append(node("p"),node("strong","",label+" "),node("span","",value)));
       }
       orderView.replaceChildren(intro,...notes,payment,accrual,...(getOperations?[direct]:[]),margin,extra);
+      if(metaFocused)extra.firstElementChild.focus({preventScroll:true});
     }
     function renderReview(data){
-      if(reviewData===data)return;
-      reviewData=data;
+      const sameRows=reviewData?.data===data;
+      if(sameRows&&reviewData.limit===reviewLimit)return;
+      const previousLimit=sameRows&&reviewData.limit<reviewLimit?reviewData.limit:0;
+      reviewData={data,limit:reviewLimit};
       const reviewed=data?.reviewed??empty;
-      const count=reviewed.length?orderCount(reviewed.length)+" на сверке":"Нет заказов на сверке";
-      const head=append(node("div","pr-review-intro"),node("strong","",count),
-        node("p","",data?periodContext(data.today):"Данные отчёта пока недоступны."),
-        node("p","","В итогах показаны подтверждённые суммы."));
-      reconcileView.replaceChildren(head,
-        append(node("ul","pr-order-list"),...reviewed.slice(0,visible).map(({row,reasons})=>orderAction(row,reasons))));
-      if(reviewed.length>visible)reconcileView.append(button("Показать ещё","pr-more-btn",()=>{
-        visible+=PAGE_SIZE;reviewData=null;render();
-      }));
+      reviewCount.textContent=reviewed.length?orderCount(reviewed.length)+" на сверке":"Нет заказов на сверке";
+      reviewPeriod.textContent=data?periodContext(data.today,false):"Данные отчёта пока недоступны.";
+      drawPage(reviewRows,reviewed,reviewLimit,previousLimit,({row,reasons})=>orderAction(row,reasons));
+      reviewMore.hidden=reviewLimit>=reviewed.length;
     }
     function renderNet(data,company){
       if(netData?.data===data&&netData?.company===company)return;
       netData={data,company};
       const summary=company?.summary,status=company?.status;
       const heading=moneyCard("Чистая прибыль за период",summary?.netProfit,[],true);
-      heading.append(node("p","",status?.stale?"Показан последний расчёт":data?periodContext(data.today):"Финансовые данные пока недоступны."));
+      heading.append(node("p","",status?.stale&&summary?"Показан последний расчёт":
+        data?periodContext(data.today,false):"Финансовые данные пока недоступны."));
       if(filters.status)heading.append(node("p","","По всем заказам за период, независимо от статуса."));
       if(data?.cohort.some(row=>row.reportPaymentUnverified||row.reportPayrollOnHold||row.reportReason))
         heading.append(node("p","","По подтверждённым данным. Часть заказов на сверке."));
-      const parts=summary?[moneyCard("Как рассчитано",summary.netProfit,[
-        ["Прибыль по заказам",summary.orderProfit],["Общие расходы",-summary.commonExpenses]
-      ])]:[];
-      if(status?.error||status?.refreshError){
-        parts.push(append(node("div","pr-finance-status"),node("span","","Не удалось обновить данные кассы."),
+      const parts=[];
+      if(summary){
+        const rows=[["Прибыль по заказам",summary.orderProfit],["Общие расходы",-summary.commonExpenses]];
+        if(summary.unallocatedExpenses)rows.push(["Расходы без сопоставленного заказа",-summary.unallocatedExpenses]);
+        parts.push(append(node("section","pr-detail-card"),node("div","pr-detail-head","Как рассчитано"),
+          append(node("dl"),...rows.map(([label,amount])=>reportMoneyRow(label,amount)))));
+      }
+      if(status?.error||status?.refreshError||status?.stale&&!summary){
+        const message=status.error||status.refreshError?"Не удалось обновить данные кассы.":"Для расчёта обновите данные кассы.";
+        parts.push(append(node("div","pr-finance-status"),node("span","",message),
           button("Повторить","secondary pr-retry",()=>refreshCompany(true))));
       }else if((!summary||status?.stale)&&data){
         parts.push(node("p","pr-empty","Загружаем общие расходы…"));
@@ -977,10 +1071,10 @@
       close();
       cached=cachedCompany=listData=orderData=reviewData=netData=null;
       overviewData=chartData=undefined;
-      filters={...defaultFilters};draft=null;searchTerm="";sortKey=sorts[0][0];visible=PAGE_SIZE;chartKey=null;
+      filters={...defaultFilters};searchTerm="";sortKey=sorts[0][0];orderLimit=reviewLimit=PAGE_SIZE;chartKey=null;
       tabScroll.overview=tabScroll.orders=0;
       search.value="";sorter.value=sortKey;
-      for(const element of [orderView,reconcileView,netView,listRows,plot,chartScale,ticks,chartSelected,
+      for(const element of [orderView,reviewRows,reviewCount,reviewPeriod,netView,listRows,plot,chartScale,ticks,chartSelected,
         ...Object.values(metricsValues),paidCount,avg,netValue])element.replaceChildren();
     }
     if(startOpen)open();

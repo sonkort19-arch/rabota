@@ -68,6 +68,7 @@ function uiIcon(name,extra=""){
 }
 let activePage="home",ready=false,lastOrderKey="",rdSearchTerm="",selectedClientKey=null,builtRole=null,calendarMode="week",calendarMaster="",calendarStatus="",calendarHideDone=false,calendarOpened=false,profitReport=null,salaryRoot=null,ownerSalaryReport=null;
 let orderFieldReport=null;
+let resetOwnerSalaryReport=()=>{};
 let leadsSearchTerm="";
 let calendarWeekCache="",calendarDetailCache="",calendarMastersCache="";
 let calendarFiltersOpen=false;
@@ -496,12 +497,11 @@ function build(){
       embedded:true,
       getCompanyStatus:()=>currentRole==="owner"?window.__rdMoneyUi?.cashbookSnapshot?.():null,
       onLoadCompany:force=>currentRole==="owner"?window.__rdMoneyUi?.cashbook?.({force}):null,
-      onRetry:()=>window.__rdMoneyUi?.refreshFinance?.(),
+      onRetry:retryOwnerProfitReport,
       onViewChange:()=>updateOwnerReportHeader(),
       onOpenChange:open=>{
-        updateOwnerReportHeader();
-        restoreVerticalScroll(0);
-        if(open)$("rdScreenBack")?.focus({preventScroll:true});
+        if(open)refreshOwnerProfitIfStale();
+        else updateOwnerReportHeader();
       }})||null;
    const menu=reportsRoot.querySelector(".pr-menu");
    if(menu){
@@ -551,9 +551,12 @@ function build(){
      const openSalary=makeNode("button","pr-report-link rd-salary-entry");
      openSalary.type="button";openSalary.textContent="Зарплата";
      openSalary.append(makeNode("span","pr-report-arrow","›"));
-     const closeSalary=()=>{
+     resetOwnerSalaryReport=()=>{
        salaryRoot.hidden=true;salaryRoot.replaceChildren();
        menu.hidden=false;ownerSalaryReport=null;
+     };
+     const closeSalary=()=>{
+       resetOwnerSalaryReport();
        updateOwnerReportHeader();
        restoreVerticalScroll(0);
        openSalary.focus({preventScroll:true});
@@ -627,6 +630,18 @@ function build(){
  builtRole=currentRole;ready=true;
  if("scrollRestoration" in window.history)window.history.scrollRestoration="manual";
  navigate(locationPage(),false);
+}
+function refreshOwnerProfitIfStale(){
+ if(currentRole!=="owner")return;
+ const finance=window.__rdFinanceStatus?.();
+ if(finance?.stale||finance?.error)void window.__rdMoneyUi?.refreshFinance?.();
+}
+function retryOwnerProfitReport(){
+ if(currentRole!=="owner")return;
+ const money=window.__rdMoneyUi;
+ const cashbook=money?.cashbookSnapshot?.();
+ return Promise.all([money?.refreshFinance?.(),
+   !cashbook?.ready||cashbook.stale?money?.cashbook?.():null]);
 }
 function navigate(key,updateHistory=true){
  if(!ready||app.hidden||!canOpen(key))return;
@@ -708,7 +723,10 @@ function navigate(key,updateHistory=true){
  else if(key==="reports"){
   updateOwnerReportHeader();
   profitReport?.render();
-  if(changed&&window.__rdOwnerProfitReportOpen())profitReport.refreshCompany();
+  if(changed&&window.__rdOwnerProfitReportOpen()){
+   refreshOwnerProfitIfStale();
+   profitReport.refreshCompany();
+  }
   if(salaryRoot&&!salaryRoot.hidden)ownerSalaryReport?.render();
   orderFieldReport?.render();
  }
@@ -732,6 +750,7 @@ window.__rdResetOwnerModules=()=>{
  for(const module of ownerModules.values())module.reset();
  profitReport?.reset();
  orderFieldReport?.reset();
+ resetOwnerSalaryReport();
 };
 function drawChart(parent,values,month){
  // Draw the real month's orders. SVG is self-contained; no chart dependency,

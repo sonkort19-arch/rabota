@@ -64,12 +64,14 @@ function sampleOrder(id,number,name,amount,closed,options={}){
     updated_at:closed??"2026-06-23T09:00:00Z",appointment_date:"2026-06-29",appointment_time:"12:00:00",
     phone:"+7900000010"+number%10,client_source:"avito"};
 }
-const a=sampleOrder("eligible-road",10101,"Анна Тестова",10000.25,"2026-06-04T10:00:00Z",{travel:1000});
+const a={...sampleOrder("eligible-road",10101,"Анна Тестова",10000.25,"2026-06-04T10:00:00Z",{travel:1000}),
+  phone:"+7 (900) 000-10-01"};
 const b=sampleOrder("refunded-road",10102,"Борис Возврат",7000,"2026-06-13T10:00:00Z",{travel:500});
 const c=sampleOrder("another-master",10103,"Вера Оплата",5000,"2026-06-17T10:00:00Z",{master:other});
 const d=sampleOrder("unverified-payment",10104,"Глеб Сверка",9000,"2026-06-24T10:00:00Z");
 const e=sampleOrder("booking",10105,"Дарья Запись",2000,null,{paid:false});
-const sampleOrders=[a,b,c,d,e];
+const previousOrder=sampleOrder("outside-selection",90123,"Заказ прошлого месяца",1000,"2026-05-21T10:00:00Z",{paid:false});
+const sampleOrders=[a,b,c,d,e,previousOrder];
 const expense=(id,amount,fields={})=>({id,kind:"expense",amount,payment_method:"card",
   created_at:monthStart,voided_at:null,note:"Тестовый расход",...fields});
 const ops=[
@@ -82,6 +84,8 @@ const ops=[
   expense("past",9000,{created_at:"2026-05-31T20:59:00Z"}),
   expense("external-order",8000,{order_id:"outside-selection"}),
   expense("external-reference",7000,{note:"[Расходники] Материалы · Заказ №90123"}),
+  expense("missing-order",223.45,{order_id:"unavailable-order"}),
+  expense("missing-reference",76.55,{note:"[Расходники] Материалы · Заказ №90124"}),
   expense("voided",350,{voided_at:monthStart}),
   expense("payout",5000,{kind:"raul_payout"})
 ];
@@ -159,8 +163,8 @@ async function assertOverview(page,panel,width){
   assert.deepEqual(values.map(number),[16000.25,8000.13,7787.11],
     "Order totals follow recorded receipts, return, travel accrual and linked expenses");
   assert.match(rounded(await panel.locator(".pr-average").innerText()),/8\s*000,13/);
-  await panel.locator(".pr-net-card").getByText(/5[\s\u00a0\u202f]*787,11/).waitFor();
-  assert.match(rounded(await net(panel).innerText()),/5\s*787,11/);
+  await panel.locator(".pr-net-card").getByText(/5[\s\u00a0\u202f]*487,11/).waitFor();
+  assert.match(rounded(await net(panel).innerText()),/5\s*487,11/);
   assert.equal(await rows(panel).filter({visible:true}).count(),0,"The initial view does not expose the full list");
   const layout=await panel.locator(".pr-metric:visible").evaluateAll(nodes=>nodes.map(node=>{
     const {x,y,width,height}=node.getBoundingClientRect();
@@ -206,7 +210,8 @@ async function exerciseOwnerReport(page,panel,requests,engine){
   await panel.locator(".pr-net-card").click();
   await waitView(panel,"net");
   const netText=rounded(await panel.innerText());
-  for(const [pattern,message] of [[/7\s*787,11/,"order profit"],[/2\s*000/,"general expenses"],[/5\s*787,11/,"net profit"]])
+  for(const [pattern,message] of [[/7\s*787,11/,"order profit"],[/2\s*000/,"general expenses"],
+    [/Расходы без сопоставленного заказа\s*[-−]300\s*₽/,"unmatched expenses"],[/5\s*487,11/,"net profit"]])
     assert.match(netText,pattern,"Clean profit breakdown must show "+message);
   assert.match(netText,/Общие расходы/i);
   await assertNoHorizontalOverflow(page,panel);
@@ -275,6 +280,10 @@ async function exerciseOwnerReport(page,panel,requests,engine){
   await search.fill("79000000102");
   assert.equal(await rows(panel).count(),1);
   assert.equal(await row(panel,b.id).count(),1,"Search matches the order's phone number");
+  await search.fill("8 (900) 000-01-02");
+  assert.equal(await row(panel,b.id).count(),1,"Pasting a formatted Russian number also finds a stored canonical number");
+  await search.fill("79000001001");
+  assert.equal(await row(panel,a.id).count(),1,"Search finds a stored legacy phone with spaces and punctuation");
   await search.fill("");
 
   await applyFilters(panel,{period:"custom",from:"2026-06-04",to:"2026-06-04"});
@@ -290,17 +299,143 @@ async function exerciseOwnerReport(page,panel,requests,engine){
   assert.equal(number(await metric(panel,"count").innerText()),2,
     "The paid filter includes only orders with confirmed payment after refunds");
   assert.match(await panel.locator(".pr-paid-count").innerText(),/2\s*оплачен/i);
-  assert.match(rounded(await net(panel).innerText()),/5\s*787,11.*По всем заказам за период/i,
+  assert.match(rounded(await net(panel).innerText()),/5\s*487,11.*По всем заказам за период/i,
     "The company-wide net figure and its scope are preserved under an order status filter");
+  await panel.locator(".pr-net-card").click();
+  await waitView(panel,"net");
+  const cleanProfit=panel.locator(".pr-company-detail:visible");
+  assert.match(await cleanProfit.innerText(),/По всем заказам за период/i);
+  assert.doesNotMatch(await cleanProfit.innerText(),/·\s*Оплачены/i,
+    "Company-wide net profit must never be labeled with an order-only status filter");
+  await headerBack(page).click();
+  await waitView(panel,"overview");
+  await panel.locator(".pr-review-link").click();
+  await waitView(panel,"review");
+  const paidReview=panel.locator(".pr-reconcile:visible");
+  assert.match(await paidReview.innerText(),/Глеб Сверка/,
+    "The paid filter must not hide other orders requiring reconciliation");
+  await paidReview.locator('.pr-review-row[data-order-id="'+d.id+'"]').click();
+  await waitView(panel,"order");
+  assert.match(await financeDetail(panel).innerText(),/Глеб Сверка/,
+    "An order excluded by the status filter can still be opened from period reconciliation");
+  await headerBack(page).click();
+  await waitView(panel,"review");
+  await headerBack(page).click();
+  await waitView(panel,"overview");
   await applyFilters(panel,{status:""});
   await applyFilters(panel,{period:"all"});
   await waitView(panel,"overview");
-  assert.equal(number(await metric(panel,"count").innerText()),5,"All-time keeps booked and returned orders in the general count");
+  assert.equal(number(await metric(panel,"count").innerText()),6,"All-time keeps booked and returned orders in the general count");
   assert.match(await panel.locator(".pr-paid-count").innerText(),/2\s*оплачен/i);
   assert.equal(new URL(page.url()).pathname+new URL(page.url()).search,initialPath,"Report subviews stay in the existing SPA section");
   assert.ok(requests.filter(x=>x==="rabota_cashbook_entries").length<=1,"Changing views and filters shares one cashbook read");
   await headerBack(page).click();
   await page.locator(".pr-menu .pr-report-link").filter({hasText:"Прибыль по заказам"}).waitFor();
+}
+
+async function checkHostReportRecovery(browserType){
+  const browser=await launch(browserType);
+  try{
+    const f=await appFixture(browser,390,"owner");
+    const {page,report:panel}=f;
+    try{
+      await page.locator(".pr-menu .pr-report-link").filter({hasText:"Прибыль по заказам"}).click();
+      f.releaseCashbook();
+      await assertOverview(page,panel,390);
+      const bookReads=f.reportRequests.filter(x=>x==="rabota_cashbook_entries").length;
+      const financeReads=f.reportRequests.filter(x=>x==="rabota_finance_operations").length;
+      await page.evaluate(()=>window.dispatchEvent(new Event("offline")));
+      const stale=await page.evaluate(()=>({finance:window.__rdFinanceStatus().stale,
+        book:window.__rdMoneyUi.cashbookSnapshot().stale}));
+      assert.deepEqual(stale,{finance:true,book:true},"Disconnect makes both report inputs stale");
+      await panel.locator(".pr-data-error:visible .pr-retry").click();
+      await page.waitForFunction(()=>!window.__rdFinanceStatus().stale&&!window.__rdMoneyUi.cashbookSnapshot().stale);
+      assert.equal(f.reportRequests.filter(x=>x==="rabota_cashbook_entries").length,bookReads+1,
+        "Report retry independently refreshes the stale cashbook once");
+      assert.equal(f.reportRequests.filter(x=>x==="rabota_finance_operations").length,financeReads+1,
+        "Report retry refreshes the profit snapshot once");
+
+      await headerBack(page).click();
+      await page.locator("#rdReports .rd-salary-entry").click();
+      const salary=page.locator("#rdSalaryReport");
+      await salary.locator(".fp-balance-hero").waitFor();
+      await page.evaluate(()=>window.__rdResetOwnerModules());
+      assert.equal(await salary.isVisible(),false,"Account reset closes the neighboring salary report");
+      assert.equal(await salary.locator(":scope > *").count(),0,"Account reset removes old salary DOM");
+      assert.equal(await page.locator("#rdReports .pr-menu").isVisible(),true);
+      assert.deepEqual(f.writes,[]);
+    }finally{await f.close();}
+  }finally{await browser.close();}
+}
+
+async function checkReportRefreshAndDates(browserType){
+  const browser=await launch(browserType);
+  try{
+    const context=await browser.newContext({viewport:{width:390,height:844},isMobile:true,
+      hasTouch:true,serviceWorkers:"block"});
+    await context.route("**/*",route=>route.abort());
+    const page=await context.newPage();
+    const errors=[];page.on("pageerror",error=>errors.push(error.message));
+    await page.clock.setFixedTime(frozen);
+    await page.setContent('<meta name="viewport" content="width=device-width,initial-scale=1"><section id="rdReports"></section>');
+    await page.addStyleTag({path:reportCss});
+    await page.addScriptTag({path:reportJs});
+    await page.evaluate(()=>{
+      const now="2026-06-04T10:00:00Z";
+      const orders=[{id:"first",orderNumber:1,status:"Выполнен",name:"Тестовый клиент",
+        assignedUserId:"synthetic-master",paid:true,price:100,paymentAmount:100,completedAt:now,
+        createdAt:now,address:"Тестовая улица"}];
+      const payroll={state:"active",orders:[],accounting:{receipts:[{orderId:"first",amount:100,
+        masterId:"synthetic-master"}]}};
+      let revision=1;
+      const api=window.__rdCreateProfitReport(document.getElementById("rdReports"),{
+        startOpen:true,getOrders:()=>orders,getFinanceStatus:()=>({ready:true,revision}),getPayroll:()=>payroll
+      });
+      window.refreshProfitFixture=()=>{revision++;api.render();};
+      window.refundProfitFixture=()=>{
+        payroll.accounting.refunds=[{orderId:"first",amount:100}];
+        window.refreshProfitFixture();
+      };
+    });
+    const panel=report(page);
+    const chartSummary=panel.locator(".pr-chart-selected");
+    assert.match(await chartSummary.innerText(),/100\s*₽/,
+      "The chart starts with the most recent bucket that contains orders, rather than a later empty bucket");
+    const selected=chart(panel).and(page.locator('[aria-pressed="true"]'));
+    await selected.focus();
+    const selectedLabel=await selected.getAttribute("aria-label");
+    await page.evaluate(()=>window.refreshProfitFixture());
+    assert.equal(await selected.getAttribute("aria-label"),selectedLabel);
+    assert.equal(await selected.evaluate(el=>el===document.activeElement),true,
+      "A fresh accepted finance snapshot keeps the selected chart point keyboard-focused");
+    await chart(panel).last().tap();
+    assert.match(await chartSummary.innerText(),/Нет заказов/i);
+    assert.doesNotMatch(await chartSummary.innerText(),/₽/,"A bucket without orders must not look like a calculated zero");
+
+    await applyFilters(panel,{status:"paid"});
+    await tab(panel,"Заказы").click();
+    await row(panel,"first").click();
+    const details=panel.locator(".pr-order-meta");
+    await details.locator("summary").click();
+    await details.locator("summary").focus();
+    await page.evaluate(()=>window.refreshProfitFixture());
+    assert.notEqual(await details.getAttribute("open"),null,"A refresh keeps order information expanded");
+    assert.equal(await details.locator("summary").evaluate(el=>el===document.activeElement),true);
+    await page.evaluate(()=>window.refundProfitFixture());
+    assert.match(await financeDetail(panel).innerText(),/Возврат/,
+      "The selected order remains visible while its refund removes it from the paid list");
+    await panel.locator(".pr-back").click();
+    await waitView(panel,"orders");
+    assert.equal(await row(panel,"first").count(),0);
+    await panel.locator(".pr-filter-button").click();
+    await panel.locator('input[type="radio"][value="custom"]').check();
+    await panel.getByLabel("Начало периода",{exact:true}).fill("10000-01-01");
+    await panel.getByLabel("Конец периода",{exact:true}).fill("10000-02-01");
+    await panel.getByRole("button",{name:"Применить",exact:true}).click();
+    assert.equal(await panel.getAttribute("data-view"),"filters","Unsupported years never commit a broken period");
+    assert.deepEqual(errors,[]);
+    await context.close();
+  }finally{await browser.close();}
 }
 
 async function ownerDashboard(browserType,engine){
@@ -446,6 +581,83 @@ async function checkOwnerPayroll(browserType,iphone){
     await context.close();
   }finally{await browser.close()}
 }
+async function checkContentWrapping(browserType){
+  const browser=await launch(browserType);
+  const customer="Сверхдлинноеназваниекомпании".repeat(4).slice(0,100);
+  const address="https://example.invalid/"+"длинныйидентификаторадреса".repeat(6);
+  const expenseNote="сверхдлинноеназваниерасхода".repeat(5);
+  try{
+    for(const [width,height,safeArea] of [[320,844,{top:47,right:0,bottom:34,left:0}],
+      [844,390,{top:0,right:47,bottom:21,left:47}]]){
+      const f=await fixture(browser,root,width,"owner",{height,safeArea,standalone:true});
+      const {page}=f;
+      try{
+        await page.clock.setFixedTime(frozen);
+        for(const [resource,json] of [["rabota_orders",[{...a,name:customer,address}]],
+          ["rpc/rabota_payroll_snapshot_v3",snapshot],
+          ["rabota_finance_operations",ops.concat(expense("long-expense",9999999.99,{order_id:a.id,note:expenseNote}))],
+          ["rabota_cashbook_entries",Array.from({length:150},(_,index)=>({
+            ...generalCash,id:"large-"+index,amount:9999999.99
+          }))]]){
+          await page.route(url=>url.hostname.endsWith(".supabase.co")&&url.pathname==="/rest/v1/"+resource,
+            route=>route.fulfill({json}));
+        }
+        await page.goto(origin+"/?view=reports");
+        await page.locator(".pr-menu .pr-report-link").filter({hasText:"Прибыль по заказам"}).click();
+        const panel=report(page);
+        await waitView(panel,"overview");
+        const netAmount=panel.locator(".pr-net-copy strong").filter({hasText:/₽/});
+        await netAmount.waitFor();
+        assert.equal(await netAmount.evaluate(node=>{
+          const text=node.firstChild;
+          const lastGroup=/\d{1,3}(?:,\d{1,2})?\s*₽$/u.exec(text?.nodeValue??"");
+          if(!lastGroup)return false;
+          const range=document.createRange();
+          range.setStart(text,lastGroup.index);range.setEnd(text,text.length);
+          return new Set([...range.getClientRects()].map(rect=>rect.top)).size===1;
+        }),true,width+"px decimals and currency stay on one line");
+        await assertNoHorizontalOverflow(page,panel);
+        await tab(panel,"Заказы").click();
+        await row(panel,a.id).click();
+        await waitView(panel,"order");
+        const heading=financeDetail(panel).getByRole("heading",{name:customer,exact:true});
+        await heading.waitFor();
+        assert.equal(await heading.evaluate(node=>{
+          const card=node.closest(".pr-detail-card").getBoundingClientRect();
+          const range=document.createRange();range.selectNodeContents(node);
+          return [...range.getClientRects()].every(rect=>rect.left>=card.left&&rect.right<=card.right);
+        }),true,width+"px order name stays inside its card");
+        const expenseAmount=panel.locator(".pr-detail-line").filter({hasText:expenseNote}).locator("dd");
+        assert.equal(number(await expenseAmount.innerText()),9999999.99);
+        assert.equal(await expenseAmount.evaluate(node=>{
+          const range=document.createRange();range.selectNodeContents(node);
+          return new Set([...range.getClientRects()].map(rect=>rect.top)).size===1;
+        }),true,width+"px long expense label leaves room for its amount");
+        const details=panel.locator(".pr-order-meta summary");
+        assert.ok((await details.boundingBox()).height>=44,"Order details have a full touch target");
+        await details.focus();
+        await details.press("Enter");
+        assert.equal(await panel.locator(".pr-order-meta[open]").count(),1);
+        assert.equal(await page.locator("#appScreen").evaluate(node=>node.scrollWidth<=node.clientWidth+1),true,
+          width+"px detail view does not add horizontal scrolling");
+        if(height<width){
+          await headerBack(page).click();
+          await panel.locator(".pr-filter-button").click();
+          await waitView(panel,"filters");
+          const apply=panel.getByRole("button",{name:"Применить",exact:true});
+          assert.equal(await apply.evaluate(node=>{
+            const action=node.getBoundingClientRect();
+            const scroll=document.getElementById("appScreen").getBoundingClientRect();
+            return action.top>=scroll.top&&action.bottom<=scroll.bottom&&
+              node.contains(document.elementFromPoint(action.x+action.width/2,action.y+action.height/2));
+          }),true,"Apply is reachable above the dock without scrolling in landscape");
+          await apply.click();
+          await waitView(panel,"orders");
+        }
+      }finally{await f.close()}
+    }
+  }finally{await browser.close()}
+}
 async function checkDenseChart(browserType){
   const browser=await launch(browserType);
   try{
@@ -563,7 +775,10 @@ async function checkVersionedReport(browserType){
     process.env.TEST_BROWSER==="webkit"?[[webkit,"webkit"]]:[[chromium,"chromium"],[webkit,"webkit"]];
   for(const [engine,name] of engines){
     await ownerDashboard(engine,name);
+    await checkHostReportRecovery(engine);
+    await checkReportRefreshAndDates(engine);
     await checkDenseChart(engine);
+    await checkContentWrapping(engine);
     await checkRaulPortal(engine,"Рауль",true);
     await checkRaulPortal(engine,"Олег",false);
     await checkVersionedReport(engine);

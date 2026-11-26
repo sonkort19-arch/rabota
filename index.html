@@ -33,7 +33,11 @@
         document.getElementById("bootstrapRecovery").hidden = true;
       }, { once: true });
       document.addEventListener("click", event => {
-        if (event.target.id === "retryBootstrap") location.reload();
+        if (event.target.id !== "retryBootstrap") return;
+        // Pending startup scripts can finish before WebKit commits the reload.
+        document.documentElement.dataset.rdBootFailed = "retry";
+        event.target.disabled = true;
+        location.reload();
       });
     }
   </script>
@@ -396,7 +400,7 @@
   <link rel="stylesheet" href="/whatsapp-settings.css?v=20261124-wa-focus-v1">
   <link rel="stylesheet" href="/client-source.css?v=20261118-v1">
   <!-- Reports inherit the final light CRM palette, including on dark-mode iPhones. -->
-  <link rel="stylesheet" href="/profit-report.css?v=20261127-profit">
+  <link rel="stylesheet" href="/profit-report.css?v=20261127-profit-audit">
   <link rel="stylesheet" href="/order-field-report.css?v=20261126-sources">
   <link rel="stylesheet" href="/contextual-search.css?v=20261125-shell">
   <link rel="stylesheet" href="/expenses.css?v=20261125-write-integrity">
@@ -2508,6 +2512,10 @@
       if(orders)financeOrdersDirty=true;
       financeReader.invalidate();
     }
+    function markFinancialConnectionStale(){
+      if(currentRole==="owner"&&!cashbookReader.state().stale)cashbookReader.invalidate();
+      if(currentRole==="owner"||currentRole==="master")markFinanceStale({orders:false});
+    }
     function refreshFinance(fresh=false,{maxAge=0}={}){
       if(currentRole!=="owner"&&currentRole!=="master")return Promise.resolve(null);
       if(fresh)markFinanceStale({orders:false});
@@ -3054,7 +3062,7 @@
           else if(foreground){
             accessRetry=true;
             reportSync(error,"access");
-            if(currentRole==="owner"||currentRole==="master")markFinanceStale({orders:false});
+            markFinancialConnectionStale();
           }else if(error.code==="REQUEST_TIMEOUT"){
             accessRetry=true;
             showStartupSchedule("Не удалось вовремя проверить доступ. Повторите попытку.",true,"Повторить проверку доступа");
@@ -3243,7 +3251,7 @@
     window.addEventListener("offline",()=>{
       if(!session||document.getElementById("appScreen").hidden)return;
       reportSync({code:"OFFLINE"},ordersLoaded?"orders":"initial-orders");
-      if(currentRole==="owner"||currentRole==="master")markFinanceStale({orders:false});
+      markFinancialConnectionStale();
     });
     document.addEventListener("visibilitychange",()=>{
       if(!document.hidden)syncInBackground({foreground:true});
@@ -3259,12 +3267,12 @@
   <script src="/whatsapp-order.js?v=20261125-travel" defer></script>
   <script src="/whatsapp-client.js?v=20261125-reschedule" defer></script>
   <script src="/whatsapp-settings.js?v=20261125-template-reset" defer></script>
-  <script src="/profit-report.js?v=20261127-profit" defer></script>
+  <script src="/profit-report.js?v=20261127-profit-audit" defer></script>
   <script src="/order-field-report-model.js?v=20261126-sources" defer></script>
   <script src="/order-field-report.js?v=20261126-sources" defer></script>
   <script src="/expenses.js?v=20261125-durable-intent" defer></script>
   <script src="/growth.js?v=20261125-reconcile" defer></script>
-  <script src="/redesign.js?v=20261127-profit" defer></script>
+  <script src="/redesign.js?v=20261127-profit-audit" defer></script>
   <script src="/master-notifications.js?v=20261126-pwa" defer></script>
   <script src="/orders-list.js?v=20261126-sources" defer></script>
   <script src="/owner-parity.js?v=20261125-order-pages" defer></script>

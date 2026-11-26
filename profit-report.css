@@ -32,6 +32,7 @@ body.rd :is(#rdReports,.pr-report-scope) :is(.pr-detail,.pr-menu)[hidden],
   margin-inline:auto;
   padding-inline:max(0px,calc(16px - var(--rd-screen-gutter,12px)));
   min-width:0;
+  overflow-wrap:anywhere;
 }
 
 .pr-detail :is(button,input,select,summary):focus-visible,
@@ -101,7 +102,7 @@ body.rd :is(#rdReports,.pr-report-scope) .pr-report-link:focus-visible {
   font-size:13px;
   font-weight:680;
 }
-.pr-tabs button:is([aria-selected="true"],[aria-pressed="true"],.is-active) {
+.pr-tabs button[aria-pressed="true"] {
   background:var(--pr-bg);
   color:var(--pr-accent);
   box-shadow:0 1px 3px #23366310;
@@ -142,7 +143,6 @@ body.rd :is(#rdReports,.pr-report-scope) .pr-report-link:focus-visible {
 .pr-detail-total strong,.pr-detail-head strong,.pr-row-finance > strong {
   font-variant-numeric:tabular-nums;
   line-height:1.15;
-  overflow-wrap:anywhere;
 }
 .pr-metric > strong {
   font-size:clamp(19px,6.35vw,27px);
@@ -190,7 +190,7 @@ body.rd :is(#rdReports,.pr-report-scope) .pr-report-link:focus-visible {
   inset-inline-end:8px;
   color:var(--pr-accent);
 }
-.pr-detail :is(.pr-negative,.pr-loss,[data-negative="true"]) {color:var(--pr-loss)}
+.pr-detail .pr-negative {color:var(--pr-loss)}
 
 .pr-detail .pr-chart {padding:10px 11px 8px}
 .pr-chart-head {
@@ -218,7 +218,6 @@ body.rd :is(#rdReports,.pr-report-scope) .pr-report-link:focus-visible {
   line-height:1.3;
   text-align:center;
   font-variant-numeric:tabular-nums;
-  overflow-wrap:anywhere;
 }
 .pr-chart-frame {
   display:grid;
@@ -265,7 +264,7 @@ body.rd :is(#rdReports,.pr-report-scope) .pr-report-link:focus-visible {
   background:transparent;
   box-shadow:none;
 }
-.pr-chart-point:is([aria-pressed="true"],[aria-selected="true"],.is-active) {z-index:2}
+.pr-chart-point[aria-pressed="true"] {z-index:2}
 .pr-chart-point > span {
   width:7px;
   height:7px;
@@ -397,14 +396,14 @@ body.rd :is(#rdReports,.pr-report-scope) .pr-report-link:focus-visible {
   padding:8px 10px 8px 11px;
   text-align:start;
 }
-.pr-detail :is(.pr-order-row,.pr-review-row) :is(.pr-row-main,.pr-row-finance) {display:grid;gap:4px;min-width:0;overflow-wrap:anywhere}
+.pr-detail :is(.pr-order-row,.pr-review-row) :is(.pr-row-main,.pr-row-finance) {display:grid;gap:4px;min-width:0}
 .pr-row-main strong {font-size:14px;line-height:1.3;font-weight:700}
 .pr-row-main small,.pr-row-finance small {color:var(--pr-muted);font-size:11px;line-height:1.35}
 .pr-row-finance {text-align:end}
 .pr-row-finance strong {font-size:15px;font-weight:740}
 .pr-row-finance .pr-row-warning {color:var(--pr-review-ink)}
 .pr-detail .pr-more-btn {justify-self:center;padding:6px 14px;color:var(--pr-accent);font-size:13px;font-weight:650}
-.pr-detail :is(.pr-empty,.pr-data-error) {
+.pr-detail :is(.pr-empty,.pr-finance-status) {
   padding:14px 12px;
   border:1px solid var(--pr-border);
   border-radius:var(--pr-card-radius);
@@ -412,6 +411,20 @@ body.rd :is(#rdReports,.pr-report-scope) .pr-report-link:focus-visible {
   color:var(--pr-muted);
   font-size:13px;
   line-height:1.45;
+}
+.pr-detail .pr-finance-status {
+  display:flex;
+  flex-wrap:wrap;
+  align-items:center;
+  gap:8px;
+  margin-block-end:8px;
+}
+.pr-finance-status > span {flex:1 1 180px;min-width:0}
+.pr-company-detail > .pr-finance-status {margin-block-end:0}
+.pr-finance-status .pr-retry {
+  min-height:44px;
+  margin:0;
+  color:var(--pr-accent);
 }
 
 .pr-detail :is(.pr-detail-card,.pr-detail-total,.pr-review-intro) {
@@ -423,11 +436,15 @@ body.rd :is(#rdReports,.pr-report-scope) .pr-report-link:focus-visible {
   justify-content:space-between;
   gap:7px 12px;
 }
-.pr-detail-head > :first-child,.pr-detail-line > :first-child {min-width:0;overflow-wrap:anywhere}
+.pr-detail-head > :first-child,.pr-detail-line > :first-child {min-width:0}
 .pr-detail-head > :last-child,.pr-detail-line > :last-child {text-align:end}
 .pr-detail-head {color:var(--pr-ink);font-size:14px;font-weight:700}
 .pr-detail-head h2,.pr-detail-head h3 {font-size:inherit;font-weight:inherit}
-.pr-detail-head strong,.pr-detail-line strong {overflow-wrap:anywhere;flex:0 1 auto}
+.pr-detail-head > strong,.pr-detail-line > dd {
+  flex:0 0 auto;
+  min-width:0;
+  max-inline-size:55%;
+}
 .pr-detail-head + .pr-detail-line,.pr-detail-head + dl {
   margin-top:9px;
   padding-top:7px;
@@ -458,7 +475,7 @@ body.rd :is(#rdReports,.pr-report-scope) .pr-report-link:focus-visible {
   gap:5px;
   color:inherit;
 }
-.pr-detail-total .pr-detail-head strong {text-align:start}
+.pr-detail-total .pr-detail-head strong {max-inline-size:none;text-align:start}
 .pr-detail-total strong {font-size:clamp(21px,6.65vw,29px)}
 .pr-detail-total p {color:inherit;font-size:12px;line-height:1.42;font-weight:550}
 .pr-detail .pr-review-row {min-height:88px}
@@ -466,7 +483,7 @@ body.rd :is(#rdReports,.pr-report-scope) .pr-report-link:focus-visible {
 .pr-review-intro strong {display:block;font-size:17px;line-height:1.25}
 .pr-review-row .pr-review-reason {color:var(--pr-review-ink);font-size:12px;line-height:1.4;font-weight:670}
 .pr-detail .pr-order-meta {
-  padding:5px 12px;
+  padding:0 12px;
   border:1px solid var(--pr-border);
   border-radius:var(--pr-card-radius);
   background:var(--pr-bg);
@@ -478,7 +495,7 @@ body.rd :is(#rdReports,.pr-report-scope) .pr-report-link:focus-visible {
   display:flex;
   align-items:center;
   gap:8px;
-  min-height:35px;
+  min-height:44px;
   padding-block:8px;
   list-style:none;
   cursor:pointer;
@@ -496,7 +513,8 @@ body.rd :is(#rdReports,.pr-report-scope) .pr-report-link:focus-visible {
   transform:rotate(45deg);
 }
 .pr-order-meta[open] summary::after {transform:rotate(225deg)}
-.pr-order-meta p {padding:4px 0;overflow-wrap:anywhere}
+.pr-order-meta p {padding:4px 0}
+.pr-order-meta p:last-child {padding-block-end:8px}
 
 .pr-filter-group {
   display:grid;
@@ -571,6 +589,16 @@ body.rd .pr-detail .pr-radio input[type="radio"] {
 .pr-custom > label {display:grid;gap:4px;min-width:0;margin:0;color:var(--pr-muted);font-size:12px}
 .pr-detail .pr-filter-error {color:var(--pr-loss);font-size:13px;line-height:1.4}
 
+@media(max-height:540px) {
+  .pr-detail .pr-apply {
+    position:sticky;
+    inset-block-end:8px;
+    z-index:1;
+    box-shadow:0 0 0 4px #f4f7fc;
+  }
+  .pr-filter-view :is(input,select) {scroll-margin-block-end:60px}
+}
+
 @media(max-width:355px) {
   .pr-detail {padding-inline:0}
   .pr-detail :is(.pr-net-card,.pr-average) {padding-inline-start:8px}
@@ -601,7 +629,6 @@ body.rd :is(#rdReports,.pr-report-scope) .pr-report-link {
   cursor:pointer;
 }
 body.rd :is(#rdReports,.pr-report-scope) .pr-report-arrow {font-size:20px;color:var(--pr-blue)}
-body.rd :is(#rdReports,.pr-report-scope) .pr-description {margin:5px 3px 0;color:var(--pr-muted);font-size:13px;line-height:1.4}
 body.rd #rdReports .pr-menu {margin-top:0;display:flex;flex-direction:column;gap:12px}
 body.rd #rdReports .rd-report-section {min-width:0}
 body.rd #rdReports .rd-report-section-title {

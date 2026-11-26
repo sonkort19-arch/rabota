@@ -138,6 +138,24 @@ test("other masters require a verified receipt; partial payments never enter pro
   assert.equal(partial.reportReceived,0);
   assert.equal(reportRow(order({price:null})).reportProfit,null);
 });
+test("the report distinguishes a missing receipt from a disagreement with a confirmed payment",()=>{
+  const raw=order({id:"recorded",assignedUserId:"oleg",travelAmount:1000,paymentAmount:11000});
+  const receiptEntry={...receipt("recorded",11500,"oleg"),travelAmount:1000};
+  const pending=reportRow(raw);
+  assert.deepEqual(reconciliationReasons(pending),["Оплата отсутствует в учёте"]);
+  assert.match(csvFor([pending]),/Оплата отсутствует в учёте/);
+  assert.doesNotMatch(csvFor([pending]),/Сумма указана|Оплата подтверждена/);
+
+  const recorded=reportRow(raw,{payroll:payrollFor([receiptEntry])});
+  assert.equal(recorded.reportReceived,11500);
+  assert.equal(recorded.reportProfit,10500);
+  assert.deepEqual(reconciliationReasons(recorded),["Сумма в карточке отличается от учтённой оплаты"]);
+  assert.match(csvFor([recorded]),/Сумма в карточке отличается от учтённой оплаты/);
+
+  const legacy=reportRow({...raw,paid:false,paymentAmount:null},{payroll:payrollFor([receiptEntry])});
+  assert.equal(legacy.reportReceived,11500);
+  assert.deepEqual(reconciliationReasons(legacy),["Оплата отличается от стоимости заказа"]);
+});
 test("summary includes all payments, but only calculable company shares",()=>{
   const payroll=payrollFor([receipt("a",10000),receipt("b",5000,"alex")],defaultPayroll.orders);
   const rows=filterRows([order(),order({id:"b",master:"Алекс",price:5000,paymentAmount:5000}),
@@ -304,7 +322,10 @@ test("company profit deducts direct order costs once and only common ledger expe
     {label:"Расход по заказу",amount:250.55},{label:"Кран",amount:49.45}
   ]);
   assert.deepEqual(companySummary(rows,{...filters,operations,cashbookEntries}),{
-    orderProfit:3200,crmExpenses:100.10,cashbookExpenses:25.65,commonExpenses:125.75,netProfit:3074.25
+    orderProfit:3200,crmExpenses:100.10,cashbookExpenses:25.65,commonExpenses:125.75,unallocatedExpenses:0,netProfit:3074.25
+  });
+  assert.deepEqual(companySummary(rows,{...filters,orders,operations,cashbookEntries}),{
+    orderProfit:3200,crmExpenses:100.10,cashbookExpenses:25.65,commonExpenses:125.75,unallocatedExpenses:950,netProfit:2124.25
   });
   assert.equal(companySummary(rows,{...filters,operations,cashbookEntries:null}),null);
 });
@@ -313,12 +334,25 @@ test("company profit agrees with the cashbook all-time result for the same confi
   const {calculateRecordedCashFlow}=require("../finance-model.js");
   const payroll={...defaultPayroll,holds:[],refunds:[],accounting:{...defaultPayroll.accounting,
     payouts:[{id:"salary-paid",amount:6000,method:"cash"}]}};
-  const operations=[{id:"direct",kind:"expense",order_id:"a",amount:500},{id:"general",kind:"expense",amount:200}];
+  const orders=[order({orderNumber:null}),order({id:"duplicate-one",orderNumber:42,paid:false}),
+    order({id:"duplicate-two",orderNumber:42,paid:false})];
+  payroll.holds.push({orderId:"a",orderNumber:12,cashOnHold:true});
+  const operations=[{id:"direct",kind:"expense",order_id:"a",amount:450},
+    {id:"hold-number",kind:"expense",note:"[Материалы] · Заказ №12",amount:50},
+    {id:"orphan",kind:"expense",order_id:"missing",note:"[Материалы] Кран · Заказ №12",amount:300},
+    {id:"orphan",kind:"expense",order_id:"missing",note:"[Материалы] Кран · Заказ №12",amount:130.25},
+    {id:"ambiguous",kind:"expense",note:"[Материалы] Кран · Заказ №42",amount:19.75},
+    {id:"void-orphan",kind:"expense",order_id:"missing",amount:50,voided_at:"2026-11-17"},
+    {id:"general",kind:"expense",amount:200}];
   const cashbookEntries=[{id:"owner-expense",kind:"expense",amount:25.50},{id:"owner-income",kind:"income",amount:300}];
-  const rows=filterRows([order()],{payroll,operations});
-  const company=companySummary(rows,{operations,cashbookEntries});
+  const rows=filterRows(orders,{payroll,operations});
+  assert.equal(rows.find(row=>row.id==="a").reportExpenses,500,"the order number on the hold resolves a persistent expense link");
+  assert.ok(rows.filter(row=>row.id!=="a").every(row=>row.reportExpenses===0));
+  const company=companySummary(rows,{orders,payroll,operations,cashbookEntries});
   const ledger=calculateRecordedCashFlow({payroll,operations,manualEntries:cashbookEntries});
-  assert.equal(company.netProfit,2774.50);
+  assert.equal(company.commonExpenses,225.50);
+  assert.equal(company.unallocatedExpenses,150);
+  assert.equal(company.netProfit,2624.50);
   assert.equal(company.netProfit,ledger.companyProfit);
 });
 
@@ -372,12 +406,15 @@ test("paid count uses confirmed receipts and reconciliation does not withhold a 
 });
 
 test("order search and sorting reuse projected rows and put unknown values last",()=>{
-  const records=[order({id:"new",name:"Анна",phone:"79001234567",completedAt:"2026-11-19T12:00:00Z"}),
-    order({id:"loss",name:"Зоя",completedAt:"2026-11-15T12:00:00Z"}),
+  const records=[order({id:"new",name:"Анна",phone:"+7 (900) 123-45-67",completedAt:"2026-11-19T12:00:00Z"}),
+    order({id:"loss",name:"Зоя",phone:"79112345678",completedAt:"2026-11-15T12:00:00Z"}),
     order({id:"review",name:"Михаил",completedAt:null})];
   const payroll=payrollFor([receipt("new",10000,"oleg"),receipt("loss",10000,"oleg")]);
   const rows=filterRows(records,{payroll,operations:[{id:"direct",order_id:"loss",kind:"expense",amount:11000}]});
   assert.deepEqual(selectReportRows(rows,{search:"79001234567"}).map(row=>row.id),["new"]);
+  assert.deepEqual(selectReportRows(rows,{search:"8 900 123 45 67"}).map(row=>row.id),["new"]);
+  assert.deepEqual(selectReportRows(rows,{search:"(900) 123"}).map(row=>row.id),["new"]);
+  assert.deepEqual(selectReportRows(rows,{search:"+7 (911) 234‑56‑78"}).map(row=>row.id),["loss"]);
   assert.deepEqual(sortReportRows(rows,"profit","asc").map(row=>row.id),["loss","new","review"]);
   assert.deepEqual(sortReportRows(rows,"date","desc").map(row=>row.id),["new","loss","review"]);
   assert.deepEqual(sortReportRows(rows,"client","asc").map(row=>row.id),["new","loss","review"]);

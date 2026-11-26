@@ -275,6 +275,9 @@ async function stalledBundleOffersRetry(browser, path) {
     assert.deepEqual(s.accessRequests, []);
     assert.deepEqual(s.documents, ["/?view=orders"], "delayed assets must not force an automatic reload");
     const retry = recovery.getByRole("button", {name: "Повторить запуск", exact: true});
+    await retry.evaluate(button => document.addEventListener("click", event => {
+      if(event.target===button)sessionStorage.setItem("fixture-restarting", document.documentElement.dataset.rdBootFailed || "");
+    }, {once:true}));
     // WebKit can defer animation frames while an intercepted stylesheet is pending.
     // Hit-test the actual control and use mobile input without a frame-stability preflight.
     const point = await retry.evaluate(node => {
@@ -287,6 +290,8 @@ async function stalledBundleOffersRetry(browser, path) {
     s.module.release();
     await s.page.locator("#appScreen").waitFor();
     assert.deepEqual(s.documents, ["/?view=orders", "/?view=orders"], "the explicit retry opens the same view");
+    assert.ok(await s.page.evaluate(() => sessionStorage.getItem("fixture-restarting")),
+      "the old document blocks late startup scripts as soon as reload is requested");
     assert.deepEqual(s.accessRequests, ["session", "role"]);
   } finally { await s.close(); }
 }
