@@ -396,7 +396,7 @@
   <link rel="stylesheet" href="/whatsapp-settings.css?v=20261124-wa-focus-v1">
   <link rel="stylesheet" href="/client-source.css?v=20261118-v1">
   <!-- Reports inherit the final light CRM palette, including on dark-mode iPhones. -->
-  <link rel="stylesheet" href="/profit-report.css?v=20261125-fixed-header">
+  <link rel="stylesheet" href="/profit-report.css?v=20261127-profit">
   <link rel="stylesheet" href="/order-field-report.css?v=20261126-sources">
   <link rel="stylesheet" href="/contextual-search.css?v=20261125-shell">
   <link rel="stylesheet" href="/expenses.css?v=20261125-write-integrity">
@@ -1244,7 +1244,7 @@
     }
     async function reloadOrders({background=false}={}) {
       const generation=accessGeneration;
-      if(background&&financeViewOpen())
+      if(background&&(financeViewOpen()||window.__rdOwnerProfitReportOpen?.()))
         void refreshCashbook();
       if(!background&&(currentRole==="owner"||currentRole==="master"))markFinanceStale();
       await loadOrderData(background);
@@ -2865,7 +2865,10 @@
     const cashbookReader=window.__rdCreateFinanceReader({
       load:readCashbook,
       equal:(previous,next)=>JSON.stringify(previous)===JSON.stringify(next),
-      onUpdate:()=>window.__rdMoneyUpdated?.()
+      onUpdate:()=>{
+        window.__rdMoneyUpdated?.();
+        if(window.__rdOwnerProfitReportOpen?.())window.__rdReportUpdated?.();
+      }
     });
     function refreshCashbook({force=false}={}){
       if(currentRole!=="owner")return Promise.reject(Error("Только владелец может видеть кассу"));
@@ -3256,12 +3259,12 @@
   <script src="/whatsapp-order.js?v=20261125-travel" defer></script>
   <script src="/whatsapp-client.js?v=20261125-reschedule" defer></script>
   <script src="/whatsapp-settings.js?v=20261125-template-reset" defer></script>
-  <script src="/profit-report.js?v=20261126-field-report" defer></script>
+  <script src="/profit-report.js?v=20261127-profit" defer></script>
   <script src="/order-field-report-model.js?v=20261126-sources" defer></script>
   <script src="/order-field-report.js?v=20261126-sources" defer></script>
   <script src="/expenses.js?v=20261125-durable-intent" defer></script>
   <script src="/growth.js?v=20261125-reconcile" defer></script>
-  <script src="/redesign.js?v=20261126-ios" defer></script>
+  <script src="/redesign.js?v=20261127-profit" defer></script>
   <script src="/master-notifications.js?v=20261126-pwa" defer></script>
   <script src="/orders-list.js?v=20261126-sources" defer></script>
   <script src="/owner-parity.js?v=20261125-order-pages" defer></script>
@@ -3269,6 +3272,6 @@
   <script src="/orders-workspace.js?v=20261126-sources" defer></script>
   <script src="/app-start.js?v=20261126-ios" defer></script>
   <script src="/finance-payroll.js?v=20261125-travel" defer></script>
-  <script src="/money-workspace.js?v=20261125-travel" defer></script>
+  <script src="/money-workspace.js?v=20261127-profit" defer></script>
 </body>
 </html>

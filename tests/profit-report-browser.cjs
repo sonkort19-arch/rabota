@@ -1,6 +1,9 @@
 "use strict";
 const {chromium,webkit}=require("playwright");
 const path=require("node:path");
+const {mkdir,readFile}=require("node:fs/promises");
+const {fixture,assertHeaderLayout}=require("./module-navigation-browser.cjs");
+const root=path.join(__dirname,"..");
 const assert=require("node:assert/strict");
 const reportJs=path.join(__dirname,"..","profit-report.js");
 const reportCss=path.join(__dirname,"..","profit-report.css");
@@ -13,180 +16,329 @@ async function launch(browserType){
       (type===chromium?process.env.CHROMIUM_PATH:undefined),
     args:type===chromium?["--no-sandbox"]:[]});
 }
-async function run(browserType,iphone){
+const origin="https://crm.test";
+const monthStart="2026-05-31T21:30:00Z"; // 1 June in Moscow, 31 May in UTC.
+const frozen=new Date("2026-06-25T07:00:00Z");
+const raul="fixture-master";
+const other="another-fixture-master";
+const number=text=>Number(text.replace(/[^\d,−-]/g,"").replace(",",".").replace("−","-"));
+const rounded=text=>text.trim().replace(/\s+/g," ");
+const view=(panel,name)=>panel.and(panel.page().locator('[data-view="'+name+'"]'));
+const report=page=>page.locator("#rdReports .pr-detail");
+const headerBack=page=>page.locator("#rdScreenBack");
+const chart=panel=>panel.locator(".pr-chart-point");
+const rows=panel=>panel.locator(".pr-order-row");
+const row=(panel,id)=>rows(panel).and(panel.page().locator('[data-order-id="'+id+'"]'));
+const metric=(panel,key)=>panel.locator('.pr-metric[data-metric="'+key+'"] strong');
+const net=panel=>panel.locator('.pr-net-card [data-metric="net"], .pr-net-card[data-metric="net"]');
+const waitView=(panel,name)=>view(panel,name).waitFor();
+const tab=(panel,name)=>panel.locator(".pr-tabs").getByRole("button",{name,exact:true});
+const financeDetail=panel=>panel.locator(".pr-order-detail:visible");
+
+async function capture(page,filename){
+  const directory=process.env.PROFIT_REPORT_SCREENSHOTS;
+  if(!directory)return;
+  await mkdir(directory,{recursive:true});
+  await page.screenshot({path:path.join(directory,filename+".png")});
+}
+
+async function applyFilters(panel,{period,basis,status,from,to}={}){
+  await panel.locator(".pr-filter-button").click();
+  await waitView(panel,"filters");
+  if(period)await panel.locator('input[type="radio"][value="'+period+'"]').check();
+  if(basis)await panel.locator('input[type="radio"][value="'+basis+'"]').check();
+  if(status!==undefined)await panel.getByLabel("Статус заказов",{exact:true}).selectOption(status);
+  if(from)await panel.getByLabel("Начало периода",{exact:true}).fill(from);
+  if(to)await panel.getByLabel("Конец периода",{exact:true}).fill(to);
+  await panel.getByRole("button",{name:"Применить",exact:true}).click();
+}
+
+function sampleOrder(id,number,name,amount,closed,options={}){
+  const paid=options.paid!==false,travel=options.travel||0,master=options.master||raul;
+  return {id,order_number:number,name,price:amount,
+    status:closed?"Выполнен":"Записан",paid,travel_amount:travel,
+    payment_amount:paid?Math.round((amount+travel)*100)/100:null,
+    payment_method:paid?"card":null,paid_at:paid?closed:null,
+    assigned_user_id:master,master:master===raul?"Рауль":"Другой мастер",
+    completed_at:closed,created_at:closed??"2026-06-23T09:00:00Z",
+    updated_at:closed??"2026-06-23T09:00:00Z",appointment_date:"2026-06-29",appointment_time:"12:00:00",
+    phone:"+7900000010"+number%10,client_source:"avito"};
+}
+const a=sampleOrder("eligible-road",10101,"Анна Тестова",10000.25,"2026-06-04T10:00:00Z",{travel:1000});
+const b=sampleOrder("refunded-road",10102,"Борис Возврат",7000,"2026-06-13T10:00:00Z",{travel:500});
+const c=sampleOrder("another-master",10103,"Вера Оплата",5000,"2026-06-17T10:00:00Z",{master:other});
+const d=sampleOrder("unverified-payment",10104,"Глеб Сверка",9000,"2026-06-24T10:00:00Z");
+const e=sampleOrder("booking",10105,"Дарья Запись",2000,null,{paid:false});
+const sampleOrders=[a,b,c,d,e];
+const expense=(id,amount,fields={})=>({id,kind:"expense",amount,payment_method:"card",
+  created_at:monthStart,voided_at:null,note:"Тестовый расход",...fields});
+const ops=[
+  expense("direct-1",125.25,{order_id:a.id}),
+  expense("direct-1",125.25,{order_id:a.id}),
+  expense("linked-legacy",7.75,{note:"[Расходники] Прокладки · Заказ №10101"}),
+  expense("direct-2",80.01,{order_id:c.id}),
+  expense("general",1200),
+  expense("general",1200),
+  expense("past",9000,{created_at:"2026-05-31T20:59:00Z"}),
+  expense("external-order",8000,{order_id:"outside-selection"}),
+  expense("external-reference",7000,{note:"[Расходники] Материалы · Заказ №90123"}),
+  expense("voided",350,{voided_at:monthStart}),
+  expense("payout",5000,{kind:"raul_payout"})
+];
+const bookingLedger=[a,b,c].map(order=>({order_id:order.id,amount:order.payment_amount,
+  master_id:order.assigned_user_id,payment_method:"card",travel_amount:order.travel_amount,
+  paid_at:order.paid_at,occurred_at:order.completed_at}));
+const snapshot={state:"active",version:3,accounting_version:1,master_id:raul,activated_at:monthStart,
+  accounting_receipts:bookingLedger,accounting_payouts:[],payouts:[],holds:[],
+  accounting_refunds:[{order_id:b.id,amount:b.payment_amount,travel_amount:500,refunded_at:b.completed_at}],
+  orders:[{order_id:a.id,paid_amount:10000.25,earned_amount:6500.13,company_share:3500.12,
+    rule_version:3,earned_at:a.completed_at}],
+  travel_events:[a,b].map(order=>({id:"travel-"+order.id,order_id:order.id,
+    delta:order.travel_amount,order_number:order.order_number,occurred_at:order.completed_at})),
+  earned:8000.13,paid:0,due:8000.13,balance:8000.13,overpaid:0,travel_earned:1500};
+const generalCash={id:"book-general",kind:"expense",amount:800,created_at:"2026-06-06T10:00:00Z",
+  from_account:"cash",to_account:null,note:"Общие расходы из кассы"};
+const cashbook=[generalCash,generalCash,
+  {...generalCash,id:"transfer",kind:"transfer",amount:1400,to_account:"card"},
+  {...generalCash,id:"income",kind:"income",amount:9000,from_account:null,to_account:"cash"},
+  {...generalCash,id:"old-expense",created_at:"2026-05-31T20:59:00Z",amount:500}
+];
+
+async function appFixture(browser,width,role){
+  const f=await fixture(browser,root,width,role,{
+    height:844,standalone:true,safeArea:{top:47,right:0,bottom:34,left:0}
+  });
+  const {page}=f;
+  await page.clock.setFixedTime(frozen);
+  const reportRequests=[];
+  let releaseCashbook=()=>{};
+  const holdCashbook=role==="owner"&&width===390?new Promise(resolve=>{releaseCashbook=resolve;}):null;
+  const mock=async(resource,data,hold)=>{
+    const pathname="/rest/v1/"+resource;
+    await page.route(url=>url.hostname.endsWith(".supabase.co")&&url.pathname===pathname,async route=>{
+      assert.equal(route.request().method(),"GET","The profit report is read-only");
+      assert.equal(route.request().headers().authorization,"Bearer fixture-access");
+      reportRequests.push(resource);
+      if(hold)await hold;
+      return route.fulfill({json:data});
+    });
+  };
+  if(role==="owner"){
+    await mock("rabota_orders",sampleOrders);
+    await mock("rabota_finance_operations",ops);
+    await mock("rpc/rabota_payroll_snapshot_v3",snapshot);
+    await mock("rabota_cashbook_entries",cashbook,holdCashbook);
+  }
+  await page.goto(origin+"/?view=reports");
+  await page.locator("#appScreen").waitFor();
+  return {...f,report:report(page),reportRequests,releaseCashbook,close:async()=>{
+    releaseCashbook();
+    await f.close();
+  }};
+}
+
+async function assertNoHorizontalOverflow(page,panel){
+  const size=await panel.evaluate(node=>{
+    const viewport=window.innerWidth;
+    const overflow=[...node.querySelectorAll("button,input,select,strong")]
+      .map(element=>({name:element.textContent?.trim(),box:element.getBoundingClientRect()}))
+      .filter(item=>item.box.width&&(item.box.left<-.5||item.box.right>viewport+.5)).map(item=>item.name);
+    return {body:document.documentElement.scrollWidth,viewport,overflow};
+  });
+  assert.ok(size.body<=size.viewport+1,JSON.stringify(size));
+  assert.deepEqual(size.overflow,[],JSON.stringify(size));
+}
+
+async function assertOverview(page,panel,width){
+  await waitView(panel,"overview");
+  await metric(panel,"count").waitFor();
+  await page.waitForFunction(()=>document.querySelector('.pr-metric[data-metric="count"] strong')?.textContent==="4");
+  assert.equal(number(await metric(panel,"count").innerText()),4);
+  assert.match(rounded(await panel.locator(".pr-paid-count").innerText()),/2\s*оплачен/i);
+  const values=await Promise.all(["revenue","salary","profit"].map(key=>metric(panel,key).innerText()));
+  assert.deepEqual(values.map(number),[16000.25,8000.13,7787.11],
+    "Order totals follow recorded receipts, return, travel accrual and linked expenses");
+  assert.match(rounded(await panel.locator(".pr-average").innerText()),/8\s*000,13/);
+  await panel.locator(".pr-net-card").getByText(/5[\s\u00a0\u202f]*787,11/).waitFor();
+  assert.match(rounded(await net(panel).innerText()),/5\s*787,11/);
+  assert.equal(await rows(panel).filter({visible:true}).count(),0,"The initial view does not expose the full list");
+  const layout=await panel.locator(".pr-metric:visible").evaluateAll(nodes=>nodes.map(node=>{
+    const {x,y,width,height}=node.getBoundingClientRect();
+    return {x,y,width,height};
+  }));
+  assert.equal(layout.length,4);
+  assert.equal(layout[0].y,layout[1].y,"The first pair of metrics shares a row");
+  assert.equal(layout[2].y,layout[3].y,"The second pair of metrics shares a row");
+  assert.ok(layout[2].y>layout[0].y&&layout[1].x>layout[0].x,width+"px layout has two columns and two rows");
+  assert.ok(layout.every(card=>card.height>=58),"Metrics have room for the amount and its explanation");
+  const appearance=await net(panel).evaluate(button=>{
+    const label=button.querySelector(".pr-net-copy > span"),value=button.querySelector("strong"),note=button.querySelector("small");
+    const line=button.closest(".pr-overview").querySelector(".pr-chart-line");
+    return {positions:[label,value,note].map(node=>node.getBoundingClientRect().top),
+      valueFont:parseFloat(getComputedStyle(value).fontSize),lineFill:getComputedStyle(line).fill};
+  });
+  assert.ok(appearance.positions[0]<appearance.positions[1]&&appearance.positions[1]<appearance.positions[2],
+    "Clean profit renders as a label, a separate amount and a separate explanation");
+  assert.ok(appearance.valueFont>=18,"The clean profit amount is visibly prominent");
+  assert.equal(appearance.lineFill,"none","The line path never fills the chart with a dark polygon");
+  await assertNoHorizontalOverflow(page,panel);
+}
+
+async function exerciseOwnerReport(page,panel,requests,engine){
+  const initialPath=new URL(page.url()).pathname+new URL(page.url()).search;
+  const selected=panel.locator(".pr-chart-selected:visible");
+  const points=chart(panel).filter({visible:true});
+  const originalChart=await selected.innerText();
+  const plotted=await points.count();
+  assert.ok(plotted>=3,"Profit can be read for several days or weeks");
+  assert.match(originalChart,/На сверке/,
+    "A chart period with only an unresolved receipt is not graphed as confirmed zero profit");
+  let changed=false;
+  for(let i=0;i<plotted&&!changed;i++){
+    await points.nth(i).tap();
+    changed=(await selected.innerText())!==originalChart;
+  }
+  assert.equal(changed,true,"Tapping another point discloses that period's value");
+  await points.last().focus();
+  await points.last().press("Enter");
+  assert.ok(rounded(await selected.innerText()).length>0,"A chart selection works from the keyboard too");
+
+  await panel.locator(".pr-net-card").click();
+  await waitView(panel,"net");
+  const netText=rounded(await panel.innerText());
+  for(const [pattern,message] of [[/7\s*787,11/,"order profit"],[/2\s*000/,"general expenses"],[/5\s*787,11/,"net profit"]])
+    assert.match(netText,pattern,"Clean profit breakdown must show "+message);
+  assert.match(netText,/Общие расходы/i);
+  await assertNoHorizontalOverflow(page,panel);
+  await capture(page,engine+"-390-net");
+  await headerBack(page).click();
+  await waitView(panel,"overview");
+
+  await panel.locator(".pr-review-link").click();
+  await waitView(panel,"review");
+  const review=panel.locator(".pr-reconcile:visible");
+  assert.match(rounded(await review.innerText()),/Глеб Сверка/);
+  assert.match(rounded(await review.innerText()),/оплат|платёж/i);
+  assert.doesNotMatch(await review.innerText(),/Анна Тестова|Вера Оплата|Борис Возврат/);
+  await capture(page,engine+"-390-review");
+  await headerBack(page).click();
+  await waitView(panel,"overview");
+
+  await tab(panel,"Заказы").click();
+  await waitView(panel,"orders");
+  assert.deepEqual(await rows(panel).evaluateAll(items=>items.filter(x=>x.getClientRects().length).map(x=>x.dataset.orderId)),
+    [d.id,c.id,b.id,a.id],"Default date sort matches newest closed orders");
+  assert.match(await row(panel,b.id).innerText(),/Возврат/);
+  assert.match(await row(panel,d.id).innerText(),/На сверке/i);
+  assert.doesNotMatch(await row(panel,d.id).innerText(),/0\s*₽/);
+  await assertNoHorizontalOverflow(page,panel);
+  await capture(page,engine+"-390-orders");
+  const orderSort=panel.getByLabel("Сортировка заказов",{exact:true});
+  const ordering=await orderSort.locator("option").evaluateAll(options=>options.map(o=>({name:o.textContent,value:o.value})));
+  const byProfit=ordering.find(option=>/прибыл/i.test(option.name));
+  assert.ok(byProfit,"The visitor can sort by profit");
+  await orderSort.selectOption(byProfit.value);
+  const settled=await rows(panel).evaluateAll(items=>items.filter(x=>x.getClientRects().length&&!/на сверке/i.test(x.textContent))
+    .map(x=>x.dataset.orderId));
+  assert.ok([[c.id,a.id,b.id],[b.id,a.id,c.id]].some(order=>order.join()===settled.join()),
+    "Sorting profit uses real numeric values, including the refunded loss");
+
+  const search=panel.getByLabel("Поиск по заказам",{exact:true});
+  await search.fill("#10101");
+  assert.equal(await rows(panel).count(),1);
+  await row(panel,a.id).click();
+  await waitView(panel,"order");
+  const detail=rounded(await financeDetail(panel).innerText());
+  assert.match(detail,/Анна Тестова/);
+  for(const figure of [/11\s*000,25/,/6\s*500,13/,/1\s*000/,/133/,/3\s*367,12/])assert.match(detail,figure);
+  assert.match(detail,/дорог/i);
+  assert.equal(await headerBack(page).getAttribute("aria-label"),"Назад к заказам");
+  await assertNoHorizontalOverflow(page,panel);
+  await capture(page,engine+"-390-detail");
+  await headerBack(page).click();
+  await waitView(panel,"orders");
+  assert.equal(await search.inputValue(),"#10101","Return preserves the search");
+  assert.equal(await orderSort.inputValue(),byProfit.value,"Return preserves the sort");
+  assert.equal(await rows(panel).count(),1);
+
+  const downloadEvent=page.waitForEvent("download");
+  await panel.locator(".pr-export:visible").click();
+  const download=await downloadEvent;
+  assert.match(download.suggestedFilename(),/^rabota-profit-orders-.*\.csv$/);
+  const exported=(await readFile(await download.path(),"utf8")).trim().split(/\r?\n/);
+  assert.equal(exported.length,2,"CSV contains the header and the filtered order");
+  assert.match(exported[1],/10101.*Анна Тестова.*11000\.25/);
+  assert.doesNotMatch(exported[1],/Вера Оплата|Борис Возврат|Глеб Сверка/);
+  await search.fill("вера оплата");
+  assert.equal(await rows(panel).count(),1);
+  assert.equal(await row(panel,c.id).count(),1,"Customer-name search is case-insensitive");
+  await search.fill("79000000102");
+  assert.equal(await rows(panel).count(),1);
+  assert.equal(await row(panel,b.id).count(),1,"Search matches the order's phone number");
+  await search.fill("");
+
+  await applyFilters(panel,{period:"custom",from:"2026-06-04",to:"2026-06-04"});
+  await waitView(panel,"orders");
+  assert.equal(await rows(panel).count(),1,"A custom closing day narrows the order list");
+  assert.equal(await row(panel,a.id).count(),1);
+  await tab(panel,"Обзор").click();
+  await waitView(panel,"overview");
+  assert.equal(number(await metric(panel,"count").innerText()),1);
+  assert.match(await panel.locator(".pr-paid-count").innerText(),/1\s*оплачен/i);
+  await applyFilters(panel,{period:"month",status:"paid"});
+  await waitView(panel,"overview");
+  assert.equal(number(await metric(panel,"count").innerText()),2,
+    "The paid filter includes only orders with confirmed payment after refunds");
+  assert.match(await panel.locator(".pr-paid-count").innerText(),/2\s*оплачен/i);
+  assert.match(rounded(await net(panel).innerText()),/5\s*787,11.*По всем заказам за период/i,
+    "The company-wide net figure and its scope are preserved under an order status filter");
+  await applyFilters(panel,{status:""});
+  await applyFilters(panel,{period:"all"});
+  await waitView(panel,"overview");
+  assert.equal(number(await metric(panel,"count").innerText()),5,"All-time keeps booked and returned orders in the general count");
+  assert.match(await panel.locator(".pr-paid-count").innerText(),/2\s*оплачен/i);
+  assert.equal(new URL(page.url()).pathname+new URL(page.url()).search,initialPath,"Report subviews stay in the existing SPA section");
+  assert.ok(requests.filter(x=>x==="rabota_cashbook_entries").length<=1,"Changing views and filters shares one cashbook read");
+  await headerBack(page).click();
+  await page.locator(".pr-menu .pr-report-link").filter({hasText:"Прибыль по заказам"}).waitFor();
+}
+
+async function ownerDashboard(browserType,engine){
   const browser=await launch(browserType);
   try{
-    const context=await browser.newContext({
-      viewport:iphone?{width:390,height:844}:{width:1200,height:800},
-      acceptDownloads:true,isMobile:iphone,hasTouch:iphone,
-      colorScheme:iphone?"dark":"light",serviceWorkers:"block"
-    });
-    await context.route("**/*",route=>route.abort());
-    const page=await context.newPage();
-    await page.setContent('<!doctype html><html lang="ru"><head><meta name="viewport" content="width=device-width,initial-scale=1"><style>body{margin:0;font-family:Arial}#rdReports{padding:12px;box-sizing:border-box}</style></head><body class="rd"><section id="rdReports" aria-label="Отчёты"></section></body></html>');
-    await page.addStyleTag({path:path.join(__dirname,"..","light-theme.css")});
-    await page.addStyleTag({path:path.join(__dirname,"..","polished-v2.css")});
-    await page.addStyleTag({path:reportCss});
-    await page.addScriptTag({path:path.join(__dirname,"..","finance-model.js")});
-    await page.addScriptTag({path:reportJs});
-    await page.evaluate(()=>{
-      const created=new Date().toISOString();
-      window.syntheticOrders=[
-        {id:"a",orderNumber:12,referenceCode:"№00012",createdAt:created,
-          completedAt:created,date:"2026-11-19",name:"Анна",master:"Рауль",
-          status:"Выполнен",price:10000,paid:true,paymentAmount:10000,
-          address:"Владикавказ",clientSource:"Авито"},
-        {id:"b",orderNumber:13,referenceCode:"№00013",createdAt:created,
-          date:"2026-11-20",name:"Борис",master:"Рауль",
-          status:"Записан",price:12000,paid:false},
-        {id:"c",orderNumber:14,referenceCode:"№00014",createdAt:created,
-          completedAt:created,date:"2026-11-19",name:"Вера",master:"Олег",
-          status:"Выполнен",price:5000,paid:true,paymentAmount:5000}
-      ];
-      window.report=window.__rdCreateProfitReport(
-        document.querySelector("#rdReports"),{getOrders:()=>window.syntheticOrders,
-          getPayroll:()=>({state:"active",masterId:"raul",orders:[
-            {orderId:"a",actualPaid:10000,earned:6500,companyShare:3500}
-          ],accounting:{receipts:[{orderId:"a",amount:10000,masterId:"raul"},
-            {orderId:"c",amount:5000,masterId:"oleg"}]}})});
-    });
-    await page.locator(".pr-report-link").click();
-    const profitHeading=page.locator(".pr-detail .pr-heading");
-    const back=profitHeading.getByRole("button",{name:"Назад к отчётам"});
-    assert.equal(await profitHeading.getByRole("heading",{name:"Прибыль по заказам",exact:true}).count(),1);
-    assert.ok((await back.boundingBox()).height>=44,"Report Back has a full touch target");
-    assert.equal(await page.getByRole("heading",{name:"Отчёты",exact:true}).count(),0);
-    assert.equal(await page.locator('.pr-controls select[aria-label="Тип даты отчёта"]').inputValue(),"closed");
-    // Default closing-date month excludes booked orders; "all" still shows every order.
-    await page.locator('.pr-controls select[aria-label="Период отчёта"]').selectOption("all");
-    const table=page.locator(".pr-table");
-    const palette=await page.evaluate(()=>{
-      const color=selector=>{
-        const style=getComputedStyle(document.querySelector(selector));
-        return {background:style.backgroundColor,text:style.color};
-      };
-      return {page:color("#rdReports"),table:color(".pr-table"),
-        firstRow:color(".pr-table tbody .pr-total-row"),
-        dataRow:color(".pr-table tbody tr:not(.pr-total-row) td"),
-        input:color(".pr-controls input"),status:color(".pr-controls select")};
-    });
-    for(const field of ["table","dataRow","input","status"]){
-      assert.equal(palette[field].background,"rgb(255, 255, 255)",
-        "The report must match the light CRM in both OS themes: "+field+" "+JSON.stringify(palette));
-    }
-    assert.notEqual(palette.firstRow.background,"rgb(27, 37, 52)",
-      "The totals row must not inherit the previous dark report theme");
-    // Validate real text placement, not just that table cells line up.
-    // This catches the visually displaced "Зарплата" and "Прибыль" shown on iPhone.
-    async function checkAlignment(scrollToRight=false){
-      return page.evaluate(move=>{
-        const table=document.querySelector(".pr-table");
-        const scroller=document.querySelector(".pr-scroll");
-        if(move)scroller.scrollLeft=scroller.scrollWidth;
-        const headers=[...table.querySelectorAll("thead th")];
-        const total=[...table.querySelectorAll("tbody tr.pr-total-row > *")];
-        const sample=[...table.querySelectorAll("tbody tr:not(.pr-total-row):not(.pr-expanded)")][0];
-        const row=[...sample.children];
-        const centerText=el=>{
-          const textRange=document.createRange();
-          textRange.selectNodeContents(el);
-          const bounds=textRange.getBoundingClientRect();
-          return (bounds.left+bounds.right)/2;
-        };
-        const errors=[];
-        for(let i=0;i<8;i++){
-          const headerRect=headers[i].getBoundingClientRect();
-          const totalRect=total[i].getBoundingClientRect();
-          const rowRect=row[i].getBoundingClientRect();
-          if(Math.abs(headerRect.left-totalRect.left)>1||
-             Math.abs(headerRect.right-totalRect.right)>1||
-             Math.abs(headerRect.left-rowRect.left)>1||
-             Math.abs(headerRect.right-rowRect.right)>1){
-            errors.push("Column "+(i+1)+" has shifted boundaries");
-          }
-          if(i>=4){
-            for(const cell of [headers[i],total[i],row[i]]){
-              const rect=cell.getBoundingClientRect();
-              if(Math.abs(centerText(cell)-(rect.left+rect.right)/2)>2.5){
-                errors.push("Financial label or value is off-center in column "+(i+1));
-              }
-            }
-          }
+    for(const width of [320,375,390,430]){
+      const f=await appFixture(browser,width,"owner");
+      const {page,report:panel}=f;
+      try{
+        const initialHeader=await assertHeaderLayout(page,"reports");
+        await page.locator(".pr-menu .pr-report-link").filter({hasText:"Прибыль по заказам"}).click();
+        await assertHeaderLayout(page,"reports",initialHeader,{title:"Прибыль по заказам",back:"Назад к отчётам"});
+        if(width===390){
+          await page.waitForFunction(()=>/7\s*787,11/.test(document.querySelector('.pr-metric[data-metric="profit"] strong')?.textContent));
+          assert.doesNotMatch(await panel.locator(".pr-net-card").innerText(),/[\d.,]\s*₽/,
+            "A pending cashbook never presents a manufactured clean-profit figure");
+          f.releaseCashbook();
         }
-        return {errors,widths:headers.map(h=>Math.round(h.getBoundingClientRect().width)),
-          scrollLeft:scroller.scrollLeft};
-      },scrollToRight);
+        await assertOverview(page,panel,width);
+        await capture(page,engine+"-"+width+"-overview");
+        if(width===390)await exerciseOwnerReport(page,panel,f.reportRequests,engine);
+        assert.deepEqual(f.writes,[]);
+        assert.deepEqual(f.documents,["/?view=reports"]);
+      }finally{await f.close();}
     }
-    const initialGrid=await checkAlignment();
-    assert.deepEqual(initialGrid.errors,[],JSON.stringify(initialGrid));
-    assert.equal(initialGrid.widths.length,8);
-    const density=await page.evaluate(()=>{
-      const height=selector=>document.querySelector(selector).getBoundingClientRect().height;
-      return {
-        filter:height('.pr-controls select'),
-        row:height('.pr-table tbody tr:not(.pr-expanded):not(.pr-total-row)'),
-        total:height('.pr-total-row'),
-        csv:height('.pr-export'),
-        width:document.querySelector('.pr-table').getBoundingClientRect().width
-      };
-    });
-    assert.ok(density.filter<=39 && density.csv<=39,"Compact controls too tall: "+JSON.stringify(density));
-    assert.ok(density.row<=44 && density.total<=48,"Compact table too tall: "+JSON.stringify(density));
-    assert.ok(density.width<=820,"Table width must be compact: "+JSON.stringify(density));
-    assert.equal(await table.locator("tbody>tr").count(),7);
-    assert.equal(await page.locator(".pr-metrics").count(),0,"Old summary cards must be absent");
-    assert.match(await table.locator("thead").innerText(),/Доля компании/);
-    const firstTotal=(await table.locator("tbody>tr:first-child").innerText()).replace(/\s+/g," ");
-    assert.match(firstTotal,/Итого/);
-    assert.match(firstTotal,/27 000/);
-    assert.match(firstTotal,/15 000/);
-    assert.match(firstTotal,/6 500/);
-    assert.match(firstTotal,/8 500/);
-    assert.doesNotMatch(await page.locator(".pr-note").innerText(),/Без расчёта доли/);
-    await page.locator('.pr-controls select[aria-label="Статус заказов"]').selectOption("unpaid");
-    assert.equal(await table.locator("tbody>tr").count(),3);
-    const unpaidTotal=(await table.locator("tbody>tr:first-child").innerText()).replace(/\s+/g," ");
-    assert.match(unpaidTotal,/12 000/);
-    assert.match(unpaidTotal,/0 ₽/);
-    assert.match(await page.locator(".pr-note").innerText(),/1 из 1/);
-    const filteredGrid=await checkAlignment();
-    assert.deepEqual(filteredGrid.errors,[],JSON.stringify(filteredGrid));
-    assert.deepEqual(filteredGrid.widths,initialGrid.widths,
-      "All table widths should remain fixed when order filters change");
-    await page.locator('.pr-controls select[aria-label="Статус заказов"]').selectOption("");
-    await page.locator(".pr-controls input[type=search]").fill("#00012");
-    assert.equal(await table.locator("tbody>tr").count(),3);
-    const searchedTotal=(await table.locator("tbody>tr:first-child").innerText()).replace(/\s+/g," ");
-    assert.match(searchedTotal,/10 000/);
-    await page.locator(".pr-row-open").click();
-    assert.equal(await page.locator(".pr-expanded:not([hidden])").count(),1);
-    const downloadPromise=page.waitForEvent("download");
-    await page.locator(".pr-export").click();
-    const download=await downloadPromise;
-    assert.match(download.suggestedFilename(),/rabota-profit-orders-.*\.csv/);
-    await back.click();
-    assert.equal(await profitHeading.isVisible(),false,"Report detail heading leaves with its content");
-    assert.equal(await page.locator(".pr-menu").isVisible(),true,"Back returns to the report list");
-    await page.locator(".pr-menu .pr-report-link").click();
-    assert.equal(await page.locator(".pr-detail").isVisible(),true,"Report can reopen after going back");
-    if(iphone){
-      const size=await page.evaluate(()=>({
-        pageWidth:document.documentElement.scrollWidth,
-        viewport:window.innerWidth,
-        tableOverflow:document.querySelector(".pr-scroll").scrollWidth>
-          document.querySelector(".pr-scroll").clientWidth
-      }));
-      assert.ok(size.pageWidth<=size.viewport+1,"Mobile page has horizontal overflow: "+JSON.stringify(size));
-      assert.ok(size.tableOverflow,"Order table must scroll inside its own viewport");
-      const rightGrid=await checkAlignment(true);
-      assert.deepEqual(rightGrid.errors,[],JSON.stringify(rightGrid));
-      assert.ok(rightGrid.scrollLeft>0,"The fixed-width grid should be horizontally scrollable");
-    }
-    await context.close();
-  }finally{await browser.close()}
+    const f=await appFixture(browser,390,"manager");
+    try{
+      await f.page.locator("#ordersArea").waitFor();
+      assert.equal(await f.page.locator("#rdReports").getByRole("button",{name:/Прибыль по заказам/}).count(),0);
+      assert.equal(await f.page.locator(".pr-net-card:visible").count(),0);
+      assert.deepEqual(f.writes,[]);
+      for(const resource of ["operations","rabota_cashbook_entries"])assert.ok(!f.requests.includes(resource));
+    }finally{await f.close();}
+    console.log("PASS",engine,"iPhone 320/375/390/430, owner finance, responsive shell, order filters, chart, details, CSV and manager access");
+  }finally{await browser.close();}
 }
-async function checkRaulPortal(name,shouldHaveProfit){
-  const browser=await launch(webkit);
+async function checkRaulPortal(browserType,name,shouldHaveProfit){
+  const browser=await launch(browserType);
   try{
     const context=await browser.newContext({viewport:{width:390,height:844},isMobile:true,hasTouch:true,colorScheme:"dark",serviceWorkers:"block"});
     await context.route("**/*",route=>route.abort());
@@ -232,19 +384,18 @@ async function checkRaulPortal(name,shouldHaveProfit){
     }
     assert.equal(await entry.count(),1);
     await entry.click();
-    assert.equal(await page.locator('.pr-total-row').count(),1);
-    const orderText=await page.locator('#mwMasterReports .pr-table').innerText();
+    const panel=page.locator("#mwMasterReports .pr-detail");
+    await waitView(panel,"overview");
+    assert.equal(number(await metric(panel,"count").innerText()),1);
+    assert.equal(await panel.locator(".pr-net-card:visible").count(),0,"A master never sees company net profit");
+    await tab(panel,"Заказы").click();
+    const orderText=await row(panel,"raul").innerText();
     assert.match(orderText,/№00012/);
-    assert.doesNotMatch(orderText,/№99999|Чужой клиент|100 000/);
-    const dimensions=await page.evaluate(()=>({
-      width:document.documentElement.scrollWidth,
-      viewport:window.innerWidth,
-      cell:document.querySelector('.pr-table tbody tr:not(.pr-total-row)').getBoundingClientRect().height
-    }));
-    assert.ok(dimensions.width<=dimensions.viewport+1,"Raul's report causes page overflow: "+JSON.stringify(dimensions));
-    assert.ok(dimensions.cell<=44,"Raul's report has oversized rows: "+JSON.stringify(dimensions));
+    assert.doesNotMatch(await panel.innerText(),/№99999|Чужой клиент|100 000/);
+    await assertNoHorizontalOverflow(page,panel);
     await page.locator('#mwMasterReports .pr-back').click();
-    assert.equal(await entry.count(),1,"Back should return to Raul's Reports menu");
+    if(await panel.isVisible())await page.locator('#mwMasterReports .pr-back').click();
+    assert.equal(await entry.isVisible(),true,"Back returns to Raul's Reports menu");
     assert.deepEqual(errors,[],"Isolated master portal has no JavaScript errors");
     await context.close();
   }finally{await browser.close()}
@@ -295,6 +446,46 @@ async function checkOwnerPayroll(browserType,iphone){
     await context.close();
   }finally{await browser.close()}
 }
+async function checkDenseChart(browserType){
+  const browser=await launch(browserType);
+  try{
+    const context=await browser.newContext({viewport:{width:320,height:844},isMobile:true,hasTouch:true,serviceWorkers:"block"});
+    await context.route("**/*",route=>route.abort());
+    const page=await context.newPage();
+    await page.setContent('<meta name="viewport" content="width=device-width,initial-scale=1"><section id="rdReports"></section>');
+    await page.addStyleTag({path:reportCss});
+    await page.addScriptTag({path:reportJs});
+    await page.evaluate(()=>{
+      const orders=Array.from({length:12},(_,index)=>{
+        const stamp="2026-"+String(index+1).padStart(2,"0")+"-01T08:00:00Z";
+        return {id:"month-"+index,name:"Тестовый заказ",completedAt:stamp,createdAt:stamp,
+          price:1000,paid:true,paymentAmount:1000,status:"Выполнен",assignedUserId:"fixture-master"};
+      });
+      window.__rdCreateProfitReport(document.getElementById("rdReports"),{
+        startOpen:true,getOrders:()=>orders,getPayroll:()=>({state:"active",orders:[],accounting:{
+          receipts:orders.map(order=>({orderId:order.id,amount:1000,masterId:"fixture-master"}))
+        }})
+      });
+    });
+    const panel=report(page);
+    await applyFilters(panel,{period:"all"});
+    const points=chart(panel);
+    assert.equal(await points.count(),12);
+    const hits=await points.evaluateAll(buttons=>buttons.map(button=>{
+      button.scrollIntoView({block:"center"});
+      const {x,y,width,height}=button.getBoundingClientRect();
+      const hit=document.elementFromPoint(x+width/2,y+height/2)?.closest(".pr-chart-point");
+      return buttons.indexOf(hit);
+    }));
+    assert.deepEqual(hits,Array.from({length:12},(_,index)=>index),
+      "At 320px neighboring monthly markers must not intercept taps at each other's center");
+    await points.first().tap();
+    assert.equal(await points.first().getAttribute("aria-pressed"),"true");
+    await points.nth(1).tap();
+    assert.equal(await points.nth(1).getAttribute("aria-pressed"),"true");
+    await context.close();
+  }finally{await browser.close()}
+}
 async function checkVersionedReport(browserType){
   const browser=await launch(browserType);
   try{
@@ -336,34 +527,48 @@ async function checkVersionedReport(browserType){
         getFinanceStatus:()=>({ready:true,revision:1})
       });
     });
-    await page.getByLabel("Период отчёта").selectOption("all");
-    const body=page.locator(".pr-table tbody");
-    const row=name=>body.locator("tr").filter({has:page.getByRole("button",{name,exact:true})});
-    const normalized=async cells=>(await cells.allInnerTexts()).map(value=>value.replace(/\s+/g,""));
-    assert.deepEqual((await normalized(row("№00001").locator("td"))).slice(-3),["16000₽","9500₽","6500₽"]);
-    assert.deepEqual((await normalized(row("№00002").locator("td"))).slice(-3),["—","—","—"]);
-    assert.deepEqual((await normalized(row("№00003").locator("td"))).slice(-3),["Возврат","—","—"]);
-    assert.deepEqual((await normalized(row("№00004").locator("td"))).slice(-3),["10000₽","Насверке","—"]);
-    assert.deepEqual((await normalized(row("№00315").locator("td"))).slice(-3),["20000₽","11500₽","8500₽"]);
-    await row("№00004").getByRole("button").click();
-    assert.match(await body.locator(".pr-expanded:visible").innerText(),/Находится подтверждение выплаты/);
-    const total=await normalized(body.locator(".pr-total-row > *"));
-    assert.deepEqual(total.slice(-3),["46000₽","21000₽","15000₽"]);
-    await page.getByLabel("Статус заказов").selectOption("paid");
-    assert.equal(await row("№00003").count(),0,"a refunded order is excluded from net paid orders");
-    await page.getByLabel("Поиск по заказам").fill("№00004");
-    assert.deepEqual((await normalized(body.locator(".pr-total-row > *"))).slice(-3),["10000₽","—","—"]);
+    const panel=report(page);
+    await waitView(panel,"overview");
+    assert.equal(number(await metric(panel,"count").innerText()),5);
+    assert.match(await panel.locator(".pr-paid-count").innerText(),/3\s*оплачен/i);
+    const amounts=await Promise.all(["revenue","salary","profit"].map(key=>metric(panel,key).innerText()));
+    assert.deepEqual(amounts.map(number),[46000,21000,15000]);
+    await tab(panel,"Заказы").click();
+    const byOrder=(id)=>row(panel,id);
+    assert.match(await byOrder("earned").innerText(),/6[\s\u00a0\u202f]*500/);
+    assert.match(await byOrder("partial").innerText(),/На сверке/i);
+    assert.match(await byOrder("refunded").innerText(),/Возврат/);
+    assert.match(await byOrder("cash-hold").innerText(),/№00315/);
+    const back=panel.locator(".pr-back");
+    for(const [id,reasons] of [
+      ["earned",[/16\s*000/,/9\s*500/,/6\s*500/]],
+      ["payroll-hold",[/10\s*000/,/Находится подтверждение выплаты/,/на сверке/i]],
+      ["cash-hold",[/20\s*000/,/11\s*500/,/8\s*500/,/Не подтверждён остаток у мастера/]],
+      ["refunded",[/Возврат/,/10\s*000/]]
+    ]){
+      await byOrder(id).click();
+      await waitView(panel,"order");
+      const details=rounded(await financeDetail(panel).innerText());
+      for(const reason of reasons)assert.match(details,reason,id);
+      await back.click();
+      await waitView(panel,"orders");
+    }
+    await applyFilters(panel,{status:"paid"});
+    assert.equal(await byOrder("refunded").count(),0,"A refunded order is excluded from paid orders");
     await context.close();
   }finally{await browser.close()}
 }
 (async()=>{
-  await run(chromium,false);
-  await run(webkit,true);
-  await checkRaulPortal("Рауль",true);
-  await checkRaulPortal("Олег",false);
+  const engines=process.env.TEST_BROWSER==="chromium"?[[chromium,"chromium"]]:
+    process.env.TEST_BROWSER==="webkit"?[[webkit,"webkit"]]:[[chromium,"chromium"],[webkit,"webkit"]];
+  for(const [engine,name] of engines){
+    await ownerDashboard(engine,name);
+    await checkDenseChart(engine);
+    await checkRaulPortal(engine,"Рауль",true);
+    await checkRaulPortal(engine,"Олег",false);
+    await checkVersionedReport(engine);
+  }
   await checkOwnerPayroll(chromium,false);
   await checkOwnerPayroll(webkit,true);
-  await checkVersionedReport(chromium);
-  await checkVersionedReport(webkit);
   process.stdout.write("Reports browser checks passed: orders, owner salary, Raul permissions, versioned holds, refunds and profit\n");
 })().catch(err=>{console.error(err);process.exitCode=1});

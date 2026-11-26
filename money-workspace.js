@@ -332,19 +332,25 @@
     focus?.focus({preventScroll:true});
   }
   function closeMasterReport(){showMasterReport("menu");}
+  function updateMasterProfitHeader(){
+    const report=masterProfitReport?.api;
+    if(page==="reports"&&step==="orderProfit"&&report)
+      window.__rdSetScreenHeader?.(report.title(),report.back,report.backLabel());
+  }
   function renderMaster(){
     const root=$("mwMasterReports");if(!root||root.hidden)return;
     const m=api()?.snapshot();
     if(!m||m.role!=="master")return;
     const isRaul=String(m.masterName||"").trim().toLocaleLowerCase("ru")==="рауль";
     if(step==="orderProfit"&&!isRaul)step="menu";
+    if(step==="orderProfit"&&masterProfitReport?.container?.isConnected){
+      updateMasterProfitHeader();
+      masterProfitReport.api.render();return;
+    }
     const embedded=typeof window.__rdSetScreenHeader==="function";
     const title=step==="orderProfit"?"Прибыль по заказам":step==="detail"?"Зарплата":"Отчёты";
     if(embedded)window.__rdSetScreenHeader(title,step==="menu"?null:closeMasterReport,
       step==="menu"?"Назад":"Назад к отчётам");
-    if(step==="orderProfit"&&masterProfitReport?.container?.isConnected){
-      masterProfitReport.api.render();return;
-    }
     if(step==="detail"&&masterPayrollReport?.container?.isConnected){
       masterPayrollReport.api.render();return;
     }
@@ -389,9 +395,11 @@
         getFinanceStatus:()=>api()?.snapshot(),
         getPayroll:()=>window.__rdPayrollSnapshot?.(),
         onRetry:financeRetry,
+        onViewChange:updateMasterProfitHeader,
         startOpen:true,embedded,onBack:closeMasterReport
       });
       masterProfitReport={container,api:report};
+      updateMasterProfitHeader();
       return;
     }
     if(window.__rdPayrollReport?.mount){
@@ -745,7 +753,7 @@
     const master=api()?.snapshot();
     if(master?.role==="owner"&&ownerView?.panel.isConnected)updateOwnerPayments();
     const focus=document.activeElement;
-    if(page==="reports"&&(step==="detail"||!focus?.closest?.("#mwMasterReports")))renderMaster();
+    if(page==="reports"&&(step!=="menu"||!focus?.closest?.("#mwMasterReports")))renderMaster();
     if(page!=="payments")return;
     const payments=$("mwMasterPayments");
     if(!payments||payments.hidden)return;

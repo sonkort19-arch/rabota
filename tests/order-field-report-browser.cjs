@@ -289,16 +289,16 @@ async function detailAndParity(page, panel, table) {
   await assertTotals(table, [8, 100, 29000.19, 12300.51, 215.01, 16484.67, 5800.04]);
   await reportBack(page).click();
   await page.getByRole("button", { name: /^Прибыль по заказам(?:\s*›)?$/ }).click();
-  const legacy = page.locator(".pr-detail:visible");
-  await legacy.getByLabel("Период отчёта").selectOption("all");
-  const base = await cellValues(legacy.locator(".pr-total-row"));
-  assert.equal(amount(base[5]), 29000.19, "existing orders report has identical verified revenue");
-  assert.equal(amount(base[6]), 10500.51, "existing wash salary plus 1800 road salary equals grouped salary");
-  assert.equal(amount(base[7]), 17499.68, "existing wash share less 800 uncovered road and 215.01 linked expenses equals grouped profit");
-  const compatible = await Promise.all(["salary", "expenses", "profit", "average"].map(metric =>
-    legacy.locator('[data-report-metric="' + metric + '"]').textContent()));
-  assert.deepEqual(compatible.map(amount), [12300.51, 215.01, 16484.67, 5800.04],
-    "the existing report shows the same full-cost financial KPIs with the same period");
+  const profit = page.locator(".pr-detail:visible");
+  await profit.locator(".pr-filter-button").click();
+  await profit.getByRole("radio", { name: "За всё время", exact: true }).check();
+  await profit.getByRole("button", { name: "Применить", exact: true }).click();
+  const comparable = await Promise.all(["count", "revenue", "salary", "profit"].map(metric =>
+    profit.locator('.pr-metric[data-metric="' + metric + '"] strong').textContent()));
+  assert.deepEqual(comparable.map(amount), [8, 29000.19, 12300.51, 16484.67],
+    "both reports show identical confirmed revenue, salary with travel, and profit after linked expenses");
+  assert.match(normalize(await profit.locator(".pr-average").innerText()), /5\s*800,04/,
+    "both reports derive the same average from the confirmed paid orders");
 }
 
 async function incompleteOverview(browser, engine) {

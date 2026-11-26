@@ -494,6 +494,10 @@ function build(){
       getFinanceStatus:()=>window.__rdFinanceStatus?.()};
    profitReport=window.__rdCreateProfitReport?.(reportsRoot,{...financialReportData,
       embedded:true,
+      getCompanyStatus:()=>currentRole==="owner"?window.__rdMoneyUi?.cashbookSnapshot?.():null,
+      onLoadCompany:force=>currentRole==="owner"?window.__rdMoneyUi?.cashbook?.({force}):null,
+      onRetry:()=>window.__rdMoneyUi?.refreshFinance?.(),
+      onViewChange:()=>updateOwnerReportHeader(),
       onOpenChange:open=>{
         updateOwnerReportHeader();
         restoreVerticalScroll(0);
@@ -557,7 +561,8 @@ function build(){
      updateOwnerReportHeader=()=>{
        if(activePage!=="reports")return;
        if(!salaryRoot.hidden)window.__rdSetScreenHeader?.("Зарплата",closeSalary,"Назад к отчётам");
-       else if(profitReport?.isOpen())window.__rdSetScreenHeader?.("Прибыль по заказам",profitReport.close,"Назад к отчётам");
+       else if(profitReport?.isOpen())
+         window.__rdSetScreenHeader?.(profitReport.title(),profitReport.back,profitReport.backLabel());
        else if(orderFieldReport?.isOpen()){
          const title=orderFieldReport.title();
          window.__rdSetScreenHeader?.(title,orderFieldReport.back,orderFieldReport.isDrilldown()?
@@ -580,6 +585,7 @@ function build(){
      reportGroup("Сотрудники",[["Зарплата","clients",openSalary]]);
    }
  }
+ window.__rdOwnerProfitReportOpen=()=>currentRole==="owner"&&activePage==="reports"&&!app.hidden&&Boolean(profitReport?.isOpen());
  window.__rdReportUpdated=()=>{
    if(activePage==="reports"){profitReport?.render();orderFieldReport?.render();}
  };
@@ -702,6 +708,7 @@ function navigate(key,updateHistory=true){
  else if(key==="reports"){
   updateOwnerReportHeader();
   profitReport?.render();
+  if(changed&&window.__rdOwnerProfitReportOpen())profitReport.refreshCompany();
   if(salaryRoot&&!salaryRoot.hidden)ownerSalaryReport?.render();
   orderFieldReport?.render();
  }
@@ -723,6 +730,7 @@ window.__rdResetOwnerModules=()=>{
  if($("rdOrderSearch"))$("rdOrderSearch").value="";
  window.__rdCloseHeaderMenus?.();
  for(const module of ownerModules.values())module.reset();
+ profitReport?.reset();
  orderFieldReport?.reset();
 };
 function drawChart(parent,values,month){

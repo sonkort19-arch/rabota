@@ -628,10 +628,10 @@ async function cashbookBackNavigation(browser){
     await f.close();
   }
 }
-async function assertReportHeading(page,title){
+async function assertReportHeading(page,title,backLabel="Назад к отчётам"){
   const header=page.locator("#rdScreenHeader");
   const heading=header.getByRole("heading",{name:title,exact:true});
-  const back=header.getByRole("button",{name:"Назад к отчётам",exact:true});
+  const back=header.getByRole("button",{name:backLabel,exact:true});
   assert.equal(await heading.count(),1,"The current report is named in the shared header");
   assert.equal(await page.getByRole("heading",{name:title,exact:true}).count(),1);
   assert.equal(await page.locator("#appScreen :is(.pr-heading,.fp-report-head)").count(),0);
@@ -672,25 +672,30 @@ async function ownerReports(browser){
     await page.goto(origin+"/?view=reports");
     const profitEntry=page.locator("#rdReports .pr-menu .pr-report-link").filter({hasText:"Прибыль по заказам"});
     await profitEntry.click();
-    const table=page.locator(".pr-table");
-    await table.waitFor();
+    const profit=page.locator("#rdReports .pr-detail");
+    await profit.locator('.pr-metric[data-metric="profit"] strong').waitFor();
     const back=page.locator("#rdScreenBack");
     await assertReportHeading(page,"Прибыль по заказам");
-    await page.locator(".pr-row-open").first().click();
+    await profit.locator(".pr-tabs").getByRole("button",{name:"Заказы",exact:true}).click();
+    await profit.locator(".pr-order-row").first().click();
+    const order=profit.locator(".pr-order-detail:visible");
+    const accepted=await order.innerText();
+    const orderTitle=await page.locator("#rdScreenHeader #appTitle").innerText();
+    assert.notEqual(orderTitle,"Прибыль по заказам");
+    await assertReportHeading(page,orderTitle,"Назад к заказам");
     await dock(page,"finance").click();
     assert.equal(await back.isVisible(),false);
     await dock(page,"reports").click();
-    await assertReportHeading(page,"Прибыль по заказам");
-    await page.evaluate(()=>{window.initialTotal=document.querySelector(".pr-total-row");});
+    await assertReportHeading(page,orderTitle,"Назад к заказам");
     state.fail.add("rabota_finance_operations");
     await page.evaluate(()=>void window.__rdMoneyUi.refreshFinance());
-    await page.getByText(/Показан последний рассчитанный отчёт/).waitFor();
-    assert.equal(await table.isVisible(),true);
-    assert.equal(await page.locator(".pr-export").isDisabled(),true);
-    assert.equal(await page.locator(".pr-expanded:not([hidden])").count(),1);
-    assert.equal(await page.evaluate(()=>window.initialTotal===document.querySelector(".pr-total-row")),true);
-    await page.locator(".pr-retry").click();
-    await page.waitForFunction(()=>!document.querySelector(".pr-export").disabled);
+    await profit.locator(".pr-retry").waitFor();
+    assert.equal(await order.innerText(),accepted,"A failed refresh preserves the selected order and accepted amounts");
+    await back.click();
+    const exportButton=profit.locator(".pr-export");
+    assert.equal(await exportButton.isDisabled(),true);
+    await profit.locator(".pr-retry").click();
+    await page.waitForFunction(()=>!document.querySelector("#rdReports .pr-export").disabled);
     await back.click();
     assert.equal(await profitEntry.isVisible(),true);
     assert.equal(await profitEntry.evaluate(node=>node===document.activeElement),true);

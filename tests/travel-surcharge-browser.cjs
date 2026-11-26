@@ -267,13 +267,16 @@ async function paymentWorkflow(browser) {
     await go(page, "reports");
     if (await page.locator("#rdSalaryReport").isVisible()) await page.locator("#rdScreenBack").click();
     await page.getByRole("button", { name: /^Прибыль по заказам/ }).click();
-    const profit = page.locator(".pr-table tbody tr").filter({ hasText: name });
-    await profit.getByRole("button", { name: "№10121", exact: true }).click();
-    const profitDetail = await page.locator(".pr-expanded:not([hidden])").innerText();
-    amountNearLabel(profitDetail, "Итого по заказу", 11000);
-    amountNearLabel(profitDetail, "Получено за дорогу", 1000);
-    amountNearLabel(profitDetail, "Начислено за дорогу", 1000);
+    const report = page.locator("#rdReports .pr-detail");
+    await report.locator(".pr-tabs").getByRole("button", { name: "Заказы", exact: true }).click();
+    const profit = report.locator(".pr-order-row").filter({ hasText: name });
+    assert.match(await profit.innerText(), /№10121/);
     assert.match(stripSpaces(await profit.innerText()), /3500(?:,00)?₽/);
+    await profit.click();
+    const profitDetail = await report.locator(".pr-order-detail:visible").innerText();
+    amountNearLabel(profitDetail, "Оплата клиента|Итого по заказу", 11000);
+    amountNearLabel(profitDetail, "Поступило за дорогу|Получено за дорогу|Дорога", 1000);
+    amountNearLabel(profitDetail, "Начислено за дорогу|За дорогу", 1000);
   } finally {
     await f.close();
   }

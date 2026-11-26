@@ -1,7 +1,8 @@
 "use strict";
 const test=require("node:test");
 const assert=require("node:assert/strict");
-const {reportRow,summary,filterRows,bounds,moscowDay,csvFor}=require("../profit-report.js");
+const {reportRow,summary,financialSummary,filterRows,selectReportRows,bounds,moscowDay,csvFor,
+  reconciliationReasons,profitTrend,companySummary,sortReportRows,orderProfit}=require("../profit-report.js");
 function order(fields={}){
   return {id:"a",orderNumber:12,referenceCode:"№00012",createdAt:"2026-11-12T12:00:00Z",
     completedAt:"2026-11-13T15:00:00Z",date:"2026-11-13",name:"Клиент",
@@ -204,7 +205,7 @@ test("profit report records the full customer payment while reporting travel rec
   assert.equal(row.reportTravelUncovered,0);
   const csv=csvFor([row]);
   assert.match(csv,/Поступило за дорогу/);
-  assert.match(csv,/;10000;11000;6500;3500;.*;1000;11000;1000;0;1000;0$/);
+  assert.match(csv,/;10000;11000;6500;3500;.*;1000;11000;1000;0;1000;0;7500;0;3500$/);
 
   payroll.orders=[];
   payroll.accounting.refunds=[{orderId:"a",amount:11000,travelAmount:1000}];
@@ -264,8 +265,10 @@ test("owner reports navigation retains salary scope outside build()",()=>{
   assert.match(ui,/calendarOpened=false,profitReport=null,salaryRoot=null,ownerSalaryReport=null/);
   assert.match(ui,/salaryRoot=makeNode\("div","rd-salary-report"\)/);
   assert.doesNotMatch(ui,/const salaryRoot=makeNode/);
-  assert.match(ui,/else if\(key==="reports"\)\{\s*updateOwnerReportHeader\(\);\s*profitReport\?\.render\(\);\s*if\(salaryRoot/);
-  assert.match(ui,/__rdSetScreenHeader\?\.\("Прибыль по заказам",profitReport\.close,"Назад к отчётам"\)/);
+  const reportsNav=ui.match(/else if\(key==="reports"\)\{([\s\S]*?)\n \}/)?.[1];
+  assert.match(reportsNav,/updateOwnerReportHeader\(\);\s*profitReport\?\.render\(\);/);
+  assert.match(reportsNav,/if\(salaryRoot&&!salaryRoot\.hidden\)ownerSalaryReport\?\.render\(\)/);
+  assert.match(ui,/__rdSetScreenHeader\?\.\(profitReport\.title\(\),profitReport\.back,profitReport\.backLabel\(\)\)/);
 });
 
 test("CSV never labels unpaid orders as having a recorded payment",()=>{
@@ -273,4 +276,110 @@ test("CSV never labels unpaid orders as having a recorded payment",()=>{
   const csv=csvFor([row]);
   assert.match(csv,/Не оплачено/);
   assert.doesNotMatch(csv,/Сумма указана/);
+});
+
+test("company profit deducts direct order costs once and only common ledger expenses within the Moscow period",()=>{
+  const orders=[order(),order({id:"out-of-range",orderNumber:40,completedAt:"2026-10-16T10:00:00Z"})];
+  const operations=[
+    {id:"direct-id",kind:"expense",order_id:"a",amount:"250.55",created_at:"2026-10-20T10:00:00Z"},
+    {id:"direct-note",kind:"expense",note:"[Материалы] Кран · Заказ №12",amount:"49.45",created_at:"2026-11-13T10:00:00Z"},
+    {id:"outside-order",kind:"expense",order_id:"out-of-range",amount:700,created_at:"2026-11-10T10:00:00Z"},
+    {id:"orphan-link",kind:"expense",note:"[Материалы] Кран · Заказ №230",amount:950,created_at:"2026-11-13T10:00:00Z"},
+    {id:"common",kind:"expense",amount:1000,created_at:"2026-11-01T10:00:00Z"},
+    {id:"common",kind:"expense",amount:"100.10",occurredAt:"2026-11-30T20:59:59Z"},
+    {id:"next-month",kind:"expense",amount:400,created_at:"2026-11-30T21:00:00Z"},
+    {id:"void",kind:"expense",amount:800,created_at:"2026-11-12T10:00:00Z",voided_at:"2026-11-30T23:00:00Z"}
+  ];
+  const cashbookEntries=[
+    {id:"cashbook",kind:"expense",amount:730,created_at:"2026-11-11T10:00:00Z"},
+    {id:"cashbook",kind:"expense",amount:"25.65",created_at:"2026-11-21T10:00:00Z"},
+    {id:"income",kind:"income",amount:900,created_at:"2026-11-11T10:00:00Z"},
+    {id:"transfer",kind:"transfer",amount:350,created_at:"2026-11-11T10:00:00Z"},
+    {id:"next-cash",kind:"expense",amount:300,occurredAt:"2026-11-30T21:00:00Z"}
+  ];
+  const filters={period:"month",today:"2026-11-30",basis:"closed"};
+  const rows=filterRows(orders,{...filters,payroll:defaultPayroll,operations});
+  assert.equal(rows[0].reportExpenses,300);
+  assert.deepEqual(rows[0].reportExpenseItems,[
+    {label:"Расход по заказу",amount:250.55},{label:"Кран",amount:49.45}
+  ]);
+  assert.deepEqual(companySummary(rows,{...filters,operations,cashbookEntries}),{
+    orderProfit:3200,crmExpenses:100.10,cashbookExpenses:25.65,commonExpenses:125.75,netProfit:3074.25
+  });
+  assert.equal(companySummary(rows,{...filters,operations,cashbookEntries:null}),null);
+});
+
+test("company profit agrees with the cashbook all-time result for the same confirmed scope",()=>{
+  const {calculateRecordedCashFlow}=require("../finance-model.js");
+  const payroll={...defaultPayroll,holds:[],refunds:[],accounting:{...defaultPayroll.accounting,
+    payouts:[{id:"salary-paid",amount:6000,method:"cash"}]}};
+  const operations=[{id:"direct",kind:"expense",order_id:"a",amount:500},{id:"general",kind:"expense",amount:200}];
+  const cashbookEntries=[{id:"owner-expense",kind:"expense",amount:25.50},{id:"owner-income",kind:"income",amount:300}];
+  const rows=filterRows([order()],{payroll,operations});
+  const company=companySummary(rows,{operations,cashbookEntries});
+  const ledger=calculateRecordedCashFlow({payroll,operations,manualEntries:cashbookEntries});
+  assert.equal(company.netProfit,2774.50);
+  assert.equal(company.netProfit,ledger.companyProfit);
+});
+
+test("profit chart separates missing calculations from true zero and groups Moscow dates into bounded points",()=>{
+  const dated=(id,day,fields={})=>order({id,completedAt:day?day+"T02:00:00Z":null,...fields});
+  const paid=dated("a","2026-11-03");
+  const loss=dated("loss","2026-11-10",{paid:false});
+  const unknown=dated("review","2026-11-17");
+  const unpaid=dated("unpaid","2026-11-17",{paid:false});
+  const refund=dated("refund","2026-11-25",{completedAt:"2026-11-24T21:00:00Z"});
+  const undated=dated("undated",null,{paid:false});
+  const payroll=payrollFor([receipt("a",10000),receipt("refund",10000)],defaultPayroll.orders,
+    {refunds:[{orderId:"refund",amount:10000}]});
+  const rows=filterRows([paid,loss,unknown,unpaid,refund,undated],{payroll,
+    operations:[{id:"loss-cost",order_id:"loss",kind:"expense",amount:500.25}]});
+  const graph=profitTrend(rows,{period:"month",today:"2026-11-29"});
+  assert.equal(graph.granularity,"week");
+  assert.equal(graph.undated,1);
+  assert.deepEqual(graph.points.map(({from,to,profit,orders,unverified})=>[from,to,profit,orders,unverified]),[
+    ["2026-11-01","2026-11-01",0,0,0],
+    ["2026-11-02","2026-11-08",3500,1,0],
+    ["2026-11-09","2026-11-15",-500.25,1,0],
+    ["2026-11-16","2026-11-22",null,2,1],
+    ["2026-11-23","2026-11-29",0,1,0]
+  ]);
+  const decades=profitTrend(filterRows([dated("old","1990-01-01"),dated("new","2026-11-29")]));
+  assert.equal(decades.granularity,"year");
+  assert.ok(decades.points.length<=12);
+  assert.equal(decades.points.at(-1).to,"2026-11-29");
+});
+
+test("paid count uses confirmed receipts and reconciliation does not withhold a cash-only confirmed profit",()=>{
+  const held="Архивная операция на сверке";
+  const payroll=payrollFor([receipt("a",10000),receipt("refund",10000)],defaultPayroll.orders,{
+    holds:[{orderId:"a",cashOnHold:true,reason:held}],refunds:[{orderId:"refund",amount:10000}]
+  });
+  const rows=filterRows([order(),order({id:"unverified",paymentAmount:null}),order({id:"refund"}),
+    order({id:"unpaid",paid:false,paymentAmount:null})],{payroll});
+  const stats=financialSummary(rows);
+  assert.deepEqual([stats.count,stats.paid,stats.average,stats.unverified],[4,1,10000,1]);
+  assert.deepEqual(reconciliationReasons(rows.find(row=>row.id==="a")),[held]);
+  assert.equal(orderProfit(rows.find(row=>row.id==="a")),3500);
+  const unverified=rows.find(row=>row.id==="unverified");
+  assert.ok(reconciliationReasons(unverified).includes("Оплата отсутствует в учёте"));
+  assert.equal(orderProfit(unverified),null);
+  assert.match(csvFor([unverified]).split("\r\n")[1],/;"";0;""$/);
+  assert.deepEqual(selectReportRows(rows,{status:"paid"}).map(row=>row.id),["a"]);
+  assert.deepEqual(selectReportRows(rows,{status:"unpaid"}).map(row=>row.id),["unpaid"]);
+  const receiptOnly=filterRows([order({id:"a",paid:false})],{payroll,status:"paid"});
+  assert.equal(receiptOnly.length,1,"a recorded receipt takes precedence over the order flag");
+});
+
+test("order search and sorting reuse projected rows and put unknown values last",()=>{
+  const records=[order({id:"new",name:"Анна",phone:"79001234567",completedAt:"2026-11-19T12:00:00Z"}),
+    order({id:"loss",name:"Зоя",completedAt:"2026-11-15T12:00:00Z"}),
+    order({id:"review",name:"Михаил",completedAt:null})];
+  const payroll=payrollFor([receipt("new",10000,"oleg"),receipt("loss",10000,"oleg")]);
+  const rows=filterRows(records,{payroll,operations:[{id:"direct",order_id:"loss",kind:"expense",amount:11000}]});
+  assert.deepEqual(selectReportRows(rows,{search:"79001234567"}).map(row=>row.id),["new"]);
+  assert.deepEqual(sortReportRows(rows,"profit","asc").map(row=>row.id),["loss","new","review"]);
+  assert.deepEqual(sortReportRows(rows,"date","desc").map(row=>row.id),["new","loss","review"]);
+  assert.deepEqual(sortReportRows(rows,"client","asc").map(row=>row.id),["new","loss","review"]);
+  assert.match(csvFor([rows.find(row=>row.id==="loss")]).split("\r\n")[1],/;11000;-1000$/);
 });
