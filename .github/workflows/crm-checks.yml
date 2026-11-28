@@ -1,0 +1,113 @@
+name: CRM checks
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, reopened, synchronize, ready_for_review]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: crm-checks-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  javascript:
+    name: JavaScript regressions
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Run all Node 22 tests without network access
+        shell: bash
+        run: |
+          docker run --rm --network none --read-only --tmpfs /tmp \
+            -v "$GITHUB_WORKSPACE:/repo:ro" -w /repo node:22-bookworm-slim bash -euo pipefail -c '
+              mapfile -t specs < <(find tests -type f \( -name "*.cjs" -o -name "*.js" \) -exec grep -lF "node:test" {} + | sort)
+              test "${#specs[@]}" -gt 0
+              node --test "${specs[@]}" tests/mobile-order-form.js tests/master-notifications.js
+            '
+
+  browser:
+    name: Mobile browser (${{ matrix.browser }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        browser: [chromium, webkit]
+    env:
+      TEST_BROWSER: ${{ matrix.browser }}
+      PLAYWRIGHT_VERSION: '1.62.1'
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: '22'
+      - name: Fetch the matching Playwright library outside the checkout
+        run: npm install --ignore-scripts --no-audit --no-fund --no-save --cache "$RUNNER_TEMP/rabota-npm-cache" --prefix "$RUNNER_TEMP/rabota-pw" "playwright@$PLAYWRIGHT_VERSION"
+      - name: Run existing mobile and operations suites with synthetic fixtures
+        shell: bash
+        run: |
+          docker run --rm --init --network none --shm-size 1g \
+            -v "$GITHUB_WORKSPACE:/repo:ro" -w /repo \
+            -v "$RUNNER_TEMP/rabota-pw/node_modules:/qa-deps:ro" \
+            -e NODE_PATH=/qa-deps -e TEST_BROWSER \
+            "mcr.microsoft.com/playwright:v${PLAYWRIGHT_VERSION}-noble" bash -euo pipefail -c '
+              export TEST_BROWSER_PATH="$(node -p "require(\"playwright\")[process.env.TEST_BROWSER].executablePath()")"
+              for suite in responsive-layout mobile-nav-stability module-navigation-browser unified-orders-browser \
+                finance-stability-browser startup-schedule-browser master-payments-browser travel-surcharge-browser \
+                order-reschedule-browser profit-report-browser ai-stability-browser qa-build-browser; do
+                printf "::group::%s\n" "$suite"
+                node "tests/$suite.cjs"
+                printf "::endgroup::\n"
+              done
+              if [[ "$TEST_BROWSER" == chromium ]]; then
+                CHROMIUM_PATH="$TEST_BROWSER_PATH" node tests/whatsapp-raul-browser.cjs
+              fi
+            '
+
+  postgres:
+    name: PostgreSQL and backup restore
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Check migrations, concurrent writes, access and recovery on synthetic data
+        shell: bash
+        run: |
+          docker run --rm --network none -v "$GITHUB_WORKSPACE:/source:ro" \
+            postgres:17 bash -euo pipefail -c '
+              repo=$(mktemp -d)
+              cp -r /source/sql /source/tests "$repo"
+              chown -R postgres:postgres "$repo"
+              cd "$repo"
+              exec runuser -u postgres -- bash tests/release-db-local.sh
+            '
+      - name: Rehearse QA schema, roles, fixtures and restore
+        run: bash qa/staging/rehearse.sh
+
+  release-checks:
+    name: Release checks
+    if: ${{ always() }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3
+    needs: [javascript, browser, postgres]
+    env:
+      JAVASCRIPT: ${{ needs.javascript.result }}
+      BROWSERS: ${{ needs.browser.result }}
+      POSTGRES: ${{ needs.postgres.result }}
+    steps:
+      - name: Require all automated tests
+        shell: bash
+        run: |
+          printf 'JavaScript: %s\nBrowsers: %s\nPostgreSQL and backup: %s\n' "$JAVASCRIPT" "$BROWSERS" "$POSTGRES"
+          [[ "$JAVASCRIPT" == success && "$BROWSERS" == success && "$POSTGRES" == success ]]

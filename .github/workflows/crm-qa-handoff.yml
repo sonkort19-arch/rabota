@@ -1,0 +1,144 @@
+name: CRM QA handoff
+
+# The target branch provides the code. This job never checks out a candidate
+# or evaluates PR text, even when a contributor opens the PR from a fork.
+on:
+  pull_request_target:
+    branches: [main]
+    types: [opened, reopened, synchronize, ready_for_review, converted_to_draft]
+  workflow_run:
+    workflows: [CRM review signal]
+    types: [completed]
+
+permissions:
+  contents: read
+  pull-requests: write
+  statuses: write
+
+concurrency:
+  group: crm-qa-handoff-${{ github.event.pull_request.number || github.event.workflow_run.pull_requests[0].number || github.run_id }}
+  cancel-in-progress: false
+
+jobs:
+  handoff:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3
+    steps:
+      - name: Update the SHA-specific QA brief
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
+        env:
+          CRM_QA_URL: ${{ vars.CRM_QA_URL }}
+          CRM_QA_REVIEWERS: ${{ vars.CRM_QA_REVIEWERS }}
+        with:
+          script: |
+            const marker = "<!-- crm-qa-handoff -->";
+            const statusContext = "Independent QA";
+            const testers = new Set((process.env.CRM_QA_REVIEWERS || "").toLowerCase().split(/[\s,]+/)
+              .filter(login => /^[a-z0-9](?:[a-z0-9-]{0,37}[a-z0-9])?$/.test(login)));
+            const repoUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}`;
+            let stand;
+            try {
+              const url = new URL(process.env.CRM_QA_URL);
+              if (url.protocol === "https:" && !url.username && !url.password && !url.port &&
+                  !url.search && !url.hash && /^rabota-qa(?:-[a-z0-9-]+)?\.vercel\.app$/.test(url.hostname))
+                stand = url.origin;
+            } catch (_) {
+              // The brief remains useful before the stand URL is configured.
+            }
+
+            async function recordStatus(pr, approvedTesters) {
+              const sha = pr.head.sha;
+              const reviews = await github.paginate(github.rest.pulls.listReviews, {
+                ...context.repo, pull_number: pr.number, per_page: 100
+              });
+              const latest = new Map();
+              for (const review of reviews) {
+                const login = review.user?.login?.toLowerCase();
+                if (!approvedTesters.has(login) || review.commit_id !== sha ||
+                    !["APPROVED", "CHANGES_REQUESTED", "DISMISSED"].includes(review.state)) continue;
+                if (!latest.has(login) || review.id > latest.get(login).id) latest.set(login, review);
+              }
+              const blocker = [...latest.values()].find(review => review.state === "CHANGES_REQUESTED");
+              const approval = [...latest.values()].find(review => review.state === "APPROVED");
+              const state = pr.draft ? "pending" : blocker ? "failure" : approval ? "success" : "pending";
+              const description = pr.draft ? "PR пока в черновике" :
+                blocker ? "Назначенный тестировщик запросил изменения" :
+                approval ? "Назначенный тестировщик одобрил этот коммит" :
+                approvedTesters.size ? "Требуется одобрение назначенного тестировщика для этого коммита" :
+                  "Настройте CRM_QA_REVIEWERS для независимой проверки";
+              const resultReview = state === "success" ? approval : state === "failure" ? blocker : null;
+              await github.rest.repos.createCommitStatus({
+                ...context.repo, sha, state, context: statusContext, description,
+                target_url: resultReview?.html_url ?? pr.html_url
+              });
+            }
+
+            async function updateBrief(pr, approvedTesters) {
+              const sha = pr.head.sha;
+              const defectUrl = new URL(repoUrl + "/issues/new");
+              defectUrl.searchParams.set("template", "qa-report.yml");
+              defectUrl.searchParams.set("title", `[QA] PR #${pr.number} · ${sha.slice(0, 8)} · `);
+              defectUrl.searchParams.set("candidate", `PR #${pr.number} · ${sha}`);
+              const checks = `${pr.html_url}/checks`;
+              const body = [
+                marker,
+                "### Независимая проверка CRM",
+                "",
+                `Кандидат [\`${sha}\`](${repoUrl}/commit/${sha}). [Автоматические проверки](${checks}).`,
+                pr.draft ? "Черновик. Переведите PR в режим проверки, когда стенд готов." : "",
+                stand ? `[Тестовый стенд](${stand}) · [Версия стенда](${stand}/qa-build.json)` :
+                  "Ссылка на стенд появится после настройки переменной репозитория \`CRM_QA_URL\`.",
+                `Сверьте поле \`gitSha\` со значением \`${sha}\`. При расхождении дождитесь публикации этого коммита.`,
+                "",
+                "1. Проверьте сценарии из описания PR и смежные функции на искусственных данных.",
+                `2. Если нашли дефект, [создайте отчёт](${defectUrl.href}) и добавьте ссылку в замечание к PR.`,
+                "3. Укажите проверенный SHA и результат. Выберите **Approve** после успешной проверки или **Request changes** для воспроизводимого дефекта.",
+                "",
+                "Проверка **Independent QA** учитывает решение назначенного тестировщика по этому коммиту. Новый коммит требует повторной проверки."
+              ].join("\n");
+              const comments = await github.paginate(github.rest.issues.listComments, {
+                ...context.repo, issue_number: pr.number, per_page: 100
+              });
+              const existing = comments.find(comment =>
+                comment.user?.login === "github-actions[bot]" && comment.body?.startsWith(marker));
+              if (existing) {
+                if (existing.body !== body) await github.rest.issues.updateComment({
+                  ...context.repo, comment_id: existing.id, body
+                });
+              } else {
+                await github.rest.issues.createComment({...context.repo, issue_number: pr.number, body});
+              }
+
+              if (pr.draft) return;
+              const current = new Set(pr.requested_reviewers.map(reviewer => reviewer.login.toLowerCase()));
+              const reviewers = [...approvedTesters].filter(login => !current.has(login) &&
+                login !== context.actor.toLowerCase());
+              if (reviewers.length) {
+                await github.rest.pulls.requestReviewers({...context.repo, pull_number: pr.number, reviewers});
+              }
+            }
+
+            // workflow_run uses the default branch definition. The preceding workflow
+            // is only a signal; REST supplies the revision and reviews.
+            const reviewSignal = context.eventName === "workflow_run";
+            const numbers = new Set();
+            if (reviewSignal) {
+              const run = context.payload.workflow_run;
+              if (run.event !== "pull_request_review") return;
+              for (const pr of run.pull_requests || []) numbers.add(pr.number);
+              if (!numbers.size && /^[0-9a-f]{40}$/.test(run.head_sha)) {
+                const related = await github.paginate(github.rest.repos.listPullRequestsAssociatedWithCommit, {
+                  ...context.repo, commit_sha: run.head_sha, per_page: 100
+                });
+                for (const pr of related) numbers.add(pr.number);
+              }
+            } else {
+              numbers.add(context.issue.number);
+            }
+            for (const number of numbers) {
+              const { data: pr } = await github.rest.pulls.get({...context.repo, pull_number: number});
+              if (pr.state !== "open" || pr.base.ref !== "main" || !/^[0-9a-f]{40}$/.test(pr.head.sha)) continue;
+              const allowed = new Set([...testers].filter(login => login !== pr.user.login.toLowerCase()));
+              await recordStatus(pr, allowed);
+              if (!reviewSignal) await updateBrief(pr, allowed);
+            }
